@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "batch_20261126_143005",
+  "run_id": "01JDA4B7C8D9E0F1G2H3J4K5M6",
+  "finished_at": "2026-11-26T16:40:00Z",
+  "counts": {
+    "ok": 2,
+    "no_speech": 0,
+    "failed": 1
+  }
+}

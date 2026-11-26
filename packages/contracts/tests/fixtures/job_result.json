@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "batch_20261126_143005",
+  "item_id": "01JDA3Q5Z8V9K2M4N6P8R0T2W4",
+  "language": "hu",
+  "mode": "normal",
+  "run_id": "01JDA4B7C8D9E0F1G2H3J4K5M6",
+  "status": "ok",
+  "error": null,
+  "aligned": true,
+  "detected": {
+    "language": "hu",
+    "probability": 0.98
+  },
+  "cue_count": 1543,
+  "audio_duration_s": 6021.5,
+  "started_at": "2026-11-26T15:02:11Z",
+  "finished_at": "2026-11-26T15:09:40Z",
+  "engine": {
+    "name": "whisperx",
+    "version": "3.8.6",
+    "model": "large-v3",
+    "compute_type": "float16",
+    "batch_size": 16
+  }
+}

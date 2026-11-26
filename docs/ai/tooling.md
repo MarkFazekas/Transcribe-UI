@@ -39,9 +39,14 @@ uv run mypy <member src dirs>
 uv run pytest <member tests dir>
 ```
 
-A `scripts/check.py` runner (added with the first app code) runs these per workspace member
-in parallel (desktop, worker and contracts at the same time) and prints grouped output. No
-pytest-xdist: the suites are small and process start-up would eat the gain.
+`uv run scripts/check.py [--fix] [target ...]` runs all of these per target in parallel (the
+repo tooling and each workspace member at the same time; steps within a target run in order,
+with a separate mypy cache per target) and prints one block per target. CI runs the same script
+per changed target. No pytest-xdist: the suites are small and process start-up would eat the
+gain.
+
+Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are regenerated with
+`UPDATE_SNAPSHOTS=1 uv run pytest packages/contracts/tests`; review the diff.
 
 ## Dependencies
 
@@ -76,11 +81,13 @@ pytest-xdist: the suites are small and process start-up would eat the gain.
 - New agent definitions are loaded at session start; after editing `.claude/agents/`, restart
   the session.
 
-## CI/CD (planned, added with the first app code)
+## CI/CD
+
+`ci.yml` exists; the release and reaper workflows are added with the apps they ship.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | change detection job; per changed member: ruff format check, ruff, flake8, mypy, pytest (desktop on Ubuntu + Windows); gitlint on PR commits; aggregate `ci-ok` job = required check |
+| `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target) → `check` matrix running `scripts/check.py <target>` (desktop also on Windows once it exists); `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
 | `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS); then a release job (`needs:` all four builds, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the four executables, only if every build and smoke test passed (A13) |
 | `release-worker.yml` | push to `main`, paths `apps/worker/**`, `packages/contracts/**`, `uv.lock` | free runner disk, build the Docker image, run the entry/termination smoke test inside it, push (`sha-<short>`, `latest`, `schema-<major>`; push skipped until the Docker Hub secrets exist, A12) |
 | `reaper.yml` | schedule, every 15 min (A17) | terminate overdue `transcribe-ui-*` pods with a pods-only key |

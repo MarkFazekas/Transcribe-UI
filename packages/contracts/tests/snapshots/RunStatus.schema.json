@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
+    "JobRef": {
+      "description": "Reference to one job of one batch.",
+      "properties": {
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        }
+      },
+      "required": [
+        "batch_id",
+        "item_id",
+        "language"
+      ],
+      "title": "JobRef",
+      "type": "object"
+    },
+    "LanguageCode": {
+      "pattern": "^[a-z]{2,3}$",
+      "type": "string"
+    },
+    "NonEmptyText": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "RunState": {
+      "enum": [
+        "starting",
+        "transcribing",
+        "finished",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "SchemaVersion": {
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    }
+  },
+  "description": "Heartbeat and progress `runs/<run_id>/status.json`, overwritten by the worker.",
+  "properties": {
+    "current": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JobRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "deadline_at": {
+      "format": "date-time",
+      "title": "Deadline At",
+      "type": "string"
+    },
+    "done_jobs": {
+      "minimum": 0,
+      "title": "Done Jobs",
+      "type": "integer"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "pod_id": {
+      "$ref": "#/$defs/NonEmptyText"
+    },
+    "run_id": {
+      "$ref": "#/$defs/Ulid"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion",
+      "default": "1.0"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/RunState"
+    },
+    "total_jobs": {
+      "minimum": 0,
+      "title": "Total Jobs",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "pod_id",
+    "state",
+    "started_at",
+    "updated_at",
+    "deadline_at",
+    "done_jobs",
+    "total_jobs"
+  ],
+  "title": "RunStatus",
+  "type": "object"
+}

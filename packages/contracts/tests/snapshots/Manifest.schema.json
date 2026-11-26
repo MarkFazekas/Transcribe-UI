@@ -1,0 +1,206 @@
+{
+  "$defs": {
+    "AudioExtension": {
+      "pattern": "^[a-z0-9]{1,10}$",
+      "type": "string"
+    },
+    "AudioObject": {
+      "description": "One uploaded audio object of an item.",
+      "properties": {
+        "codec": {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        "duration_s": {
+          "minimum": 0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "extension": {
+          "$ref": "#/$defs/AudioExtension"
+        },
+        "object_key": {
+          "title": "Object Key",
+          "type": "string"
+        },
+        "size_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "track_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Audio track of the source video; None for an audio file uploaded as-is.",
+          "title": "Track Index"
+        }
+      },
+      "required": [
+        "object_key",
+        "track_index",
+        "extension",
+        "codec",
+        "duration_s",
+        "size_bytes"
+      ],
+      "title": "AudioObject",
+      "type": "object"
+    },
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
+    "LanguageCode": {
+      "pattern": "^[a-z]{2,3}$",
+      "type": "string"
+    },
+    "ManifestItem": {
+      "description": "One source media file of a batch.",
+      "properties": {
+        "audio": {
+          "items": {
+            "$ref": "#/$defs/AudioObject"
+          },
+          "minItems": 1,
+          "title": "Audio",
+          "type": "array"
+        },
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "jobs": {
+          "items": {
+            "$ref": "#/$defs/TranscribeJob"
+          },
+          "minItems": 1,
+          "title": "Jobs",
+          "type": "array"
+        },
+        "media_kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "original_path": {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        "source_mtime_ns": {
+          "title": "Source Mtime Ns",
+          "type": "integer"
+        },
+        "source_size": {
+          "minimum": 0,
+          "title": "Source Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "original_path",
+        "source_size",
+        "source_mtime_ns",
+        "media_kind",
+        "audio",
+        "jobs"
+      ],
+      "title": "ManifestItem",
+      "type": "object"
+    },
+    "MediaKind": {
+      "enum": [
+        "audio",
+        "video"
+      ],
+      "type": "string"
+    },
+    "NonEmptyText": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "PathFlavor": {
+      "enum": [
+        "windows",
+        "posix"
+      ],
+      "type": "string"
+    },
+    "SchemaVersion": {
+      "type": "string"
+    },
+    "TranscribeJob": {
+      "description": "One transcription of one item into one language.",
+      "properties": {
+        "audio_object_key": {
+          "title": "Audio Object Key",
+          "type": "string"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        },
+        "mode": {
+          "$ref": "#/$defs/TranscriptionMode"
+        }
+      },
+      "required": [
+        "language",
+        "mode",
+        "audio_object_key"
+      ],
+      "title": "TranscribeJob",
+      "type": "object"
+    },
+    "TranscriptionMode": {
+      "enum": [
+        "normal",
+        "careful"
+      ],
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    }
+  },
+  "description": "Batch manifest: `batch_metadata/<batch_id>.json`, written by the desktop app last.",
+  "properties": {
+    "batch_id": {
+      "$ref": "#/$defs/BatchId"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ManifestItem"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "path_flavor": {
+      "$ref": "#/$defs/PathFlavor"
+    },
+    "scan_root": {
+      "$ref": "#/$defs/NonEmptyText"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion",
+      "default": "1.0"
+    }
+  },
+  "required": [
+    "batch_id",
+    "created_at",
+    "scan_root",
+    "path_flavor",
+    "items"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}
