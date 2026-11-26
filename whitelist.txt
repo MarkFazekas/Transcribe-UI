@@ -5,8 +5,10 @@ backoff
 base32
 casefold
 chunksize
+cjk
 cloudflarestorage
 codec
+coeng
 copyfile
 crockford
 ctranslate2
@@ -21,6 +23,7 @@ formatter
 fromkeys
 fromtimestamp
 fullmatch
+fullwidth
 gc
 getframerate
 getnchannels
@@ -30,8 +33,11 @@ groupby
 hhmmss
 ign
 isalnum
+isalpha
+isdecimal
 isfinite
 islower
+isspace
 iterdir
 joinpath
 levelname
@@ -42,6 +48,7 @@ moto
 ngram
 nowait
 openai
+ord
 paginator
 param
 popen
@@ -76,8 +83,10 @@ strerror
 tmp
 tokenizer
 ulid
+unicodedata
 unittest
 unlink
+unspaced
 untimed
 untracked
 untrusted
@@ -85,6 +94,7 @@ v2
 v3
 vad
 validator
+virama
 watchdog
 wav
 wfile

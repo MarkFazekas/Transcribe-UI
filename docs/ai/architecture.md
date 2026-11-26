@@ -380,9 +380,29 @@ pods-only key is passed as a Runpod secret.
   checks on the raw transcript (empty output; zlib compression ratio > 2.4 in any 500-character
   window, since whole long texts of normal speech reach 2.4–3.0; the same segment repeated; a
   repeated n-gram) → on suspicion, a re-run in careful mode (a `careful` job uses careful mode
-  from the start; if the re-run fails, the first transcript is kept) → consecutive duplicate
-  segments dropped → cue builder (max 42 chars/line, 2 lines, 1–7 s, split at sentence ends,
-  pauses > 0.6 s and clause marks) → SRT. No cues means `no_speech` with an empty SRT.
+  from the start; if the re-run fails, the first transcript is kept) → empty segments dropped
+  and repetition loops (3 or more identical consecutive segments, case and punctuation
+  ignored) collapsed to their first segment; a sentence said twice stays → cue builder (max
+  42 chars/line, 2 lines, 1–7 s, split at sentence ends, pauses > 0.6 s and clause marks; a
+  dot after an initial, a dotted acronym or a one- or two-digit ordinal is no sentence end) → SRT.
+  No cues means `no_speech` with an empty SRT.
+- Cue timing: a cue lasts at least 0.1 s even when engine word times overlap; the later cues
+  move for it, but at most 0.5 s: beyond that, the pile of cues shares the time evenly, so
+  overlapping times cannot shift the rest of the file.
+- Unspaced scripts (Chinese, Japanese, Thai, Lao, Khmer, Myanmar, Tibetan) are detected by
+  character (Unicode block), not by `Transcript.language`, because Whisper output mixes in
+  Latin words. In a segment containing unspaced text, words are joined without a space where
+  the segment text has none between them (WhisperX aligns these languages per character),
+  or, for words not found in the segment text, next to an unspaced character; a segment
+  following unspaced punctuation ("。") is joined too. Spaces the engine wrote (Thai phrase
+  breaks) stay; spaced text is never joined.
+  Unspaced text is split into units (a character with its combining marks and attached
+  punctuation; no break before closing marks or small kana, nor after opening marks) that
+  share the word's time, or the segment's when untimed, in proportion to length, so the
+  line and cue limits hold; lines and cues may break between units. Thai and similar
+  scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
+  width; the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  text (the compression and segment checks still do).
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
   audio, doubled in careful mode) kills that process, the job is `failed`, and the next job
