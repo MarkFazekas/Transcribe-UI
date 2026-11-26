@@ -40,7 +40,9 @@ class _Run:
     deferred: list[str] = field(default_factory=list)
 
     def finish_batch(self, batch_id: str) -> None:
-        finish_batch(self.ports.store, batch_id, self.config.run_id, self.ports.now)
+        ports = self.ports
+        if not finish_batch(ports.store, batch_id, self.config.run_id, ports.now):
+            self.deferred.append(batch_id)
 
     def job_context(self) -> JobContext:
         ports = self.ports
@@ -60,8 +62,8 @@ class _Run:
 def run_worker(config: WorkerConfig, ports: WorkerPorts) -> int:
     """Process every pending job of every ready batch; return the process exit code.
 
-    Failed jobs do not fail the run; only a run that cannot work at all (storage unreachable,
-    engine not starting) returns EXIT_FAILED. An interruption (KeyboardInterrupt, SystemExit)
+    Failed jobs do not fail the run. EXIT_FAILED means the run could not work (storage
+    unreachable, engine not starting) or left jobs without a result in R2 for the next run. An interruption (KeyboardInterrupt, SystemExit)
     is recorded as a failed run and propagates.
     """
     status = start_status(ports.store, config, ports.now)
@@ -100,16 +102,24 @@ def _process_plan(run: _Run, plan: RunPlan) -> None:
         stored = restore_from_backup(run.ports.store, run.backup, restored)
         _record(run, remaining, restored, stored=stored)
     to_transcribe = [planned for planned in plan.jobs if planned.source == "transcribe"]
-    if not to_transcribe:
-        return
+    if to_transcribe:
+        _transcribe_all(run, remaining, to_transcribe)
+    _check_nothing_left(run)
+
+
+def _transcribe_all(run: _Run, remaining: dict[str, int], to_transcribe: list[PlannedJob]) -> None:
     with run.prefetcher(to_transcribe) as prefetcher:
         run.ports.engine.start()  # after the prefetcher, so downloads overlap the model load
         for planned in to_transcribe:
             run.status.job_started(planned.ref)
             stored = _transcribe(run, planned, prefetcher)
             _record(run, remaining, planned, stored=stored)
+
+
+def _check_nothing_left(run: _Run) -> None:
+    """Fail the run when jobs were left without a result in R2 (retried by the next run)."""
     if run.deferred:
-        msg = f"{len(run.deferred)} jobs left for the next run (storage, disk or ffmpeg problems)"
+        msg = f"{len(run.deferred)} jobs or batch summaries left for the next run (storage, disk or ffmpeg problems)"
         raise RuntimeError(msg)
 
 
@@ -117,6 +127,7 @@ def _record(run: _Run, remaining: dict[str, int], planned: PlannedJob, *, stored
     """Count a processed job; finish its batch when its last result is in R2."""
     run.status.job_finished()
     if not stored:
+        run.deferred.append(planned.json_key)
         return
     remaining[planned.batch_id] -= 1
     if not remaining[planned.batch_id]:
@@ -131,7 +142,6 @@ def _transcribe(run: _Run, planned: PlannedJob, prefetcher: Prefetcher) -> bool:
             raise RuntimeError(msg)
         if prepared.retry_later:
             logger.warning("%s left for the next run: %s", planned.json_key, prepared.problem)
-            run.deferred.append(planned.json_key)
             return False
         output = transcribe_job(run.job_context(), planned, prepared.wav, prepared.problem)
     return store_output(run.ports.store, run.backup, planned, output)

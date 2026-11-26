@@ -4,6 +4,7 @@ The fake engine runs in a real engine process (spawn), so crashes and hangs are 
 objects hold fake-engine scripts; the decoder copies them instead of running ffmpeg.
 """
 
+import errno
 import itertools
 import json
 import logging
@@ -36,7 +37,7 @@ from transcribe_contracts.reading import read_batch_summary, read_job_result, re
 from transcribe_worker.engine.classes import Transcript
 from transcribe_worker.engine.constants import FAKE_BROKEN_FLAG_ENV
 from transcribe_worker.engine.host import EngineError, EngineProcess
-from transcribe_worker.pipeline.audio import AudioCache, decode_to_wav
+from transcribe_worker.pipeline.audio import AudioCache, DiskFullError, decode_to_wav
 from transcribe_worker.pipeline.config import R2Settings, WorkerConfig
 from transcribe_worker.pipeline.constants import ENGINE_FACTORIES, EXIT_FAILED, EXIT_OK, LOG_FILE_NAME
 from transcribe_worker.pipeline.logs import JsonFormatter
@@ -358,7 +359,7 @@ def test_failed_upload_is_finished_from_the_backup(store: S3ObjectStore, config:
     lost, _ = put_batch(store, BATCH_A, [SPEECH_SOURCE, SPEECH_SOURCE])
     lost_key = layout.result_json_key(BATCH_A, lost, ENGLISH)
 
-    assert run(FailingStore(store, fail_new=lost_key), config) == EXIT_OK
+    assert run(FailingStore(store, fail_new=lost_key), config) == EXIT_FAILED
 
     backed_up = config.backup_dir.joinpath(*lost_key.split("/"))
     assert (store.read(lost_key), store.read(layout.done_key(BATCH_A)), backed_up.exists()) == (None, None, True)
@@ -486,7 +487,7 @@ def test_backups_are_restored_before_the_engine_starts(
     """A backed-up result reaches R2 even when the engine cannot start for the other jobs."""
     lost = put_batch(store, BATCH_A, [SPEECH_SOURCE])[0]
     lost_key = layout.result_json_key(BATCH_A, lost, ENGLISH)
-    assert run(FailingStore(store, fail_new=lost_key), config) == EXIT_OK
+    assert run(FailingStore(store, fail_new=lost_key), config) == EXIT_FAILED
     put_batch(store, BATCH_B, [SPEECH_SOURCE])
     broken_flag = config.work_dir / "broken"
     broken_flag.touch()
@@ -532,3 +533,17 @@ def test_engine_gone_while_idle_fails_one_job(tmp_path: Path) -> None:
 
     assert isinstance(transcript, Transcript)
     assert "Hello world." in transcript.text
+
+
+def full_disk_decode(source: Path, target: Path) -> None:
+    """Decoder that fails as ffmpeg does when the disk is full."""
+    raise DiskFullError(errno.ENOSPC, f"{source} -> {target}: No space left on device")
+
+
+def test_full_disk_leaves_jobs_for_the_next_run(store: S3ObjectStore, config: WorkerConfig) -> None:
+    """A full disk is not the file's fault: no failed result, and the run reports failure."""
+    put_batch(store, BATCH_A, [SPEECH_SOURCE])
+
+    assert run(store, config, decode=full_disk_decode) == EXIT_FAILED
+
+    assert (store.list_keys(layout.results_prefix(BATCH_A)), read_status(store).state) == ([], FAILED)

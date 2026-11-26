@@ -83,14 +83,15 @@ class StatusReporter:
         Args:
             lock_timeout_s: How long to wait for an upload in flight (-1: as long as it takes).
         """
-        if not self._publish_lock.acquire(timeout=lock_timeout_s):
-            logger.warning("an earlier status upload is still running; this status is not published")
-            return
+        acquired = self._publish_lock.acquire(timeout=lock_timeout_s)
+        if not acquired:
+            # Only the final status waits with a limit: it is written over the stuck upload.
+            logger.warning("an earlier status upload is still running; publishing over it")
         try:
             self._upload_status()
         except Exception:
             logger.warning("could not publish the run status", exc_info=True)
-        finally:
+        if acquired:
             self._publish_lock.release()
 
     def _upload_status(self) -> None:

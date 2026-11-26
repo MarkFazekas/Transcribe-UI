@@ -397,8 +397,9 @@ pods-only key is passed as a Runpod secret.
   keeps backed-up results from reaching R2.
 - Alignment: the language's aligner is loaded before decoding; if it cannot be loaded
   (download, disk or memory problem), the job is transcribed without word alignment
-  (`aligned: false`) instead of failing, and the next job of that language tries again. If aligned parts lose any letter of their segment
-  (WhisperX drops parts whose times stay NaN), the segment is kept whole and unaligned.
+  (`aligned: false`) instead of failing, and the next job of that language tries again. If
+  aligned parts lose any letter of their segment (WhisperX drops parts whose times stay NaN),
+  the segment is kept whole and unaligned.
 - Careful decoding uses faster-whisper's Silero VAD with 500 ms minimum silence and 400 ms
   speech padding (its default 2 s silence lets music between lines through).
 - Careful decoding is faster-whisper's sequential `WhisperModel.transcribe` on the same
@@ -422,9 +423,12 @@ pods-only key is passed as a Runpod secret.
   other's JSON (the SRT PUT is unconditional); the single-worker rule (§3.7) keeps that out.
 - Timeouts keep a stuck call from holding a billed pod: R2 requests have 10 s connect and 30 s
   read timeouts with 5 attempts; at the end of a run the heartbeat and prefetch threads, and an
-  in-flight status upload, are waited for at most 60 s each. Jobs left for the next run
-  (storage, disk or ffmpeg problems, including a disk filling up during decoding) make the run
-  end as failed (exit 1) once every other job is done, so the app does not report a clean run.
+  in-flight status upload, are waited for at most 60 s each (the final status is then written
+  over the stuck upload).
+- Anything left for the next run (audio not prepared because of storage, disk or ffmpeg
+  problems, including a disk filling up during decoding; a result or backup that could not be
+  uploaded; a batch summary that could not be written) makes the run end as failed (exit 1)
+  once every other job is done, so the app never reports a clean run with work missing.
 - A batch whose jobs all have a result in R2 gets `_done.json` with the counts of every result
   (earlier runs included), also when an earlier run stopped right before writing it. After the
   last job: exit 0, and the entry terminates the pod.

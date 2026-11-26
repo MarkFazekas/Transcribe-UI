@@ -37,17 +37,18 @@ def restore_from_backup(store: ObjectStore, backup: Backup, planned: PlannedJob)
     return _upload(store, planned, srt, body)
 
 
-def finish_batch(store: ObjectStore, batch_id: str, run_id: str, now: Callable[[], datetime]) -> None:
+def finish_batch(store: ObjectStore, batch_id: str, run_id: str, now: Callable[[], datetime]) -> bool:
     """Write `_done.json` with the counts of every result of the batch (all runs).
 
-    Storage errors are only logged: the batch stays open and the next run finishes it.
+    Storage errors are logged and return False: the batch stays open for the next run.
     """
     try:
         counts = _write_summary(store, batch_id, run_id, now)
     except Exception:
         logger.exception("could not write the summary of %s", batch_id)
-        return
+        return False
     logger.info("batch %s done: %s", batch_id, counts)
+    return True
 
 
 def _write_summary(

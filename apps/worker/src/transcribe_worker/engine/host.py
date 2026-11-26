@@ -64,6 +64,8 @@ class EngineProcess:
         try:
             process.start()
         except OSError as error:
+            parent_conn.close()
+            child_conn.close()
             msg = f"engine process could not be spawned: {describe(error)}"
             raise EngineStartError(msg) from error
         child_conn.close()
