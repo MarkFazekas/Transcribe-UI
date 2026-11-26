@@ -71,6 +71,7 @@ Source: the architect's initial brief (2026-11-26), translated to English.
 
 - Tests or checks that start anything on Runpod run only while the architect is present and
   after an explicit go, one at a time. Nothing is started on Runpod autonomously.
+- The read-only Runpod token may be used without the architect.
 
 ## Process gate
 

@@ -147,5 +147,5 @@ docstring-code-format = true
 addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib", "-m", "not integration"]
 xfail_strict = true
 markers = [
-    "integration: talks to real R2/Runpod; deselected by default, Runpod only with the architect present",
+    "integration: talks to real R2/Runpod; deselected by default, Runpod writes only with the architect present",
 ]

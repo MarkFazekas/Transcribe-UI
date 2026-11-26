@@ -4,8 +4,13 @@
 
 - uv manages Python (3.13, `.python-version`) and the workspace. `uv sync` installs every
   member plus the root `dev` dependency group.
-- Credentials for local integration work live in an uncommitted `.env` (see `.gitignore`);
-  CI uses GitHub repository/environment secrets.
+- Credentials for local integration work live in an uncommitted `.env` (see `.gitignore`,
+  mode 600); CI uses GitHub repository/environment secrets. Local names:
+  `RUNPOD_API_KEY_READONLY` (a Runpod key created with "Read Only" permission; usable without
+  the architect, e.g. to list pods or read the GPU catalog). Anything that creates, changes or
+  deletes on Runpod (including starting pods) needs the architect present, and no other key
+  falls under the exception. Pod responses can contain `env` values (R2 secrets): never print
+  or log them.
 
 ## Lint and typecheck
 
@@ -59,7 +64,8 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
   `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio` and `ctranslate2`, and the
   engine adapter is the only module importing them.
 - Markers: `integration` (real R2/Runpod) and `gpu` (needs the GPU stack) are deselected by
-  default and in CI; Runpod ones run only with the architect present.
+  default and in CI; Runpod ones that create or change anything run only with the architect
+  present (read-only calls may run any time).
 
 ## Commits and branches
 
@@ -107,7 +113,9 @@ Deployment credentials live in GitHub environments whose deployment branch polic
 | `runpod-reaper` (created with the reaper) | | pods-only Runpod key | `reaper.yml` |
 
 Set them from the repo root with `gh variable set NAME --env <env> --body <value>` and
-`gh secret set NAME --env <env>` (prompts for the value, so it never lands in shell history).
+`gh secret set NAME --env <env>` (prompts for the value, so it never lands in shell history;
+run it in a separate terminal: the Claude Code `!` prefix cannot answer the prompt and stores
+an empty secret).
 
 PyInstaller notes: disable UPX; for keyring add `--copy-metadata keyring` and
 `--collect-submodules keyring.backends`; exclude unused Qt modules.

@@ -45,7 +45,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
   comment; no `_CONSTANT`s at the top of other modules), `classes.py` for Pydantic models,
   `models.py` for SQLAlchemy models, Alembic migrations in `migrations/`.
 - Never start anything on Runpod (pods, tests, checks) unless the architect is present and said
-  go; one at a time.
+  go; one at a time. Exception: the read-only key (`RUNPOD_API_KEY_READONLY`, created with
+  "Read Only" permission) may be used at any time; no other key falls under the exception.
 - Strict quality bar: ruff (`ALL`) + flake8 with wemake and other plugins + mypy strict. Fix
   findings rather than suppressing them; any `noqa` names the code and gives a reason.
 - Tests: few unit tests; mostly regression and flow tests (see architecture §7).
