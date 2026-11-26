@@ -44,6 +44,10 @@ jobs:
             contracts:
               - *shared
               - packages/contracts/**
+            worker:
+              - *shared
+              - packages/contracts/**
+              - apps/worker/**
 
   check:
     needs: changes
