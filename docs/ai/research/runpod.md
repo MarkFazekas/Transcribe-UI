@@ -93,6 +93,10 @@ Also useful: `POST /v2/pods/{id}/exec` (run argv in container without SSH; 1-25 
 - Public Docker Hub image: do NOT bake credentials into the image.
 
 ## 6. SSH
+
+> Decision A3: no sshd in the image, proxied basic SSH only; options (a)-(c) below are kept as
+> reference. Templates default `startSsh`/`startJupyter` to TRUE: set both explicitly.
+- [V] "All Pods provide a basic SSH connection that is proxied through Runpod's systems" (no SCP/SFTP); keys from the account's SSH key settings are injected automatically, `SSH_PUBLIC_KEY` env overrides per pod. https://docs.runpod.io/pods/configuration/use-ssh.md
 - [V] Full SSH needs public IP + `22/tcp` exposed + sshd running + key in authorized_keys (from `$PUBLIC_KEY`); proxy SSH (ssh.runpod.io) works for key auth but no SCP/SFTP. Community pods may lack public IP. `runpodctl ssh info <pod>` diagnoses. https://docs.runpod.io/pods/configuration/use-ssh
 - [V] API v2: `startSsh:true` + registered key => PUBLIC_KEY env; Runpod official images start sshd from it.
 - [I] With your own ENTRYPOINT on top of runpod/pytorch, you override `/start.sh` (which sets up PUBLIC_KEY, sshd, Jupyter, env export). Keep SSH by either: (a) not overriding ENTRYPOINT/CMD: set `CMD` unset and launch the app from a hook – the runpod images run `/pre_start.sh` and `/post_start.sh` if present (historical behaviour, re-verify in the image); or (b) your entrypoint script first runs `/start.sh &` (backgrounded) then runs the worker; or (c) own minimal sshd block from the docs snippet (install openssh-server, append $PUBLIC_KEY, `service ssh start`). Note env vars from the pod are not visible to SSH sessions unless exported (runpod /start.sh writes them to /etc/rp_environment) – export them yourself in (b)/(c).

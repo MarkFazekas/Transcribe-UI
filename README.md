@@ -7,11 +7,11 @@ Batch subtitle generation for local video and audio libraries.
   their audio losslessly and upload it to Cloudflare R2 in resumable batches, start the GPU
   worker, then download the subtitles next to the media or into a folder layout of your choice.
 - **Worker** (Runpod, RTX A5000): a public Docker image that transcribes every ready batch with
-  Whisper (`large-v3` via faster-whisper), uploads the subtitles, keeps a backup on a Runpod
+  Whisper (`large-v3` via WhisperX, with word-level alignment), uploads the subtitles, keeps a backup on a Runpod
   Global Volume and terminates its own pod.
 
-> Status: design phase. The technical design is in
-> [`docs/ai/architecture.md`](docs/ai/architecture.md); open questions are in
+> Status: in development. The technical design is in
+> [`docs/ai/architecture.md`](docs/ai/architecture.md); questions and decisions are in
 > [`docs/ai/questions-for-product.md`](docs/ai/questions-for-product.md) and
 > [`docs/ai/questions-for-architect.md`](docs/ai/questions-for-architect.md).
 

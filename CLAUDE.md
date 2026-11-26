@@ -9,7 +9,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 - `docs/human/requirements.md` — what was asked (source of truth for scope).
 - `docs/human/working-agreements.md` — roles, communication, git/CI and secret rules.
 - `docs/ai/architecture.md` — current design. `docs/ai/tooling.md` — lint, tests, CI, hooks.
-- Open questions: `docs/ai/questions-for-product.md` (Q#), `docs/ai/questions-for-architect.md` (A#).
+- Questions and decisions: `docs/ai/questions-for-product.md` (Q#),
+  `docs/ai/questions-for-architect.md` (A#).
 
 ## Working rules (summary of docs/human/working-agreements.md)
 
@@ -27,7 +28,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 ## Git
 
 - Never commit on `main`. Branch → PR → `code-reviewer` sub-agent review → merge.
-- Conventional Commits; no co-author or attribution trailers. Signed commits (configured).
+- Conventional Commits; no co-author or attribution trailers in commits and no "Generated
+  with Claude Code" line in PR descriptions. Signed commits (configured).
 - Local rebase is fine; **never force push**.
 - After a merge, re-check the CI runs a few minutes later without blocking other work.
 - Never commit credentials. Local secrets live in `.env` (git-ignored); CI uses GitHub secrets.
@@ -39,6 +41,11 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 - Business logic lives only in the backend. Frontends (GUI, CLI, future MCP) build Pydantic
   requests and render responses; the same request must produce the same response from every
   frontend. Clock, ID generation and external clients are injected so this stays testable.
+- Layout (Django-like): per app/sub-package `constants.py` (each constant with a one-line
+  comment; no `_CONSTANT`s at the top of other modules), `classes.py` for Pydantic models,
+  `models.py` for SQLAlchemy models, Alembic migrations in `migrations/`.
+- Never start anything on Runpod (pods, tests, checks) unless the architect is present and said
+  go; one at a time.
 - Strict quality bar: ruff (`ALL`) + flake8 with wemake and other plugins + mypy strict. Fix
   findings rather than suppressing them; any `noqa` names the code and gives a reason.
 - Tests: few unit tests; mostly regression and flow tests (see architecture §7).

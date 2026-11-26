@@ -1,7 +1,11 @@
 # Whisper engine research for Runpod A5000 subtitle worker (as of 2026-11-26)
 
 Legend: [V] verified from a fetched source (URL given); [I] inference / general knowledge, not verified here.
+WhisperX 3.8.6 requirements [V: https://pypi.org/pypi/whisperx/json]: Python >=3.10,<3.14; torch~=2.8.0, torchaudio~=2.8.0, torchvision~=0.23.0, faster-whisper>=1.2.0, ctranslate2>=4.5.0, pyannote-audio>=4.0.0, transformers>=4.48.0, huggingface-hub<1.0.0, nltk, pandas, omegaconf, torchcodec>=0.6,<0.8.
 Baseline (from docs/ai/research/reference-sttcli.md): STTCLI used WhisperX 3.7.9 (faster-whisper 1.2.1 / ctranslate2 4.8.4), large-v3, float16, batch_size 16, SRT, runpod/pytorch cu128 torch 2.8.
+
+> Superseded in part: the architect chose WhisperX with alignment (A2) over faster-whisper
+> alone; the facts below remain valid.
 
 ## TL;DR recommendation
 - Engine: faster-whisper (CTranslate2) used directly, not via WhisperX. Same decoding core as the baseline, minus torch/pyannote/wav2vec2 weight. Use BatchedInferencePipeline (batch_size 8-16) for throughput, or plain WhisperModel.transcribe for max robustness (see sec. 4 trade-offs).
@@ -44,6 +48,7 @@ Newer Whisper-family: no new open-weight OpenAI Whisper (no "large-v4") found in
 - [V] faster-whisper `transcribe(language=...)` takes language per call; default None = auto-detect per file. Recent commit raises an error if the language is unsupported by the loaded model (so a monolingual `.en` model would reject non-English; multilingual large-v3/turbo accept any of the 99) [V commit 9e472ae, 2026-10-16].
 - [I, strongly expected from Whisper's design] Language is just a decoder prompt token (`<|hu|>`) chosen per call; the weights are language-agnostic, so one loaded WhisperModel/BatchedInferencePipeline can process hu, en, de files back to back with no reload. Test once with a mixed-language fixture to confirm.
 - Caveat inside one batched call: BatchedInferencePipeline.transcribe takes one `language` per call (one audio per call) -> per-file language is natural. Mixed-language content inside one file needs `multilingual=True` (default False) which is less reliable [V param defaults; I on reliability].
+ - WhisperX alignment (wav2vec2) DOES use a separate model per language (`load_align_model(language_code=...)`, e.g. ~1.2 GB xlsr-53 for hu); switching language means loading another aligner [V: whisperx/alignment.py DEFAULT_ALIGN_MODELS_*]. With alignment, process jobs grouped by language.
 - Practical: requirement "one fixed target language per batch" is a product/UX simplification and is fine, but the worker should accept `language` per job/file and must NOT assume reload. Forcing language is recommended over auto-detect (avoids wrong-language detection on short/music-intro audio) [I].
 - Note: "target language" = spoken language (transcription). Whisper's translate task goes only to English; not subtitle-translation.
 

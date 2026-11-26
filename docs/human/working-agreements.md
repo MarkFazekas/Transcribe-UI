@@ -44,7 +44,8 @@ Source: the architect's initial brief (2026-11-26), translated to English.
 
 ## Git and CI
 
-- Conventional commits. No Claude co-author or other attribution lines in commits.
+- Conventional commits. No Claude co-author or other attribution lines in commits, and no
+  "Generated with Claude Code" or similar line in PR descriptions.
 - Local rebase is fine. Never force push.
 - Never work directly on `main`: branch + PR; a sub-agent reviews each PR before merge.
 - `main` is protected: PR required, signed commits required, status checks must pass.
@@ -63,6 +64,11 @@ Source: the architect's initial brief (2026-11-26), translated to English.
   committing.
 - During development, credentials live in an uncommitted local `.env` file; in CI in GitHub
   repository or environment secrets.
+
+## Real infrastructure
+
+- Tests or checks that start anything on Runpod run only while the architect is present and
+  after an explicit go, one at a time. Nothing is started on Runpod autonomously.
 
 ## Process gate
 

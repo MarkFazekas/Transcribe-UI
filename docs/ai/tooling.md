@@ -43,6 +43,17 @@ A `scripts/check.py` runner (added with the first app code) runs these per works
 in parallel (desktop, worker and contracts at the same time) and prints grouped output. No
 pytest-xdist: the suites are small and process start-up would eat the gain.
 
+## Dependencies
+
+- The worker's GPU stack (WhisperX, torch cu128 from the PyTorch index) is the worker's
+  optional `engine` extra. `uv sync` and CI do not install it; worker tests use a fake engine.
+  The Docker build installs it (`uv sync --package transcribe-worker --extra engine`).
+- mypy runs on the worker without the `engine` extra: `[[tool.mypy.overrides]]` sets
+  `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio` and `ctranslate2`, and the
+  engine adapter is the only module importing them.
+- Markers: `integration` (real R2/Runpod) and `gpu` (needs the GPU stack) are deselected by
+  default and in CI; Runpod ones run only with the architect present (A15).
+
 ## Commits and branches
 
 - Conventional Commits, enforced by gitlint (`.gitlint`, `contrib-title-conventional-commits`)
@@ -70,8 +81,8 @@ pytest-xdist: the suites are small and process start-up would eat the gain.
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | change detection job; per changed member: ruff format check, ruff, flake8, mypy, pytest (desktop on Ubuntu + Windows); gitlint on PR commits; aggregate `ci-ok` job = required check |
-| `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS) |
-| `release-worker.yml` | push to `main`, paths `apps/worker/**`, `packages/contracts/**`, `uv.lock` | build the Docker image, run the entry/termination smoke test inside it, push (`sha-<short>`, `latest`, `schema-<major>`) |
+| `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS); then a release job (`needs:` all four builds, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the four executables, only if every build and smoke test passed (A13) |
+| `release-worker.yml` | push to `main`, paths `apps/worker/**`, `packages/contracts/**`, `uv.lock` | free runner disk, build the Docker image, run the entry/termination smoke test inside it, push (`sha-<short>`, `latest`, `schema-<major>`; push skipped until the Docker Hub secrets exist, A12) |
 | `reaper.yml` | schedule, every 15 min (A17) | terminate overdue `transcribe-ui-*` pods with a pods-only key |
 
 Releases never run on pull requests. Concurrency groups cancel superseded runs.
