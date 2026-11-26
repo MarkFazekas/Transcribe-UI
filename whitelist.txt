@@ -7,6 +7,7 @@ casefold
 chunksize
 cloudflarestorage
 codec
+copyfile
 crockford
 ctranslate2
 cuda
@@ -20,6 +21,9 @@ fromkeys
 fromtimestamp
 fullmatch
 gc
+getframerate
+getnchannels
+getsampwidth
 gettempdir
 groupby
 hhmmss
@@ -27,11 +31,13 @@ ign
 isalnum
 isfinite
 islower
+iterdir
 joinpath
 levelname
 liveness
 localhost
 misconfigured
+moto
 ngram
 nowait
 openai
@@ -53,6 +59,10 @@ repo
 rfile
 runpod
 serialises
+setenv
+setframerate
+setnchannels
+setsampwidth
 sig
 sighup
 sigint
@@ -61,6 +71,7 @@ signum
 sigterm
 silero
 srt
+tmp
 tokenizer
 ulid
 unittest
@@ -76,5 +87,6 @@ watchdog
 wav
 wfile
 whisperx
+writeframes
 yue
 yyyymmdd

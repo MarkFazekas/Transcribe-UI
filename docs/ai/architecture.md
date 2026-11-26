@@ -374,14 +374,22 @@ pods-only key is passed as a Runpod secret.
 - Idempotent: a job whose result JSON already exists in R2 is skipped, so a restarted pod
   continues where the previous one stopped and successful results are never redone or
   overwritten (conditional PUT, §4).
-- Per job: ffmpeg decodes to 16 kHz mono (robust for AC3/E-AC3/DTS/TrueHD, picks the stream
-  explicitly) → WhisperX `large-v3`, fp16, forced language,
-  batch 16, Silero VAD → wav2vec2 alignment (skipped with `aligned: false` when the
-  language has no model) → quality checks (repetition, compression ratio, empty output on
-  non-silent audio) → on suspicion, or in `careful` mode, a re-run with stricter decoding
-  (beam search, temperature fallback, `condition_on_previous_text=False`) → cue builder (max
-  42 chars/line, 2 lines, 1–7 s, split at punctuation/pauses) → SRT. Per-job timeout; any
-  exception marks the job `failed` and the run continues.
+- Per job: ffmpeg decodes the first audio stream to 16 kHz mono 16-bit WAV (robust for
+  AC3/E-AC3/DTS/TrueHD) → WhisperX `large-v3`, fp16, forced language, batch 16, Silero VAD →
+  wav2vec2 alignment (skipped with `aligned: false` when the language has no model) → quality
+  checks on the raw transcript (empty output; zlib compression ratio > 2.4 in any 500-character
+  window, since whole long texts of normal speech reach 2.4–3.0; the same segment repeated; a
+  repeated n-gram) → on suspicion, a re-run in careful mode (a `careful` job uses careful mode
+  from the start; if the re-run fails, the first transcript is kept) → consecutive duplicate
+  segments dropped → cue builder (max 42 chars/line, 2 lines, 1–7 s, split at sentence ends,
+  pauses > 0.6 s and clause marks) → SRT. No cues means `no_speech` with an empty SRT.
+- The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
+  a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
+  audio, doubled in careful mode) kills that process, the job is `failed`, and the next job
+  starts a fresh engine. An engine crash (native abort, OOM kill) is handled the same way. Any
+  decode, download or engine error marks only that job `failed` (the error text goes into the
+  result) and the run continues. If the engine cannot start at all, the run fails (exit 1)
+  without writing job results.
 - Careful decoding is faster-whisper's sequential `WhisperModel.transcribe` on the same
   CTranslate2 model (batch size 1, beam 5, temperatures 0–1.0 in 0.2 steps with the
   compression-ratio/log-prob/no-speech checks, `condition_on_previous_text=False`, its Silero
@@ -392,12 +400,27 @@ pods-only key is passed as a Runpod secret.
   `transcribe_worker.engine.whisperx_engine` imports the GPU stack; the conversion of WhisperX
   output into the engine `Transcript` (`engine/convert.py`) is pure and tested in CI.
 - Backup: each result file is also written to the Global Volume
-  (`/workspace/backups/<batch_id>/...`) as a whole file (object-store semantics: no
-  rename-based atomicity there, so write-once files only). Before transcribing a job, the
-  worker checks the backup: if a result exists there but not in R2 (an earlier upload failed),
-  it uploads the backup instead of transcribing again.
-- After the last item of a batch: write `_done.json`; after the last batch: exit 0, and the
-  supervisor terminates the pod.
+  (`/workspace/backups/<R2 key>`) as a whole file (object-store semantics: no rename-based
+  atomicity there): the SRT first, then the result JSON, which is never overwritten and marks
+  a complete backup. When planning, a job whose result is missing in R2 but has a valid backup
+  (SRT and JSON) is uploaded from the backup instead of transcribed. Backup errors are only
+  logged; R2 is the primary copy.
+- Upload: the SRT is not written when the job's JSON already exists (another worker finished
+  it), then the JSON with `If-None-Match: *`. A failed upload leaves the batch open; the next
+  run uploads the backup.
+- A batch whose jobs all have a result in R2 gets `_done.json` with the counts of every result
+  (earlier runs included), also when an earlier run stopped right before writing it. After the
+  last job: exit 0, and the entry terminates the pod.
+- Run status: `status.json` and the JSON-lines log are uploaded at start, on every job change
+  and every 30 s (`starting` → `transcribing` → `finished`, or `failed` with the error when the
+  run itself fails, e.g. R2 unreachable).
+- Configuration (environment; values are never logged, and a validation error names only the
+  field): `TRANSCRIBE_RUN_ID` (ULID from the desktop app; generated when missing),
+  `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and optional
+  `TRANSCRIBE_BACKUP_DIR` (default `/workspace/backups`), `TRANSCRIBE_WORK_DIR` (default
+  `/tmp/transcribe-worker`: audio cache, decoded audio, log), `TRANSCRIBE_AUDIO_CACHE_GB`
+  (default 20), `TRANSCRIBE_ENGINE` (`whisperx`, or `fake` for the image smoke test), plus the
+  entry's `RUNPOD_POD_ID` and `MAX_RUNTIME_S` (the status deadline).
 
 ### 5.4 Credentials in the pod
 

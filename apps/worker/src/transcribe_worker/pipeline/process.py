@@ -12,9 +12,9 @@ from transcribe_worker.engine.classes import Transcript
 from transcribe_worker.engine.host import EngineError
 from transcribe_worker.pipeline.constants import CAREFUL_TIMEOUT_FACTOR, JOB_TIMEOUT_PER_AUDIO_S
 from transcribe_worker.pipeline.plan import PlannedJob
+from transcribe_worker.subtitles import srt as srt_format
 from transcribe_worker.subtitles.cues import build_cues
 from transcribe_worker.subtitles.quality import clean, find_problems
-from transcribe_worker.subtitles.srt import to_srt
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +74,8 @@ def transcribe_job(context: JobContext, planned: PlannedJob, wav: Path | None, p
         logger.warning("job %s failed: %s", planned.json_key, error)
         failure = _Failure(careful=careful, error=str(error))
         return _output(context, planned, started_at, failure)
-    cues = build_cues(attempt.transcript)
-    srt = to_srt(cues).encode() if cues else b""
+    cues = build_cues(clean(attempt.transcript))
+    srt = srt_format.to_srt(cues).encode()
     return _output(context, planned, started_at, _Success(attempt, len(cues)), srt)
 
 
@@ -111,8 +111,8 @@ def _run(context: JobContext, planned: PlannedJob, wav: Path, *, careful: bool) 
     timeout_s = max(context.min_timeout_s, planned.audio.duration_s * JOB_TIMEOUT_PER_AUDIO_S)
     if careful:
         timeout_s *= CAREFUL_TIMEOUT_FACTOR
-    transcript = context.engine.transcribe(wav, planned.job.language, careful=careful, timeout_s=timeout_s)
-    return clean(transcript)
+    language = planned.job.language
+    return context.engine.transcribe(wav, language, careful=careful, timeout_s=timeout_s)
 
 
 def _output(

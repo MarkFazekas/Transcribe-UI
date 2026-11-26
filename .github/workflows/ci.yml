@@ -64,6 +64,9 @@ jobs:
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
         with:
           enable-cache: true
+      - name: Install ffmpeg (worker decode tests)
+        if: matrix.target == 'worker'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - run: uv sync --locked --all-packages
       - run: uv run scripts/check.py ${{ matrix.target }}
 
