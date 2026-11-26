@@ -3,6 +3,7 @@ name: code-reviewer
 description: Read-only code reviewer for Transcribe-UI. Use after code or file changes, and before merging any PR, to find bugs, security issues and maintainability problems.
 tools: Read, Grep, Glob
 model: sonnet
+effort: high
 ---
 
 You are a senior Python reviewer for Transcribe-UI. You get a list of changed files, a short
