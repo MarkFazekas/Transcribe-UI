@@ -1,0 +1,66 @@
+[flake8]
+extend-select = B901,B902,B903
+ignore =
+    # Avoid enforcing line-length violations (`E501`)
+    E501,
+    # Avoid enforcing Exception class with `__init__` should pass all args to `super().__init__()` to work in edge cases of `pickle` and `copy.copy()`. It should also not take any kwargs.
+    B042,
+    # Avoid enforcing exception name should be named with an Error suffix, because we use Information and Warning level Exceptions as well.
+    N818,
+    # Avoid enforcing type annotations for self because type checkers can infer this type without annotation.
+    ANN101,
+    # Avoid enforcing type annotations for cls in @classmethod because type checkers can infer this type without annotation.
+    ANN102,
+    # Avoid f-string restrictions (`WPS305`, `WPS237`).
+    WPS305,
+    WPS237,
+    # Line break before binary operator (`W503`) conflicts with `ruff format`, which breaks before operators.
+    W503,
+    # Statement on the same line as `def`/`class` (`E704`, `E701`) is how `ruff format` writes `...` stub bodies (Protocols, overloads).
+    E704,
+    E701,
+
+exclude =
+    .git,
+    .venv,
+    .mypy_cache,
+    .ruff_cache,
+    .pytest_cache,
+    build,
+    dist,
+
+per-file-ignores =
+    # Avoid enforcing Use of `assert` detected (`S101`) in tests files because it makes no sense.
+    # Avoid enforcing Found too many imported names from a module (`WPS235`) in tests files because it is valid for tests.
+    # Avoid enforcing Found too many imports (`WPS201`) it needs some refactor.
+    */tests/*: S101,WPS235,WPS201
+    # Claude Code hooks talk to the harness through stdout (`T201`) and are standalone scripts (`WPS421` print).
+    .claude/hooks/*: T201,WPS421
+max_complexity = 8
+max_line_length = 120
+statistics = True
+count = True
+inline-quotes=double
+# Relates to WPS226
+max-string-usages=5
+# Relates to WPS118
+max-name-length=50
+# Relates to WPS202
+max-module-members=20
+# Relates to WPS210
+max-local-variables=10
+# Relates to WPS229
+max-try-body-length=2
+# Relates to WPS221
+max-line-complexity=13
+# Relates to WPS201
+max-imports=15
+# Relates to WPS214
+max-methods=10
+# Relates to WPS235
+max-import-from-members=15
+docstring-convention=google
+docstring_style=google
+strictness=long
+eradicate-aggressive=True
+dictionaries=en_US,python,technical
