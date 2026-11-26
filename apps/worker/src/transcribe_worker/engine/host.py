@@ -61,7 +61,11 @@ class EngineProcess:
         parent_conn, child_conn = self._context.Pipe()
         process = self._context.Process(target=serve, args=(child_conn, self._factory))
         process.daemon = True
-        process.start()
+        try:
+            process.start()
+        except OSError as error:
+            msg = f"engine process could not be spawned: {describe(error)}"
+            raise EngineStartError(msg) from error
         child_conn.close()
         self._process = process
         self._conn = parent_conn

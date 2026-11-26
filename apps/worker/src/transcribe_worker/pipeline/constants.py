@@ -68,6 +68,8 @@ LOG_CONTENT_TYPE: Final = "application/x-ndjson; charset=utf-8"
 SAMPLE_RATE_HZ: Final = 16000
 # Upper bound for one ffmpeg decode.
 DECODE_TIMEOUT_S: Final = 1800
+# ffmpeg error text of a full disk (strerror of ENOSPC).
+DISK_FULL_MESSAGE: Final = "No space left on device"
 # Characters of the ffmpeg error output kept in an error message.
 DECODE_ERROR_CHARS: Final = 500
 # Audio files downloaded and decoded ahead of the one being transcribed.

@@ -144,7 +144,12 @@ class WhisperXTranscriber:
         """Return the alignment model of the language, or None when WhisperX has none for it."""
         if self._aligner_language != language:
             self._release_aligner()
-            self._aligner = _load_aligner(language)
+            try:
+                self._aligner = _load_aligner(language)
+            except Exception:
+                # A download, disk or memory problem: this job runs unaligned, the next retries.
+                logger.exception("could not load the %s alignment model; transcribing unaligned", language)
+                return None
             self._aligner_language = language
         return self._aligner
 
@@ -183,17 +188,15 @@ def _align(segment: dict[str, object], aligner: Aligner, samples: object) -> Raw
 def _load_aligner(language: str) -> Aligner | None:
     """Load the default WhisperX alignment model of the language.
 
-    Returns None when WhisperX has none for the language, or when loading it fails (logged):
-    the job is then transcribed without word alignment instead of failing.
+    Returns None when WhisperX has none for the language.
+
+    Raises:
+        Exception: Loading failed (download, disk, memory); the caller transcribes unaligned.
     """
     try:
         model, metadata = whisperx.load_align_model(language_code=language, device=constants.DEVICE)
     except ValueError as error:
         if not str(error).startswith(constants.NO_ALIGN_MODEL_MESSAGE):
-            logger.exception("could not load the %s alignment model; transcribing unaligned", language)
-        return None
-    except Exception:
-        # A download, disk or memory problem: unaligned subtitles beat a failed job.
-        logger.exception("could not load the %s alignment model; transcribing unaligned", language)
+            raise
         return None
     return Aligner(model=model, metadata=metadata)

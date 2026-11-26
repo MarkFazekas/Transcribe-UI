@@ -74,15 +74,24 @@ class StatusReporter:
         if self._thread is not None:
             self._thread.join(THREAD_STOP_TIMEOUT_S)
         state: RunState = "failed" if error else "finished"
-        self._update(state=state, current=None, error=error)
+        # Bounded wait for a heartbeat upload still in flight; the R2 timeouts bound the rest.
+        self._update(state=state, current=None, error=error, lock_timeout_s=THREAD_STOP_TIMEOUT_S)
 
-    def _publish(self) -> None:
-        """Upload the current status and the log; failures are only logged."""
-        with self._publish_lock:
-            try:
-                self._upload_status()
-            except Exception:
-                logger.warning("could not publish the run status", exc_info=True)
+    def _publish(self, lock_timeout_s: float = -1) -> None:
+        """Upload the current status and the log; failures are only logged.
+
+        Args:
+            lock_timeout_s: How long to wait for an upload in flight (-1: as long as it takes).
+        """
+        if not self._publish_lock.acquire(timeout=lock_timeout_s):
+            logger.warning("an earlier status upload is still running; this status is not published")
+            return
+        try:
+            self._upload_status()
+        except Exception:
+            logger.warning("could not publish the run status", exc_info=True)
+        finally:
+            self._publish_lock.release()
 
     def _upload_status(self) -> None:
         with self._lock:
@@ -93,11 +102,11 @@ class StatusReporter:
             log_key = layout.run_log_key(current.run_id)
             self._store.write(log_key, self._log_file.read_bytes(), LOG_CONTENT_TYPE)
 
-    def _update(self, **changes: object) -> None:
+    def _update(self, *, lock_timeout_s: float = -1, **changes: object) -> None:
         with self._lock:
             merged = {**self._status.model_dump(), **changes, "updated_at": self._now()}
             self._status = RunStatus.model_validate(merged)
-        self._publish()
+        self._publish(lock_timeout_s)
 
     def _beat(self) -> None:
         while not self._stop.wait(HEARTBEAT_INTERVAL_S):

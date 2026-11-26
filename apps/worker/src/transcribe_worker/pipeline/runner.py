@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from transcribe_worker.engine.host import EngineProcess, describe
@@ -36,6 +36,8 @@ class _Run:
     ports: WorkerPorts
     backup: Backup
     status: StatusReporter
+    # Jobs left without a result because of a problem outside the file; they fail the run.
+    deferred: list[str] = field(default_factory=list)
 
     def finish_batch(self, batch_id: str) -> None:
         finish_batch(self.ports.store, batch_id, self.config.run_id, self.ports.now)
@@ -100,12 +102,15 @@ def _process_plan(run: _Run, plan: RunPlan) -> None:
     to_transcribe = [planned for planned in plan.jobs if planned.source == "transcribe"]
     if not to_transcribe:
         return
-    run.ports.engine.start()
     with run.prefetcher(to_transcribe) as prefetcher:
+        run.ports.engine.start()  # after the prefetcher, so downloads overlap the model load
         for planned in to_transcribe:
             run.status.job_started(planned.ref)
             stored = _transcribe(run, planned, prefetcher)
             _record(run, remaining, planned, stored=stored)
+    if run.deferred:
+        msg = f"{len(run.deferred)} jobs left for the next run (storage, disk or ffmpeg problems)"
+        raise RuntimeError(msg)
 
 
 def _record(run: _Run, remaining: dict[str, int], planned: PlannedJob, *, stored: bool) -> None:
@@ -126,6 +131,7 @@ def _transcribe(run: _Run, planned: PlannedJob, prefetcher: Prefetcher) -> bool:
             raise RuntimeError(msg)
         if prepared.retry_later:
             logger.warning("%s left for the next run: %s", planned.json_key, prepared.problem)
+            run.deferred.append(planned.json_key)
             return False
         output = transcribe_job(run.job_context(), planned, prepared.wav, prepared.problem)
     return store_output(run.ports.store, run.backup, planned, output)

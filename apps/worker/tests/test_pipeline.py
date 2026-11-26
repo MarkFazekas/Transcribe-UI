@@ -506,8 +506,9 @@ def test_missing_audio_fails_but_outage_retries(
     client = boto3.client("s3", region_name="us-east-1")
     client.delete_object(Bucket=BUCKET, Key=layout.audio_key(BATCH_A, missing, "opus", None))
 
-    assert run(FailingStore(store, fail_download=True), config) == EXIT_OK
-    assert store.list_keys(layout.results_prefix(BATCH_B)) == []
+    assert run(FailingStore(store, fail_download=True), config) == EXIT_FAILED
+    no_results = [store.list_keys(layout.results_prefix(batch_id)) for batch_id in (BATCH_A, BATCH_B)]
+    assert (no_results, "left for the next run" in (read_status(store).error or "")) == ([[], []], True)
 
     assert run_once() == EXIT_OK
     gone = read_result(store, BATCH_A, missing)

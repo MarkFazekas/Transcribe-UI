@@ -13,6 +13,7 @@ ctranslate2
 cuda
 divmod
 e2e
+enospc
 exc
 exitcode
 ffmpeg
@@ -71,6 +72,7 @@ signum
 sigterm
 silero
 srt
+strerror
 tmp
 tokenizer
 ulid

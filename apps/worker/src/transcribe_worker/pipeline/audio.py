@@ -1,12 +1,13 @@
 """Local audio handling: a size-bounded download cache and the ffmpeg decode to 16 kHz mono."""
 
+import errno
 import logging
 import shutil
 import subprocess
 from collections import OrderedDict
 from pathlib import Path
 
-from transcribe_worker.pipeline.constants import DECODE_ERROR_CHARS, DECODE_TIMEOUT_S, SAMPLE_RATE_HZ
+from transcribe_worker.pipeline.constants import DECODE_ERROR_CHARS, DECODE_TIMEOUT_S, DISK_FULL_MESSAGE, SAMPLE_RATE_HZ
 from transcribe_worker.pipeline.storage import ObjectStore
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 class DecodeError(Exception):
     """ffmpeg could not decode an audio file."""
+
+
+class DiskFullError(OSError):
+    """The disk filled up while decoding (not the file's fault: the job is retried later)."""
 
 
 class FfmpegMissingError(RuntimeError):
@@ -74,6 +79,7 @@ def decode_to_wav(source: Path, target: Path) -> None:
 
     Raises:
         FfmpegMissingError: ffmpeg is not on PATH.
+        DiskFullError: The disk filled up while writing the WAV file.
         DecodeError: ffmpeg failed or timed out; the message has ffmpeg's error.
     """
     ffmpeg = shutil.which("ffmpeg")
@@ -88,8 +94,15 @@ def decode_to_wav(source: Path, target: Path) -> None:
     except subprocess.TimeoutExpired as error:
         msg = f"ffmpeg did not finish within {DECODE_TIMEOUT_S} s"
         raise DecodeError(msg) from error
-    if completed.returncode != 0:
-        stderr = completed.stderr.decode(errors="replace").strip()
-        stderr = stderr[-DECODE_ERROR_CHARS:]
-        msg = f"ffmpeg failed (exit {completed.returncode}): {stderr or 'no output'}"
-        raise DecodeError(msg)
+    _check(completed)
+
+
+def _check(completed: "subprocess.CompletedProcess[bytes]") -> None:
+    if completed.returncode == 0:
+        return
+    stderr = completed.stderr.decode(errors="replace").strip()
+    stderr = stderr[-DECODE_ERROR_CHARS:]
+    if DISK_FULL_MESSAGE in stderr:
+        raise DiskFullError(errno.ENOSPC, stderr)
+    msg = f"ffmpeg failed (exit {completed.returncode}): {stderr or 'no output'}"
+    raise DecodeError(msg)
