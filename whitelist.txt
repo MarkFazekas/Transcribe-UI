@@ -3,6 +3,7 @@ a6
 base32
 codec
 crockford
+divmod
 e2e
 fullmatch
 gettempdir
@@ -16,6 +17,7 @@ popen
 posix
 pydantic
 q10
+randbits
 removeprefix
 removesuffix
 repo
