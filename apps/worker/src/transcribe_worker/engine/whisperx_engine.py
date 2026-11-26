@@ -17,6 +17,7 @@ with its transcription times and no words, so no text is lost.
 """
 
 import gc
+import logging
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -30,7 +31,9 @@ from whisperx.asr import WhisperModel
 from transcribe_contracts.classes import EngineInfo
 from transcribe_worker.engine import constants
 from transcribe_worker.engine.classes import Transcript
-from transcribe_worker.engine.convert import build_transcript
+from transcribe_worker.engine.convert import build_transcript, same_text
+
+logger = logging.getLogger(__name__)
 
 type RawSegments = list[dict[str, object]]
 
@@ -100,10 +103,11 @@ class WhisperXTranscriber:
 
     def transcribe(self, audio: Path, language: str, *, careful: bool) -> Transcript:
         """Transcribe a 16 kHz mono WAV file in the given (forced) language."""
+        # The aligner first: a language switch fails or falls back before minutes of decoding.
+        aligner = self._aligner_for(language)
         samples = whisperx.load_audio(str(audio))
         decode = self._careful_segments if careful else self._batched_segments
         segments = decode(samples, language)
-        aligner = self._aligner_for(language)
         if aligner is None:
             return build_transcript(segments, language, aligned=False)
         aligned = [part for segment in segments for part in _align(segment, aligner, samples)]
@@ -128,6 +132,10 @@ class WhisperXTranscriber:
             no_speech_threshold=constants.CAREFUL_NO_SPEECH_THRESHOLD,
             condition_on_previous_text=constants.CAREFUL_CONDITION_ON_PREVIOUS_TEXT,
             vad_filter=constants.CAREFUL_VAD_FILTER,
+            vad_parameters={
+                "min_silence_duration_ms": constants.CAREFUL_VAD_MIN_SILENCE_MS,
+                "speech_pad_ms": constants.CAREFUL_VAD_SPEECH_PAD_MS,
+            },
         )
         # `segments` is a lazy generator: decoding happens while it is consumed here.
         return [_as_mapping(segment) for segment in segments]
@@ -165,15 +173,27 @@ def _align(segment: dict[str, object], aligner: Aligner, samples: object) -> Raw
         constants.DEVICE,
         return_char_alignments=False,
     )
-    return aligned["segments"] or [segment]
+    parts = aligned["segments"]
+    if not same_text(parts, [segment]):
+        # WhisperX drops parts whose times stay NaN; keep the whole text, unaligned, instead.
+        return [segment]
+    return parts
 
 
 def _load_aligner(language: str) -> Aligner | None:
-    """Load the default WhisperX alignment model of the language; None when there is none."""
+    """Load the default WhisperX alignment model of the language.
+
+    Returns None when WhisperX has none for the language, or when loading it fails (logged):
+    the job is then transcribed without word alignment instead of failing.
+    """
     try:
         model, metadata = whisperx.load_align_model(language_code=language, device=constants.DEVICE)
     except ValueError as error:
         if not str(error).startswith(constants.NO_ALIGN_MODEL_MESSAGE):
-            raise
+            logger.exception("could not load the %s alignment model; transcribing unaligned", language)
+        return None
+    except Exception:
+        # A download, disk or memory problem: unaligned subtitles beat a failed job.
+        logger.exception("could not load the %s alignment model; transcribing unaligned", language)
         return None
     return Aligner(model=model, metadata=metadata)

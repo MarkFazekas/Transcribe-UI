@@ -45,5 +45,12 @@ class Backup:
             logger.exception("could not read backup %s", key)
             return None
 
+    def remove(self, key: str) -> None:
+        """Delete a backed-up file (an invalid marker, so a later backup can be written)."""
+        try:
+            self._path(key).unlink(missing_ok=True)
+        except OSError:
+            logger.exception("could not remove backup %s", key)
+
     def _path(self, key: str) -> Path:
         return self._root.joinpath(*key.split("/"))

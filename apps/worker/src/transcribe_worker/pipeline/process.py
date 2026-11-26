@@ -9,7 +9,7 @@ from typing import Protocol
 
 from transcribe_contracts.classes import EngineInfo, JobResult, JobStatus
 from transcribe_worker.engine.classes import Transcript
-from transcribe_worker.engine.host import EngineError
+from transcribe_worker.engine.host import EngineError, EngineStartError, describe
 from transcribe_worker.pipeline.constants import CAREFUL_TIMEOUT_FACTOR, JOB_TIMEOUT_PER_AUDIO_S
 from transcribe_worker.pipeline.plan import PlannedJob
 from transcribe_worker.subtitles import srt as srt_format
@@ -60,6 +60,9 @@ class _Attempt:
 def transcribe_job(context: JobContext, planned: PlannedJob, wav: Path | None, problem: str | None) -> JobOutput:
     """Process one job; any failure becomes a "failed" result instead of an exception.
 
+    Only an engine that cannot be started is raised (EngineStartError): no job could run, so
+    the run stops without recording results.
+
     Args:
         context: Run id, engine and clock.
         planned: The job.
@@ -69,14 +72,26 @@ def transcribe_job(context: JobContext, planned: PlannedJob, wav: Path | None, p
     started_at = context.now()
     careful = planned.job.mode == "careful"
     try:
-        attempt = _transcribe_checked(context, planned, wav, problem)
-    except EngineError as error:
-        logger.warning("job %s failed: %s", planned.json_key, error)
-        failure = _Failure(careful=careful, error=str(error))
+        success, srt = _transcribe_to_srt(context, planned, wav, problem)
+    except EngineStartError:
+        raise
+    except Exception as error:
+        logger.warning("job %s failed", planned.json_key, exc_info=True)
+        failure = _Failure(careful=careful, error=_error_text(error))
         return _output(context, planned, started_at, failure)
+    return _output(context, planned, started_at, success, srt)
+
+
+def _transcribe_to_srt(
+    context: JobContext,
+    planned: PlannedJob,
+    wav: Path | None,
+    problem: str | None,
+) -> tuple["_Success", bytes]:
+    attempt = _transcribe_checked(context, planned, wav, problem)
     cues = build_cues(clean(attempt.transcript))
-    srt = srt_format.to_srt(cues).encode()
-    return _output(context, planned, started_at, _Success(attempt, len(cues)), srt)
+    srt = srt_format.to_srt(cues)
+    return _Success(attempt, len(cues)), srt.encode()
 
 
 @dataclass(frozen=True)
@@ -102,6 +117,8 @@ def _transcribe_checked(context: JobContext, planned: PlannedJob, wav: Path | No
     logger.info("re-running %s carefully: %s", planned.json_key, "; ".join(problems))
     try:
         return _Attempt(_run(context, planned, wav, careful=True), careful=True)
+    except EngineStartError:
+        raise
     except EngineError:
         logger.warning("careful re-run of %s failed; keeping the first result", planned.json_key, exc_info=True)
         return first
@@ -145,3 +162,8 @@ def _output(
         engine=context.engine.settings(careful=careful),
     )
     return JobOutput(job_result=job_result, srt=srt)
+
+
+def _error_text(error: Exception) -> str:
+    """Return an engine error's own message, any other error as 'Type: message'."""
+    return str(error) if isinstance(error, EngineError) else describe(error)

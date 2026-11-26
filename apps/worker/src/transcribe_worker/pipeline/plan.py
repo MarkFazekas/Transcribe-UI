@@ -131,6 +131,7 @@ def _backed_up(planned: PlannedJob, backup: Backup) -> bool:
     try:
         read_job_result(planned.json_key, body)
     except ContractError:
-        logger.warning("ignoring the invalid backup of %s", planned.json_key)
+        logger.warning("removing the invalid backup of %s", planned.json_key)
+        backup.remove(planned.json_key)
         return False
     return True

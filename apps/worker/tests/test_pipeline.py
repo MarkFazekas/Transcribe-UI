@@ -9,10 +9,12 @@ import json
 import logging
 import shutil
 import sys
+import time
 import wave
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 
 import boto3
@@ -31,7 +33,9 @@ from transcribe_contracts.classes import (
     TranscriptionMode,
 )
 from transcribe_contracts.reading import read_batch_summary, read_job_result, read_run_status
-from transcribe_worker.engine.host import EngineProcess
+from transcribe_worker.engine.classes import Transcript
+from transcribe_worker.engine.constants import FAKE_BROKEN_FLAG_ENV
+from transcribe_worker.engine.host import EngineError, EngineProcess
 from transcribe_worker.pipeline.audio import AudioCache, decode_to_wav
 from transcribe_worker.pipeline.config import R2Settings, WorkerConfig
 from transcribe_worker.pipeline.constants import ENGINE_FACTORIES, EXIT_FAILED, EXIT_OK, LOG_FILE_NAME
@@ -49,9 +53,11 @@ ENGLISH = "en"
 HUNGARIAN = "hu"
 JSON_TYPE = "application/json"
 OK = "ok"
+FAILED = "failed"
 ENGINE_START_TIMEOUT_S = 60.0
 DEFAULT_JOB_TIMEOUT_S = 600.0
 SHORT_JOB_TIMEOUT_S = 3.0
+IDLE_DEATH_WAIT_S = 1.0
 MAX_RUNTIME_S = 7200
 AUDIO_DURATION_S = 5.0
 FAKE_SECRET = "test-secret"  # noqa: S105 - a fake credential for the moto bucket
@@ -96,6 +102,7 @@ class FailingStore:
     inner: ObjectStore
     fail_list: bool = False
     fail_new: str | None = None
+    fail_download: bool = False
 
     def list_keys(self, prefix: str) -> list[str]:
         """List, or fail when asked to."""
@@ -108,7 +115,9 @@ class FailingStore:
         return self.inner.read(key)
 
     def download(self, key: str, target: Path) -> None:
-        """Download from the wrapped store."""
+        """Download from the wrapped store, or fail when asked to."""
+        if self.fail_download:
+            raise OutageError
         self.inner.download(key, target)
 
     def write(self, key: str, body: bytes, content_type: str) -> None:
@@ -160,6 +169,12 @@ def config(tmp_path: Path) -> WorkerConfig:
 def raise_outage() -> None:
     """Raise an OutageError (gives it a real traceback)."""
     raise OutageError
+
+
+@pytest.fixture
+def run_once(store: S3ObjectStore, config: WorkerConfig) -> Callable[[], int]:
+    """Return a function running the worker once on the test bucket with the test config."""
+    return partial(run, store, config)
 
 
 def make_clock() -> Callable[[], datetime]:
@@ -247,12 +262,12 @@ def read_status(store: ObjectStore) -> RunStatus:
     return read_run_status(key, body)
 
 
-def test_jobs_run_language_by_language(store: S3ObjectStore, config: WorkerConfig) -> None:
+def test_jobs_run_language_by_language(run_once: Callable[[], int], store: S3ObjectStore) -> None:
     """Two batches, mixed languages: all done, en jobs before hu jobs, summaries and status."""
     first, second = put_batch(store, BATCH_A, [Source(SPEECH, (HUNGARIAN, ENGLISH)), SPEECH_SOURCE])
     third = put_batch(store, BATCH_B, [Source(HUNGARIAN_SPEECH, (HUNGARIAN,))])[0]
 
-    assert run(store, config) == EXIT_OK
+    assert run_once() == EXIT_OK
 
     job_results = [
         read_result(store, BATCH_A, first, HUNGARIAN),
@@ -274,18 +289,18 @@ def test_jobs_run_language_by_language(store: S3ObjectStore, config: WorkerConfi
     assert (status.state, status.done_jobs, status.total_jobs) == ("finished", 4, 4)
 
 
-def test_one_bad_file_does_not_stop_the_batch(store: S3ObjectStore, config: WorkerConfig) -> None:
+def test_one_bad_file_does_not_stop_the_batch(run_once: Callable[[], int], store: S3ObjectStore) -> None:
     """Failure, silence and an engine crash are recorded; the following job still succeeds."""
     sources = [Source(b"FAKE:fail"), Source(b"FAKE:silence"), Source(b"FAKE:crash"), SPEECH_SOURCE]
     failing, silent, crashing, healthy = put_batch(store, BATCH_A, sources)
 
-    assert run(store, config) == EXIT_OK
+    assert run_once() == EXIT_OK
 
     failed = read_result(store, BATCH_A, failing)
-    assert (failed.status, failed.cue_count, "scripted failure" in (failed.error or "")) == ("failed", 0, True)
+    assert (failed.status, failed.cue_count, "scripted failure" in (failed.error or "")) == (FAILED, 0, True)
     assert (read_result(store, BATCH_A, silent).status, read_subtitle(store, BATCH_A, silent)) == ("no_speech", "")
     crashed = read_result(store, BATCH_A, crashing)
-    assert (crashed.status, "died" in (crashed.error or "")) == ("failed", True)
+    assert (crashed.status, "died" in (crashed.error or "")) == (FAILED, True)
     assert (read_result(store, BATCH_A, healthy).status, summary_counts(store, BATCH_A)) == (OK, (1, 1, 2))
 
 
@@ -296,22 +311,22 @@ def test_hung_job_times_out_engine_restarts(store: S3ObjectStore, config: Worker
     assert run(store, config.model_copy(update={"job_timeout_min_s": SHORT_JOB_TIMEOUT_S})) == EXIT_OK
 
     hung = read_result(store, BATCH_A, hanging)
-    assert (hung.status, "timed out" in (hung.error or "")) == ("failed", True)
+    assert (hung.status, "timed out" in (hung.error or "")) == (FAILED, True)
     assert read_result(store, BATCH_A, healthy).status == OK
 
 
-def test_suspicious_output_is_redone_carefully(store: S3ObjectStore, config: WorkerConfig) -> None:
+def test_suspicious_output_is_redone_carefully(run_once: Callable[[], int], store: S3ObjectStore) -> None:
     """A repetition loop triggers a careful re-run, whose settings are recorded."""
     looping = put_batch(store, BATCH_A, [Source(b"FAKE:loop")])[0]
 
-    assert run(store, config) == EXIT_OK
+    assert run_once() == EXIT_OK
 
     redone = read_result(store, BATCH_A, looping)
     assert (redone.status, redone.mode, redone.engine.compute_type) == (OK, "normal", "careful")
     assert "Recovered text." in read_subtitle(store, BATCH_A, looping)
 
 
-def test_existing_results_are_kept(store: S3ObjectStore, config: WorkerConfig) -> None:
+def test_existing_results_are_kept(run_once: Callable[[], int], store: S3ObjectStore) -> None:
     """A restarted run continues: a job with a result is skipped, the rest finishes the batch."""
     done_before, pending = put_batch(store, BATCH_A, [SPEECH_SOURCE, SPEECH_SOURCE])
     earlier = JobResult(
@@ -331,7 +346,7 @@ def test_existing_results_are_kept(store: S3ObjectStore, config: WorkerConfig) -
     store.write(layout.result_srt_key(BATCH_A, done_before, ENGLISH), b"", "application/x-subrip")
     store.write(layout.result_json_key(BATCH_A, done_before, ENGLISH), earlier.model_dump_json().encode(), JSON_TYPE)
 
-    assert run(store, config) == EXIT_OK
+    assert run_once() == EXIT_OK
 
     assert read_result(store, BATCH_A, done_before).run_id == EARLIER_RUN_ID
     assert read_result(store, BATCH_A, pending).run_id == RUN_ID
@@ -356,14 +371,14 @@ def test_failed_upload_is_finished_from_the_backup(store: S3ObjectStore, config:
     assert ("Hello world." in read_subtitle(store, BATCH_A, lost), summary_counts(store, BATCH_A)) == (True, (2, 0, 0))
 
 
-def test_done_and_unreadable_batches_are_skipped(store: S3ObjectStore, config: WorkerConfig) -> None:
+def test_done_and_unreadable_batches_are_skipped(run_once: Callable[[], int], store: S3ObjectStore) -> None:
     """A batch with `_done.json` and a manifest of another schema major are left alone."""
     put_batch(store, BATCH_A, [SPEECH_SOURCE])
     store.write(layout.done_key(BATCH_A), b"{}", JSON_TYPE)
     future = json.dumps({"schema_version": "2.0", "batch_id": BATCH_B}).encode()
     store.write(layout.manifest_key(BATCH_B), future, JSON_TYPE)
 
-    assert run(store, config) == EXIT_OK
+    assert run_once() == EXIT_OK
 
     assert store.list_keys(layout.results_prefix(BATCH_A)) == []
     assert store.list_keys(layout.batch_prefix(BATCH_B)) == []
@@ -376,7 +391,7 @@ def test_broken_audio_fails_only_its_job(store: S3ObjectStore, config: WorkerCon
     assert run(store, config, decode=decode_to_wav) == EXIT_OK
 
     broken = read_result(store, BATCH_A, broken_id)
-    assert (broken.status, "ffmpeg failed" in (broken.error or "")) == ("failed", True)
+    assert (broken.status, "ffmpeg failed" in (broken.error or "")) == (FAILED, True)
     assert summary_counts(store, BATCH_A) == (0, 0, 1)
 
 
@@ -385,16 +400,16 @@ def test_unreachable_storage_fails_the_run(store: S3ObjectStore, config: WorkerC
     assert run(FailingStore(store, fail_list=True), config) == EXIT_FAILED
 
     status = read_status(store)
-    assert (status.state, "R2 unreachable" in (status.error or "")) == ("failed", True)
+    assert (status.state, "R2 unreachable" in (status.error or "")) == (FAILED, True)
 
 
-def test_log_file_is_uploaded(store: S3ObjectStore, config: WorkerConfig) -> None:
+def test_log_file_is_uploaded(run_once: Callable[[], int], store: S3ObjectStore, config: WorkerConfig) -> None:
     """The run log is uploaded next to the status."""
     log_file = config.work_dir / LOG_FILE_NAME
     log_file.parent.mkdir(parents=True)
     log_file.write_text('{"message": "hello"}\n')
 
-    assert run(store, config) == EXIT_OK
+    assert run_once() == EXIT_OK
 
     assert store.read(layout.run_log_key(RUN_ID)) == log_file.read_bytes()
 
@@ -442,3 +457,77 @@ def test_audio_cache_evicts_least_recently_used(store: S3ObjectStore, tmp_path: 
     assert first.exists()
     assert sorted(path.name for path in (tmp_path / "cache").iterdir()) == ["a", "c"]
     assert cache.used_bytes == 2 * CACHED_OBJECT_BYTES
+
+
+def test_engine_that_cannot_restart_stops_the_run(
+    run_once: Callable[[], int],
+    store: S3ObjectStore,
+    config: WorkerConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After a crash the engine cannot start again: the run fails, later jobs stay open."""
+    monkeypatch.setenv(FAKE_BROKEN_FLAG_ENV, str(config.work_dir / "broken"))
+    breaking, pending = put_batch(store, BATCH_A, [Source(b"FAKE:break"), SPEECH_SOURCE])
+
+    assert run_once() == EXIT_FAILED
+
+    assert read_result(store, BATCH_A, breaking).status == FAILED
+    pending_key = layout.result_json_key(BATCH_A, pending, ENGLISH)
+    assert (store.read(pending_key), store.read(layout.done_key(BATCH_A))) == (None, None)
+    assert "did not start" in (read_status(store).error or "")
+
+
+def test_backups_are_restored_before_the_engine_starts(
+    run_once: Callable[[], int],
+    store: S3ObjectStore,
+    config: WorkerConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A backed-up result reaches R2 even when the engine cannot start for the other jobs."""
+    lost = put_batch(store, BATCH_A, [SPEECH_SOURCE])[0]
+    lost_key = layout.result_json_key(BATCH_A, lost, ENGLISH)
+    assert run(FailingStore(store, fail_new=lost_key), config) == EXIT_OK
+    put_batch(store, BATCH_B, [SPEECH_SOURCE])
+    broken_flag = config.work_dir / "broken"
+    broken_flag.touch()
+    monkeypatch.setenv(FAKE_BROKEN_FLAG_ENV, str(broken_flag))
+
+    assert run_once() == EXIT_FAILED
+
+    assert (read_result(store, BATCH_A, lost).status, summary_counts(store, BATCH_A)) == (OK, (1, 0, 0))
+
+
+def test_missing_audio_fails_but_outage_retries(
+    run_once: Callable[[], int], store: S3ObjectStore, config: WorkerConfig
+) -> None:
+    """A missing audio object fails its job; a download outage leaves the job for the next run."""
+    missing = put_batch(store, BATCH_A, [SPEECH_SOURCE])[0]
+    put_batch(store, BATCH_B, [SPEECH_SOURCE])
+    client = boto3.client("s3", region_name="us-east-1")
+    client.delete_object(Bucket=BUCKET, Key=layout.audio_key(BATCH_A, missing, "opus", None))
+
+    assert run(FailingStore(store, fail_download=True), config) == EXIT_OK
+    assert store.list_keys(layout.results_prefix(BATCH_B)) == []
+
+    assert run_once() == EXIT_OK
+    gone = read_result(store, BATCH_A, missing)
+    assert (gone.status, "missing" in (gone.error or "")) == (FAILED, True)
+
+
+def test_engine_gone_while_idle_fails_one_job(tmp_path: Path) -> None:
+    """An engine killed between jobs fails the next job only; the one after gets a new engine."""
+    script = tmp_path / "speech.wav"
+    script.write_bytes(SPEECH)
+    quitting = tmp_path / "quit.wav"
+    quitting.write_bytes(b"FAKE:quit")
+    engine = EngineProcess(ENGINE_FACTORIES["fake"], ENGINE_START_TIMEOUT_S)
+    engine.transcribe(quitting, ENGLISH, careful=False, timeout_s=ENGINE_START_TIMEOUT_S)
+    time.sleep(IDLE_DEATH_WAIT_S)
+    with pytest.raises(EngineError, match=r"gone|died"):
+        engine.transcribe(script, ENGLISH, careful=False, timeout_s=SHORT_JOB_TIMEOUT_S)
+
+    transcript = engine.transcribe(script, ENGLISH, careful=False, timeout_s=ENGINE_START_TIMEOUT_S)
+    engine.close()
+
+    assert isinstance(transcript, Transcript)
+    assert "Hello world." in transcript.text

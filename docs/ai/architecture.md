@@ -386,10 +386,21 @@ pods-only key is passed as a Runpod secret.
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
   audio, doubled in careful mode) kills that process, the job is `failed`, and the next job
-  starts a fresh engine. An engine crash (native abort, OOM kill) is handled the same way. Any
-  decode, download or engine error marks only that job `failed` (the error text goes into the
-  result) and the run continues. If the engine cannot start at all, the run fails (exit 1)
-  without writing job results.
+  starts a fresh engine. An engine crash (native abort, OOM kill, even while idle) is handled
+  the same way. A decode error, a missing audio object or any engine or subtitle error marks
+  only that job `failed` (the error text goes into the result) and the run continues. A
+  storage or disk problem while preparing the audio is not the file's fault: the job gets no
+  result and the next run tries it again. If the engine cannot be started (at the beginning or
+  after a crash), the run fails (exit 1) without writing results for the remaining jobs.
+- Order inside a run: batches whose results are all in R2 get their `_done.json`, then results
+  from the backup are uploaded, and only then does the engine start, so a broken engine never
+  keeps backed-up results from reaching R2.
+- Alignment: the language's aligner is loaded before decoding; if it cannot be loaded
+  (download, disk or memory problem), the job is transcribed without word alignment
+  (`aligned: false`) instead of failing. If aligned parts lose any letter of their segment
+  (WhisperX drops parts whose times stay NaN), the segment is kept whole and unaligned.
+- Careful decoding uses faster-whisper's Silero VAD with 500 ms minimum silence and 400 ms
+  speech padding (its default 2 s silence lets music between lines through).
 - Careful decoding is faster-whisper's sequential `WhisperModel.transcribe` on the same
   CTranslate2 model (batch size 1, beam 5, temperatures 0–1.0 in 0.2 steps with the
   compression-ratio/log-prob/no-speech checks, `condition_on_previous_text=False`, its Silero
@@ -407,7 +418,11 @@ pods-only key is passed as a Runpod secret.
   logged; R2 is the primary copy.
 - Upload: the SRT is not written when the job's JSON already exists (another worker finished
   it), then the JSON with `If-None-Match: *`. A failed upload leaves the batch open; the next
-  run uploads the backup.
+  run uploads the backup. Two overlapping workers could still pair one worker's SRT with the
+  other's JSON (the SRT PUT is unconditional); the single-worker rule (§3.7) keeps that out.
+- Timeouts keep a stuck call from holding a billed pod: R2 requests have 10 s connect and 30 s
+  read timeouts with 5 attempts, and the heartbeat and prefetch threads are waited for at most
+  60 s at the end of a run.
 - A batch whose jobs all have a result in R2 gets `_done.json` with the counts of every result
   (earlier runs included), also when an earlier run stopped right before writing it. After the
   last job: exit 0, and the entry terminates the pod.

@@ -11,15 +11,21 @@ from botocore.exceptions import ClientError
 from transcribe_worker.pipeline.constants import (
     HTTP_PRECONDITION_FAILED,
     R2_REGION,
+    S3_CONNECT_TIMEOUT_S,
     S3_MAX_ATTEMPTS,
     S3_MISSING_CODES,
     S3_MULTIPART_BYTES,
+    S3_READ_TIMEOUT_S,
 )
 
 if TYPE_CHECKING:
     from types_boto3_s3.client import S3Client
 
     from transcribe_worker.pipeline.config import R2Settings
+
+
+class ObjectMissingError(Exception):
+    """The requested object does not exist (a permanent problem, unlike connection errors)."""
 
 
 class ObjectStore(Protocol):
@@ -32,7 +38,11 @@ class ObjectStore(Protocol):
         """Return the object's body, or None if it does not exist."""
 
     def download(self, key: str, target: Path) -> None:
-        """Download the object to a local file."""
+        """Download the object to a local file.
+
+        Raises:
+            ObjectMissingError: The object does not exist.
+        """
 
     def write(self, key: str, body: bytes, content_type: str) -> None:
         """Create or replace the object."""
@@ -71,13 +81,17 @@ class S3ObjectStore:
         return body
 
     def download(self, key: str, target: Path) -> None:
-        """Download the object to a local file (multipart for large objects)."""
-        self._client.download_file(
-            Bucket=self._bucket,
-            Key=key,
-            Filename=f"{target}",
-            Config=self._transfer,
-        )
+        """Download the object to a local file (multipart for large objects).
+
+        Raises:
+            ObjectMissingError: The object does not exist.
+        """
+        try:
+            self._download(key, target)
+        except ClientError as error:
+            if _error_code(error) in S3_MISSING_CODES:
+                raise ObjectMissingError(key) from error
+            raise
 
     def write(self, key: str, body: bytes, content_type: str) -> None:
         """Create or replace the object."""
@@ -104,12 +118,22 @@ class S3ObjectStore:
             raise
         return True
 
+    def _download(self, key: str, target: Path) -> None:
+        self._client.download_file(
+            Bucket=self._bucket,
+            Key=key,
+            Filename=f"{target}",
+            Config=self._transfer,
+        )
+
 
 def r2_client(settings: "R2Settings") -> "S3Client":
     """Build an S3 client for R2 (checksums only when required: R2 rejects some defaults)."""
     config = Config(
         region_name=R2_REGION,
         retries={"max_attempts": S3_MAX_ATTEMPTS, "mode": "standard"},
+        connect_timeout=S3_CONNECT_TIMEOUT_S,
+        read_timeout=S3_READ_TIMEOUT_S,
         request_checksum_calculation="when_required",
         response_checksum_validation="when_required",
     )

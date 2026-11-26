@@ -14,6 +14,7 @@ from transcribe_worker.pipeline.constants import (
     JSON_CONTENT_TYPE,
     LOG_CONTENT_TYPE,
     LOG_FILE_NAME,
+    THREAD_STOP_TIMEOUT_S,
 )
 from transcribe_worker.pipeline.storage import ObjectStore
 
@@ -42,6 +43,8 @@ class StatusReporter:
         self._log_file = log_file
         self._now = now
         self._lock = threading.Lock()
+        # Serialises whole publishes, so an older snapshot never overwrites a newer one in R2.
+        self._publish_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -69,31 +72,32 @@ class StatusReporter:
         """Stop the heartbeat and publish the final state ("failed" with an error)."""
         self._stop.set()
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(THREAD_STOP_TIMEOUT_S)
         state: RunState = "failed" if error else "finished"
         self._update(state=state, current=None, error=error)
 
     def _publish(self) -> None:
         """Upload the current status and the log; failures are only logged."""
+        with self._publish_lock:
+            try:
+                self._upload_status()
+            except Exception:
+                logger.warning("could not publish the run status", exc_info=True)
+
+    def _upload_status(self) -> None:
         with self._lock:
             current = self._status.model_copy(update={"updated_at": self._now()})
         key = layout.run_status_key(current.run_id)
-        try:
-            self._store.write(key, current.model_dump_json().encode(), JSON_CONTENT_TYPE)
-            self._upload_log()
-        except Exception:
-            logger.warning("could not publish the run status", exc_info=True)
+        self._store.write(key, current.model_dump_json().encode(), JSON_CONTENT_TYPE)
+        if self._log_file.exists():
+            log_key = layout.run_log_key(current.run_id)
+            self._store.write(log_key, self._log_file.read_bytes(), LOG_CONTENT_TYPE)
 
     def _update(self, **changes: object) -> None:
         with self._lock:
             merged = {**self._status.model_dump(), **changes, "updated_at": self._now()}
             self._status = RunStatus.model_validate(merged)
         self._publish()
-
-    def _upload_log(self) -> None:
-        if self._log_file.exists():
-            log_key = layout.run_log_key(self._status.run_id)
-            self._store.write(log_key, self._log_file.read_bytes(), LOG_CONTENT_TYPE)
 
     def _beat(self) -> None:
         while not self._stop.wait(HEARTBEAT_INTERVAL_S):

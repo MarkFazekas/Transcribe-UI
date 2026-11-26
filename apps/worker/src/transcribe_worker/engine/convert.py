@@ -64,3 +64,21 @@ def _time(raw: object) -> float | None:
     if not math.isfinite(seconds):
         return None
     return max(seconds, 0)
+
+
+type RawSegment = Mapping[str, object]
+
+
+def same_text(segments: Iterable[RawSegment], others: Iterable[RawSegment]) -> bool:
+    """Return True when both segment lists hold the same letters and digits (case ignored).
+
+    Used to check that alignment lost no text: WhisperX drops aligned parts whose times stay
+    NaN, and spacing or punctuation may change.
+    """
+    return _letters(segments) == _letters(others)
+
+
+def _letters(segments: Iterable[RawSegment]) -> str:
+    texts = [str(segment.get("text", "")) for segment in segments]
+    joined = "".join(texts).casefold()
+    return "".join(filter(str.isalnum, joined))

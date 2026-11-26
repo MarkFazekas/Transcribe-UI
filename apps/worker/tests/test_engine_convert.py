@@ -5,12 +5,13 @@ import math
 import pytest
 
 from transcribe_worker.engine.classes import Transcript
-from transcribe_worker.engine.convert import build_transcript
+from transcribe_worker.engine.convert import build_transcript, same_text
 
 LANGUAGE = "hu"
 SCORE = 0.912
 AVG_LOG_PROB = -0.21
 NUMBER = "1984"
+TEXT_FIELD = "text"
 
 type Span = tuple[object, object]
 type Raw = dict[str, object]
@@ -133,3 +134,18 @@ def test_blank_and_malformed_words_are_skipped() -> None:
     transcript = build_transcript(raw, LANGUAGE, aligned=True)
 
     assert word_spans(transcript) == [[("Na", 0.2, 0.5)], [], []]
+
+
+@pytest.mark.parametrize(
+    ("parts", "expected"),
+    [
+        ([" Hello there.", "How are you?"], True),
+        (["hello there how are you"], True),
+        ([" Hello there."], False),
+        ([], False),
+    ],
+)
+def test_alignment_text_check(parts: list[str], expected: bool) -> None:  # noqa: FBT001 - pytest parameter
+    """Aligned parts must keep every letter of the segment; spacing and case may change."""
+    as_segments = [{TEXT_FIELD: part} for part in parts]
+    assert same_text(as_segments, [{TEXT_FIELD: "Hello there. How are you?"}]) is expected

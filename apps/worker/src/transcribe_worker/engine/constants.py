@@ -25,6 +25,10 @@ FAKE_LOOP_TEXT: Final = "Thank you for watching."
 FAKE_LOOP_COUNT: Final = 12
 # Fake engine: exit code of the "crash" script (simulates a native crash).
 FAKE_CRASH_EXIT_CODE: Final = 70
+# Fake engine: environment variable naming a file whose existence makes the engine fail to start.
+FAKE_BROKEN_FLAG_ENV: Final = "TRANSCRIBE_FAKE_BROKEN_FLAG"
+# Fake engine: seconds after its answer at which the "quit" script ends the engine process.
+FAKE_QUIT_DELAY_S: Final = 0.1
 # Fake engine: seconds the "hang" script sleeps.
 FAKE_HANG_S: Final = 3600.0
 
@@ -57,6 +61,11 @@ CAREFUL_NO_SPEECH_THRESHOLD: Final = 0.6
 CAREFUL_CONDITION_ON_PREVIOUS_TEXT: Final = False
 # Careful mode filters non-speech with faster-whisper's bundled Silero VAD.
 CAREFUL_VAD_FILTER: Final = True
+# Careful-mode VAD: split at pauses of 500 ms (default 2 s) so music between lines is cut out
+# (research/whisper.md §4); 400 ms padding keeps word edges.
+CAREFUL_VAD_MIN_SILENCE_MS: Final = 500
+# Padding around each detected speech region in careful mode.
+CAREFUL_VAD_SPEECH_PAD_MS: Final = 400
 
 # Start of the ValueError message WhisperX raises when a language has no default alignment model.
 NO_ALIGN_MODEL_MESSAGE: Final = "No default align-model for language"

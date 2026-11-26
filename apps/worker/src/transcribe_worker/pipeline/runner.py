@@ -59,51 +59,73 @@ def run_worker(config: WorkerConfig, ports: WorkerPorts) -> int:
     """Process every pending job of every ready batch; return the process exit code.
 
     Failed jobs do not fail the run; only a run that cannot work at all (storage unreachable,
-    engine not starting) returns EXIT_FAILED.
+    engine not starting) returns EXIT_FAILED. An interruption (KeyboardInterrupt, SystemExit)
+    is recorded as a failed run and propagates.
     """
     status = start_status(ports.store, config, ports.now)
     backup = Backup(config.backup_dir)
     run = _Run(config=config, ports=ports, backup=backup, status=status)
-    error: str | None = None
+    error: str | None = "the run was interrupted"
     try:
         _process_plan(run, plan_run(ports.store, backup))
+        error = None
     except Exception as failure:
         logger.exception("the run failed")
         error = describe(failure)
     finally:
-        ports.engine.close()
-        status.finish(error)
+        _shut_down(ports.engine, status, error)
     return EXIT_FAILED if error else EXIT_OK
 
 
+def _shut_down(engine: EngineProcess, status: StatusReporter, error: str | None) -> None:
+    try:
+        engine.close()
+    except Exception:
+        logger.exception("could not stop the engine process")
+    status.finish(error)
+
+
 def _process_plan(run: _Run, plan: RunPlan) -> None:
+    """Finish complete batches, restore backups, then transcribe (the engine starts last)."""
     run.status.transcribing(len(plan.jobs))
     remaining = plan.pending_per_batch()
     for batch_id, count in remaining.items():
         if not count:
             run.finish_batch(batch_id)
+    restored_jobs = [planned for planned in plan.jobs if planned.source == "backup"]
+    for restored in restored_jobs:
+        run.status.job_started(restored.ref)
+        stored = restore_from_backup(run.ports.store, run.backup, restored)
+        _record(run, remaining, restored, stored=stored)
     to_transcribe = [planned for planned in plan.jobs if planned.source == "transcribe"]
-    if to_transcribe:
-        run.ports.engine.start()
+    if not to_transcribe:
+        return
+    run.ports.engine.start()
     with run.prefetcher(to_transcribe) as prefetcher:
-        for planned in plan.jobs:
+        for planned in to_transcribe:
             run.status.job_started(planned.ref)
-            stored = _process_job(run, planned, prefetcher)
-            run.status.job_finished()
-            if stored:
-                remaining[planned.batch_id] -= 1
-            if stored and not remaining[planned.batch_id]:
-                run.finish_batch(planned.batch_id)
+            stored = _transcribe(run, planned, prefetcher)
+            _record(run, remaining, planned, stored=stored)
 
 
-def _process_job(run: _Run, planned: PlannedJob, prefetcher: Prefetcher) -> bool:
-    if planned.source == "backup":
-        return restore_from_backup(run.ports.store, run.backup, planned)
-    prepared = prefetcher.take()
-    if prepared.planned != planned:
-        prepared.discard()
-        msg = f"prefetch order broken: got {prepared.planned.json_key}, expected {planned.json_key}"
-        raise RuntimeError(msg)
-    output = transcribe_job(run.job_context(), planned, prepared.wav, prepared.problem)
-    prepared.discard()
+def _record(run: _Run, remaining: dict[str, int], planned: PlannedJob, *, stored: bool) -> None:
+    """Count a processed job; finish its batch when its last result is in R2."""
+    run.status.job_finished()
+    if not stored:
+        return
+    remaining[planned.batch_id] -= 1
+    if not remaining[planned.batch_id]:
+        run.finish_batch(planned.batch_id)
+
+
+def _transcribe(run: _Run, planned: PlannedJob, prefetcher: Prefetcher) -> bool:
+    """Transcribe and store one job; False when its result is not in R2 (retried next run)."""
+    with prefetcher.take() as prepared:
+        if prepared.planned != planned:
+            msg = f"prefetch order broken: got {prepared.planned.json_key}, expected {planned.json_key}"
+            raise RuntimeError(msg)
+        if prepared.retry_later:
+            logger.warning("%s left for the next run: %s", planned.json_key, prepared.problem)
+            return False
+        output = transcribe_job(run.job_context(), planned, prepared.wav, prepared.problem)
     return store_output(run.ports.store, run.backup, planned, output)

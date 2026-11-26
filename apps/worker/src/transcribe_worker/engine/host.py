@@ -13,6 +13,8 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from pydantic import ValidationError
+
 from transcribe_contracts.classes import EngineInfo
 from transcribe_worker.engine.classes import Transcript
 from transcribe_worker.engine.constants import (
@@ -34,6 +36,10 @@ class EngineError(Exception):
     """The engine could not transcribe a file (failure, crash, or timeout)."""
 
 
+class EngineStartError(EngineError):
+    """The engine process could not be started; no job can run, so the run must stop."""
+
+
 class EngineProcess:
     """A Transcriber in a child process, restarted after a crash or a timeout."""
 
@@ -50,7 +56,7 @@ class EngineProcess:
         """Start the engine process and wait until its models are loaded.
 
         Raises:
-            EngineError: The engine failed to start or did not get ready in time.
+            EngineStartError: The engine failed to start or did not get ready in time.
         """
         parent_conn, child_conn = self._context.Pipe()
         process = self._context.Process(target=serve, args=(child_conn, self._factory))
@@ -63,7 +69,7 @@ class EngineProcess:
         if kind != MESSAGE_READY:
             self._kill()
             msg = f"engine did not start: {payload}"
-            raise EngineError(msg)
+            raise EngineStartError(msg)
         self._settings = {
             careful: EngineInfo.model_validate(settings)
             for careful, settings in zip((False, True), payload, strict=True)
@@ -80,17 +86,27 @@ class EngineProcess:
         """Transcribe in the engine process; restart it first if it is not running.
 
         Raises:
+            EngineStartError: The engine had to be (re)started and could not be.
             EngineError: The job failed, the engine crashed, or the timeout passed (the engine
                 process is then killed and restarted for the next job).
         """
         if self._conn is None:
             self.start()
         assert self._conn is not None  # set by start(), which raises otherwise
-        self._conn.send((str(audio), language, careful))
+        try:
+            self._conn.send((str(audio), language, careful))
+        except OSError as error:
+            self._kill()
+            msg = f"engine process was gone before the job: {describe(error)}"
+            raise EngineError(msg) from error
         kind, payload = self._receive(timeout_s, "job")
-        if kind == MESSAGE_OK:
+        if kind != MESSAGE_OK:
+            raise EngineError(str(payload))
+        try:
             return Transcript.model_validate(payload)
-        raise EngineError(str(payload))
+        except ValidationError as error:
+            msg = f"engine returned an invalid transcript: {error.error_count()} errors"
+            raise EngineError(msg) from error
 
     def close(self) -> None:
         """Ask the engine process to exit, and kill it if it does not."""

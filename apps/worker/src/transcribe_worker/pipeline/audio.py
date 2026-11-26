@@ -16,6 +16,10 @@ class DecodeError(Exception):
     """ffmpeg could not decode an audio file."""
 
 
+class FfmpegMissingError(RuntimeError):
+    """ffmpeg is not installed (an image problem, not the file's: the job is retried later)."""
+
+
 class AudioCache:
     """Downloaded audio objects on the container disk, least recently used evicted first.
 
@@ -39,7 +43,11 @@ class AudioCache:
             return cached[0]
         target = self._folder / key.replace("/", "__")
         partial = target.with_name(f"{target.name}.part")
-        self._store.download(key, partial)
+        try:
+            self._store.download(key, partial)
+        except BaseException:
+            partial.unlink(missing_ok=True)
+            raise
         partial.replace(target)
         size = target.stat().st_size
         self._entries[key] = (target, size)
@@ -65,12 +73,13 @@ def decode_to_wav(source: Path, target: Path) -> None:
     """Decode the first audio stream of `source` to a 16 kHz mono 16-bit WAV file.
 
     Raises:
-        DecodeError: ffmpeg is missing, failed or timed out; the message has ffmpeg's error.
+        FfmpegMissingError: ffmpeg is not on PATH.
+        DecodeError: ffmpeg failed or timed out; the message has ffmpeg's error.
     """
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
         msg = "ffmpeg is not installed"
-        raise DecodeError(msg)
+        raise FfmpegMissingError(msg)
     argv = [ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source)]
     argv += ["-map", "0:a:0", "-vn", "-ac", "1", "-ar", f"{SAMPLE_RATE_HZ}", "-c:a", "pcm_s16le"]
     argv += ["-f", "wav", str(target)]

@@ -46,7 +46,11 @@ BYTES_PER_GB: Final = 1024**3
 # R2 region name (R2 ignores it, botocore needs one).
 R2_REGION: Final = "auto"
 # Attempts per S3 request (botocore "standard" retry mode, with backoff).
-S3_MAX_ATTEMPTS: Final = 10
+S3_MAX_ATTEMPTS: Final = 5
+# Seconds to wait for a connection to R2 (bounded, so an outage cannot block a billed pod).
+S3_CONNECT_TIMEOUT_S: Final = 10
+# Seconds to wait for data on an open R2 connection.
+S3_READ_TIMEOUT_S: Final = 30
 # Transfers of at least this many bytes (64 MiB) use multipart, in parts of this size.
 S3_MULTIPART_BYTES: Final = 67_108_864
 # HTTP status of a conditional PUT whose object already exists.
@@ -79,11 +83,11 @@ JOB_TIMEOUT_PER_AUDIO_S: Final = 1.0
 CAREFUL_TIMEOUT_FACTOR: Final = 2.0
 # Time allowed for the engine process to load the models.
 ENGINE_START_TIMEOUT_S: Final = 1200
-# Time the engine process gets to exit after a shutdown request.
-ENGINE_STOP_TIMEOUT_S: Final = 30.0
 
 # Seconds between heartbeats (status.json and log upload).
 HEARTBEAT_INTERVAL_S: Final = 30.0
+# Seconds to wait for a background thread (heartbeat, prefetch) to stop at the end of a run.
+THREAD_STOP_TIMEOUT_S: Final = 60.0
 # Log file name in the work dir (uploaded as runs/<run_id>/worker.log).
 LOG_FILE_NAME: Final = "worker.log"
 # Exit code of a run that ended normally (failed jobs included).
