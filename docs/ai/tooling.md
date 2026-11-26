@@ -2,8 +2,9 @@
 
 ## Environment
 
-- uv manages Python (3.13, `.python-version`) and the workspace. `uv sync` installs every
-  member plus the root `dev` dependency group.
+- uv manages Python (3.13, `.python-version`) and the workspace. `uv sync --all-packages`
+  installs every member plus the root `dev` dependency group (plain `uv sync` installs only
+  the root project and the contracts, not the apps).
 - Credentials for local integration work live in an uncommitted `.env` (see `.gitignore`,
   mode 600); CI uses GitHub repository/environment secrets. Local names:
   `RUNPOD_API_KEY_READONLY` (a Runpod key created with "Read Only" permission; usable without
@@ -60,6 +61,10 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
 - The worker's GPU stack (WhisperX, torch cu128 from the PyTorch index) is the worker's
   optional `engine` extra. `uv sync` and CI do not install it; worker tests use a fake engine.
   The Docker build installs it (`uv sync --package transcribe-worker --extra engine`).
+- boto3 is typed through the `types-boto3[s3]` dev dependency (imported only under
+  `TYPE_CHECKING`).
+- CI installs the system `ffmpeg` for the worker target (the decode tests run the real
+  binary); locally it must be on `PATH`.
 - mypy runs on the worker without the `engine` extra: `[[tool.mypy.overrides]]` sets
   `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio` and `ctranslate2`, and the
   engine adapter is the only module importing them.

@@ -24,6 +24,9 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 - Work until a real blocker; record small decisions instead of asking. Never trade quality for
   quota; stop in an orderly way (finish or save the current step, start nothing new).
 - Use sub-agents only where they give real speed-up; Sonnet/Haiku where quality allows.
+- Effort: the main session runs at medium. `code-reviewer` sub-agents and any agent writing
+  concurrency or failure-handling logic (threads, processes, restarts, timeouts, retries) run
+  at high effort (pass `effort: "high"` when the agent definition does not set it).
 
 ## Git
 

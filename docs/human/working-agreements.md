@@ -41,6 +41,8 @@ Source: the architect's initial brief (2026-11-26), translated to English.
   when coordination, conflicts or merges cost more than parallelism gains.
 - Use Sonnet (or Haiku where adequate) where it does not hurt quality; sub-agents may start
   cheaper sub-agents under the same condition.
+- The main session can run at medium effort; code reviews and concurrency or
+  failure-handling work stay at high effort.
 - Side questions (research, "would X help?") are handled by sub-agents so the main thread does
   not stall.
 

@@ -69,3 +69,6 @@ Thumbs.db
 .claude/settings.local.json
 .claude/state/
 *.log
+
+# Claude Code sub-agent worktrees
+.claude/worktrees/

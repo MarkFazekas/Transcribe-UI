@@ -7,7 +7,9 @@ validators, so each validator also has a behaviour test below.
 
 import json
 import os
+import re
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +18,9 @@ from pydantic import BaseModel
 
 from transcribe_contracts import layout
 from transcribe_contracts.classes import BatchSummary, JobResult, Manifest, RunStatus
+from transcribe_contracts.constants import ULID_PATTERN, ULID_RANDOM_BITS
 from transcribe_contracts.errors import ContractError, UnsupportedSchemaError
+from transcribe_contracts.ids import new_ulid
 from transcribe_contracts.reading import read_batch_summary, read_job_result, read_manifest, read_run_status
 
 TESTS_DIR = Path(__file__).parent
@@ -32,6 +36,9 @@ RESULT_KEY = layout.result_json_key(BATCH_ID, ITEM_ID, HUNGARIAN)
 SUMMARY_KEY = layout.done_key(BATCH_ID)
 STATUS_KEY = layout.run_status_key(RUN_ID)
 FOREIGN_KEY = f"other_batch/audio/{ITEM_ID}.a0.mka"
+# The ULID spec's example time (1469918176385 ms) and its ULID with zero randomness.
+ULID_SPEC_MOMENT = datetime.fromisoformat("2016-07-30T22:36:16.385+00:00")
+ULID_SPEC_ZERO_RANDOM = "01ARYZ6S410000000000000000"
 
 type Reader = Callable[[str, bytes | str], BaseModel]
 
@@ -266,3 +273,23 @@ def test_key_builders_refuse_escaping_segments(segment: str) -> None:
     """A key segment can never leave its folder."""
     with pytest.raises(ValueError, match="invalid key segment"):
         layout.result_srt_key(BATCH_ID, segment, HUNGARIAN)
+
+
+def test_new_ulid_matches_the_spec_example() -> None:
+    """Known value: time 1469918176385 ms, randomness 0 (ULID spec), and the maximum."""
+    assert new_ulid(ULID_SPEC_MOMENT, randomness=0) == ULID_SPEC_ZERO_RANDOM
+    assert re.fullmatch(ULID_PATTERN, new_ulid(ULID_SPEC_MOMENT)) is not None
+
+
+@pytest.mark.parametrize(
+    ("moment", "randomness"),
+    [
+        (datetime.fromisoformat("2026-01-01T00:00:00"), 0),
+        (datetime.fromisoformat("1969-12-31T00:00:00+00:00"), 0),
+        (datetime.fromisoformat("2026-01-01T00:00:00+00:00"), 1 << ULID_RANDOM_BITS),
+    ],
+)
+def test_new_ulid_refuses_input_out_of_range(moment: datetime, randomness: int) -> None:
+    """Naive or pre-epoch moments and oversized randomness are refused."""
+    with pytest.raises(ValueError, match=r"ULID|aware|80 bits"):
+        new_ulid(moment, randomness)

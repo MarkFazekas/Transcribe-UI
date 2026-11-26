@@ -38,6 +38,14 @@ TRACK_MARKER: Final = "a"
 BATCH_ID_PATTERN: Final = r"^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$"
 # ULID in canonical Crockford base32 upper case (item ids and run ids).
 ULID_PATTERN: Final = r"^[0-9A-HJKMNP-TV-Z]{26}$"
+# Crockford base32 digits of a ULID.
+ULID_ALPHABET: Final = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+# Characters of a ULID.
+ULID_LENGTH: Final = 26
+# Bits of a ULID holding the millisecond timestamp.
+ULID_TIME_BITS: Final = 48
+# Bits of a ULID holding randomness.
+ULID_RANDOM_BITS: Final = 80
 # Audio file extension without the dot; lower case so keys are canonical.
 AUDIO_EXTENSION_PATTERN: Final = r"^[a-z0-9]{1,10}$"
 
