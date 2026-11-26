@@ -431,7 +431,7 @@ pods-only key is passed as a Runpod secret.
   once every other job is done, so the app never reports a clean run with work missing.
 - A batch whose jobs all have a result in R2 gets `_done.json` with the counts of every result
   (earlier runs included), also when an earlier run stopped right before writing it. After the
-  last job: exit 0, and the entry terminates the pod.
+  last job (and nothing left for the next run): exit 0, and the entry terminates the pod.
 - Run status: `status.json` and the JSON-lines log are uploaded at start, on every job change
   and every 30 s (`starting` → `transcribing` → `finished`, or `failed` with the error when the
   run itself fails, e.g. R2 unreachable).

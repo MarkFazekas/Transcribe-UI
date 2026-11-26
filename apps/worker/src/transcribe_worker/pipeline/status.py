@@ -43,7 +43,8 @@ class StatusReporter:
         self._log_file = log_file
         self._now = now
         self._lock = threading.Lock()
-        # Serialises whole publishes, so an older snapshot never overwrites a newer one in R2.
+        # Serialises whole publishes, so an older snapshot never overwrites a newer one in R2
+        # (except the final status, which writes over an upload stuck for longer than 60 s).
         self._publish_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -91,8 +92,9 @@ class StatusReporter:
             self._upload_status()
         except Exception:
             logger.warning("could not publish the run status", exc_info=True)
-        if acquired:
-            self._publish_lock.release()
+        finally:
+            if acquired:
+                self._publish_lock.release()
 
     def _upload_status(self) -> None:
         with self._lock:
