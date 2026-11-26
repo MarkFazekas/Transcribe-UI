@@ -31,6 +31,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-mock>=3.15.1",
     "moto[s3]>=5.2.3",
+    "types-boto3[s3]>=1.44.12",
 ]
 
 [tool.uv]
@@ -54,6 +55,12 @@ no_implicit_reexport = true
 
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
+
+# The worker's GPU stack (`engine` extra) is not installed in the dev env or CI; only
+# `transcribe_worker.engine.whisperx_engine` imports it.
+[[tool.mypy.overrides]]
+module = ["whisperx", "whisperx.*", "torch", "torch.*", "torchaudio", "torchaudio.*", "ctranslate2", "ctranslate2.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

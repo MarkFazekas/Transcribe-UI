@@ -295,9 +295,11 @@ Comparisons for sidecar matching use NFC on macOS and case-insensitive matching 
 - Baked models: `large-v3` (CT2 fp16, 3.09 GB), the alignment models for `hu` (HF) and
   `en` (a torchaudio bundle, which lives in the torch hub cache, not the HF cache). `HF_HOME`
   and `TORCH_HOME` point to the same fixed paths at build time and run time. WhisperX 3.8
-  defaults to pyannote VAD; the worker sets `vad_method="silero"` explicitly (Silero ships with
-  the package). Alignment models for other enabled languages are downloaded at run time to the
-  container disk.
+  defaults to pyannote VAD; the worker sets `vad_method="silero"` explicitly. WhisperX loads
+  Silero with `torch.hub.load("snakers4/silero-vad")`, so the image bakes it into the
+  `TORCH_HOME` hub cache too (careful mode uses faster-whisper's Silero ONNX model, which ships
+  with the package). Alignment models for other enabled languages are downloaded at run time to
+  the container disk.
 - The `engine` extra pins `torch~=2.8.0` (WhisperX's pin) from the PyTorch cu128 index with a
   `sys_platform == 'linux'` marker, so the universal `uv.lock` still resolves on Windows/macOS.
 - The CI image build frees runner disk space first (the image is roughly 10 GB).
@@ -372,21 +374,94 @@ pods-only key is passed as a Runpod secret.
 - Idempotent: a job whose result JSON already exists in R2 is skipped, so a restarted pod
   continues where the previous one stopped and successful results are never redone or
   overwritten (conditional PUT, §4).
-- Per job: ffmpeg decodes to 16 kHz mono (robust for AC3/E-AC3/DTS/TrueHD, picks the stream
-  explicitly) → WhisperX `large-v3`, fp16, forced language,
-  batch 16, Silero VAD → wav2vec2 alignment (skipped with `aligned: false` when the
-  language has no model) → quality checks (repetition, compression ratio, empty output on
-  non-silent audio) → on suspicion, or in `careful` mode, a re-run with stricter decoding
-  (beam search, temperature fallback, `condition_on_previous_text=False`) → cue builder (max
-  42 chars/line, 2 lines, 1–7 s, split at punctuation/pauses) → SRT. Per-job timeout; any
-  exception marks the job `failed` and the run continues.
+- Per job: ffmpeg decodes the first audio stream to 16 kHz mono 16-bit WAV (robust for
+  AC3/E-AC3/DTS/TrueHD) → WhisperX `large-v3`, fp16, forced language, batch 16, Silero VAD →
+  wav2vec2 alignment (skipped with `aligned: false` when the language has no model) → quality
+  checks on the raw transcript (empty output; zlib compression ratio > 2.4 in any 500-character
+  window, since whole long texts of normal speech reach 2.4–3.0; the same segment repeated; a
+  repeated n-gram) → on suspicion, a re-run in careful mode (a `careful` job uses careful mode
+  from the start; if the re-run fails, the first transcript is kept) → empty segments dropped
+  and repetition loops (3 or more identical consecutive segments, case and punctuation
+  ignored) collapsed to their first segment; a sentence said twice stays → cue builder (max
+  42 chars/line, 2 lines, 1–7 s, split at sentence ends, pauses > 0.6 s and clause marks; a
+  dot after an initial, a dotted acronym or a one- or two-digit ordinal is no sentence end) → SRT.
+  No cues means `no_speech` with an empty SRT.
+- Cue timing: a cue lasts at least 0.1 s even when engine word times overlap; the later cues
+  move for it, but at most 0.5 s: beyond that, the pile of cues shares the time evenly, so
+  overlapping times cannot shift the rest of the file.
+- Unspaced scripts (Chinese, Japanese, Thai, Lao, Khmer, Myanmar, Tibetan) are detected by
+  character (Unicode block), not by `Transcript.language`, because Whisper output mixes in
+  Latin words. In a segment containing unspaced text, words are joined without a space where
+  the segment text has none between them (WhisperX aligns these languages per character),
+  or, for words not found in the segment text, next to an unspaced character; a segment
+  following unspaced punctuation ("。") is joined too. Spaces the engine wrote (Thai phrase
+  breaks) stay; spaced text is never joined.
+  Unspaced text is split into units (a character with its combining marks and attached
+  punctuation; no break before closing marks or small kana, nor after opening marks) that
+  share the word's time, or the segment's when untimed, in proportion to length, so the
+  line and cue limits hold; lines and cues may break between units. Thai and similar
+  scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
+  width; the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  text (the compression and segment checks still do).
+- The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
+  a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
+  audio, doubled in careful mode) kills that process, the job is `failed`, and the next job
+  starts a fresh engine. An engine crash (native abort, OOM kill, even while idle) is handled
+  the same way. A decode error, a missing audio object or any engine or subtitle error marks
+  only that job `failed` (the error text goes into the result) and the run continues. A
+  storage or disk problem while preparing the audio is not the file's fault: the job gets no
+  result and the next run tries it again. If the engine cannot be started (at the beginning or
+  after a crash), the run fails (exit 1) without writing results for the remaining jobs.
+- Order inside a run: batches whose results are all in R2 get their `_done.json`, then results
+  from the backup are uploaded, and only then does the engine start, so a broken engine never
+  keeps backed-up results from reaching R2.
+- Alignment: the language's aligner is loaded before decoding; if it cannot be loaded
+  (download, disk or memory problem), the job is transcribed without word alignment
+  (`aligned: false`) instead of failing, and the next job of that language tries again. If
+  aligned parts lose any letter of their segment (WhisperX drops parts whose times stay NaN),
+  the segment is kept whole and unaligned.
+- Careful decoding uses faster-whisper's Silero VAD with 500 ms minimum silence and 400 ms
+  speech padding (its default 2 s silence lets music between lines through).
+- Careful decoding is faster-whisper's sequential `WhisperModel.transcribe` on the same
+  CTranslate2 model (batch size 1, beam 5, temperatures 0–1.0 in 0.2 steps with the
+  compression-ratio/log-prob/no-speech checks, `condition_on_previous_text=False`, its Silero
+  VAD): WhisperX's batched pipeline decodes each chunk once (with its default `beam_size` 5)
+  and ignores temperatures and fallback thresholds, so `asr_options` cannot express it.
+  Alignment runs one segment at a time; a segment WhisperX returns nothing for (its times stay
+  NaN) keeps its transcription times without words. Only
+  `transcribe_worker.engine.whisperx_engine` imports the GPU stack; the conversion of WhisperX
+  output into the engine `Transcript` (`engine/convert.py`) is pure and tested in CI.
 - Backup: each result file is also written to the Global Volume
-  (`/workspace/backups/<batch_id>/...`) as a whole file (object-store semantics: no
-  rename-based atomicity there, so write-once files only). Before transcribing a job, the
-  worker checks the backup: if a result exists there but not in R2 (an earlier upload failed),
-  it uploads the backup instead of transcribing again.
-- After the last item of a batch: write `_done.json`; after the last batch: exit 0, and the
-  supervisor terminates the pod.
+  (`/workspace/backups/<R2 key>`) as a whole file (object-store semantics: no rename-based
+  atomicity there): the SRT first, then the result JSON, which is never overwritten and marks
+  a complete backup. When planning, a job whose result is missing in R2 but has a valid backup
+  (SRT and JSON) is uploaded from the backup instead of transcribed. Backup errors are only
+  logged; R2 is the primary copy.
+- Upload: the SRT is not written when the job's JSON already exists (another worker finished
+  it), then the JSON with `If-None-Match: *`. A failed upload leaves the batch open; the next
+  run uploads the backup. Two overlapping workers could still pair one worker's SRT with the
+  other's JSON (the SRT PUT is unconditional); the single-worker rule (§3.7) keeps that out.
+- Timeouts keep a stuck call from holding a billed pod: R2 requests have 10 s connect and 30 s
+  read timeouts with 5 attempts; at the end of a run the heartbeat and prefetch threads, and an
+  in-flight status upload, are waited for at most 60 s each (the final status is then written
+  over the stuck upload).
+- Anything left for the next run (audio not prepared because of storage, disk or ffmpeg
+  problems, including a disk filling up during decoding; a result or backup that could not be
+  uploaded; a batch summary that could not be written) makes the run end as failed (exit 1)
+  once every other job is done, so the app never reports a clean run with work missing.
+- A batch whose jobs all have a result in R2 gets `_done.json` with the counts of every result
+  (earlier runs included), also when an earlier run stopped right before writing it. After the
+  last job (and nothing left for the next run): exit 0, and the entry terminates the pod.
+- Run status: `status.json` and the JSON-lines log are uploaded at start, on every job change
+  and every 30 s (`starting` → `transcribing` → `finished`, or `failed` with the error when the
+  run itself fails, e.g. R2 unreachable).
+- Configuration (environment; values are never logged, and a validation error names only the
+  field): `TRANSCRIBE_RUN_ID` (ULID from the desktop app; generated when missing),
+  `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and optional
+  `TRANSCRIBE_BACKUP_DIR` (default `/workspace/backups`), `TRANSCRIBE_WORK_DIR` (default
+  `/tmp/transcribe-worker`: audio cache, decoded audio, log), `TRANSCRIBE_AUDIO_CACHE_GB`
+  (default 20), `TRANSCRIBE_ENGINE` (`whisperx`, or `fake` for the image smoke test), plus the
+  entry's `RUNPOD_POD_ID` and `MAX_RUNTIME_S` (the status deadline).
 
 ### 5.4 Credentials in the pod
 
