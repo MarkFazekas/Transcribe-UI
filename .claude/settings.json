@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet \"$CLAUDE_PROJECT_DIR/.claude/hooks/review_gate.py\" start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet \"$CLAUDE_PROJECT_DIR/.claude/hooks/review_gate.py\" stop",
+            "timeout": 60,
+            "statusMessage": "Checking for unreviewed changes"
+          }
+        ]
+      }
+    ]
+  }
+}

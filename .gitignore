@@ -1,0 +1,71 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+*.spec.bak
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Packaging (PyInstaller / Nuitka)
+*.build/
+*.dist/
+*.onefile-build/
+
+# Local media and transcription outputs (small test fixtures are re-included below)
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.webm
+*.m4a
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.opus
+*.mka
+*.srt
+*.vtt
+!**/tests/**/fixtures/**/*.mp4
+!**/tests/**/fixtures/**/*.mkv
+!**/tests/**/fixtures/**/*.webm
+!**/tests/**/fixtures/**/*.m4a
+!**/tests/**/fixtures/**/*.mp3
+!**/tests/**/fixtures/**/*.wav
+!**/tests/**/fixtures/**/*.flac
+!**/tests/**/fixtures/**/*.ogg
+!**/tests/**/fixtures/**/*.opus
+!**/tests/**/fixtures/**/*.mka
+!**/tests/**/fixtures/**/*.srt
+!**/tests/**/fixtures/**/*.vtt
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/state/
+*.log
