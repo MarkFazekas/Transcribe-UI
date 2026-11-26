@@ -431,7 +431,8 @@ Few unit tests; mostly regression and flow tests:
   works on the account together with a Global Volume; `{{ RUNPOD_SECRET_x }}` resolves in the
   pod's env; which CUDA versions the A5000 hosts report; proxied basic SSH is available; an
   exiting PID 1 restarts the container.
-- Markers: `integration` (real R2/Runpod) and `gpu` (needs the GPU stack); both are deselected
+- Markers (read-only Runpod calls excepted from the architect rule, see `tooling.md`):
+  `integration` (real R2/Runpod) and `gpu` (needs the GPU stack); both are deselected
   by default and in CI.
 - **GUI**: pytest-qt smoke tests and view-model → request mapping tests.
 
