@@ -8,10 +8,6 @@
   "status": "ok",
   "error": null,
   "aligned": true,
-  "detected": {
-    "language": "hu",
-    "probability": 0.98
-  },
   "cue_count": 1543,
   "audio_duration_s": 6021.5,
   "started_at": "2026-11-26T15:02:11Z",

@@ -94,7 +94,7 @@ Also useful: `POST /v2/pods/{id}/exec` (run argv in container without SSH; 1-25 
 
 ## 6. SSH
 
-> Decision A3: no sshd in the image, proxied basic SSH only; options (a)-(c) below are kept as
+> Decision: no sshd in the image, proxied basic SSH only; options (a)-(c) below are kept as
 > reference. Templates default `startSsh`/`startJupyter` to TRUE: set both explicitly.
 - [V] "All Pods provide a basic SSH connection that is proxied through Runpod's systems" (no SCP/SFTP); keys from the account's SSH key settings are injected automatically, `SSH_PUBLIC_KEY` env overrides per pod. https://docs.runpod.io/pods/configuration/use-ssh.md
 - [V] Full SSH needs public IP + `22/tcp` exposed + sshd running + key in authorized_keys (from `$PUBLIC_KEY`); proxy SSH (ssh.runpod.io) works for key auth but no SCP/SFTP. Community pods may lack public IP. `runpodctl ssh info <pod>` diagnoses. https://docs.runpod.io/pods/configuration/use-ssh

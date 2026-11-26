@@ -25,6 +25,8 @@ Source: the architect's initial brief (2026-11-26), translated to English.
   on. If confirmation still seems necessary, state the decision situation, the decision taken
   and why.
 - When the answer is "default", apply the proposed default and record it.
+- Answered questions are taken out of the question files; the answers and what follows from
+  them are put in their place in the docs.
 
 ## Quality first
 

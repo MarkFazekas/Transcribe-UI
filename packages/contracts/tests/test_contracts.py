@@ -168,7 +168,6 @@ def test_invalid_manifest_is_refused(changes: dict[str, object], message: str) -
         ({"status": "no_speech"}, "cue_count must be positive exactly"),
         ({"cue_count": 0}, "cue_count must be positive exactly"),
         ({"finished_at": "2026-11-26T15:00:00Z"}, "before started_at"),
-        ({"detected": {"language": HUNGARIAN, "probability": 1.5}}, "less than or equal to 1"),
     ],
 )
 def test_inconsistent_job_result_is_refused(changes: dict[str, object], message: str) -> None:
@@ -178,9 +177,10 @@ def test_inconsistent_job_result_is_refused(changes: dict[str, object], message:
 
 
 def test_language_outside_whisper_set_is_accepted() -> None:
-    """A future worker may detect or support more languages; old readers keep working."""
-    body = _changed("job_result.json", {"detected": {"language": "xyz", "probability": 0.4}})
-    assert read_job_result(RESULT_KEY, body).detected is not None
+    """A future worker may support more languages; old readers keep working."""
+    key = layout.result_json_key(BATCH_ID, ITEM_ID, "xyz")
+    body = _changed("job_result.json", {"language": "xyz"})
+    assert read_job_result(key, body).language == "xyz"
 
 
 @pytest.mark.parametrize(

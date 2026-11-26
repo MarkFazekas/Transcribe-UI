@@ -4,7 +4,7 @@ Legend: [V] verified from a fetched source (URL given); [I] inference / general 
 WhisperX 3.8.6 requirements [V: https://pypi.org/pypi/whisperx/json]: Python >=3.10,<3.14; torch~=2.8.0, torchaudio~=2.8.0, torchvision~=0.23.0, faster-whisper>=1.2.0, ctranslate2>=4.5.0, pyannote-audio>=4.0.0, transformers>=4.48.0, huggingface-hub<1.0.0, nltk, pandas, omegaconf, torchcodec>=0.6,<0.8.
 Baseline (from docs/ai/research/reference-sttcli.md): STTCLI used WhisperX 3.7.9 (faster-whisper 1.2.1 / ctranslate2 4.8.4), large-v3, float16, batch_size 16, SRT, runpod/pytorch cu128 torch 2.8.
 
-> Superseded in part: the architect chose WhisperX with alignment (A2) over faster-whisper
+> Superseded in part: the architect chose WhisperX with alignment over faster-whisper
 > alone; the facts below remain valid.
 
 ## TL;DR recommendation
@@ -65,7 +65,7 @@ Implications and recommended settings [I unless noted]:
 - Long files (multi-hour): faster-whisper streams segments lazily (generator) and processes 30 s windows, so GPU memory is roughly constant; host RAM holds the decoded float32 16 kHz mono waveform (~230 MB per hour) [I: 16000*4*3600=230 MB]. For 10 h files ~2.3 GB, fine. Pre-decode with ffmpeg to 16 kHz mono wav in chunks only if memory is a concern; batched mode (VAD chunks x batch_size) raises GPU use: large-v3 fp16 ~ 5-8 GB at batch 16 [I; WhisperX README claims <8 GB for large-v2 beam 5: V https://github.com/m-bain/whisperX]. A5000 24 GB has ample headroom.
 - Corrupted inputs / unsupported codecs: faster-whisper decodes via PyAV with bundled FFmpeg (no system ffmpeg needed) [V README]. PyAV wheels bundle FFmpeg but docs do not list included codecs/version [V: https://pyav.basswood.io/docs/stable/overview/installation.html]. Wheels require Python >=3.12 for latest av 19.0.2 [V PyPI json]; faster-whisper only needs av>=11, so older av works on older Python. AAC, MP3, Opus/Vorbis, FLAC, PCM are certain in any FFmpeg build [I]; AC3/E-AC3 are native FFmpeg decoders and DTS (core) is native `dca` [I] but this was NOT verified for the PyAV wheel build. Mitigation (recommended, robust): do NOT rely on PyAV for odd codecs; run system ffmpeg (`-vn -ac 1 -ar 16000 -f wav/pcm_s16le`, or `-map 0:a:N`) to a temp wav and pass a numpy array/path to faster-whisper. This also handles multi-track mka, DTS-HD, TrueHD, and pins the audio stream choice. Add a startup self-test decoding sample files of each codec.
 - Timeouts per file: run each file in a subprocess or thread with a deadline (e.g. max(10 min, audio_duration * 0.5)); faster-whisper has no internal timeout [I]. On CUDA OOM or hang: kill, mark failed, continue batch. Catch exceptions per file; never let one file abort the batch.
-- Wrong-language/forced-language mismatch: if forced `language=hu` on an English file, Whisper tends to translate/garble; consider a cheap language-detect sanity check (language_detection_segments) and warn if probability for the forced language is very low [I].
+- Wrong-language/forced-language mismatch: if forced `language=hu` on an English file, Whisper tends to translate/garble; consider a cheap language-detect sanity check (language_detection_segments) and warn if probability for the forced language is very low [I]. (Not planned: the user chooses the language; see architecture §9.)
 
 ## 5. Subtitle formatting
 - Segments from Whisper are variable length (often up to ~30 s window text); subtitles need splitting. Use word_timestamps=True and build cues from words [I]:

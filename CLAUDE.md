@@ -9,15 +9,15 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 - `docs/human/requirements.md` — what was asked (source of truth for scope).
 - `docs/human/working-agreements.md` — roles, communication, git/CI and secret rules.
 - `docs/ai/architecture.md` — current design. `docs/ai/tooling.md` — lint, tests, CI, hooks.
-- Questions and decisions: `docs/ai/questions-for-product.md` (Q#),
+- Open questions: `docs/ai/questions-for-product.md` (Q#),
   `docs/ai/questions-for-architect.md` (A#).
 
 ## Working rules (summary of docs/human/working-agreements.md)
 
 - The user is the **architect**. Architecture, hosting, CI and implementation questions go to
   `questions-for-architect.md` and chat; product (UI/behaviour) questions go to
-  `questions-for-product.md`, each with a proposed default. "default" means: apply the default
-  and record it under "Decided".
+  `questions-for-product.md`, each with a proposed default. "default" means: apply the
+  proposed default.
 - Chat may be Hungarian; everything in the repo is English.
 - Keep interim reports short. If compacting would not hurt quality, end the report with the
   line `Compactable: True`; otherwise omit the line.
@@ -61,7 +61,9 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
   questions, and `research/` for reusable external facts (with sources).
 - Keep information that stays useful; no change history or narratives (git has the history).
   Update the relevant doc in the same PR as the code that changes the behaviour.
-- When a question is answered, move it to "Decided" in its file and update the affected docs.
+- When a question is answered, remove it from its file: record the answer in
+  `docs/human/requirements.md` (accepted defaults written out) and put its consequences into
+  the affected docs and code. Question IDs are never reused.
 
 ## Hooks
 

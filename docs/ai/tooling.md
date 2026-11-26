@@ -21,7 +21,7 @@ B040–B042, B902, B906–B908, B910, B950) and a few print/annotation/naming ru
 | `flake8` | `.flake8` | plugins pinned in the `dev` group; spellcheck words in `whitelist.txt` |
 | `mypy` | `[tool.mypy]` | `strict = true` + `pydantic.mypy` plugin |
 
-Deviations from the reference (A14): `W503`, `E704` and `E701` ignored (they contradict
+Deviations from the reference: `W503`, `E704` and `E701` ignored (they contradict
 `ruff format`; setting `ignore=` replaces flake8's default ignore list), ruff mccabe aligned to
 8, `exclude` added to `.flake8`, `pandas` dictionary dropped, fresh `whitelist.txt`, pytest
 `--import-mode=importlib`. Tests additionally ignore `WPS202` (module members), `WPS221`
@@ -59,7 +59,7 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
   `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio` and `ctranslate2`, and the
   engine adapter is the only module importing them.
 - Markers: `integration` (real R2/Runpod) and `gpu` (needs the GPU stack) are deselected by
-  default and in CI; Runpod ones run only with the architect present (A15).
+  default and in CI; Runpod ones run only with the architect present.
 
 ## Commits and branches
 
@@ -92,9 +92,9 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target) → `check` matrix running `scripts/check.py <target>` (desktop also on Windows once it exists); `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
-| `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS); then a release job (`needs:` all four builds, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the four executables, only if every build and smoke test passed (A13) |
-| `release-worker.yml` | push to `main`, paths `apps/worker/**`, `packages/contracts/**`, `uv.lock` | free runner disk, build the Docker image, run the entry/termination smoke test inside it, push (`sha-<short>`, `latest`, `schema-<major>`; push skipped until the Docker Hub secrets exist, A12) |
-| `reaper.yml` | schedule, every 15 min (A17) | terminate overdue `transcribe-ui-*` pods with a pods-only key |
+| `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS); then a release job (`needs:` all four builds, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the four executables, only if every build and smoke test passed |
+| `release-worker.yml` | push to `main`, paths `apps/worker/**`, `packages/contracts/**`, `uv.lock` | free runner disk, build the Docker image, run the entry/termination smoke test inside it, push (`sha-<short>`, `latest`, `schema-<major>`; push skipped until the Docker Hub secrets exist, open question A12) |
+| `reaper.yml` | schedule, every 15 min | terminate overdue `transcribe-ui-*` pods with a pods-only key |
 
 Releases never run on pull requests. Concurrency groups cancel superseded runs.
 

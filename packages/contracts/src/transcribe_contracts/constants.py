@@ -195,5 +195,5 @@ ALIGNMENT_LANGUAGES: Final = frozenset(
         "zh",
     ),
 )
-# Languages enabled in a fresh installation (Q10).
+# Languages enabled in a fresh installation.
 DEFAULT_LANGUAGES: Final = ("hu", "en")
