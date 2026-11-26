@@ -105,20 +105,21 @@ Also useful: `POST /v2/pods/{id}/exec` (run argv in container without SSH; 1-25 
 ## 7. Base image
 - [V] Tags exist on Docker Hub (compressed sizes from hub API, pushed 2026-11-09): 2.1.0-cu1281-torch280-ubuntu2404 = 10.65 GB; cu1290 = 14.71 GB; cu1300 = 11.41 GB; cu1320 = 11.25 GB. Newer series 2.2.0-* (2026-11-24) also exist, e.g. 2.2.0-cu1290-torch280 14.7 GB, 2.2.0-cu1300-torch291 9.7 GB. https://hub.docker.com/r/runpod/pytorch/tags . (Runpod's own API example uses 1.0.2-cu1281-torch280.)
 - [V] faster-whisper: latest ctranslate2 needs CUDA 12 + cuDNN 9; docker example nvidia/cuda:12.3.2-cudnn9-runtime-ubuntu22.04; or pip `nvidia-cublas-cu12`, `nvidia-cudnn-cu12==9.*`. https://github.com/SYSTRAN/faster-whisper . CUDA 13 support in ctranslate2 wheels: [?] not confirmed; I would not use cu130/cu132.
-- [?] How many A5000 hosts have driver >= 580 (CUDA 13): not publicly queryable (catalog needs API key; `cudaVersions` in `/v2/catalog/gpus?include=AVAILABILITY&product=POD` gives it with a key). [I] Choosing cu13xx shrinks the host pool and hurts availability on an already scarce GPU; A5000 are older (Ampere) hosts, likely older drivers. CUDA is backward-compatible so a cu12.x image runs on any newer driver.
+- [V] Catalog (read-only key, 2026-11-26) `GET /v2/catalog/gpus?include=AVAILABILITY&product=POD`, RTX A5000 entry: `cudaVersions` 12.4, 12.8, 13.0, 13.1, 13.2.
+- [I] `minCudaVersion: "12.8"` drops the 12.4 hosts; a cu13xx image would also drop the 12.8 ones, on an already scarce GPU. A cu12.x image should run on a newer (13.x) driver through driver backward compatibility; still to verify on a 13.x host (item 4 below).
 - [I] Recommendation: pick CUDA 12.8 (`cu1281`, smallest at 10.65 GB, still the most widely supported host-driver floor among the four; filter `gpu.minCudaVersion: "12.8"`), preferably a 2.2.0-cu1281 tag if it exists (verify), pinned by digest. Only if you need torch (openai-whisper / pyannote / torch VAD) use runpod/pytorch; faster-whisper does not need torch (VAD is ONNX), so a slimmer image works.
 - Slim alternative [I]: `nvidia/cuda:12.x-cudnn-runtime-ubuntu22.04` (~1.5-2.5 GB compressed) + pip faster-whisper: pull time drops from several minutes to well under one; but you must provide sshd and an entrypoint yourself (section 6c) and lose Runpod conveniences (/start.sh, Jupyter, runpodctl). Host image caching: popular runpod/pytorch layers are more likely already cached on hosts [I, unverified]; a 10 GB pull on 1 Gbps ~ 1.5-3 min cold, billed from start. Trade-off: with 60 GB disk and daily short batches the pull cost recurs each pod; slim image wins on time/cost, runpod base wins on SSH/debug convenience. Pre-bake the Whisper model into the image or put it on the global volume (note: object-storage semantic, read-mostly is its sweet spot - good fit for model weights).
 
 ## 8. Price and availability
 - [V] https://www.runpod.io/pricing : RTX A5000 $0.27/h Secure, $0.16/h Community (page fetched 2026-11-26). Storage: container disk $0.10/GB/mo; volume disk $0.10 running / $0.20 idle; network $0.07/GB/mo. Exact figure for your account: `GET /v2/catalog/gpus` (price.secure/community) and pod `cost`.
-- [?] Availability: no public numbers; catalog `availability` NONE/LOW/MEDIUM/HIGH per DC requires an API key. User says often unavailable. [I] Community has more A5000 stock but cannot use `queue` and may lack a public IP (SSH).
+- [V] Catalog (read-only key, 2026-11-26): A5000 overall availability NONE; per data center CA-MTL-1 LOW, US-IL-1 LOW; price secure $0.27/h, community $0.16/h, serverless $0.75/h; `maxCount` 10; pool `AMPERE_24`. Availability changes by the minute: this is one sample, not a rate. [I] Community has more A5000 stock but cannot use `queue` and may lack a public IP (SSH).
 - 60 GB container disk: ~$0.20/day-equivalent negligible (disk billed only while running).
 
 ## Items to test with a real key (cheap)
 1. Pod-scoped RUNPOD_API_KEY can DELETE its own pod (204)?
 2. `{{ RUNPOD_SECRET_x }}` in direct-create `env`.
 3. `queue` accepted on your plan (403?) together with `mounts.global`.
-4. `GET /v2/catalog/gpus/NVIDIA RTX A5000?...` cudaVersions and availability.
+4. The CUDA 12.8 image runs on a host whose driver reports CUDA 13.x.
 5. Whether runpodctl exists in the image.
 6. Global volume price in console.
 

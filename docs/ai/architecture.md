@@ -220,14 +220,14 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
 
 - Runpod **REST API v2** (`https://api.runpod.io/v2`; v1 was retired on 2026-11-15) through a
   thin typed `httpx` client.
-- `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}`,
-  `cloud: SECURE` (on-demand; spot no longer exists), `disk: 60`, the Global Volume mount
- , pinned image tag, non-secret env, and `queue: {expiresAt: now + N h}` for **deploy when
-  available**; the user sets the wait at every start, default 1 hour. A 202 response
-  means "queued"; the app shows the queued state and can cancel it. Before starting, the app
-  shows the total audio duration and an estimated cost range for confirmation; there is no
-  in-app spending limit (the account's own limit applies). SSH uses
-  Runpod's proxied basic SSH, so no port or sshd is configured.
+- `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}`
+  (excludes A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer
+  exists), `disk: 60`, the Global Volume mount, pinned image tag, non-secret env, and
+  `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the wait at
+  every start, default 1 hour. A 202 response means "queued"; the app shows the queued state
+  and can cancel it. Before starting, the app shows the total audio duration and an estimated
+  cost range for confirmation; there is no in-app spending limit (the account's own limit
+  applies). SSH uses Runpod's proxied basic SSH, so no port or sshd is configured.
 - Single worker at a time: `launch_worker` refuses while a pod or queued pod named
   `transcribe-ui-*` exists, so two workers never process the same batch (result writes are
   also conditional, see §4).
@@ -429,8 +429,8 @@ Few unit tests; mostly regression and flow tests:
 - **First approved Runpod run** (only with the architect present, one check at a time)
   verifies what the docs leave open: the pod-scoped key may delete its own pod; `queue`
   works on the account together with a Global Volume; `{{ RUNPOD_SECRET_x }}` resolves in the
-  pod's env; which CUDA versions the A5000 hosts report; proxied basic SSH is available; an
-  exiting PID 1 restarts the container.
+  pod's env; the CUDA 12.8 image runs on a host whose driver reports CUDA 13.x; proxied
+  basic SSH is available; an exiting PID 1 restarts the container.
 - Markers (read-only Runpod calls excepted from the architect rule, see `tooling.md`):
   `integration` (real R2/Runpod) and `gpu` (needs the GPU stack); both are deselected
   by default and in CI.
