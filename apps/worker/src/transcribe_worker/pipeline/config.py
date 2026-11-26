@@ -37,6 +37,10 @@ class WorkerConfig(BaseModel):
     work_dir: Path
     audio_cache_gb: PositiveFloat
     engine_factory: str = Field(description="'module:callable' that builds the Transcriber.")
+    job_timeout_min_s: PositiveFloat = Field(
+        default=constants.JOB_TIMEOUT_MIN_S,
+        description="Shortest per-job timeout (not read from the environment; tests lower it).",
+    )
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], now: datetime) -> Self:

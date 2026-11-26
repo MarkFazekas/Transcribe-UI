@@ -5,10 +5,10 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 from transcribe_contracts import layout
-from transcribe_contracts.classes import AudioObject, Manifest, ManifestItem, TranscribeJob
+from transcribe_contracts.classes import AudioObject, JobRef, Manifest, ManifestItem, TranscribeJob
 from transcribe_contracts.constants import BATCH_METADATA_PREFIX
 from transcribe_contracts.errors import ContractError
-from transcribe_contracts.reading import read_manifest
+from transcribe_contracts.reading import read_job_result, read_manifest
 from transcribe_worker.pipeline.backup import Backup
 from transcribe_worker.pipeline.storage import ObjectStore
 
@@ -36,6 +36,15 @@ class PlannedJob:
     def srt_key(self) -> str:
         """Return the key of the job's subtitle."""
         return layout.result_srt_key(self.batch_id, self.manifest_item.item_id, self.job.language)
+
+    @property
+    def ref(self) -> JobRef:
+        """Return the reference shown in the run status."""
+        return JobRef(
+            batch_id=self.batch_id,
+            item_id=self.manifest_item.item_id,
+            language=self.job.language,
+        )
 
     @property
     def sort_key(self) -> tuple[str, str, str]:
@@ -108,7 +117,20 @@ def _pending_jobs(manifest: Manifest, done: set[str], backup: Backup) -> list[Pl
             )
             if planned.json_key in done:
                 continue
-            if backup.load(planned.json_key) is not None:
+            if _backed_up(planned, backup):
                 planned = replace(planned, source="backup")
             pending.append(planned)
     return pending
+
+
+def _backed_up(planned: PlannedJob, backup: Backup) -> bool:
+    """Return True if the backup holds the job's subtitle and a valid result JSON."""
+    body = backup.load(planned.json_key)
+    if body is None or backup.load(planned.srt_key) is None:
+        return False
+    try:
+        read_job_result(planned.json_key, body)
+    except ContractError:
+        logger.warning("ignoring the invalid backup of %s", planned.json_key)
+        return False
+    return True

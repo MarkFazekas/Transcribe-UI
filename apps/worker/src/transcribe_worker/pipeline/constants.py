@@ -68,6 +68,8 @@ DECODE_TIMEOUT_S: Final = 1800
 DECODE_ERROR_CHARS: Final = 500
 # Audio files downloaded and decoded ahead of the one being transcribed.
 PREFETCH_DEPTH: Final = 2
+# Seconds the prefetch thread waits for queue space before checking for a stop request.
+PREFETCH_PUT_POLL_S: Final = 0.5
 
 # Shortest per-job transcription timeout.
 JOB_TIMEOUT_MIN_S: Final = 10 * 60
