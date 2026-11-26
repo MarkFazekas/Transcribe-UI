@@ -258,9 +258,16 @@ runs/<run_id>/worker.log                  worker log, uploaded periodically and 
   `batch_id` matches the manifest file name.
 
 Manifest: `schema_version`, `batch_id`, `created_at`, `scan_root` (+ `path_flavor`
-`windows|posix`), `items[]`. Item: `id` (ULID), `original_path` (absolute), `source_size`,
-`source_mtime_ns`, `media_kind`, `audio[]` (`object_key`, `track_index`, `codec`,
-`duration_s`, `size_bytes`), `jobs[]` (`language`, `mode`, `audio_object_key`).
+`windows|posix`), `items[]`. Item: `item_id` (ULID), `original_path` (absolute), `source_size`,
+`source_mtime_ns`, `media_kind`, `audio[]` (`object_key`, `track_index` (null for an audio
+file), `extension`, `codec`, `duration_s`, `size_bytes`), `jobs[]` (`language`, `mode`,
+`audio_object_key`).
+
+Implementation: `packages/contracts` (`classes.py` models, `layout.py` key builders/parsers,
+`reading.py`). Readers always go through `reading.read_*(key, body)`: it refuses another major
+version before validation (`UnsupportedSchemaError`) and checks that the object's batch / item /
+language / run id matches its key. Stored objects accept any well-formed language code (forward
+compatibility); the Whisper language set is enforced where the desktop app builds requests.
 
 Paths are stored as text exactly as the OS reported them (no case or Unicode normalisation),
 plus `path_flavor`. Names that are not valid Unicode (unpaired surrogates on Windows, non-UTF-8
