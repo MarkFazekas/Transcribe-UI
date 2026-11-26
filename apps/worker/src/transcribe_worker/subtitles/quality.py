@@ -5,16 +5,19 @@ hallucinated phrases repeated over silence or music. A false alarm only costs a 
 they lean towards flagging, but normal speech passes.
 """
 
+import unicodedata
 import zlib
 from collections import Counter
 from collections.abc import Iterator, Sequence
 from itertools import groupby
+from operator import itemgetter
 
-from transcribe_worker.engine.classes import Transcript
+from transcribe_worker.engine.classes import Segment, Transcript
 from transcribe_worker.subtitles.constants import (
     COMPRESSION_WINDOW_CHARS,
     DOMINANT_MIN_COUNT,
     DOMINANT_SEGMENT_SHARE,
+    KEPT_MARK_CATEGORIES,
     MAX_COMPRESSION_RATIO,
     MAX_NGRAM_REPEATS,
     MAX_NGRAM_WORDS,
@@ -24,18 +27,19 @@ from transcribe_worker.subtitles.constants import (
 
 
 def clean(transcript: Transcript) -> Transcript:
-    """Return the transcript without empty segments and without consecutive duplicate segments.
+    """Return the transcript without empty segments and without repetition loops.
 
-    Segments are duplicates when their texts match after case, punctuation and whitespace are
-    ignored; the first of a run is kept.
+    A loop is a run of at least MAX_SEGMENT_REPEATS consecutive segments whose texts match
+    after case, punctuation and whitespace are ignored (empty segments in between do not
+    count); only its first segment is kept. Shorter runs are speech ("No. No.") and stay.
     """
-    kept = []
-    previous_key = None
-    for segment in transcript.segments:
-        key = _key(segment.text)
-        if key and key != previous_key:
-            kept.append(segment)
-        previous_key = key or previous_key
+    segments = [(_key(segment.text), segment) for segment in transcript.segments]
+    spoken = [(key, segment) for key, segment in segments if key]
+    kept: list[Segment] = []
+    for _, run in groupby(spoken, key=itemgetter(0)):
+        run_segments = [segment for _, segment in run]
+        is_loop = len(run_segments) >= MAX_SEGMENT_REPEATS
+        kept.extend(run_segments[:1] if is_loop else run_segments)
     return transcript.model_copy(update={"segments": tuple(kept)})
 
 
@@ -56,13 +60,19 @@ def find_problems(transcript: Transcript) -> tuple[str, ...]:
 
 
 def _key(text: str) -> str:
-    """Return the text for comparisons: case-folded, punctuation dropped, whitespace collapsed.
+    """Return the text for comparisons: case-folded, NFC, punctuation dropped, whitespace collapsed.
 
-    Text made of punctuation only (such as "...") is compared as it is, stripped.
+    Letters, digits and combining marks (Indic vowel signs, Thai vowels) are kept, so words stay
+    whole. Text made of punctuation only (such as "...") is compared as it is, stripped.
     """
-    kept = (char if char.isalnum() else " " for char in text.casefold())
+    normalised = unicodedata.normalize("NFC", text.casefold())
+    kept = (char if _is_word_char(char) else " " for char in normalised)
     words = "".join(kept).split()
     return " ".join(words) or text.strip()
+
+
+def _is_word_char(char: str) -> bool:
+    return char.isalnum() or unicodedata.category(char) in KEPT_MARK_CATEGORIES
 
 
 def _compression_problem(text: str) -> str | None:

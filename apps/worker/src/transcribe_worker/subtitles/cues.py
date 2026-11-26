@@ -9,6 +9,7 @@ from transcribe_worker.subtitles.constants import (
     BACKTRACK_MIN_CHARS,
     CLAUSE_BREAK_MIN_CHARS,
     CLAUSE_BREAK_MIN_DURATION_S,
+    MAX_CUE_DELAY_S,
     MAX_CUE_DURATION_S,
     MIN_CUE_DURATION_S,
     MIN_VISIBLE_DURATION_S,
@@ -27,6 +28,8 @@ def build_cues(transcript: Transcript) -> tuple[Cue, ...]:
     own) and lasts 1-7 s where the timing allows. Cues end at pauses, at sentence ends, at
     clause marks once they are long enough, and otherwise when the next word would not fit,
     preferring the last punctuation mark of the full cue. Cues are sorted and never overlap.
+    Unspaced text (Chinese, Japanese, Thai, ...) is written without inserted spaces and may be
+    broken between its units.
     """
     return _finalise(_group(timed_words(transcript)))
 
@@ -85,31 +88,59 @@ def _finalise(groups: Sequence[Group]) -> tuple[Cue, ...]:
     """Turn groups into cues: minimum and maximum durations, sorted, no overlap."""
     if not groups:
         return ()
-    cues: list[Cue] = []
-    previous_end: float = 0
-    starts = [group[0].start for group in groups]
+    starts = _starts([group[0].start for group in groups])
     limits = [*starts[1:], math.inf]
-    for group, limit in zip(groups, limits, strict=True):
-        start = max(group[0].start, previous_end)
-        end = _cue_end(group, start, limit)
+    cues: list[Cue] = []
+    for group, start, limit in zip(groups, starts, limits, strict=True):
         lines = split_lines(_text(group))
         if lines is None:
             msg = "a cue does not fit on two lines"
             raise AssertionError(msg)
+        end = _cue_end(group, start, limit)
         cues.append(Cue(start=start, end=end, lines=lines))
-        previous_end = end
     return tuple(cues)
+
+
+def _starts(own_starts: Sequence[float]) -> list[float]:
+    """Return strictly increasing cue starts.
+
+    A cue starts with its words, or later when the previous cue needs MIN_VISIBLE_DURATION_S.
+    That delay never exceeds MAX_CUE_DELAY_S: beyond it, the pile of cues since the last
+    undelayed one shares the time evenly (each shorter than MIN_VISIBLE_DURATION_S), so
+    overlapping engine times cannot shift all later cues.
+    """
+    starts: list[float] = []
+    pile = 0
+    for index, own in enumerate(own_starts):
+        earliest = starts[-1] + MIN_VISIBLE_DURATION_S if starts else own
+        if earliest <= own:
+            pile = index
+        latest = own + MAX_CUE_DELAY_S
+        if earliest > latest:
+            starts = _shared(starts, pile, latest)
+        else:
+            starts.append(max(earliest, own))
+    return starts
+
+
+def _shared(starts: Sequence[float], pile: int, latest: float) -> list[float]:
+    """Return the starts with those from `pile` on spread evenly up to `latest`, the start of one more cue."""
+    first = starts[pile]
+    count = len(starts) - pile
+    step = (latest - first) / count
+    spread = (first + step * offset for offset in range(count))
+    return [*starts[:pile], *spread, latest]
 
 
 def _cue_end(group: Group, start: float, limit: float) -> float:
     """Return the cue end: 1-7 s after the start where possible, never after the next cue's start."""
     wanted = max(_end(group), start + MIN_CUE_DURATION_S)
-    end = min(wanted, start + MAX_CUE_DURATION_S, limit)
-    return max(end, start + MIN_VISIBLE_DURATION_S)
+    return min(wanted, start + MAX_CUE_DURATION_S, limit)
 
 
 def _text(group: Group) -> str:
-    return " ".join(word.text for word in group)
+    """Return the group's words joined by spaces, except before joined (unspaced) words."""
+    return "".join(word.written() for word in group).removeprefix(" ")
 
 
 def _end(group: Group) -> float:
