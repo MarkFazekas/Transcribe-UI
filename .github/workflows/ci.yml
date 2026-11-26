@@ -1,0 +1,100 @@
+name: ci
+
+# No workflow-level path filter: the aggregate `ci-ok` job must always report, because it is
+# the required status check on main. Per-target jobs are skipped when nothing relevant changed.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Every push to main must get its own result; only superseded PR runs are cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read  # paths-filter lists PR files through the API
+    outputs:
+      targets: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        with:
+          # A change to shared config or the lock file checks every target. Every workspace
+          # member needs an entry here (scripts/check.py discovers members, this list does not).
+          filters: |
+            shared: &shared
+              - pyproject.toml
+              - uv.lock
+              - .flake8
+              - whitelist.txt
+              - scripts/**
+              - .github/workflows/ci.yml
+            tooling:
+              - *shared
+              - .claude/**
+            contracts:
+              - *shared
+              - packages/contracts/**
+
+  check:
+    needs: changes
+    if: needs.changes.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.changes.outputs.targets) }}
+        exclude:
+          - target: shared
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-packages
+      - run: uv run scripts/check.py ${{ matrix.target }}
+
+  gitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --only-dev
+      - name: Conventional commit titles
+        run: >-
+          uv run --no-sync gitlint
+          --commits "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  ci-ok:
+    if: always()
+    needs: [changes, check, gitlint]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Change detection succeeded; checks and gitlint succeeded or were skipped
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CHECK: ${{ needs.check.result }}
+          GITLINT: ${{ needs.gitlint.result }}
+        run: |
+          echo "changes=$CHANGES check=$CHECK gitlint=$GITLINT"
+          [ "$CHANGES" = success ] || exit 1
+          for result in "$CHECK" "$GITLINT"; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
+    "EngineInfo": {
+      "description": "Transcription engine settings recorded with every result.",
+      "properties": {
+        "batch_size": {
+          "exclusiveMinimum": 0,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "compute_type": {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        "model": {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        "name": {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        "version": {
+          "$ref": "#/$defs/NonEmptyText"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "model",
+        "compute_type",
+        "batch_size"
+      ],
+      "title": "EngineInfo",
+      "type": "object"
+    },
+    "JobStatus": {
+      "enum": [
+        "ok",
+        "no_speech",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "LanguageCheck": {
+      "description": "Language detected by the worker on the speech of the audio (Q11).",
+      "properties": {
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        },
+        "probability": {
+          "$ref": "#/$defs/Probability"
+        }
+      },
+      "required": [
+        "language",
+        "probability"
+      ],
+      "title": "LanguageCheck",
+      "type": "object"
+    },
+    "LanguageCode": {
+      "pattern": "^[a-z]{2,3}$",
+      "type": "string"
+    },
+    "NonEmptyText": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "Probability": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "SchemaVersion": {
+      "type": "string"
+    },
+    "TranscriptionMode": {
+      "enum": [
+        "normal",
+        "careful"
+      ],
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    }
+  },
+  "description": "Job result `<batch_id>/results/<ulid>.<lang>.json`; its presence marks the job done.",
+  "properties": {
+    "aligned": {
+      "title": "Aligned",
+      "type": "boolean"
+    },
+    "audio_duration_s": {
+      "minimum": 0,
+      "title": "Audio Duration S",
+      "type": "number"
+    },
+    "batch_id": {
+      "$ref": "#/$defs/BatchId"
+    },
+    "cue_count": {
+      "minimum": 0,
+      "title": "Cue Count",
+      "type": "integer"
+    },
+    "detected": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LanguageCheck"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "engine": {
+      "$ref": "#/$defs/EngineInfo"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "finished_at": {
+      "format": "date-time",
+      "title": "Finished At",
+      "type": "string"
+    },
+    "item_id": {
+      "$ref": "#/$defs/Ulid"
+    },
+    "language": {
+      "$ref": "#/$defs/LanguageCode"
+    },
+    "mode": {
+      "$ref": "#/$defs/TranscriptionMode"
+    },
+    "run_id": {
+      "$ref": "#/$defs/Ulid"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion",
+      "default": "1.0"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/JobStatus"
+    }
+  },
+  "required": [
+    "batch_id",
+    "item_id",
+    "language",
+    "mode",
+    "run_id",
+    "status",
+    "aligned",
+    "cue_count",
+    "audio_duration_s",
+    "started_at",
+    "finished_at",
+    "engine"
+  ],
+  "title": "JobResult",
+  "type": "object"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "run_id": "01JDA4B7C8D9E0F1G2H3J4K5M6",
+  "pod_id": "pod_abc123",
+  "state": "transcribing",
+  "started_at": "2026-11-26T15:00:00Z",
+  "updated_at": "2026-11-26T15:09:41Z",
+  "deadline_at": "2026-11-26T17:00:00Z",
+  "current": {
+    "batch_id": "batch_20261126_143005",
+    "item_id": "01JDA3Q5Z8V9K2M4N6P8R0T2W5",
+    "language": "hu"
+  },
+  "done_jobs": 1,
+  "total_jobs": 3,
+  "error": null
+}

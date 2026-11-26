@@ -21,7 +21,7 @@ Requirements: [uv](https://docs.astral.sh/uv/), git, ffmpeg (for tests).
 
 ```
 uv sync
-uv run ruff format . && uv run ruff check . && uv run flake8 .
+uv run scripts/check.py   # lint, typecheck and tests of every member, in parallel
 ```
 
 Conventions (commits, branches, docs, quality bar) are in [`CLAUDE.md`](CLAUDE.md) and

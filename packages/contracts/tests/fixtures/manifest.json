@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "batch_20261126_143005",
+  "created_at": "2026-11-26T14:30:05+01:00",
+  "scan_root": "D:\\Media",
+  "path_flavor": "windows",
+  "items": [
+    {
+      "item_id": "01JDA3Q5Z8V9K2M4N6P8R0T2W4",
+      "original_path": "D:\\Media\\Films\\Movie (2001).mkv",
+      "source_size": 1468006400,
+      "source_mtime_ns": 1764163805000000000,
+      "media_kind": "video",
+      "audio": [
+        {
+          "object_key": "batch_20261126_143005/audio/01JDA3Q5Z8V9K2M4N6P8R0T2W4.a0.mka",
+          "track_index": 0,
+          "extension": "mka",
+          "codec": "ac3",
+          "duration_s": 6021.5,
+          "size_bytes": 289032000
+        },
+        {
+          "object_key": "batch_20261126_143005/audio/01JDA3Q5Z8V9K2M4N6P8R0T2W4.a1.mka",
+          "track_index": 1,
+          "extension": "mka",
+          "codec": "aac",
+          "duration_s": 6021.5,
+          "size_bytes": 96344000
+        }
+      ],
+      "jobs": [
+        {
+          "language": "hu",
+          "mode": "normal",
+          "audio_object_key": "batch_20261126_143005/audio/01JDA3Q5Z8V9K2M4N6P8R0T2W4.a0.mka"
+        },
+        {
+          "language": "en",
+          "mode": "normal",
+          "audio_object_key": "batch_20261126_143005/audio/01JDA3Q5Z8V9K2M4N6P8R0T2W4.a1.mka"
+        }
+      ]
+    },
+    {
+      "item_id": "01JDA3Q5Z8V9K2M4N6P8R0T2W5",
+      "original_path": "D:\\Media\\Podcasts\\Ep 12.mp3",
+      "source_size": 45000000,
+      "source_mtime_ns": 1764163000000000000,
+      "media_kind": "audio",
+      "audio": [
+        {
+          "object_key": "batch_20261126_143005/audio/01JDA3Q5Z8V9K2M4N6P8R0T2W5.mp3",
+          "track_index": null,
+          "extension": "mp3",
+          "codec": "mp3",
+          "duration_s": 2812.0,
+          "size_bytes": 45000000
+        }
+      ],
+      "jobs": [
+        {
+          "language": "hu",
+          "mode": "careful",
+          "audio_object_key": "batch_20261126_143005/audio/01JDA3Q5Z8V9K2M4N6P8R0T2W5.mp3"
+        }
+      ]
+    }
+  ]
+}

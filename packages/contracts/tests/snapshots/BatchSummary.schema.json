@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
+    "JobCounts": {
+      "description": "Number of jobs per status.",
+      "properties": {
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "no_speech": {
+          "minimum": 0,
+          "title": "No Speech",
+          "type": "integer"
+        },
+        "ok": {
+          "minimum": 0,
+          "title": "Ok",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ok",
+        "no_speech",
+        "failed"
+      ],
+      "title": "JobCounts",
+      "type": "object"
+    },
+    "SchemaVersion": {
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    }
+  },
+  "description": "Batch summary `<batch_id>/_done.json`, written by the worker after the batch's last job.",
+  "properties": {
+    "batch_id": {
+      "$ref": "#/$defs/BatchId"
+    },
+    "counts": {
+      "$ref": "#/$defs/JobCounts"
+    },
+    "finished_at": {
+      "format": "date-time",
+      "title": "Finished At",
+      "type": "string"
+    },
+    "run_id": {
+      "$ref": "#/$defs/Ulid"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion",
+      "default": "1.0"
+    }
+  },
+  "required": [
+    "batch_id",
+    "run_id",
+    "finished_at",
+    "counts"
+  ],
+  "title": "BatchSummary",
+  "type": "object"
+}
