@@ -295,9 +295,11 @@ Comparisons for sidecar matching use NFC on macOS and case-insensitive matching 
 - Baked models: `large-v3` (CT2 fp16, 3.09 GB), the alignment models for `hu` (HF) and
   `en` (a torchaudio bundle, which lives in the torch hub cache, not the HF cache). `HF_HOME`
   and `TORCH_HOME` point to the same fixed paths at build time and run time. WhisperX 3.8
-  defaults to pyannote VAD; the worker sets `vad_method="silero"` explicitly (Silero ships with
-  the package). Alignment models for other enabled languages are downloaded at run time to the
-  container disk.
+  defaults to pyannote VAD; the worker sets `vad_method="silero"` explicitly. WhisperX loads
+  Silero with `torch.hub.load("snakers4/silero-vad")`, so the image bakes it into the
+  `TORCH_HOME` hub cache too (careful mode uses faster-whisper's Silero ONNX model, which ships
+  with the package). Alignment models for other enabled languages are downloaded at run time to
+  the container disk.
 - The `engine` extra pins `torch~=2.8.0` (WhisperX's pin) from the PyTorch cu128 index with a
   `sys_platform == 'linux'` marker, so the universal `uv.lock` still resolves on Windows/macOS.
 - The CI image build frees runner disk space first (the image is roughly 10 GB).
@@ -380,6 +382,15 @@ pods-only key is passed as a Runpod secret.
   (beam search, temperature fallback, `condition_on_previous_text=False`) → cue builder (max
   42 chars/line, 2 lines, 1–7 s, split at punctuation/pauses) → SRT. Per-job timeout; any
   exception marks the job `failed` and the run continues.
+- Careful decoding is faster-whisper's sequential `WhisperModel.transcribe` on the same
+  CTranslate2 model (batch size 1, beam 5, temperatures 0–1.0 in 0.2 steps with the
+  compression-ratio/log-prob/no-speech checks, `condition_on_previous_text=False`, its Silero
+  VAD): WhisperX's batched pipeline decodes each chunk once (with its default `beam_size` 5)
+  and ignores temperatures and fallback thresholds, so `asr_options` cannot express it.
+  Alignment runs one segment at a time; a segment WhisperX returns nothing for (its times stay
+  NaN) keeps its transcription times without words. Only
+  `transcribe_worker.engine.whisperx_engine` imports the GPU stack; the conversion of WhisperX
+  output into the engine `Transcript` (`engine/convert.py`) is pure and tested in CI.
 - Backup: each result file is also written to the Global Volume
   (`/workspace/backups/<batch_id>/...`) as a whole file (object-store semantics: no
   rename-based atomicity there, so write-once files only). Before transcribing a job, the

@@ -1,11 +1,14 @@
 a15
 a6
+asr
 backoff
 base32
 chunksize
 cloudflarestorage
 codec
 crockford
+ctranslate2
+cuda
 divmod
 e2e
 exc
@@ -15,9 +18,11 @@ formatter
 fromkeys
 fromtimestamp
 fullmatch
+gc
 gettempdir
 hhmmss
 ign
+isfinite
 joinpath
 levelname
 liveness
@@ -30,6 +35,7 @@ popen
 posix
 prefetch
 prefetcher
+pyannote
 pydantic
 q10
 r2
@@ -47,6 +53,7 @@ sigint
 sigkill
 signum
 sigterm
+silero
 srt
 tokenizer
 ulid
@@ -56,6 +63,7 @@ untracked
 untrusted
 v2
 v3
+vad
 validator
 watchdog
 wav
