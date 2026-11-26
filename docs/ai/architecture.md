@@ -301,10 +301,10 @@ Comparisons for sidecar matching use NFC on macOS and case-insensitive matching 
 - The `engine` extra pins `torch~=2.8.0` (WhisperX's pin) from the PyTorch cu128 index with a
   `sys_platform == 'linux'` marker, so the universal `uv.lock` still resolves on Windows/macOS.
 - The CI image build frees runner disk space first (the image is roughly 10 GB).
-- Published to public Docker Hub by CI with tags `sha-<short>`, `latest` and
-  `schema-<contracts major>`. The desktop app uses the `schema-<major>` tag of the contracts
-  version it was built with, so it always gets a compatible worker even when a desktop-only
-  change did not rebuild the image (tags not confirmed yet, open question A12).
+- Published to public Docker Hub as `markfazekasgh/transcribe-ui-worker` by CI with tags
+  `sha-<short>`, `latest` and `schema-<contracts major>`. The desktop app uses the
+  `schema-<major>` tag of the contracts version it was built with, so it always gets a
+  compatible worker even when a desktop-only change did not rebuild the image.
 
 ### 5.2 Process model
 
@@ -447,9 +447,10 @@ Few unit tests; mostly regression and flow tests:
   and attach the four executables to a GitHub Release. Builds are unsigned for now (macOS
   users clear the quarantine flag; Windows SmartScreen may warn).
 - `release-worker.yml` on push to `main` when worker/contracts code changes: build the Docker
-  image, run the entry/termination smoke test inside it, push to Docker Hub (the push waits
-  for the Docker Hub namespace and token, open question A12).
-- `reaper.yml` on a schedule: terminate overdue `transcribe-ui-*` pods.
+  image, run the entry/termination smoke test inside it, push to Docker Hub from the `dockerhub`
+  environment (deployment branch policy: `main` only, so no other branch gets the token).
+- `reaper.yml` on a schedule: terminate overdue `transcribe-ui-*` pods, with the pods-only key
+  in a `runpod-reaper` environment restricted to `main` the same way.
 - No release workflow runs on pull requests.
 
 ## 9. Ideas for later (not planned)

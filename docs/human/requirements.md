@@ -154,6 +154,8 @@ Naming and conflicts:
 - Model weights are baked into the Docker image so the pod starts faster.
 - No SSH server in the image: SSH goes through Runpod's own system.
 - R2 credentials reach the pod as Runpod secrets.
+- Docker Hub repository: `markfazekasgh/transcribe-ui-worker` (public). CI pushes with a
+  token kept in a GitHub environment that only the `main` branch can use.
 - In the first test period the pod is not stopped automatically; the architect will SSH in.
   The time limit in test mode is 2 hours.
 - Base images suggested by the Runpod UI (evaluated in `docs/ai/architecture.md`):
