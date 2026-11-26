@@ -24,7 +24,9 @@ B040–B042, B902, B906–B908, B910, B950) and a few print/annotation/naming ru
 Deviations from the reference (A14): `W503`, `E704` and `E701` ignored (they contradict
 `ruff format`; setting `ignore=` replaces flake8's default ignore list), ruff mccabe aligned to
 8, `exclude` added to `.flake8`, `pandas` dictionary dropped, fresh `whitelist.txt`, pytest
-`--import-mode=importlib`.
+`--import-mode=importlib`. Tests additionally ignore `WPS202` (module members), `WPS221`
+(Jones complexity: assertions read better inline) and `N802` (`http.server` handler names in
+fakes); ruff's `INP001` is ignored for `tests/` and `scripts/` (no `__init__.py` on purpose).
 
 Spellcheck: add genuine technical words to `whitelist.txt` (one per line, lower case) instead
 of `noqa`. Any `noqa` needs the specific code and a reason in a comment.
@@ -62,7 +64,9 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
 ## Commits and branches
 
 - Conventional Commits, enforced by gitlint (`.gitlint`, `contrib-title-conventional-commits`)
-  in CI on PR commits. No co-author or attribution trailers.
+  in CI on PR commits; body lines at most 80 characters (wrap at 72). No co-author or
+  attribution trailers, no "Generated with" line in PR descriptions. A pushed commit that
+  fails gitlint cannot be fixed by force push: recreate the branch under a new name.
 - `main` is protected: PR required, signed commits required, no force push, required status
   checks (added once `ci.yml` exists). Work happens on branches; each PR is reviewed by a
   `code-reviewer` sub-agent before merge.

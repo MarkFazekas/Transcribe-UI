@@ -316,7 +316,19 @@ terminate = DELETE /v2/pods/$RUNPOD_POD_ID, retries with backoff; after a few fa
 
 The entry never exits on its own: an exiting PID 1 presumably makes Runpod restart the
 container [I, to verify at the first approved run], which would start a fresh, billed worker and
-reset the watchdog. Flow tests cover "terminate keeps failing".
+reset the watchdog. Further rules (implemented in `apps/worker/.../entry/`, covered by flow
+tests):
+- The entry keeps its own deadline: the child is killed at `MAX_RUNTIME_S`, and in test mode
+  the entry terminates the pod itself at the deadline or as soon as the watchdog has died.
+- SIGTERM/SIGINT/SIGHUP end the run phase through `finally`; from the termination phase on
+  they are ignored, so a repeated SIGTERM cannot interrupt it.
+- Any error during a terminate attempt is retried, never propagated.
+- A 404 counts as "gone" only after the pod was seen (start-up probe, successful DELETE):
+  with a wrong pod id or base URL every call returns 404. An unknown pod does not start the
+  worker; a pod id without an API key does not start it either and waits to be killed from
+  outside (layers 3-5) instead of exiting.
+- The client sends the key only to `https://*.runpod.io` (or `http://127.0.0.1` in tests),
+  refuses redirects, and error messages never include response or request data.
 
 Termination layers, each sufficient on its own for the failures it covers:
 

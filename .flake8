@@ -33,7 +33,7 @@ per-file-ignores =
     # Avoid enforcing Use of `assert` detected (`S101`) in tests files because it makes no sense.
     # Avoid enforcing Found too many imported names from a module (`WPS235`) in tests files because it is valid for tests.
     # Avoid enforcing Found too many imports (`WPS201`) it needs some refactor.
-    */tests/*: S101,WPS235,WPS201
+    */tests/*: S101,WPS235,WPS201,WPS202,WPS221,N802
     # Claude Code hooks talk to the harness through stdout (`T201`) and are standalone scripts (`WPS421` print).
     .claude/hooks/*: T201,WPS421
 max_complexity = 8

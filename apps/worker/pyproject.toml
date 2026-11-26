@@ -1,0 +1,17 @@
+[project]
+name = "transcribe-worker"
+version = "0.1.0"
+description = "Runpod GPU worker that transcribes Transcribe-UI batches from Cloudflare R2."
+license = "Apache-2.0"
+requires-python = ">=3.13,<3.14"
+dependencies = ["transcribe-contracts"]
+
+[project.scripts]
+transcribe-worker-entry = "transcribe_worker.entry.supervisor:main"
+
+[tool.uv.sources]
+transcribe-contracts = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
