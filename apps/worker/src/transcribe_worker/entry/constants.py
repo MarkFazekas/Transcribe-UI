@@ -8,14 +8,14 @@ DEFAULT_API_BASE_URL: Final = "https://api.runpod.io/v2"
 ENV_API_BASE_URL: Final = "RUNPOD_API_BASE_URL"
 # Environment variable with the pod's own id, set by Runpod.
 ENV_POD_ID: Final = "RUNPOD_POD_ID"
-# Environment variable with the pod-scoped API key, set by Runpod (or a pods-only key, A15).
+# Environment variable with the pod-scoped API key, set by Runpod (or a pods-only key if it cannot delete its own pod).
 ENV_API_KEY: Final = "RUNPOD_API_KEY"
-# Environment variable: "true" keeps the pod after the worker ends (test mode, A6).
+# Environment variable: "true" keeps the pod after the worker ends (test mode).
 ENV_KEEP_POD_ALIVE: Final = "KEEP_POD_ALIVE"
 # Environment variable: seconds after start when the watchdog terminates the pod.
 ENV_MAX_RUNTIME_S: Final = "MAX_RUNTIME_S"
 
-# Watchdog deadline when MAX_RUNTIME_S is missing or invalid (the test-mode cap, A6).
+# Watchdog deadline when MAX_RUNTIME_S is missing or invalid (the test-mode cap).
 DEFAULT_MAX_RUNTIME_S: Final = 2 * 60 * 60
 # Upper bound for MAX_RUNTIME_S, so a typo cannot keep a pod alive for days.
 MAX_RUNTIME_CEILING_S: Final = 24 * 60 * 60

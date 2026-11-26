@@ -1,10 +1,15 @@
 # Requirements (human input)
 
-Source: the architect's initial brief (2026-11-26), translated to English. This file records
-what was asked, not how it is implemented. Implementation decisions live in `docs/ai/`.
+Source: the architect's initial brief and the later answers of the architect and of product
+(2026-11-26), translated to English. This file records what was asked and decided by humans,
+not how it is implemented. Implementation lives in `docs/ai/`. Where a proposal was accepted
+as proposed ("default"), the accepted proposal is written out and marked *(accepted proposal)*.
 
 Reference project: https://github.com/MarkFazekas/STTCLI (its Runpod instructions were used
 several times and worked).
+
+Terms: a **job** is one run of transcriptions that the user starts (internally a batch); the
+**cloud machine** is the rented GPU computer (Runpod pod) that does the transcription.
 
 ## System overview
 
@@ -20,16 +25,50 @@ Two parts:
 ## UI app: file selection
 
 - Audio/video files and the transcription language(s) are selectable.
-- Hungarian and English are offered by default; any other supported language can be chosen.
-- If a file already has a subtitle, show it.
+- Listed files: all common video and audio file types (MP4, MKV, MOV, AVI, WebM, MP3, M4A,
+  WAV, FLAC, OGG, Opus and similar); the list can be adjusted later in the settings
+  *(accepted proposal)*.
+- Hidden and system folders are not listed (a setting can include them); folder
+  shortcuts/links are not followed, so the same file never appears twice *(accepted proposal)*.
+- Languages: a global app-level setting lists every language the transcription supports, each
+  with an on/off switch. Hungarian and English are on by default. Enabled languages appear in
+  the language choosers and filters ("if someone turns on DE, it appears in the language
+  chooser too, obviously").
+- Spoken language: the user chooses it. No automatic detection for now: no small model on the
+  user's computer and no guess on the cloud machine. Automatic detection is kept as an idea
+  for later.
+- If a file already has a subtitle, show it. Recognised subtitle files: the same name as the
+  video, with or without a language in the name (`movie.srt`, `movie.hu.srt`,
+  `movie.hun.srt`, `movie.hungarian.srt`, `movie.en.forced.srt`; also `.vtt`, `.ass`, `.ssa`).
+  A file without a language, like `movie.srt`, counts as "subtitle in an unknown language": it
+  matches "has any subtitle" but not "has Hungarian" *(accepted proposal)*.
+- The "has subtitle" filter in the main view counts only separate subtitle files; subtitles
+  inside video files are handled in the review step.
 - Search/filter for files that already have a subtitle in some language, so the user can, for
   example, select those and request an English subtitle for them as well.
 - The folder structure is shown as a tree and selection works on the tree: opening `D:\` and
   selecting `D:\A\C` selects every audio/video file in `C` and all its subfolders.
 - When a filter is active, folder selection only selects matching files. Filters include:
-  - has subtitle: any / English / Hungarian / both
+  - subtitle: pick any set of the enabled languages and a rule: "has all of them", "has any of
+    them", or "is missing at least one of them" (covers "Hungarian subtitle but no English
+    one") *(accepted proposal)*
   - audio file, video file
   - file name starts with / ends with / contains / regex
+- A file can be transcribed again into a language it already has a subtitle for, but the app
+  warns before the job is created. When a whole folder is selected while the filter "is
+  missing <language>" is on, such files are not selected *(accepted proposal)*.
+
+## UI app: review step
+
+After the file selection there is a clarifying step. Both parts have the same language and
+folder filters as the main view, so choices can be made per folder (one language for one
+folder, another for another folder).
+
+1. Files that carry a subtitle inside the file are listed; per file the user chooses:
+   transcribe, or just extract the existing subtitle. Picture-based subtitles (DVD/Blu-ray)
+   cannot be extracted as text, so for those only transcription is offered.
+2. Files with more than one soundtrack are listed in one summary view with each track's
+   language; the user picks the track per file.
 
 ## UI app: conversion and upload
 
@@ -44,8 +83,10 @@ Two parts:
   (prefix) name.
 - Batch metadata files are uploaded to a `batch_metadata` folder.
 - Batch data is stored locally in the OS-appropriate user folder.
-- Whisper is understood to require per-language batches, so batches are built per language.
-  The UI allows choosing several languages at once; then one batch is built per language.
+- One batch per selection, even with several languages: each file lists its target languages
+  and its audio is uploaded once. The worker processes the jobs language by language (all `en`
+  jobs, then all `hu` jobs, …), because switching the language reloads a per-language
+  component, so en, en, hu is faster than en, hu, en.
 - Batch phases:
   1. Local composition: files are being selected.
   2. Converting and uploading: files are converted to audio one by one and uploaded
@@ -55,6 +96,14 @@ Two parts:
   5. Subtitles downloaded: they can be deleted from storage.
   6. Manual confirmation of deleting the subtitles and the input audio files.
 - Every step must be interruptible and resumable, both during and between steps.
+- Job history is kept forever, with an option to hide finished and cleaned-up jobs. History
+  only contains file names, paths and statuses (no audio) *(accepted proposal)*.
+
+## Cloud cleanup
+
+Cleaning up the cloud is available after the download and at any time when the job is opened,
+as a maintenance action: "delete audio only" or "delete everything (audio and subtitles)".
+Deleting something that is already gone is not an error.
 
 ## Subtitle download options
 
@@ -62,12 +111,33 @@ Two parts:
 - Into a chosen folder that mirrors the original tree structure.
 - Into one folder without structure.
 - Into one folder without structure, keeping selectable folder names joined with underscores.
+  The user chooses which folder names are kept; by default the X folders closest to the file
+  (`C:\A\B\C\D\e.mkv` keeping 2 folders → `C_D_e.hu.srt`).
 - Custom: export a JSON containing each file's name, original folder and the output file and
   folder name; the user fills it in with an LLM and imports it. The import must be validated.
 
+Naming and conflicts:
+
+- Format: SRT only.
+- New subtitle name: the video's name plus a two-letter language code, `movie.hu.srt`
+  *(accepted proposal)*.
+- An existing subtitle file with the same name is listed before the download; skipped by
+  default, overwrite selectable. Low effort: this can practically only happen if the file was
+  transcribed while the batch was being started.
+- Two subtitles that would get the same name in one folder are shown; by default each gets its
+  folder name as prefix: `A_movie.hu.srt`, `B_movie.hu.srt`. No numbering.
+
 ## Runpod control
 
-- A UI button starts the Runpod pod via the given API.
+- A UI button starts the Runpod pod via the given API. One button sends every job that has
+  finished uploading. The app then shows the state: waiting for a free cloud machine,
+  starting, transcribing (which job and file, elapsed time, cost so far), finished, or failed.
+  While waiting for a machine, the user can cancel *(accepted proposal)*.
+- The app asks at every start how long to wait for a free machine; default 1 hour, at any time
+  of day.
+- Before starting, the app shows the total audio length and an estimated cost range and asks
+  for confirmation. No separate spending limit in the app; the cloud account's own spending
+  limit applies *(accepted proposal)*.
 - The S3-compatible credentials and the Runpod API key are stored in the OS credential store.
 
 ## Deployed app (worker)
@@ -79,18 +149,28 @@ Two parts:
 - Automatic operation is expected: the pod started from the UI transcribes every batch that is
   ready for transcription, saves the output to persistent storage as a backup, uploads the
   output per batch, then stops the pod.
+- Engine: output quality comes first, so word-timestamp alignment is kept (WhisperX with
+  forced alignment rather than plain faster-whisper).
+- Model weights are baked into the Docker image so the pod starts faster.
+- No SSH server in the image: SSH goes through Runpod's own system.
+- R2 credentials reach the pod as Runpod secrets.
 - In the first test period the pod is not stopped automatically; the architect will SSH in.
-- Base images suggested by the Runpod UI (to be evaluated):
-  - `runpod/pytorch:2.1.0-cu1281-torch280-ubuntu2404`
-  - `runpod/pytorch:2.1.0-cu1290-torch280-ubuntu2404`
-  - `runpod/pytorch:2.1.0-cu1300-torch280-ubuntu2404`
-  - `runpod/pytorch:2.1.0-cu1320-torch280-ubuntu2404`
+  The time limit in test mode is 2 hours.
+- Base images suggested by the Runpod UI (evaluated in `docs/ai/architecture.md`):
+  `runpod/pytorch:2.1.0-cu1281-torch280-ubuntu2404`, `…-cu1290-…`, `…-cu1300-…`,
+  `…-cu1320-…`.
 
 ### Failure handling
 
-- A file that cannot be transcribed, or has empty output, must not block the process: return an
-  empty file, flag it in the UI, ideally with a retry button that puts it into a separate batch.
-- The Runpod pod must never be left running, not even after a major failure.
+- A file that cannot be transcribed, or has empty output, must not block the process. The app
+  marks these files in the job view with the reason ("no speech found" or "failed: …") and a
+  Retry button; it does not put empty subtitle files next to the videos unless the user asks
+  for it *(accepted proposal)*.
+- Retry starts a new job with only the selected marked files and the same language; the audio
+  already in the cloud is reused, and the retry uses a slower, more careful transcription
+  setting *(accepted proposal)*.
+- The Runpod pod must never be left running, not even after a major failure. A scheduled
+  external job (GitHub Actions, pods-only key) terminates forgotten pods.
 - A failed transcription or an interrupted batch must not harm the successful transcriptions.
 - Batch handling should be smarter than "download all audio files, then upload everything".
 
@@ -108,13 +188,22 @@ Two parts:
   whether it came from the UI, CLI or (later) FastMCP. This must be testable.
 - Tests for both the backend and the deployed app: few unit tests, mostly regression and flow
   tests.
-- Managed with uv; Python 3.11–3.14, whichever fits better.
+- Managed with uv, as one workspace (`packages/contracts`, `apps/desktop`, `apps/worker`);
+  Python 3.13 everywhere.
+- Desktop stack *(accepted proposal)*: PySide6, PyInstaller one-file, static LGPL ffmpeg
+  bundled, four unsigned builds.
+- Local state: SQLite with SQLAlchemy and Alembic.
+- Code layout, Django-like: constants per folder / app / sub-app in a `constants.py`, each with
+  a roughly one-line explanation of its purpose, not with an underscore at the top of other
+  files; `models.py` for the SQL models, `classes.py` for the Pydantic models, a separate
+  `migrations` folder for migrations.
 - Lint setup taken from
   https://github.com/MarkFazekas/ApplicantFilterSystemO/tree/main/manager_backend : flake8 +
   ruff + mypy. Ruff does not cover every flake8 plugin, so the full `.flake8` and ruff configs
   are carried over, adapted to this project.
 - Conventional commits.
-- On push to the main branch, build executables for Windows, macOS and Ubuntu.
+- On push to the main branch, build executables for Windows, macOS and Ubuntu, and create a
+  GitHub Release with them.
 - A Claude hook runs a code review in a sub-agent before the session returns with code or any
   other change.
 
@@ -124,5 +213,7 @@ Two parts:
 - Human input (what the architect/product says) goes to `docs/human/`; what Claude produces
   from inputs and discoveries goes to `docs/ai/`.
 - Keep information that is useful later; do not write a history book.
+- Answered questions are removed from the question files; the answers and what follows from
+  them go to their place in the docs.
 - `CLAUDE.md`, `README.md` and `.gitignore` are part of the repo. Docs handling rules are in
   `CLAUDE.md`.

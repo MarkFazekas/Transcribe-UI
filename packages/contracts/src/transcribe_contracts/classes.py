@@ -64,7 +64,6 @@ type Ulid = Annotated[str, StringConstraints(pattern=ULID_PATTERN)]
 type LanguageCode = Annotated[str, StringConstraints(pattern=LANGUAGE_CODE_PATTERN)]
 type AudioExtension = Annotated[str, StringConstraints(pattern=AUDIO_EXTENSION_PATTERN)]
 type NonEmptyText = Annotated[str, StringConstraints(min_length=1)]
-type Probability = Annotated[float, Field(ge=0, le=1)]
 type MediaKind = Literal["audio", "video"]
 type PathFlavor = Literal["windows", "posix"]
 type TranscriptionMode = Literal["normal", "careful"]
@@ -185,13 +184,6 @@ class EngineInfo(ContractModel):
     batch_size: PositiveInt
 
 
-class LanguageCheck(ContractModel):
-    """Language detected by the worker on the speech of the audio (Q11)."""
-
-    language: LanguageCode
-    probability: Probability
-
-
 class JobResult(ContractModel):
     """Job result `<batch_id>/results/<ulid>.<lang>.json`; its presence marks the job done."""
 
@@ -204,7 +196,6 @@ class JobResult(ContractModel):
     status: JobStatus
     error: NonEmptyText | None = None
     aligned: bool
-    detected: LanguageCheck | None = None
     cue_count: NonNegativeInt
     audio_duration_s: NonNegativeFloat
     started_at: AwareDatetime

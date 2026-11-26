@@ -43,23 +43,6 @@
       ],
       "type": "string"
     },
-    "LanguageCheck": {
-      "description": "Language detected by the worker on the speech of the audio (Q11).",
-      "properties": {
-        "language": {
-          "$ref": "#/$defs/LanguageCode"
-        },
-        "probability": {
-          "$ref": "#/$defs/Probability"
-        }
-      },
-      "required": [
-        "language",
-        "probability"
-      ],
-      "title": "LanguageCheck",
-      "type": "object"
-    },
     "LanguageCode": {
       "pattern": "^[a-z]{2,3}$",
       "type": "string"
@@ -67,11 +50,6 @@
     "NonEmptyText": {
       "minLength": 1,
       "type": "string"
-    },
-    "Probability": {
-      "maximum": 1,
-      "minimum": 0,
-      "type": "number"
     },
     "SchemaVersion": {
       "type": "string"
@@ -106,17 +84,6 @@
       "minimum": 0,
       "title": "Cue Count",
       "type": "integer"
-    },
-    "detected": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/LanguageCheck"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
     },
     "engine": {
       "$ref": "#/$defs/EngineInfo"
