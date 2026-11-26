@@ -914,11 +914,17 @@ name = "transcribe-worker"
 version = "0.1.0"
 source = { editable = "apps/worker" }
 dependencies = [
+    { name = "boto3" },
+    { name = "pydantic" },
     { name = "transcribe-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "transcribe-contracts", editable = "packages/contracts" }]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.44" },
+    { name = "pydantic", specifier = ">=2.12" },
+    { name = "transcribe-contracts", editable = "packages/contracts" },
+]
 
 [[package]]
 name = "typing-extensions"

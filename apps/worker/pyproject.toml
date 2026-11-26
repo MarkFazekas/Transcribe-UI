@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Runpod GPU worker that transcribes Transcribe-UI batches from Cloudflare R2."
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
-dependencies = ["transcribe-contracts"]
+dependencies = [
+    "boto3>=1.44",
+    "pydantic>=2.12",
+    "transcribe-contracts",
+]
 
 [project.scripts]
 transcribe-worker-entry = "transcribe_worker.entry.supervisor:main"
