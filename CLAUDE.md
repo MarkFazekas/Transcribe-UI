@@ -6,6 +6,7 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 
 ## Read first
 
+- `docs/ai/status.md` — current state and next steps; start here when asked to continue.
 - `docs/human/requirements.md` — what was asked (source of truth for scope).
 - `docs/human/working-agreements.md` — roles, communication, git/CI and secret rules.
 - `docs/ai/architecture.md` — current design. `docs/ai/tooling.md` — lint, tests, CI, hooks.
@@ -21,6 +22,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 - Chat may be Hungarian; everything in the repo is English.
 - Keep interim reports short. If compacting would not hurt quality, end the report with the
   line `Compactable: True`; otherwise omit the line.
+- Keep `docs/ai/status.md` current: update it in every PR that changes the state and before
+  an orderly stop, so a new session can continue from "continue" without a handoff note.
 - Work until a real blocker; record small decisions instead of asking. Never trade quality for
   quota; stop in an orderly way (finish or save the current step, start nothing new).
 - Use sub-agents only where they give real speed-up; Sonnet/Haiku where quality allows.

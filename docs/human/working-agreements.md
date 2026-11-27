@@ -28,6 +28,11 @@ Source: the architect's initial brief (2026-11-26), translated to English.
 - Answered questions are taken out of the question files; the answers and what follows from
   them are put in their place in the docs.
 
+## Session continuity
+
+- The repo tracks the state of the work, so the architect does not have to copy handoff notes
+  between sessions: telling a new session to continue is enough for it to pick up the work.
+
 ## Quality first
 
 - Never compromise quality or usability because of usage quota. Stopping and resuming later is
