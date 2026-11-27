@@ -7,6 +7,7 @@ copies the film's audio server side in moto, and its manifest step uses the fake
 import contextlib
 import itertools
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -33,11 +34,16 @@ from support.credentials import moto_bucket
 from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import ok_as
 from support.runs import RunsWorld
-from support.upload import upload_world
+from support.upload import set_phase, upload_world
 from transcribe_contracts.layout import audio_key, manifest_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.api.classes import Response
+from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.cleanup.classes import CleanupCloudResponse, CreateRetryBatchResponse
+from transcribe_ui.cleanup.origins import ExistingRetry
+from transcribe_ui.cleanup.planning import RetryPlan
+from transcribe_ui.cleanup.retry import retry_batch_id
+from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.responses import RunUploadResponse
 
 # The id a retry batch gets when the source's id and `SECOND_BATCH_ID` are taken.
@@ -195,3 +201,25 @@ def test_source_cleanup_waits_for_a_copying_retry(world: RunsWorld, monkeypatch:
     ok_as(send(world, confirmed(AUDIO)), CleanupCloudResponse)
     assert flags(world) == ("transcribed", True)
     assert world.store.head(_copied_key(world)) is not None
+
+
+@dataclass(frozen=True)
+class _CleanedMeanwhile:
+    """`retry_batch_id`, but the retry batch is cleaned up right after it was found."""
+
+    world: RunsWorld
+
+    def __call__(self, context: RequestContext, store: ObjectStore, target: ExistingRetry | RetryPlan) -> str:
+        """Return the retry batch's id after moving it to `cleaned`."""
+        retry_id = retry_batch_id(context, store, target)
+        set_phase(self.world, "cleaned", retry_id)
+        return retry_id
+
+
+def test_retry_cleaned_up_meanwhile_is_not_copied(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A retry batch cleaned up between the lookup and its lock is refused; nothing is copied into it."""
+    _created_only(world, monkeypatch)
+    monkeypatch.setattr("transcribe_ui.cleanup.services.retry_batch_id", _CleanedMeanwhile(world))
+    code, details = error_of(_retry(world))
+    assert (code, details["phase"]) == ("wrong_phase", "cleaned")
+    assert not keys_under(world.store, SECOND_BATCH_ID)

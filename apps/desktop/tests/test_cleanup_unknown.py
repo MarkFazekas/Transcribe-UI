@@ -1,5 +1,7 @@
 """`cleanup_cloud` of a batch this database does not know: another computer's, or an earlier database's (Q28)."""
 
+import contextlib
+import itertools
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -7,8 +9,10 @@ from pathlib import Path
 import pytest
 
 from support.batch_backend import error_code, error_of
-from support.cleanup import AUDIO, CLEANUP, EVERYTHING, cleanup_document, keys_under, seed_world, send
+from support.buckets import create_bucket
+from support.cleanup import AUDIO, CLEANUP, EVERYTHING, cleanup_document, keys_under, patch_store, seed_world, send
 from support.credentials import moto_bucket
+from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import FOREIGN_BATCH_ID, ok_as, write_foreign
 from support.runs import JSON_TYPE, RunsWorld, seed_run
 from support.upload import upload_world
@@ -82,3 +86,37 @@ def test_unknown_batch_refusals(world: RunsWorld) -> None:
     assert keys_under(world.store, FOREIGN_BATCH_ID) == kept
     missing = cleanup_document(EVERYTHING, MISSING_BATCH_ID, confirm=True)
     assert error_code(send(world, missing)) == "batch_not_found"
+
+
+def _unknown_killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wire: Tripwire) -> bool:
+    """Kill an unknown batch's cleanup at the wire, check the manifest goes last, repeat; return whether it fired."""
+    bucket = f"unknown-{wire.at}-{int(wire.after)}"
+    create_bucket(bucket)
+    with upload_world(tmp_path / bucket, bucket) as world:
+        _seed_foreign(world)
+        patch_store(monkeypatch, "unknown", lambda store: TripStore(store, wire))
+        with contextlib.suppress(Crash):
+            send(world, _foreign(confirm=True))
+        patch_store(monkeypatch, "unknown", lambda store: store)
+        if not wire.fired:
+            return False
+        left = keys_under(world.store, FOREIGN_BATCH_ID)
+        assert not left or left[0] == manifest_key(FOREIGN_BATCH_ID), (wire, left)
+        if left:
+            ok_as(send(world, _foreign(confirm=True)), CleanupCloudResponse)
+        assert not keys_under(world.store, FOREIGN_BATCH_ID), wire
+    return True
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_unknown_cleanup_interrupted_at_every_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, after: bool
+) -> None:
+    """A kill before or after any R2 call: the manifest is never gone while data is left; repeating finishes."""
+    fired = 0
+    with moto_bucket():
+        for at in itertools.count(1):
+            if not _unknown_killed_then_resumed(tmp_path, monkeypatch, Tripwire(at=at, after=after)):
+                break
+            fired += 1
+    assert fired >= FOREIGN_OBJECTS

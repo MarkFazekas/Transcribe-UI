@@ -7,15 +7,17 @@ find nothing in R2. An id that R2 holds data under is skipped for the next free 
 """
 
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.batches.errors import WrongPhaseError
 from transcribe_ui.batches.ids import base_batch_id, free_batch_id
 from transcribe_ui.batches.phases import load_batch
 from transcribe_ui.batches.records import stored_items, summary_of
 from transcribe_ui.cleanup.classes import CreateRetryBatchRequest, CreateRetryBatchResponse
-from transcribe_ui.cleanup.constants import RETRY_ID_ATTEMPTS
+from transcribe_ui.cleanup.constants import CLEANED, RETRY_ID_ATTEMPTS
 from transcribe_ui.cleanup.origins import ExistingRetry
 from transcribe_ui.cleanup.planning import RetryPlan
 from transcribe_ui.cleanup.rows import NewBatch, insert_retry
 from transcribe_ui.storage.r2 import ObjectStore
+from transcribe_ui.upload.constants import UPLOADING_BATCH
 from transcribe_ui.upload.errors import BatchIdTakenError
 from transcribe_ui.upload.services import UploadReport
 from transcribe_ui.upload.start import id_in_use
@@ -91,3 +93,19 @@ def retry_response(
         sweep_skipped=report.deleted is None,
         activity=report.finish.activity,
     )
+
+
+def still_uploading(context: RequestContext, retry_id: str) -> bool:
+    """Return whether the retry batch, whose lock the caller now holds, is still `uploading`.
+
+    It may have moved on since it was found (a `run_upload` that finished it); one that was cleaned
+    up meanwhile is refused, so nothing is copied into a cleaned prefix.
+
+    Raises:
+        WrongPhaseError: The retry batch is `cleaned`.
+    """
+    with context.ports.state.session() as session:
+        phase = load_batch(session, retry_id).phase
+    if phase == CLEANED:
+        raise WrongPhaseError(retry_id, phase, (UPLOADING_BATCH,))
+    return phase == UPLOADING_BATCH
