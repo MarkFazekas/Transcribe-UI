@@ -18,8 +18,10 @@ permissions:
   contents: read
 
 concurrency:
-  # Passes never overlap; a pass that is still running is never cancelled by the next one.
-  group: reaper
+  # Live passes never overlap, and a running pass is never cancelled by the next one. Dry runs
+  # have their own group: GitHub keeps only one pending run per group, so a manual dry run must
+  # not replace a pending scheduled live pass (on schedule `inputs.dry-run` is empty: live).
+  group: reaper-${{ inputs.dry-run && 'dry' || 'live' }}
   cancel-in-progress: false
 
 jobs:
