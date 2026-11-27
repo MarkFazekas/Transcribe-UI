@@ -11,8 +11,31 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, StringConstraints, model_validator
 
-from transcribe_contracts.constants import WHISPER_LANGUAGES
-from transcribe_ui.api.base import FrozenModel, LocalPath
+from transcribe_ui.api.base import FrozenModel, LocalPath, WhisperLanguage
+from transcribe_ui.batches.classes import (
+    CreateBatchRequest,
+    DeleteBatchRequest,
+    EditBatchRequest,
+    ExcludeItemsRequest,
+    GetBatchRequest,
+    ListBatchesRequest,
+    ResolveReviewRequest,
+    ReviewBatchRequest,
+    SetBatchHiddenRequest,
+    StartReviewRequest,
+)
+from transcribe_ui.batches.responses import (
+    CreateBatchResponse,
+    DeleteBatchResponse,
+    EditBatchResponse,
+    ExcludeItemsResponse,
+    GetBatchResponse,
+    ListBatchesResponse,
+    ResolveReviewResponse,
+    ReviewBatchResponse,
+    SetBatchHiddenResponse,
+    StartReviewResponse,
+)
 from transcribe_ui.credentials.classes import (
     CheckCredentialsRequest,
     CheckCredentialsResponse,
@@ -38,13 +61,6 @@ from transcribe_ui.runpod.classes import (
 )
 
 
-def _check_whisper_language(code: str) -> str:
-    if code not in WHISPER_LANGUAGES:
-        msg = f"{code!r} is not a language Whisper can transcribe"
-        raise ValueError(msg)
-    return code
-
-
 def _check_absolute(path: str) -> str:
     if not (PureWindowsPath(path).is_absolute() or PurePosixPath(path).is_absolute()):
         msg = "the path must be absolute"
@@ -59,8 +75,6 @@ def _check_unique[ItemT](entries: tuple[ItemT, ...]) -> tuple[ItemT, ...]:
     return entries
 
 
-# A language code of the Whisper language set (machine-independent, so every frontend agrees).
-type WhisperLanguage = Annotated[str, AfterValidator(_check_whisper_language)]
 # Distinct media file extensions (the scan's extension rule, §3.2).
 type MediaExtensions = Annotated[tuple[FileExtension, ...], AfterValidator(_check_unique)]
 # A non-empty path on this computer.
@@ -161,7 +175,17 @@ type Request = Annotated[
     | CredentialsStatusRequest
     | CheckCredentialsRequest
     | SetupCloudRequest
-    | CloudSetupStatusRequest,
+    | CloudSetupStatusRequest
+    | CreateBatchRequest
+    | EditBatchRequest
+    | DeleteBatchRequest
+    | StartReviewRequest
+    | ReviewBatchRequest
+    | ResolveReviewRequest
+    | ExcludeItemsRequest
+    | ListBatchesRequest
+    | GetBatchRequest
+    | SetBatchHiddenRequest,
     Field(discriminator="action"),
 ]
 
@@ -241,7 +265,17 @@ type SuccessResponse = Annotated[
     | CredentialsStatusResponse
     | CheckCredentialsResponse
     | SetupCloudResponse
-    | CloudSetupStatusResponse,
+    | CloudSetupStatusResponse
+    | CreateBatchResponse
+    | EditBatchResponse
+    | DeleteBatchResponse
+    | StartReviewResponse
+    | ReviewBatchResponse
+    | ResolveReviewResponse
+    | ExcludeItemsResponse
+    | ListBatchesResponse
+    | GetBatchResponse
+    | SetBatchHiddenResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

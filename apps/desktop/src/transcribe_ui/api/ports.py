@@ -7,7 +7,7 @@ so the same request gives the same response from every frontend and in tests.
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from typing import TYPE_CHECKING, Protocol
 
 from transcribe_contracts.constants import ULID_RANDOM_BITS
@@ -122,6 +122,8 @@ class Ports:
     path_rules: PathRules = field(default_factory=host_rules)
     # The latest scans, reused by `preview_selection` (process-local).
     scan_cache: ScanCache = field(default_factory=ScanCache)
+    # Time zone of local times (batch ids); None is this computer's, read at each use (DST).
+    local_zone: tzinfo | None = None
 
 
 @dataclass(frozen=True)
