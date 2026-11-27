@@ -6,7 +6,14 @@ from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveInt, Strin
 
 from transcribe_contracts.classes import TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel
-from transcribe_ui.runs.constants import RUNPOD_ID_PATTERN, WAIT_DEFAULT_S, WAIT_MAX_S, WAIT_MIN_S
+from transcribe_ui.runs.constants import (
+    LIST_RUNS_DEFAULT,
+    LIST_RUNS_MAX,
+    RUNPOD_ID_PATTERN,
+    WAIT_DEFAULT_S,
+    WAIT_MAX_S,
+    WAIT_MIN_S,
+)
 
 # Where a sign of a live worker run was found: a local run row, the Runpod pod or queued-pod
 # list, or a worker heartbeat (`runs/<run_id>/status.json`) in R2.
@@ -21,9 +28,19 @@ type PriceSource = Literal["catalog", "fallback"]
 # Id of a Runpod pod or queued pod as the requests accept it.
 type RunpodId = Annotated[str, StringConstraints(pattern=RUNPOD_ID_PATTERN)]
 # Why a run ended (`refresh_status`): its pod went away after the worker reported `finished` or
-# `failed`, or without a final report; the desktop stopped it at its deadline; or its queued pod
-# ended (expired, failed, cancelled or vanished) without a pod.
-type EndReason = Literal["worker_finished", "worker_failed", "pod_gone", "deadline", "queue_ended"]
+# `failed`, or without a final report; the desktop stopped it at its deadline; its queued pod
+# ended (expired, failed, cancelled or vanished) without a pod; the user stopped it
+# (`cancel_worker`, `terminate_pod`, `cancel_queued_pod`); or the pod request created nothing
+# (`launch_failed`).
+type EndReason = Literal[
+    "worker_finished",
+    "worker_failed",
+    "pod_gone",
+    "deadline",
+    "queue_ended",
+    "cancelled",
+    "launch_failed",
+]
 
 
 class ActivitySource(FrozenModel):
@@ -164,6 +181,17 @@ class RefreshStatusRequest(FrozenModel):
     """
 
     action: Literal["refresh_status"]
+
+
+class ListRunsRequest(FrozenModel):
+    """List the latest runs as stored, newest first; reads only the database (no Runpod or R2 call).
+
+    Elapsed time and cost are as of each run's end, else its last `refresh_status`.
+    """
+
+    action: Literal["list_runs"]
+    # How many runs to return at most.
+    limit: Annotated[int, Field(ge=1, le=LIST_RUNS_MAX)] = LIST_RUNS_DEFAULT
 
 
 class CancelWorkerRequest(FrozenModel):

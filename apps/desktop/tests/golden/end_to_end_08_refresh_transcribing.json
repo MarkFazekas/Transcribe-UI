@@ -28,7 +28,8 @@
           "current": {
             "batch_id": "batch_20261127_130000",
             "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
-            "language": "en"
+            "language": "en",
+            "name": "Episode.mkv"
           },
           "done_jobs": 0,
           "total_jobs": 2,
@@ -39,6 +40,8 @@
         "elapsed_s": 1200.0,
         "price_per_hour_usd": 0.27,
         "cost_so_far_usd": 0.09,
+        "refreshed_at": "2026-11-27T12:20:00Z",
+        "elapsed_until": "2026-11-27T12:20:00Z",
         "ended_at": null,
         "end_reason": null,
         "stop_error": null,

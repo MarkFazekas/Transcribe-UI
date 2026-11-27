@@ -22,6 +22,8 @@ from transcribe_ui.storage.r2 import R2ObjectStore
 
 # Request action of the monitoring.
 REFRESH = "refresh_status"
+# Request action of the stored run list.
+LIST_RUNS = "list_runs"
 # Pod id the simulated worker reports (the worker's own `RUNPOD_POD_ID`).
 WORKER_POD_ID = "pod-worker"
 # Text of the simulated worker log.

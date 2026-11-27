@@ -8,12 +8,15 @@ from datetime import timedelta
 import pytest
 
 from support.batches import FIRST_BATCH_ID
+from support.confirm import confirmed_document
 from support.launch import (
     FOREIGN_BATCH_ID,
     FOREIGN_SECONDS,
     LAUNCH,
+    document,
     launch,
     launch_run,
+    ok_as,
     plan_fingerprint,
     plan_of,
     pod_env,
@@ -28,6 +31,7 @@ from support.launch import (
 )
 from support.runs import READY, RunsWorld, app_pod_name, batch_state, seed_uploaded
 from transcribe_ui.runs.constants import NAME_DEADLINE_MARGIN_S, TEST_MODE_RUNTIME_S, WAIT_DEFAULT_S
+from transcribe_ui.runs.responses import LaunchWorkerResponse
 
 # Seconds of the seeded batch's audio (the film's 90 minutes and the podcast's minute).
 SEEDED_SECONDS = 5460.0
@@ -121,6 +125,9 @@ def test_unconfirmed_launch_changes_nothing(ready: RunsWorld) -> None:
     expected = plan_of(ready).model_dump(mode="json")
     assert (confirmation.field, confirmation.details) == ("confirm_fingerprint", {"plan": expected})
     assert (run_ids(ready), posts(ready), batch_state(ready)[1]) == ([], 0, True)
+    # Confirmed as every frontend does: the field set to its `set_to`, the plan's fingerprint.
+    resent = ready.leg.backend.execute_json(confirmed_document(document(LAUNCH), response))
+    assert (ok_as(resent, LaunchWorkerResponse).outcome, posts(ready)) == ("pod", 1)
 
 
 def test_scope_changed_between_plan_and_launch(ready: RunsWorld) -> None:

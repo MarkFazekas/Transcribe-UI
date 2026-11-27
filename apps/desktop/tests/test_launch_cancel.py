@@ -21,7 +21,7 @@ from support.launch import (
 )
 from support.runpod_api import Failure, Record
 from support.runs import OUTAGE, RunsWorld, seed_uploaded, set_run_status
-from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE, QUEUED_POD_CANCELLED, QUEUED_POD_DEPLOYED
+from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE, QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import (
     DEPLOY_SETTLE_S,
     ERROR_LAUNCH_UNRESOLVED,
@@ -64,16 +64,16 @@ def _deploy_at_next_request(world: RunsWorld) -> None:
     world.cloud.api.queued_pods.schedule_deploy(queued_of(world)[0][0], world.now())
 
 
-def _vanish(records: dict[str, Record], request: httpx.Request) -> None:
-    """Drop the pod a DELETE names before it is answered (404), as if it were not visible yet."""
+def _hide(records: dict[str, Record], request: httpx.Request) -> None:
+    """Drop the pod a request names before it is answered (404), as if it were not visible yet."""
     path = request.url.path
-    if request.method == "DELETE" and path.startswith(POD_PATH):
+    if path.startswith(POD_PATH):
         records.pop(path.removeprefix(POD_PATH), None)
 
 
-def _vanish_on_delete(world: RunsWorld) -> None:
-    """Make every pod disappear just before its DELETE is answered."""
-    world.cloud.settings.on_request = partial(_vanish, world.cloud.api.pods.records)
+def _hide_pods(world: RunsWorld) -> None:
+    """Make every pod disappear just before a read or a DELETE of it is answered."""
+    world.cloud.settings.on_request = partial(_hide, world.cloud.api.pods.records)
 
 
 def test_cancel_while_queued(ready: RunsWorld) -> None:
@@ -87,31 +87,27 @@ def test_cancel_while_queued(ready: RunsWorld) -> None:
 
 
 def test_cancel_with_a_deploy_during_the_cancel(ready: RunsWorld) -> None:
-    """The queued pod deploys while it is cancelled: its pod counts as gone only once the deploy settled.
-
-    The pod was never seen and a 204 on its DELETE proves nothing; re-sending the cancel finishes it.
-    """
+    """The queued pod deploys while it is cancelled: a read shows its pod, which is terminated and verified at once."""
     run_id = _launch(ready, capacity=False)
     _deploy_at_next_request(ready)
-    first = send(ready, CANCEL, run_id=run_id)
+    cancelled = _cancel(ready, run_id)
     status, payload = run_row(ready, run_id)
-    assert (error_code(first), status, payload.pod_seen, queued_of(ready)[0][1], pods_of(ready)) == (
-        ERROR_STOP_UNVERIFIED,
-        "running",
-        False,
-        QUEUED_POD_DEPLOYED,
+    assert (status, payload.pod_seen, cancelled.terminated_pod_id, pods_of(ready)) == (
+        CANCELLED,
+        True,
+        payload.pod_id,
         [],
     )
-    ready.cloud.clock.advance(SETTLED)
-    cancelled = _cancel(ready, run_id)
-    assert (cancelled.run.status, cancelled.terminated_pod_id) == (CANCELLED, payload.pod_id)
 
 
 def test_unseen_pod_missing_after_deploy_not_gone(ready: RunsWorld) -> None:
-    """A pod known only from its queued pod that reads 404 right after the deploy may be lag: not cancelled."""
+    """A pod known only from its queued pod that reads 404 right after the deploy may be lag: not cancelled.
+
+    No read shows it and a DELETE finds nothing; re-sending the cancel once the deploy settled finishes it.
+    """
     run_id = _launch(ready, capacity=False)
     _deploy_at_next_request(ready)
-    _vanish_on_delete(ready)
+    _hide_pods(ready)
     refused = send(ready, CANCEL, run_id=run_id)
     status, payload = run_row(ready, run_id)
     assert (error_code(refused), status, payload.pod_id is not None, payload.pod_seen) == (

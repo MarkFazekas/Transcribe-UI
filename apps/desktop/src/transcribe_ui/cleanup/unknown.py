@@ -59,5 +59,5 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
 def _confirmation(request: CleanupCloudRequest, manifest: Manifest) -> NeedsConfirmation:
     message = "This batch is not known on this computer; all its data will be deleted from the cloud."
     details: dict[str, JsonValue] = {"batch_id": manifest.batch_id, "files": len(manifest.items), "known": False}
-    confirmation = Confirmation(field=CONFIRM_FIELD, message=message, details=details)
+    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))

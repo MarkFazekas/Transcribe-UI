@@ -4,8 +4,11 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, get_args
 
+from transcribe_ui.cleanup.constants import AUDIO_PHASES, EVERYTHING_PHASES, RETRY_SOURCE_PHASES
 from transcribe_ui.media.constants import ERROR_MEDIA_TOOL_FAILED, ERROR_MEDIA_TOOL_TIMEOUT
+from transcribe_ui.placement.constants import DOWNLOAD_PHASES
 from transcribe_ui.state.models import BatchPhase
+from transcribe_ui.upload.constants import UPLOAD_PHASES
 
 # strftime format of a batch id from the local creation time (`batch_YYYYMMDD_HHmmss`).
 BATCH_ID_FORMAT: Final = "batch_%Y%m%d_%H%M%S"
@@ -33,6 +36,67 @@ FINISHED_PHASES: Final = frozenset(("downloaded", "cleaned"))
 # Item phases whose choices can still change (probed or waiting for a probe or a choice).
 ITEM_REVIEW_PHASES: Final = frozenset(("reviewing", "reviewed"))
 
+# Batch phases `start_review` accepts (in `reviewing` it changes nothing).
+START_REVIEW_PHASES: Final = frozenset((COMPOSING, REVIEWING))
+# What a cloud cleanup can leave pending (`cleanup_pending` of the batch payload).
+CLEANUP_SCOPES: Final = frozenset(("audio", "everything"))
+
+# An allowed action's rule: the batch phases its handler accepts, and the further conditions.
+type ActionRule = tuple[frozenset[str], tuple[str, ...]]
+
+# Guard condition of an allowed action: the batch has more than one item (`exclude_items` keeps one).
+CONDITION_SEVERAL_ITEMS: Final = "several_items"
+# Guard condition of an allowed action: every item is reviewed, unless the upload has started (`run_upload`).
+CONDITION_REVIEW_COMPLETE: Final = "review_complete"
+# Guard condition of an allowed action: no transcribe job waits for its result (`cleanup_cloud` scope `audio`).
+CONDITION_RESULTS_IN: Final = "results_in"
+# Guard condition of an allowed action: a transcribe job failed or found no speech (`create_retry_batch`).
+CONDITION_FLAGGED_JOBS: Final = "flagged_jobs"
+# Guard condition of an allowed action: the batch's audio was not cleaned up (`create_retry_batch`).
+CONDITION_AUDIO_KEPT: Final = "audio_kept"
+# Guard condition of an allowed action: no retry batch of this batch still copies its audio (`cleanup_cloud`).
+CONDITION_NO_COPYING_RETRY: Final = "no_copying_retry"
+# No-op condition: the review has not started yet (`start_review` in `reviewing` changes nothing).
+CONDITION_REVIEW_NOT_STARTED: Final = "review_not_started"
+# No-op condition: an item is in review (`review_batch`, `resolve_review` have nothing to do otherwise).
+CONDITION_ITEMS_IN_REVIEW: Final = "items_in_review"
+# No-op condition: the batch is shown in the default list (`hide_batch`).
+CONDITION_VISIBLE: Final = "visible"
+# No-op condition: the batch is hidden (`show_batch`).
+CONDITION_HIDDEN: Final = "hidden"
+# No-op condition: the audio is still in the cloud, or its cleanup is pending (`cleanup_audio`).
+CONDITION_AUDIO_LEFT: Final = "audio_left"
+# No-op condition: the batch is not `cleaned`, or its cleanup is pending (`cleanup_everything`).
+CONDITION_CLOUD_DATA_LEFT: Final = "cloud_data_left"
+# No-op condition: the batch is not `cleaned`, or it has extracted subtitles (kept locally) to place.
+CONDITION_SUBTITLES_LEFT: Final = "subtitles_left"
+# The batch requests a batch allows now, in the order the frontends offer them: by action, the
+# batch phases the handler accepts and the further conditions (`batches/actions.py`). The phases
+# and the guard conditions restate the handlers' own guards, which stay where they are (a drift
+# test links the two); the no-op conditions leave out what the handler would accept but that
+# would change nothing, so a frontend builds its buttons from the list alone.
+# `cleanup_cloud` and `set_batch_hidden` are listed per scope and per direction.
+ACTION_RULES: Final[Mapping[str, ActionRule]] = MappingProxyType(
+    {
+        "edit_batch": (EDITABLE_PHASES, ()),
+        "start_review": (START_REVIEW_PHASES, (CONDITION_REVIEW_NOT_STARTED,)),
+        "delete_batch": (DELETABLE_PHASES, ()),
+        "review_batch": (REVIEW_PHASES, (CONDITION_ITEMS_IN_REVIEW,)),
+        "resolve_review": (REVIEW_PHASES, (CONDITION_ITEMS_IN_REVIEW,)),
+        "exclude_items": (REVIEW_PHASES, (CONDITION_SEVERAL_ITEMS,)),
+        "run_upload": (UPLOAD_PHASES, (CONDITION_REVIEW_COMPLETE,)),
+        "plan_download": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
+        "run_download": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
+        "export_custom_plan": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
+        "import_custom_plan": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
+        "create_retry_batch": (RETRY_SOURCE_PHASES, (CONDITION_AUDIO_KEPT, CONDITION_FLAGGED_JOBS)),
+        "cleanup_audio": (AUDIO_PHASES, (CONDITION_NO_COPYING_RETRY, CONDITION_RESULTS_IN, CONDITION_AUDIO_LEFT)),
+        "cleanup_everything": (EVERYTHING_PHASES, (CONDITION_NO_COPYING_RETRY, CONDITION_CLOUD_DATA_LEFT)),
+        "hide_batch": (FINISHED_PHASES, (CONDITION_VISIBLE,)),
+        "show_batch": (ALL_PHASES, (CONDITION_HIDDEN,)),
+    },
+)
+
 # Status of a job that has no result yet (later parts add the others).
 JOB_PENDING: Final = "pending"
 # Mode of a new job; `careful` is only used by retry batches.
@@ -42,6 +106,8 @@ DEFAULT_MODE: Final = "normal"
 PROBE_STAGE: Final = "probe"
 # Progress stage of `exclude_items` while it deletes the uploaded objects of the excluded items.
 DELETE_OBJECTS_STAGE: Final = "delete_objects"
+# Request field that confirms `delete_batch` and `exclude_items`.
+CONFIRM_FIELD: Final = "confirm"
 # Separator of the relative paths in confirmation details (the same on every OS).
 RELATIVE_SEPARATOR: Final = "/"
 

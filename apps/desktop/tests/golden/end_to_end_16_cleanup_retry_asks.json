@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm",
+        "set_to": true,
         "message": "All of the batch's data will be deleted from the cloud: audio, subtitles and its description.",
         "details": {
           "batch_id": "batch_20261127_132100",
@@ -15,6 +16,7 @@
       },
       {
         "field": "confirm_not_downloaded",
+        "set_to": true,
         "message": "The batch's subtitles may not be downloaded yet; after this, only the backup on the cloud volume keeps them.",
         "details": {
           "batch_id": "batch_20261127_132100",

@@ -1,0 +1,21 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "exclude_items",
+    "confirmations": [
+      {
+        "field": "confirm",
+        "set_to": true,
+        "message": "1 file(s) will be removed from the batch.",
+        "details": {
+          "batch_id": "batch_20261127_130000",
+          "phase": "reviewing",
+          "items": 1,
+          "deletes_uploaded_audio": false
+        }
+      }
+    ]
+  },
+  "events": []
+}

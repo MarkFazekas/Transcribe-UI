@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm_existing_languages",
+        "set_to": true,
         "message": "1 selected file(s) already have a subtitle in a target language.",
         "details": {
           "files": [

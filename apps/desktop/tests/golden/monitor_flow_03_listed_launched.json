@@ -2,7 +2,7 @@
   "exit_code": 0,
   "response": {
     "status": "ok",
-    "action": "refresh_status",
+    "action": "list_runs",
     "runs": [
       {
         "run": {
@@ -29,25 +29,14 @@
         "elapsed_s": null,
         "price_per_hour_usd": null,
         "cost_so_far_usd": null,
+        "refreshed_at": null,
+        "elapsed_until": null,
         "ended_at": null,
         "end_reason": null,
         "stop_error": null,
         "worker_log": null
       }
-    ],
-    "batches": [
-      {
-        "batch_id": "batch_20261127_130000",
-        "phase": "ready",
-        "ok": 0,
-        "no_speech": 0,
-        "failed": 0,
-        "pending": 2
-      }
-    ],
-    "busy": [],
-    "published": [],
-    "held": []
+    ]
   },
   "events": []
 }

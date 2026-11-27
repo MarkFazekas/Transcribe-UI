@@ -2,14 +2,37 @@
 
 from typing import Literal
 
-from pydantic import AwareDatetime, NonNegativeInt
+from pydantic import AwareDatetime, Field, NonNegativeInt
 
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath, PathFlavor
+from transcribe_ui.batches.classes import ItemLanguages, TargetLanguages
 from transcribe_ui.batches.payloads import CleanupScope, ItemPhase, ItemProblem, JobKind
-from transcribe_ui.discovery.classes import ScanWarning
+from transcribe_ui.discovery.classes import ScanSpec, ScanWarning, SelectionOperation
 from transcribe_ui.media.classes import AudioTrack, SubtitleStream
 from transcribe_ui.state.models import BatchPhase
+
+# A batch request a batch allows now (`BatchSummary.actions`): the request's action, with
+# `cleanup_cloud` split by scope (`cleanup_audio`, `cleanup_everything`) and `set_batch_hidden` by
+# direction (`hide_batch`, `show_batch`).
+type BatchAction = Literal[
+    "edit_batch",
+    "start_review",
+    "delete_batch",
+    "review_batch",
+    "resolve_review",
+    "exclude_items",
+    "run_upload",
+    "plan_download",
+    "run_download",
+    "export_custom_plan",
+    "import_custom_plan",
+    "create_retry_batch",
+    "cleanup_audio",
+    "cleanup_everything",
+    "hide_batch",
+    "show_batch",
+]
 
 
 class OkResponse(FrozenModel):
@@ -67,6 +90,20 @@ class BatchSummary(FrozenModel):
     cleanup_pending: CleanupScope | None
     # Only `extract` jobs: the batch needs no upload and no cloud run.
     extract_only: bool
+    # The batch requests whose local conditions (phase, flags, item and job states) hold now, in
+    # the order to offer them. A listed request can still be refused for a reason outside the
+    # batch (a run is active, the batch is busy, the cloud cannot be reached, the request's own
+    # fields).
+    actions: tuple[BatchAction, ...]
+
+
+class BatchSelection(FrozenModel):
+    """The selection a batch was composed from: send it back as an `edit_batch` to reopen it."""
+
+    scan: ScanSpec
+    operations: tuple[SelectionOperation, ...] = Field(min_length=1)
+    languages: TargetLanguages
+    item_languages: tuple[ItemLanguages, ...]
 
 
 class BatchDetail(FrozenModel):
@@ -75,6 +112,9 @@ class BatchDetail(FrozenModel):
     summary: BatchSummary
     scan_root: LocalPath
     path_flavor: PathFlavor
+    # The selection the batch was composed from, to reopen it ("Edit selection"); None for a retry
+    # batch and for a batch created before the app kept it.
+    composition: BatchSelection | None
     items: tuple[BatchItem, ...]  # noqa: WPS110 -- the batch's items
 
 

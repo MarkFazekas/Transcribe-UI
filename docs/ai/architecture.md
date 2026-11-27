@@ -63,8 +63,12 @@ docs/human/, docs/ai/     see CLAUDE.md
   `run_download`, `cleanup_cloud`, `export_custom_plan`, `import_custom_plan`). `Response` is a
   union discriminated on `status`:
   - `ok`: the request's own response model (discriminated on `action`);
-  - `needs_confirmation`: nothing was changed; it lists the request fields to set
-    (confirmations are data, so GUI, CLI and MCP behave the same);
+  - `needs_confirmation`: nothing was changed; it lists the request fields to set, each with
+    the value that confirms it (`set_to`: `true` for a flag, the plan's fingerprint for
+    `confirm_fingerprint`), so every frontend confirms by re-sending the same request with each
+    `field` set to its `set_to` (confirmations are data, so GUI, CLI and MCP behave the same).
+    Every request that deletes or replaces something the user made asks this way, including
+    `delete_batch` and `exclude_items` (`confirm`);
   - `error`: `{"status": "error", "action": ..., "error": {"code", "message", "details"}}`
     (§6). Handlers raise `DomainError(code, ...)`; an unexpected exception becomes
     `internal_error` with a generic message (the traceback goes to the log only).
@@ -93,7 +97,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     ("must be UTF-8"). Ctrl+C sets the cancel token, a second Ctrl+C stops at
     once (every step is idempotent, so the state is consistent either way). Exit codes: 0
     success, 1 error response, 2 request file (or command line) invalid, 3
-    `needs_confirmation`, 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
+    `needs_confirmation` (so `delete_batch` and `exclude_items` without `confirm` exit 3 since
+    M6.1), 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
     `Request` (`--response`: of `Response`) so requests can be written by hand or by an LLM;
     `--version` prints the app version.
   - **GUI**: view-models translate widget state into the same request models.
@@ -336,6 +341,16 @@ docs/human/, docs/ai/     see CLAUDE.md
     language the file already has a sidecar subtitle in (forced ones do not count) needs
     `confirm_existing_languages`; the confirmation lists the files by their `/`-separated path
     below the scan root (details are not path-normalised). Items are listed in scan order.
+    Both keep the selection in the batch payload (`StoredComposition`: the scan options and the
+    operations as their JSON, `languages`, `item_languages`; not `scan_id` or the confirmation).
+    Stored payloads use their own plain models (strings, JSON values, unknown keys ignored, no
+    request validators), so a later change of the request models never makes a stored batch
+    unreadable. `BatchDetail.composition` (`BatchSelection`, the request models) maps it at the
+    edge: a frontend reopens "Edit selection" by sending it back as an `edit_batch`; a stored
+    selection those models no longer accept (a language dropped, say) is shown as `null`
+    (logged), and nothing else of the batch fails. A retry batch (and a batch stored before the
+    Alembic revision `composition_and_run_report`) has none (`null`). The summary reads
+    `cleanup_pending` straight from the payload, without validating the rest of it.
   - **Ids and locks.** The batch id comes from the injected clock in `Ports.local_zone` (None:
     this computer's zone, read at each use, so DST applies); the free id is picked inside the
     transaction that inserts the batch (`BEGIN IMMEDIATE` serialises two creations in one
@@ -380,7 +395,9 @@ docs/human/, docs/ai/     see CLAUDE.md
     the unfiltered views.
   - **Leaving the upload.** The database forgets an item's upload before R2 does, so no
     interruption leaves a held manifest that lists deleted audio. `exclude_items` (batch in
-    `reviewing` or `uploading`, never the last item: `last_item`) opens the object store first
+    `reviewing` or `uploading`, never the last item: `last_item`; after these checks, without
+    `confirm` it answers `needs_confirmation` with the item count and whether audio recorded as
+    uploaded for the items is deleted, and changes nothing) opens the object store first
     when the batch is `uploading` (a credentials error changes nothing; a batch in review needs
     no credentials), then in one transaction clears `manifest_held` and deletes the excluded
     items with their `audio_objects` and `extracted_subtitles` rows, so the exclusion itself
@@ -399,10 +416,40 @@ docs/human/, docs/ai/     see CLAUDE.md
     summary; the upload takes it to `transcribed` without a manifest.
   - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
     `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
-    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade). Every job
+    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade; without
+    `confirm` it answers `needs_confirmation` with the item count and changes nothing). Every job
     in `get_batch` (and the other batch details) shows its `status` and, for a failed job, its
     `result_error` (the result's error, `unreadable result` or `missing result`): the "failed: …"
     reason of the job view (requirements "Failure handling").
+  - **Allowed actions** (`batches/actions.py`, table `ACTION_RULES` in `batches/constants.py`).
+    Every `BatchSummary` lists in `actions` the batch requests that the batch allows now and
+    that would change something, so frontends build their buttons from the list alone, without
+    reading state fields. Per action the table names:
+    - the phases its handler accepts and the guard conditions on the batch (more than one item
+      for `exclude_items`; every item `reviewed` for `run_upload` from `reviewing`; no pending
+      result for `cleanup_audio`; a failed or no-speech job and audio kept for
+      `create_retry_batch`; no retry batch still copying for both cleanups);
+    - no-op conditions, leaving out what the handler accepts but that would change nothing:
+      `start_review` once in `reviewing`; `review_batch` and `resolve_review` with no item in
+      review; `hide_batch` on a hidden batch and `show_batch` on a shown one; `cleanup_audio`
+      after the audio is gone unless that cleanup is pending; `cleanup_everything` on a
+      `cleaned` batch unless that cleanup is pending; the downloads on a `cleaned` batch without
+      extracted subtitles. The handlers keep accepting these (re-sending stays harmless).
+
+    `cleanup_cloud` is listed per scope (`cleanup_audio`, `cleanup_everything`),
+    `set_batch_hidden` per direction (`hide_batch`, `show_batch`); a pending cleanup is repeated
+    with the action of its scope, which is listed while `cleanup_pending` is set. The table
+    restates the handlers' guards, which stay where they are. A drift test sends every action to
+    seeded batches in every phase and state and checks each outcome against a closed list: a
+    listed action, and an unlisted one the table leaves out only as a no-op, must give an
+    outcome expected after its guard (a success, a confirmation, missing credentials, ...); any
+    other unlisted action must be refused by a guard. One difference is kept and tested: a
+    retry whose job set already has its retry batch returns that batch even after the source's
+    audio was deleted (it creates nothing, so `create_retry_batch` is not listed then).
+    Conditions outside the batch (a run active, a lock busy, the cloud unreachable, the
+    request's own fields) are not in the table: a listed action can still be refused. A
+    frontend then shows the error and reloads the batch; after a request that changes other
+    batches too (a retry, a launch, a refresh), it reloads the list.
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
   own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
   `refresh_status` call `publish_held_manifests`). Replaced from M6.13 by §3.9 "Run scope"
@@ -1142,7 +1189,9 @@ database):
   `launch_failed` only once `LAUNCH_SETTLE_S` (10 min) has passed since the latest of
   `posted_at`, `sending_at` and the row's creation (a retry after a 429 may send late), and two
   lookups after that, at least `LAUNCH_LOOKUP_GAP_S` (60 s) apart, found nothing (the first one
-  is recorded as `first_empty_lookup_at`). A pod that appears after that is a straggler.
+  is recorded as `first_empty_lookup_at`). A pod that appears after that is a straggler. A run
+  that becomes final here records its end: `ended_at` and the end reason `queue_ended` (a queued
+  pod found ended) or `launch_failed` (also set when Runpod refused the pod request).
 - **Cancel** (`runs/cancel.py`, `stopping.py`; request `cancel_worker` with `run_id` and, from
   M6.6, `confirm` (Q34: without it the answer is `needs_confirmation` with the run, its stage,
   and that finished subtitles are kept and unfinished files wait for the next start); runs
@@ -1157,11 +1206,64 @@ database):
   read or the deploy has settled. A run with only a
   queued-pod id: `DELETE` the queued pod, then `GET` it: a pod id in it means it deployed
   during the cancel, so the run records that pod (not seen) and becomes `running` (followed
-  from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED`, `FAILED` or a
-  404 verify the cancel. Only then the run
-  becomes `cancelled` (answered again for a run already `cancelled`); a stop that does not show
-  gives `stop_unverified` and a failed read `cloud_unreachable`, and the run stays as it was.
-  Other final runs give `run_not_active`, unknown ids `run_not_found`. From M6.13 a verified
+  from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED` or `FAILED`
+  verify the cancel. A queued pod that is gone (404) after the cancel may have deployed just
+  before it: the pod an earlier read of it named (`cancel_queued_pod`), else every live pod
+  listed under its name (the run's pod name), is terminated and verified the same way
+  (`stopping.QueuedTarget`). Every one is stopped even when one fails; the first failure is
+  raised afterwards and the run follows the first pod whose stop did not show, so it stays open
+  until all are verified. **Invariant: a run becomes final only while no live pod carries its
+  name and no queued pod of it can still deploy.** A stop that is cut short (several failures,
+  a cancel between two pods) may leave pods the run does not record, and a run that adopted a
+  pod by its name may still have a waiting queued pod. So `cancel_worker` and the deadline stop
+  (`halting.stop_run`) stop the run's own pod and then cancel its queued pod
+  (`halting.cancel_waiting_queue`, read as the queued stop below: done once a read shows it
+  ended, or the pod it names is stopped, or it is gone by the settle rule; still `QUEUED` or
+  deployed without its pod's id is not verified; a pod it names is recorded on the run, which
+  follows it, and then terminated, since the run's own pod is verified stopped by then), or
+  stop its queued pod and what it deployed, and then every other live pod listed under the
+  run's name (`stopping.stop_named_pods`, tried even when the run's own stop failed; one whose
+  stop does not show is recorded, unless the run follows its own failed pod, and the first
+  error is raised once all were tried). `refresh_status` makes a run whose pod is gone follow
+  another live pod listed under its name, else the pod its listed queued pod names (not seen,
+  unless that pod is listed `TERMINATED`; `KnownPod` then settles it), or keeps it open while
+  its queued pod is listed `QUEUED`, instead of ending it; such a run is still stopped at its
+  deadline, which also cancels the queued pod again. The straggler stops leave such a run open,
+  keeping the pod it follows when that pod was not stopped and is not listed `TERMINATED`
+  (live, or not listed yet: `refresh_status` decides when it is gone). A pod that appears
+  under the name only after the last list (list lag) is caught by the next refresh while the
+  run is open; if the run became final meanwhile, `reconcile_cloud` reports the pod as a
+  straggler, collection waits for it (`lingering`), and the worker's own exit and the reaper
+  bound it.
+  With none of these pods the 404 counts as cancelled only by the settle
+  rule `refresh_status` uses for a vanished queued pod (`stopping.vanish_verdict`):
+  `DEPLOY_SETTLE_S` after the earlier of the queue's `expiresAt` and the cancel's
+  acknowledgement (`cancel_acknowledged_at`, recorded on the run only after the DELETE was
+  answered with success), and two empty lookups at least `LAUNCH_LOOKUP_GAP_S` apart (the first
+  recorded in `first_empty_lookup_at`); before that it gives `stop_unverified`. A read after the
+  cancel that still shows the queued pod voids an earlier empty lookup. The acknowledgement is
+  kept even when that read still shows `QUEUED`: it follows the 204 in the same call (lag after
+  the cancel), and voiding it could leave the run waiting for hours should Runpod then forget
+  the queued pod. A later `QUEUED` read by `refresh_status` (a cancel that did not take effect)
+  voids it, and that read clears an empty lookup too. A queued pod an earlier read showed
+  ended without a pod needs none of this. Without a local run (a straggler of no run of this
+  database), the 404 with no pod listed under its name is the final answer `cancelled`: no
+  local run can become final, and a pod that shows up later is listed by `reconcile_cloud` as a
+  straggler (the reaper bounds it by the name deadline). A read without `expiresAt` takes the
+  local run's.
+  `expiresAt` is Runpod's clock and the acknowledgement this computer's: the rule assumes they
+  differ by much less than `DEPLOY_SETTLE_S`. A pod the queued pod deployed is read before it
+  is terminated: a read that shows it is a sighting (recorded as seen on the run), and one that
+  reads `TERMINATED` means it had ended, so nothing live was stopped and no DELETE is sent; a
+  404 still sends the DELETE (list and lookup lag may hide a live pod) and counts as nothing
+  live only when the 404 already means gone. So no run becomes
+  final while its pod may still bill. The worker's report is read best effort from R2 before
+  the stop (a cancel during that read leaves nothing stopped); once the stop is verified the
+  run ends (`runs/stopped.py`): `cancelled` with `ended_at` and the end reason `cancelled`,
+  unless the report said `finished` or `failed`, which ends it as the worker reported
+  (answered again for a run already `cancelled`); a stop that does not show gives
+  `stop_unverified` and a failed read `cloud_unreachable`, and the run stays as it was. Other
+  final runs give `run_not_active`, unknown ids `run_not_found`. From M6.13 a verified
   cancel that makes the run final (also of `terminate_pod` and `cancel_queued_pod`) deletes the
   run's lease, best effort, after the final status is committed (§3.9 "Run scope").
 - **Reconcile and stragglers** (`runs/reconcile.py`, `stragglers.py`; runs lock):
@@ -1180,10 +1282,22 @@ database):
   and `cancel_queued_pod` (`queued_pod_id`) read the object first (404 → `pod_not_found`; a name that is not the app's
   → `not_an_app_pod`, left alone), answer `needs_confirmation` (field `confirm`, details: kind,
   id, name, status, run id) until confirmed, then stop it verified as `cancel_worker` does (the
-  pod of `terminate_pod` was read, so it is seen). A local run of that id that is not final
-  becomes `cancelled` only when the stopped pod or queued pod is the one it recorded, or it
-  recorded neither; a stray pod carrying the run's name leaves the run as it is. Ids follow the reaper's rule
-  `[A-Za-z0-9_-]{1,64}`.
+  pod of `terminate_pod` was read, so it is seen; `runs/straggler_stops.py`). A pod a queued
+  pod deployed is recorded on the open local run that recorded that queued pod, before it is
+  terminated, unless the run follows a pod this stop does not handle (a pod it adopted under
+  its name, which a stop of another pod never replaces): by `cancel_queued_pod`, and, when the
+  run recorded no pod yet, by `terminate_pod` when the run's queued
+  pod names the pod being stopped (best effort: a failed read of the queued pod skips this and
+  the pod is terminated anyway); a pod read that shows the run's pod marks it seen there, so
+  a retry after an unverified stop does not wait for the deploy to settle
+  (`runs/stop_records.py`). A local run of that
+  id that is not final ends as `cancel_worker` ends it only when what was stopped (verified)
+  includes the pod it recorded, or, without a recorded pod, its queued pod, or it recorded
+  neither: a stray pod carrying the run's name, or a stop that missed the run's pod, leaves
+  the run followed, and so does another live pod listed under its name (the run follows it).
+  A stop that found nothing live (a `TERMINATED` pod, a queued pod ended
+  without a pod, a deployed pod that had ended) leaves the run to `refresh_status`, which reads
+  the worker's report. Ids follow the reaper's rule `[A-Za-z0-9_-]{1,64}`.
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
   `worker.py`, `results.py`, `result_reads.py`, `collect.py`, `progress.py`; request
   `refresh_status`, no fields; runs lock for the whole request, no transaction across a Runpod
@@ -1200,8 +1314,9 @@ database):
      queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
      `podId`: `running` with that pod not seen; `CANCELLED`: `cancelled`; `EXPIRED`, `FAILED`:
      `failed`). A queued pod Runpod no longer knows (404) with no pod under the run's name ends
-     the run (`failed`, `queue_ended`) only `DEPLOY_SETTLE_S` after the queue's `expiresAt`, when
-     a pod deployed just before it would be listed, and only after two such lookups at least
+     the run (`failed`, `queue_ended`) only `DEPLOY_SETTLE_S` after the earlier of the queue's
+     `expiresAt` and an acknowledged cancel (`cancel_acknowledged_at`), when a pod deployed just
+     before would be listed, and only after two such lookups at least
      `LAUNCH_LOOKUP_GAP_S` apart (the first recorded in `first_empty_lookup_at`, which a later
      sighting of the queued pod clears), as for a `launching` run. A run with a pod id follows that pod (listed, else read by
      id): a read is a sighting (`pod_seen`) and records the status, the price (`cost`, USD/h),
@@ -1226,7 +1341,9 @@ database):
      rules, or the queued pod cancelled and a pod it deployed recorded and terminated); only a
      verified stop makes the run `failed` (`deadline`). `stop_unverified` (or
      `launch_unresolved`) is reported as the run's `stop_error` and the run stays followed, so
-     a pod that may still bill is never marked final; a failed Runpod call fails the request.
+     a pod that may still bill is never marked final. A stop whose Runpod call fails is
+     recorded the same way (its error code as `stop_error`, the run followed); the other runs
+     are still followed and recorded, and the error is raised once every run was handled.
      From M6.13 a run that becomes final here or in step 1 with its pod gone or never created
      has its lease deleted, best effort, before collection (§3.9 "Run scope" lists the
      paths).
@@ -1276,15 +1393,35 @@ database):
      recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
      heartbeat no longer counts.
 
-  The response lists every run that was not final before the refresh (`RunProgress`: the run,
-  `stage` (`launching`, `waiting` for a machine, `starting`, `transcribing`, `stopping` while
-  the worker is done and its pod still exists, or the final status), the pod status as last
-  read, the worker report (state, current job, done/total, error), `first_running_at`, the
-  desktop `deadline`, `elapsed_s` and `cost_so_far_usd` (from the pod's creation until the
-  end or now, at its price; a display estimate), `ended_at`, `end_reason`, `stop_error`, the
-  kept `worker_log` path, and three progress fields below), the checked `ready` batches with their job counts and phase, the
-  `busy` ones, and the manifests `published` or still `held` (replaced from M6.13 by §3.9 "Run scope"). `cancel_worker` records
-  `ended_at` too.
+  Each followed run stores what the refresh saw in its payload (`runs/refreshing.py`): the
+  refresh time (`refreshed_at`), the deadline stop's error (`stop_error`, cleared by a refresh
+  without one and whenever the run becomes final) and, when R2 was read, the worker report
+  (`worker`; a report not read this time keeps the last one). The report is stored in its own
+  plain model (`StoredWorkerReport`, unknown keys ignored) and mapped to `WorkerProgress` when
+  shown (one that no longer fits shows as `unreadable`); the current file's name is looked up
+  best effort (an unknown item or an unreadable item payload gives none, never an error). The
+  collection of a final run stores the report it reads too.
+
+  The response lists every run that was not final before the refresh (`RunProgress`, built from
+  the stored run only (`runs/progress.py`): the run, `stage` (`launching`, `waiting` for a
+  machine, `starting`, `transcribing`, `stopping` while the worker is done and its pod still
+  exists, or the final status), the pod status as last read, the stored worker report (state,
+  current job with its file `name` from this database (None for a batch or item it does not
+  know), done/total, error), `first_running_at`, the desktop `deadline`, `elapsed_s` and
+  `cost_so_far_usd` (from the pod's creation until `elapsed_until`: the run's end, else its
+  `refreshed_at`, never the moment of the request; at its price; a display estimate),
+  `ended_at`, `end_reason`, `stop_error`, the kept `worker_log` path, and three progress fields
+  below), the checked `ready` batches with their job counts and phase, the `busy` ones, and the
+  manifests `published` or still `held` (replaced from M6.13 by §3.9 "Run scope").
+  `cancel_worker`, and `terminate_pod` and
+  `cancel_queued_pod` when they end a local run, record `ended_at` and the end reason
+  (`cancelled`, or the worker's own end) too, so its time and cost stop at the stop; every final
+  run has `ended_at` and an end reason.
+- **Run list** (`runs/listing.py`; request `list_runs`, field `limit` 1-1000, default 20; DB
+  only: no lock, no Runpod or R2 call): the latest runs, newest first, as the same stored
+  `RunProgress`, so the cloud page shows the last run's outcome, end reason, worker report and
+  kept log after a restart, which `refresh_status` (open runs only) cannot. A run never
+  refreshed has no elapsed time until it ends.
 
   Progress fields (`RunProgress`, backend logic, so every frontend shows the same values;
   `runs/progress.py`, the factors in `runs/constants.py`):
@@ -1321,12 +1458,13 @@ directories, the settings store, the locks and the lazily opened database.
   columns (phase, status, outcome, flags) plus a JSON `payload` column, so most later changes
   touch payload classes, not tables. Timestamps come from the injected clock and are stored as
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
-  Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
-  (developers delete their local database); from then on every change is a new revision,
-  including any change of a stored payload's shape (a field added, removed, renamed or
-  retyped, a literal value dropped; the payload models forbid unknown fields, so an older app
-  could not read a payload with an added field, and the revision makes it refuse the database
-  with `database_too_new` instead): the revision rewrites the stored JSON, since readers do not migrate
+  Revisions (`state/migrations/versions/`): `initial_schema` (frozen since M5 was built) and
+  `composition_and_run_report` (M6.1: adds `composition` to batch payloads and `worker`,
+  `stop_error`, `refreshed_at`, `cancel_acknowledged_at` to run payloads as null). Every change
+  is a new revision, including any change of a stored payload's shape (a field added, removed,
+  renamed or retyped, a literal value dropped; the payload models forbid unknown fields, so an
+  older app could not read a payload with an added field, and the revision makes it refuse the
+  database with `database_too_new` instead): the revision rewrites the stored JSON, since readers do not migrate
   it (only the probe cache treats an unreadable row as a miss). A test asserts that the
   migrated schema equals the models (Alembic `compare_metadata`).
 - **Database**: WAL mode, `synchronous=FULL` (a commit survives a power loss), foreign keys

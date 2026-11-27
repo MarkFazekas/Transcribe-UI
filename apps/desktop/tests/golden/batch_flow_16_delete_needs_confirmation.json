@@ -1,0 +1,20 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "delete_batch",
+    "confirmations": [
+      {
+        "field": "confirm",
+        "set_to": true,
+        "message": "The batch and its 2 file(s) will be deleted from this computer's job list.",
+        "details": {
+          "batch_id": "batch_20261127_130000",
+          "phase": "reviewing",
+          "items": 2
+        }
+      }
+    ]
+  },
+  "events": []
+}

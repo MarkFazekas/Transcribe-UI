@@ -19,7 +19,14 @@
         "manifest_held": false,
         "audio_deleted": false,
         "cleanup_pending": null,
-        "extract_only": false
+        "extract_only": false,
+        "actions": [
+          "delete_batch",
+          "review_batch",
+          "resolve_review",
+          "exclude_items",
+          "run_upload"
+        ]
       }
     ]
   },

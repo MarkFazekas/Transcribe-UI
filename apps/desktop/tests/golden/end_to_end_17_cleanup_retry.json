@@ -19,7 +19,10 @@
       "manifest_held": false,
       "audio_deleted": true,
       "cleanup_pending": null,
-      "extract_only": false
+      "extract_only": false,
+      "actions": [
+        "hide_batch"
+      ]
     },
     "deleted_objects": 3,
     "aborted_uploads": 0

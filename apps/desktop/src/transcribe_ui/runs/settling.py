@@ -13,7 +13,12 @@ from datetime import datetime, timedelta
 from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_CANCELLED, QUEUED_POD_QUEUED
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import Pod, QueuedPod
-from transcribe_ui.runs.constants import IGNORED_QUEUED_POD_STATUSES, LAUNCH_LOOKUP_GAP_S, LAUNCH_SETTLE_S
+from transcribe_ui.runs.constants import (
+    FINAL_RUN_STATUSES,
+    IGNORED_QUEUED_POD_STATUSES,
+    LAUNCH_LOOKUP_GAP_S,
+    LAUNCH_SETTLE_S,
+)
 from transcribe_ui.runs.records import PayloadChanges, load_run, payload_of, read_run, update_run
 from transcribe_ui.runs.responses import RunInfo
 from transcribe_ui.state.models import RunStatus
@@ -40,6 +45,38 @@ class Listed:
             RunpodApiError: A list could not be read.
         """
         return cls(pods.list_pods(), pods.list_queued_pods())
+
+
+def live_pod_named(listed: Listed, name: str, excluding: frozenset[str]) -> Pod | None:
+    """Return a live pod (not `TERMINATED`) listed under the name, other than those `excluding`; None if none."""
+    named = [pod for pod in listed.pods if pod.name == name]
+    others = [pod for pod in named if pod.pod_id not in excluding]
+    live = [pod for pod in others if pod.status != POD_TERMINATED]
+    return live[0] if live else None
+
+
+def queue_pod(listed: Listed, queued_pod_id: str | None, excluding: frozenset[str]) -> QueuedPod | None:
+    """Return the listed queued pod of the id when it names a pod not excluded and not listed `TERMINATED`.
+
+    Such a pod may still bill even when the pod list does not show it yet (lag after a deploy).
+    """
+    entries = [entry for entry in listed.queued if entry.queued_pod_id == queued_pod_id]
+    deployed = [entry for entry in entries if entry.pod_id is not None]
+    named = [entry for entry in deployed if entry.pod_id not in excluding]
+    terminated = {pod.pod_id for pod in listed.pods if pod.status == POD_TERMINATED}
+    found = [entry for entry in named if entry.pod_id not in terminated]
+    return found[0] if found else None
+
+
+def deployed_pod_changes(entry: QueuedPod) -> dict[str, object]:
+    """Return the payload fields that make a run follow the pod its queued pod names (not seen yet)."""
+    return {"pod_id": entry.pod_id, "pod_seen": False, "pod_deployed_at": entry.resolved_at}
+
+
+def queue_waiting(listed: Listed, queued_pod_id: str | None) -> bool:
+    """Return whether the queued pod is listed and still waits (`QUEUED`): it may still deploy."""
+    waiting = [entry for entry in listed.queued if entry.queued_pod_id == queued_pod_id]
+    return any(entry.status == QUEUED_POD_QUEUED for entry in waiting)
 
 
 @dataclass(frozen=True)
@@ -107,12 +144,17 @@ def resolve_launching(state: LocalState, run_id: str, listed: Listed, now: datet
         settle_from = max(moment for moment in sent if moment is not None)
     found = find_by_name(name, listed)
     if found is not None:
-        return update_run(state, run_id, now, found.status, found.changes())
+        # Found: an empty lookup recorded before no longer counts.
+        changes = {**found.changes(), "first_empty_lookup_at": None}
+        if found.status in FINAL_RUN_STATUSES:
+            # A queued pod found ended (cancelled, expired or failed) without a pod.
+            changes = {**changes, "ended_at": now, "end_reason": "queue_ended"}
+        return update_run(state, run_id, now, found.status, changes)
     first = payload.first_empty_lookup_at
     if now - settle_from < SETTLE:
         return read_run(state, run_id)  # too early: the pod may not be listed yet
     if first is None:
         return update_run(state, run_id, now, changes={"first_empty_lookup_at": now})
     if now - first >= LOOKUP_GAP:
-        return update_run(state, run_id, now, "launch_failed")
+        return update_run(state, run_id, now, "launch_failed", {"ended_at": now, "end_reason": "launch_failed"})
     return read_run(state, run_id)

@@ -19,10 +19,86 @@
         "manifest_held": false,
         "audio_deleted": false,
         "cleanup_pending": null,
-        "extract_only": false
+        "extract_only": false,
+        "actions": [
+          "plan_download",
+          "run_download",
+          "export_custom_plan",
+          "import_custom_plan",
+          "cleanup_everything"
+        ]
       },
       "scan_root": "<root>/media",
       "path_flavor": "<flavor>",
+      "composition": {
+        "scan": {
+          "root": "<root>/media",
+          "video_extensions": [
+            "3gp",
+            "avi",
+            "flv",
+            "m2ts",
+            "m4v",
+            "mkv",
+            "mov",
+            "mp4",
+            "mpeg",
+            "mpg",
+            "mts",
+            "ogv",
+            "ts",
+            "vob",
+            "webm",
+            "wmv"
+          ],
+          "audio_extensions": [
+            "aac",
+            "ac3",
+            "aif",
+            "aiff",
+            "amr",
+            "ape",
+            "dts",
+            "eac3",
+            "flac",
+            "m4a",
+            "m4b",
+            "mka",
+            "mp2",
+            "mp3",
+            "oga",
+            "ogg",
+            "opus",
+            "wav",
+            "wma",
+            "wv"
+          ],
+          "include_hidden": false
+        },
+        "operations": [
+          {
+            "operation": "include",
+            "path": "<root>/media",
+            "filters": {
+              "media_kind": "any",
+              "subtitles": null,
+              "name": null
+            }
+          }
+        ],
+        "languages": [
+          "en",
+          "hu"
+        ],
+        "item_languages": [
+          {
+            "path": "<root>/media/Movies/Silent.mkv",
+            "languages": [
+              "hu"
+            ]
+          }
+        ]
+      },
       "items": [
         {
           "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",

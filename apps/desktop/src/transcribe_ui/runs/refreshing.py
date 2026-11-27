@@ -6,10 +6,13 @@ from R2. A run whose pod is gone ends, which needs the report (`finished` or `fa
 cannot be read, the run stays as it is (fail closed). A run past its deadline gets its pod
 stopped, verified, and fails (`runs/ending.py`) even when R2 cannot be read, so an R2 outage or
 missing R2 credentials never keep a billing pod alive; the R2 error is then raised after every
-run was handled. The Runpod lists are read once per refresh (`runs/monitor.py`).
+run was handled, and so is a deadline stop whose Runpod call failed (recorded as the run's
+`stop_error`; the next refresh tries again). The Runpod lists are read once per refresh
+(`runs/monitor.py`).
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import RequestContext
@@ -18,10 +21,11 @@ from transcribe_ui.runs.cloud import LazyStore
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.ending import desktop_deadline, end_run, stop_at_deadline
 from transcribe_ui.runs.errors import runpod_call
-from transcribe_ui.runs.following import follow_run
-from transcribe_ui.runs.records import open_runs, read_payload
-from transcribe_ui.runs.settling import Listed
-from transcribe_ui.runs.worker import WorkerReport, read_worker
+from transcribe_ui.runs.following import Followed, follow_run
+from transcribe_ui.runs.records import open_runs, read_payload, update_run
+from transcribe_ui.runs.settling import Listed, deployed_pod_changes, live_pod_named, queue_pod, queue_waiting
+from transcribe_ui.runs.worker import WorkerReport, read_worker, stored_report
+from transcribe_ui.state.store import LocalState
 
 
 @dataclass(frozen=True)
@@ -31,8 +35,11 @@ class Refreshed:
     run_id: str
     worker: WorkerReport | None
     stop_error: str | None = None
-    # The error that kept the worker report from being read (R2 or its credentials).
+    # The error to raise once every run was handled: R2 (or its credentials) kept the worker report
+    # from being read, or the deadline stop's Runpod call failed.
     failure: DomainError | None = None
+    # Whether R2 was read for the worker report (False: not followed that far, or R2 failed).
+    read: bool = False
 
 
 def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore, listed: Listed | None) -> list[Refreshed]:
@@ -42,20 +49,38 @@ def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore, liste
 
     Raises:
         DomainError: The Runpod lists or a lookup could not be read; the runs followed before
-            stay recorded. R2 failures are returned in `Refreshed.failure` instead.
+            stay recorded. R2 failures and a failed deadline stop are returned in
+            `Refreshed.failure` instead (the stop's error code also in `stop_error`).
     """
     before = open_runs(context.ports.state)
     if not before:
         return []
     if listed is None:
         listed = runpod_call(lambda: Listed.read(pods))
-    return [_refresh_run(context, pods, store, run.run_id, listed) for run in before]
+    refreshed = []
+    for run in before:
+        each = _refresh_run(context, pods, store, run.run_id, listed)
+        _record(context.ports.state, each, context.ports.clock.now())
+        refreshed.append(each)
+    return refreshed
+
+
+def _record(state: LocalState, refreshed: Refreshed, now: datetime) -> None:
+    """Store what the refresh saw of the run: when, the deadline stop's error, the worker report if read.
+
+    `list_runs` shows these after a restart; a report not read this time keeps the last one.
+    """
+    changes: dict[str, object] = {"refreshed_at": now, "stop_error": refreshed.stop_error}
+    if refreshed.read:
+        worker = refreshed.worker
+        changes["worker"] = None if worker is None else stored_report(state, worker)
+    update_run(state, refreshed.run_id, now, changes=changes)
 
 
 def refresh_open_runs(
     context: RequestContext, pods: PodsApi, store: LazyStore, listed: Listed | None
 ) -> list[Refreshed]:
-    """Follow the open runs (`refresh_runs`); raise the first R2 failure once every run was handled.
+    """Follow the open runs (`refresh_runs`); raise the first failure kept per run once every run was handled.
 
     Raises:
         DomainError: Runpod or R2 (or the R2 credentials) failed.
@@ -77,14 +102,48 @@ def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_i
         return Refreshed(run_id, None)
     past_deadline = clock.now() >= desktop_deadline(read_payload(state, run_id))
     worker, failure = _read_report(store, run_id)
-    if followed.gone:
-        if failure is None:
+    read = failure is None
+    if followed.gone and not _follow_other_pod(state, followed, listed, clock.now()):
+        if read:
             end_run(state, run_id, worker, clock.now())
-        return Refreshed(run_id, worker, failure=failure)
+        return Refreshed(run_id, worker, failure=failure, read=read)
+    # Kept open (another pod under its name, or its queued pod) or still running: stopped at the
+    # deadline all the same, which also cancels its queued pod again.
     if not past_deadline:
-        return Refreshed(run_id, worker, failure=failure)
-    stop_error = stop_at_deadline(state, pods, run_id, worker, clock)
-    return Refreshed(run_id, worker, stop_error, failure)
+        return Refreshed(run_id, worker, failure=failure, read=read)
+    try:
+        stop_error = stop_at_deadline(state, pods, run_id, worker, clock)
+    except CancelledError:
+        raise
+    except DomainError as error:
+        # The stop could not be sent or checked: recorded as the run's stop error, raised once
+        # every run was handled (the run stays followed; the next refresh tries again).
+        return Refreshed(run_id, worker, error.code, error, read=read)
+    return Refreshed(run_id, worker, stop_error, failure, read=read)
+
+
+def _follow_other_pod(state: LocalState, followed: Followed, listed: Listed, now: datetime) -> bool:
+    """Keep a run whose pod is gone open while something of it may still bill; return whether it stays open.
+
+    A run never becomes final while a pod carrying its name may still bill (a queued pod that
+    deployed more than one, a stop cut short between pods): it follows such a pod until it too
+    is gone, or stopped at the deadline. Nor while its queued pod names a pod that may still
+    bill (one the pod list does not show yet: followed as not seen, so `KnownPod` settles it), or
+    still waits (`QUEUED`, it may still deploy): the run then stays as it is, and a pod it
+    deploys is adopted by its name.
+    """
+    run = followed.run
+    gone = frozenset(() if run.pod_id is None else (run.pod_id,))
+    other = live_pod_named(listed, run.pod_name, gone)
+    if other is not None:
+        changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
+        update_run(state, run.run_id, now, "running", changes)
+        return True
+    deployed = queue_pod(listed, run.queued_pod_id, gone)
+    if deployed is not None:
+        update_run(state, run.run_id, now, "running", deployed_pod_changes(deployed))
+        return True
+    return queue_waiting(listed, run.queued_pod_id)
 
 
 def _read_report(store: LazyStore, run_id: str) -> tuple[WorkerReport | None, DomainError | None]:

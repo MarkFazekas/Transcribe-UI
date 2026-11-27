@@ -1,48 +1,81 @@
 """Handlers of the batch requests that read or hide batches: list, get, hide (§3.3)."""
 
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
+from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, Select, case, func, select
 from sqlalchemy.orm import Session
 
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.batches.actions import ItemCounts, JobKey, copying_sources
 from transcribe_ui.batches.classes import GetBatchRequest, ListBatchesRequest, SetBatchHiddenRequest
-from transcribe_ui.batches.constants import ALL_PHASES, FINISHED_PHASES
+from transcribe_ui.batches.constants import ALL_PHASES, FINISHED_PHASES, ITEM_REVIEW_PHASES
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
-from transcribe_ui.batches.records import JobKey, batch_summary, load_detail, stored_items, summary_of
-from transcribe_ui.batches.responses import GetBatchResponse, ListBatchesResponse, SetBatchHiddenResponse
+from transcribe_ui.batches.records import batch_summary, load_detail, stored_items, summary_of
+from transcribe_ui.batches.responses import BatchSummary, GetBatchResponse, ListBatchesResponse, SetBatchHiddenResponse
 from transcribe_ui.state.models import BatchRow, ItemRow, JobRow
+from transcribe_ui.upload.constants import ITEM_REVIEWED
+
+# The conditions that pick the listed batches (none: every batch).
+type Listing = Sequence[ColumnElement[bool]]
+# Per listed batch: its id, item count, items not `reviewed` and items in review.
+type CountsQuery = Select[str, int, int, int]
 
 
-def _item_counts(session: Session) -> dict[str, int]:
-    counts = select(ItemRow.batch_id, func.count()).group_by(ItemRow.batch_id)
-    return dict(session.execute(counts).all())
+def _counts_query(listed: Listing) -> CountsQuery:
+    """Return the grouped query of the listed batches' item counts: all, not `reviewed`, in review."""
+    phase = ItemRow.phase
+    waiting = case((phase != ITEM_REVIEWED, 1), else_=0)
+    reviewing = case((phase.in_(ITEM_REVIEW_PHASES), 1), else_=0)
+    sums = (func.sum(waiting), func.sum(reviewing))
+    columns = select(ItemRow.batch_id, func.count(), *sums)
+    joined = columns.join(BatchRow).where(*listed)
+    return cast("CountsQuery", joined.group_by(ItemRow.batch_id))
 
 
-def _job_keys(session: Session) -> defaultdict[str, list[JobKey]]:
+def _item_counts(session: Session, listed: Listing) -> dict[str, ItemCounts]:
+    """Return the item counts of the listed batches, one grouped query."""
+    counts = {}
+    query = _counts_query(listed)
+    for batch_id, total, not_reviewed, in_review in session.execute(query):
+        counts[batch_id] = ItemCounts(total, not_reviewed, in_review)
+    return counts
+
+
+def _job_keys(session: Session, listed: Listing) -> defaultdict[str, list[JobKey]]:
     jobs: defaultdict[str, list[JobKey]] = defaultdict(list)
-    columns = select(JobRow.batch_id, JobRow.language, JobRow.kind)
-    for batch_id, language, kind in session.execute(columns):
-        jobs[batch_id].append((language, kind))
+    columns = select(JobRow.batch_id, JobRow.language, JobRow.kind, JobRow.status)
+    joined = columns.join(BatchRow).where(*listed)
+    for batch_id, language, kind, status in session.execute(joined):
+        jobs[batch_id].append((language, kind, status))
     return jobs
 
 
 def list_batches(request: ListBatchesRequest, context: RequestContext) -> ListBatchesResponse:
     """Return the batches, newest first; hidden ones only when asked."""
     newest_first = (BatchRow.created_at.desc(), BatchRow.batch_id.desc())
-    query = select(BatchRow).order_by(*newest_first)
-    if not request.include_hidden:
-        query = query.where(BatchRow.hidden.is_(False))
+    listed = [] if request.include_hidden else [BatchRow.hidden.is_(False)]
+    query = select(BatchRow).where(*listed).order_by(*newest_first)
     with context.ports.state.session() as session:
         rows = list(session.scalars(query))
-        counts = _item_counts(session)
-        jobs = _job_keys(session)
-    summaries = []
-    for row in rows:
-        batch_id = row.batch_id
-        count = counts.get(batch_id, 0)
-        summaries.append(batch_summary(row, count, jobs[batch_id]))
+        counts = _item_counts(session, listed)
+        jobs = _job_keys(session, listed)
+        copying = copying_sources(session)
+    summaries = [_summary(row, counts, jobs, copying) for row in rows]
     return ListBatchesResponse(batches=tuple(summaries))
+
+
+def _summary(
+    row: BatchRow,
+    counts: Mapping[str, ItemCounts],
+    jobs: Mapping[str, list[JobKey]],
+    copying: frozenset[str],
+) -> BatchSummary:
+    batch_id = row.batch_id
+    retry_copying = batch_id in copying
+    item_counts = counts.get(batch_id, ItemCounts())
+    return batch_summary(row, item_counts, jobs.get(batch_id, []), copying=retry_copying)
 
 
 def get_batch(request: GetBatchRequest, context: RequestContext) -> GetBatchResponse:
@@ -62,5 +95,5 @@ def set_batch_hidden(request: SetBatchHiddenRequest, context: RequestContext) ->
         require_phase(load_batch(session, batch_id), allowed)
         touch_batch(session, batch_id, allowed, now=now, also_set={"hidden": request.hidden})
         row = load_batch(session, batch_id)
-        summary = summary_of(row, stored_items(session, batch_id))
+        summary = summary_of(session, row, stored_items(session, batch_id))
     return SetBatchHiddenResponse(batch=summary)

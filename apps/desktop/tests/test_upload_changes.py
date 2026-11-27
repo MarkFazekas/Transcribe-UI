@@ -72,7 +72,7 @@ def test_changed_source_excluded_then_published(world: RunsWorld) -> None:
     film = ids[FILM]
     change_source(world.leg.root, FILM)
     assert outcome_of(upload(world)) == "items_in_review"
-    run_ok(world.leg, batch_request("exclude_items", item_ids=[film]))
+    run_ok(world.leg, batch_request("exclude_items", confirm=True, item_ids=[film]))
     assert outcome_of(upload(world)) == "ready"
     listed = _manifest_items(world)
     assert (film in listed, ids[PODCAST] in listed, _under(world, film)) == (False, True, [])

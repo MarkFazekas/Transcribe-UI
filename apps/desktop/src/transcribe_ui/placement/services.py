@@ -119,4 +119,4 @@ def _imported(context: RequestContext, request: ImportCustomPlanRequest) -> tupl
 
 def _summary(context: RequestContext, batch_id: str) -> BatchSummary:
     with context.ports.state.session() as session:
-        return summary_of(load_batch(session, batch_id), stored_items(session, batch_id))
+        return summary_of(session, load_batch(session, batch_id), stored_items(session, batch_id))

@@ -21,6 +21,7 @@ from support.launch import (
     pods_of,
     posts,
     run_ids,
+    run_row,
     run_status,
     send,
     set_up_cloud,
@@ -99,13 +100,15 @@ def test_crash_between_the_run_row_and_the_pod_request(ready: RunsWorld) -> None
     assert (run_status(ready, run_id), pods_of(ready)) == ("launching", [])
     assert error_code(launch_confirmed(ready)) == ERROR_RUN_ACTIVE
     _reconcile_through_settling(ready)
-    assert run_status(ready, run_id) == "launch_failed"
+    status, payload = run_row(ready, run_id)
+    assert (status, payload.end_reason, payload.ended_at) == ("launch_failed", "launch_failed", ready.now())
 
 
 def test_cancel_before_pod_request_is_launch_failed(ready: RunsWorld) -> None:
     """Cancelled once the run is recorded: no POST is sent and the run is `launch_failed`."""
     code = _launch_with(ready, CancelWhen(lambda: bool(run_ids(ready))))
     assert (code, posts(ready), run_status(ready, run_ids(ready)[0])) == (ERROR_CANCELLED, 0, "launch_failed")
+    assert run_row(ready, run_ids(ready)[0])[1].end_reason == "launch_failed"
 
 
 def test_cancel_during_the_lookup_stays_unconfirmed(ready: RunsWorld) -> None:
@@ -122,6 +125,8 @@ def test_queued_pod_found_ended_after_a_lost_answer(ready: RunsWorld) -> None:
     ready.cloud.settings.on_request = partial(_cancel_queued_at_lookup, ready.cloud.api.queued_pods.records)
     launched = launch(ready)
     assert (launched.outcome, launched.adopted, launched.run.status) == ("ended", True, "cancelled")
+    payload = run_row(ready, launched.run.run_id)[1]
+    assert (payload.end_reason, payload.ended_at) == ("queue_ended", ready.now())
 
 
 def test_busy_pending_withdrawal_refuses_the_launch(ready: RunsWorld) -> None:

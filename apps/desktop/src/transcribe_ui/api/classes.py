@@ -153,6 +153,7 @@ type Request = Annotated[
     | run_requests.LaunchWorkerRequest
     | run_requests.CancelWorkerRequest
     | run_requests.RefreshStatusRequest
+    | run_requests.ListRunsRequest
     | run_requests.ReconcileCloudRequest
     | run_requests.TerminatePodRequest
     | run_requests.CancelQueuedPodRequest
@@ -218,12 +219,14 @@ class Confirmation(FrozenModel):
 
     # Request field that confirms it when set.
     field: str
+    # The value that confirms it: `true` for a flag, the plan's fingerprint for `confirm_fingerprint`.
+    set_to: JsonValue
     message: str
     details: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class NeedsConfirmation(FrozenModel):
-    """Nothing was changed: send the same request again with the listed fields set."""
+    """Nothing was changed: send the same request again with each listed field set to its `set_to`."""
 
     status: Literal["needs_confirmation"] = "needs_confirmation"
     action: str
@@ -257,6 +260,7 @@ type SuccessResponse = Annotated[
     | run_responses.LaunchWorkerResponse
     | run_responses.CancelWorkerResponse
     | run_responses.RefreshStatusResponse
+    | run_responses.ListRunsResponse
     | run_responses.ReconcileCloudResponse
     | run_responses.TerminatePodResponse
     | run_responses.CancelQueuedPodResponse

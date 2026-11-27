@@ -45,7 +45,7 @@ def end_run(state: LocalState, run_id: str, worker: WorkerReport | None, now: da
         reason = "worker_finished"
     elif state_reported == WORKER_FAILED:
         reason = "worker_failed"
-    update_run(state, run_id, now, status, _end(reason, worker, now))
+    update_run(state, run_id, now, status, end_changes(reason, worker, now))
 
 
 def stop_at_deadline(
@@ -65,11 +65,12 @@ def stop_at_deadline(
     except (StopUnverifiedError, LaunchUnresolvedError) as error:
         return error.code
     now = clock.now()
-    update_run(state, run_id, now, "failed", _end("deadline", worker, now))
+    update_run(state, run_id, now, "failed", end_changes("deadline", worker, now))
     return None
 
 
-def _end(reason: EndReason, worker: WorkerReport | None, now: datetime) -> dict[str, object]:
+def end_changes(reason: EndReason, worker: WorkerReport | None, now: datetime) -> dict[str, object]:
+    """Return the payload fields that record a run's end (with the worker's report when readable)."""
     changes: dict[str, object] = {"ended_at": now, "end_reason": reason}
     if worker is not None and worker.status is not None:
         changes["final_status"] = worker.status

@@ -14,18 +14,19 @@ remain, the batch is extract-only (no upload, no manifest; its summary says so) 
 takes it to `transcribed` without a manifest.
 """
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
-from transcribe_ui.api.classes import ProgressEvent
+from transcribe_ui.api.classes import NeedsConfirmation, ProgressEvent
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.classes import ExcludeItemsRequest
+from transcribe_ui.batches.confirmations import exclude_confirmation
 from transcribe_ui.batches.constants import DELETE_OBJECTS_STAGE, REVIEW_PHASES, UPLOADING_PHASES
 from transcribe_ui.batches.errors import ItemNotFoundError, LastItemError
 from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.batches.records import load_detail, stored_items
 from transcribe_ui.batches.responses import BatchDetail, ExcludeItemsResponse
-from transcribe_ui.state.models import ItemRow
+from transcribe_ui.state.models import AudioObjectRow, ItemRow
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.steps import finish_after_change
 from transcribe_ui.upload.withdraw import recorded_withdrawal, withdrawal_guard
@@ -73,6 +74,14 @@ def _remove_items(
         return load_detail(session, load_batch(session, batch_id))
 
 
+def _has_uploaded_audio(request: ExcludeItemsRequest, context: RequestContext) -> bool:
+    """Return whether an audio object is recorded for one of the items to exclude."""
+    excluded = AudioObjectRow.item_id.in_(request.item_ids)
+    recorded = select(AudioObjectRow.object_key).where(excluded)
+    with context.ports.state.session() as session:
+        return session.scalar(recorded.limit(1)) is not None
+
+
 def _delete_objects(request: ExcludeItemsRequest, context: RequestContext, store: ObjectStore) -> int:
     deleted = 0
     total = len(request.item_ids)
@@ -83,10 +92,16 @@ def _delete_objects(request: ExcludeItemsRequest, context: RequestContext, store
     return deleted
 
 
-def exclude_items(request: ExcludeItemsRequest, context: RequestContext) -> ExcludeItemsResponse:
-    """Remove the items from the batch, then delete their uploaded audio; refuses to remove the last item."""
+def exclude_items(request: ExcludeItemsRequest, context: RequestContext) -> ExcludeItemsResponse | NeedsConfirmation:
+    """Remove the items from the batch, then delete their uploaded audio; refuses to remove the last item.
+
+    Without `confirm` the answer asks first, and nothing is changed.
+    """
     with context.ports.state.locks.batch(request.batch_id):
         phase = _checked_phase(request, context)
+        if not request.confirm:
+            uploaded = _has_uploaded_audio(request, context)
+            return exclude_confirmation(request, phase, uploaded_audio=uploaded)
         if phase not in UPLOADING_PHASES:
             return ExcludeItemsResponse(batch=_remove_items(request, context, phase, None), deleted_objects=0)
         store = object_store(context.ports)

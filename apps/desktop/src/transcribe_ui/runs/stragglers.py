@@ -2,9 +2,10 @@
 
 For stragglers and overdue entries that `reconcile_cloud` reports. Each needs `confirm` (the
 first answer names the pod and its run), refuses pods that are not the app's, and verifies the
-stop with a follow-up read. A local run of that id that is not final becomes `cancelled`; a final
-one whose run objects were collected is marked uncollected, since the stopped pod may have written
-some again (the next `refresh_status` collects them). Under the runs lock.
+stop with a follow-up read. A local run of that id that is not final ends as `cancel_worker` ends
+it (`runs/stopped.py`), only when the stop covered the pod it recorded; a final one whose run
+objects were collected is marked uncollected, since the stopped pod may have written some again
+(the next `refresh_status` collects them). Under the runs lock.
 """
 
 from typing import TYPE_CHECKING
@@ -12,15 +13,13 @@ from typing import TYPE_CHECKING
 from transcribe_contracts.pods import is_app_pod_name, parse_pod_name
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runs.classes import CancelQueuedPodRequest, TerminatePodRequest
 from transcribe_ui.runs.cloud import open_runpod
 from transcribe_ui.runs.constants import POD_KIND, QUEUED_POD_KIND
 from transcribe_ui.runs.errors import NotAppPodError, PodNotFoundError, runpod_call
-from transcribe_ui.runs.records import PayloadChanges, cancel_local_run, reopen_collection
 from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
-from transcribe_ui.runs.stopping import CloudObject, KnownPod, cancel_queued_verified, terminate_verified
-from transcribe_ui.state.models import RunStatus
+from transcribe_ui.runs.stopping import CloudObject
+from transcribe_ui.runs.straggler_stops import stop_app_pod, stop_app_queued_pod
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -49,9 +48,7 @@ def terminate_pod(request: TerminatePodRequest, context: RequestContext) -> Term
         run_id = _app_run_id(found)
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
-        if pod.status != POD_TERMINATED:
-            terminate_verified(pods, KnownPod(pod_id, seen=True), ports.clock)
-        local = _end_local(context, run_id, {"pod_id": pod_id, "pod_seen": True})
+        local = stop_app_pod(context, pods, run_id, pod)
     return TerminatePodResponse(pod_id=pod_id, name=pod.name, run_id=run_id, local_status=local)
 
 
@@ -78,9 +75,7 @@ def cancel_queued_pod(
         run_id = _app_run_id(found)
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
-        stopped = cancel_queued_verified(pods, queued_id, ports.clock)
-        changes = {"queued_pod_id": queued_id, "pod_id": stopped.pod_id}
-        local = _end_local(context, run_id, changes)
+        stopped, local = stop_app_queued_pod(context, pods, run_id, entry)
     return CancelQueuedPodResponse(
         queued_pod_id=queued_id,
         name=entry.name,
@@ -89,14 +84,6 @@ def cancel_queued_pod(
         run_id=run_id,
         local_status=local,
     )
-
-
-def _end_local(context: RequestContext, run_id: str | None, changes: PayloadChanges) -> RunStatus | None:
-    """Cancel the local run the stopped pod belonged to, or mark its objects for collection again; return its status."""
-    ports = context.ports
-    now = ports.clock.now()
-    reopen_collection(ports.state, run_id, now)
-    return cancel_local_run(ports.state, run_id, now, changes)
 
 
 def _app_run_id(found: CloudObject) -> str | None:
@@ -118,5 +105,5 @@ def _confirmation(action: str, found: CloudObject, run_id: str | None) -> NeedsC
     message = (
         f"{what} {found.name} ({found.status})? A worker it runs stops at once; finished results stay in the cloud."
     )
-    confirmation = Confirmation(field=CONFIRM_FIELD, message=message, details=details)
+    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
     return NeedsConfirmation(action=action, confirmations=(confirmation,))

@@ -24,6 +24,7 @@ from support.cleanup import (
     seed_world,
     send,
 )
+from support.confirm import confirmed_document
 from support.credentials import TEST_BUCKET, moto_bucket
 from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import PLAN, document, ok_as
@@ -69,11 +70,12 @@ def _fields(response: Response) -> list[str]:
 
 def test_everything_needs_two_confirmations(world: RunsWorld) -> None:
     """Results not downloaded: `confirm` and `confirm_not_downloaded`; then every object goes, phase `cleaned`."""
-    unconfirmed = _fields(send(world, cleanup_document(EVERYTHING)))
+    asked = send(world, cleanup_document(EVERYTHING))
     half = _fields(send(world, cleanup_document(EVERYTHING, confirm=True)))
-    assert (unconfirmed, half) == (["confirm", "confirm_not_downloaded"], ["confirm_not_downloaded"])
+    assert (_fields(asked), half) == (["confirm", "confirm_not_downloaded"], ["confirm_not_downloaded"])
     assert len(keys_under(world.store)) == SOURCE_OBJECTS
-    assert _cleaned(world, confirmed(EVERYTHING)).deleted_objects == SOURCE_OBJECTS
+    # Confirmed as every frontend does: each asked field set to its `set_to`.
+    assert _cleaned(world, confirmed_document(cleanup_document(EVERYTHING), asked)).deleted_objects == SOURCE_OBJECTS
     assert (keys_under(world.store), flags(world)) == ([], ("cleaned", True))
     assert not _cleaned(world, confirmed(EVERYTHING)).deleted_objects
 

@@ -18,7 +18,10 @@
         "manifest_held": false,
         "audio_deleted": true,
         "cleanup_pending": null,
-        "extract_only": false
+        "extract_only": false,
+        "actions": [
+          "hide_batch"
+        ]
       },
       {
         "batch_id": "batch_20261127_130000",
@@ -35,7 +38,14 @@
         "manifest_held": false,
         "audio_deleted": true,
         "cleanup_pending": null,
-        "extract_only": false
+        "extract_only": false,
+        "actions": [
+          "plan_download",
+          "run_download",
+          "export_custom_plan",
+          "import_custom_plan",
+          "hide_batch"
+        ]
       }
     ]
   },
