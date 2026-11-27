@@ -429,8 +429,8 @@ Code: `transcribe_ui/state/`. One `LocalState` per backend (in the injected `Por
 directories, the settings store, the locks and the lazily opened database.
 
 - **Directories**: `platformdirs` with app name `Transcribe-UI` (no author folder): data
-  (`state.sqlite3`, `state.lock`), config (`settings.json`), cache (temp audio) and log
-  (`transcribe-ui.log`). Tests and other injected roots use `<root>/{data,config,cache,log}`.
+  (`state.sqlite3`, `state.lock`), config (`settings.json`), cache (temp audio) and log (one
+  file per frontend: `transcribe-ui-cli.log`, `transcribe-ui-gui.log`, later one for MCP). Tests and other injected roots use `<root>/{data,config,cache,log}`.
 - **Schema**: every table lives in `state/models.py` (`batches`, `items`, `jobs`,
   `audio_objects`, `extracted_subtitles`, `probe_cache`, `runs`, `placements`): indexed status
   columns (phase, status, outcome, flags) plus a JSON `payload` column, so most later changes
@@ -439,14 +439,17 @@ directories, the settings store, the locks and the lazily opened database.
   Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
   (developers delete their local database); from then on every change is a new revision. A
   test asserts that the migrated schema equals the models (Alembic `compare_metadata`).
-- **Database**: WAL mode, `synchronous=NORMAL`, foreign keys enforced, pysqlite's own
-  transaction handling off and every transaction started with `BEGIN IMMEDIATE`, so threads
-  queue on SQLite's busy timeout (30 s) instead of failing on a read-to-write upgrade. One
-  session (one transaction) per unit of work; handlers keep transactions short.
+- **Database**: WAL mode, `synchronous=FULL` (a commit survives a power loss), foreign keys
+  enforced, the driver's legacy transaction control stated explicitly with its implicit BEGIN
+  turned off, and every transaction started with `BEGIN IMMEDIATE`, so threads queue on
+  SQLite's busy timeout (30 s) instead of failing on a read-to-write upgrade; a transaction
+  still locked out after it gets `state_busy` (re-send). One session (one transaction) per unit
+  of work (`LocalState.session`); handlers keep transactions short.
 - **Opening**: the dispatch table marks which requests need the database; `Backend.execute`
   opens it before such a request runs, the first time one arrives. Opening takes the writer
   lock, then runs the migrations (`render_as_batch=True`, foreign keys off during migration) in
-  one transaction. The Alembic environment (`env.py`, `script.py.mako`, `versions/`) is package
+  one transaction, which ends with `PRAGMA foreign_key_check`: a violation rolls the migration
+  back (`state_unavailable`, details in the log). The Alembic environment (`env.py`, `script.py.mako`, `versions/`) is package
   data found through `importlib.resources`; there is no `alembic.ini` (the config is built in
   code). A database carrying a revision this app does not know is refused unchanged with
   `database_too_new`. A failed opening holds nothing; the next request tries again.
@@ -459,31 +462,45 @@ directories, the settings store, the locks and the lazily opened database.
   lock; it is never waited for: a held lock gives `batch_busy`.
 - **Runs lock** (in-process, one): taken by the requests that launch, follow or clean up runs
   and by the manifest steps; waited for at most `RUNS_LOCK_WAIT_S` (30 s, checking the cancel
-  token), then `runs_busy` (re-sending resumes). Lock order is runs → batch; a request holding
-  batch locks takes the runs lock only through this bounded wait, so no two requests can wait
-  on each other.
+  token), then `runs_busy` (re-sending resumes).
+- **Lock order** is runs → batch → database transaction (innermost). A request holding batch
+  locks takes the runs lock only through the bounded wait, so no two requests can wait on each
+  other. Never wait for a lock or do network I/O inside `state.session()`: asking for a batch or
+  the runs lock while the thread has a session open raises `LockOrderError` (a programming
+  error, so `internal_error`).
 - **Phase changes** are compare-and-set (`compare_and_set_phase`: one `UPDATE … WHERE phase =
   :expected` plus optional conditions such as `manifest_held`): no row changed gives
   `phase_conflict` (or `batch_not_found`), and the error rolls back the request's whole
-  transaction, so a request that lost a race changes nothing.
+  transaction, so a request that lost a race changes nothing. A batch row the session already
+  loaded is expired after the change, so it reads the new phase.
 - **Settings** (`get_settings`, `update_settings`; no database): enabled languages (default
   `DEFAULT_LANGUAGES`, at least one, validated against `WHISPER_LANGUAGES`, no duplicates),
   video and audio extensions (lower case, no dot, disjoint), include hidden entries, the
   ffmpeg/ffprobe path override, and placement defaults (strategy, output folder, folder count,
-  overwrite). `update_settings` replaces the whole document; both responses list every Whisper
-  language with its switch and whether WhisperX has an alignment model for it. The file is
-  written atomically (temp file in the same folder, fsync, `os.replace`, retried briefly while
-  Windows reports the target as in use); the last writer wins. A missing file means the
-  defaults; an unreadable or invalid one gives `settings_invalid` until settings are saved
-  again; a failed write gives `settings_unwritable`. Request handling never reads the
+  overwrite). `update_settings` replaces the whole document: every field is required, so a
+  partial document is refused with `invalid_request` instead of resetting the missing fields.
+  Both responses list every Whisper language with its switch and whether WhisperX has an
+  alignment model for it. The file is written atomically (temp file in the same folder, fsync,
+  `os.replace`, on Windows retried for about 2 s while another process has the file open, then
+  an fsync of the folder on POSIX); temp files a crashed write left (older than a minute) are
+  removed; the last writer wins. Reading starts from the defaults and takes the fields the app
+  knows: a missing file means the defaults, fields of a newer app are ignored and fields an
+  older file lacks take their defaults; saving from an older app therefore drops the fields it
+  does not know. An unreadable or invalid file gives `settings_invalid` until settings are
+  saved again; a failed write gives `settings_unwritable`. Request handling never reads the
   settings: machine-dependent inputs (scan options, placement options, test mode) are request
   fields that the GUI fills from them, and the composition root (`api/wiring.py`) reads the
   adapter configuration (ffmpeg/ffprobe override) when it builds the adapters.
-- **Logging**: a frontend wraps its run in `log_to_file(log_dir)`: a human-readable rotating
-  file (1 MiB, 3 backups, UTF-8) in the user log dir, the app's loggers from INFO, other
-  libraries from WARNING, warnings captured. Nothing reaches stderr: a handler failure drops
-  the record. The log dir is created with the first record. An unexpected exception's
-  traceback goes only there (§3.1).
+- **Logging**: a frontend wraps its run in `log_to_file(<its log file>)`: a human-readable
+  rotating file (1 MiB, 3 backups, UTF-8) in the user log dir, the app's loggers from INFO,
+  other libraries from WARNING, warnings captured. One file per frontend keeps the GUI and the
+  CLI from rotating one file; two runs of one frontend may still share it, which the handler
+  (`SharedRotatingFileHandler`) tolerates: rotation renames the file first and shifts the
+  backups only after that worked; when the rename fails (Windows, another process has the file
+  open) it keeps appending and retries after another 64 KiB; before each record it reopens the
+  path when another process rotated the open file away (POSIX). Nothing reaches stderr: a
+  record that cannot be written at all is dropped. The log dir is created with the first
+  record. An unexpected exception's traceback goes only there (§3.1).
 
 ## 4. R2 object layout (contract)
 
