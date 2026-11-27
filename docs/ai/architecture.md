@@ -384,16 +384,35 @@ docs/human/, docs/ai/     see CLAUDE.md
     manifest_held`.
   - **Order and interruption.** The manifest object is written before the phase change. A crash
     in between leaves a complete manifest for an `uploading` batch (the worker may process it,
-    which is correct); the next step writes the same bytes and moves the batch. Exclusion and
-    re-review withdraw such a leftover manifest (`withdraw_manifest`) after their database
-    transaction and before any audio object: the manifest first (so the worker never sees one
-    listing audio that is gone), then the batch's `_done.json` and results a worker may have
-    written for it (a `_done.json` would make the worker skip the batch once published again;
-    a result of an item whose audio changed would make it skip that job and keep a subtitle of
-    the old audio). The orphan sweep of `run_upload` (M5.10) and the cleanup of an `uploading`
-    batch (M5.14) withdraw it the same way. A worker still in the middle of that manifest could
-    write a result after the withdrawal; this needs a crash in the manifest step and a run
-    started right after it, and is accepted.
+    which is correct); the next step writes the same bytes and moves the batch.
+  - **Withdrawing a leftover manifest** (`upload/withdraw.py`, `upload/steps.py`). Exclusion and
+    re-review change the batch such a manifest describes, so they withdraw it first:
+    - **Ours only.** The object at `batch_metadata/<id>.json` is withdrawn only when its bytes
+      have the SHA-256 of the manifest this database built (from the state before the change,
+      or as recorded by a pending withdrawal); anything else (another computer's batch with the
+      same id) is left alone, with its `_done.json` and results.
+    - **No run active.** With a leftover manifest of ours, the request takes the runs lock
+      through the bounded wait (it holds the batch lock) and checks the run activity before
+      changing anything: an active run gives `run_active` (details: the run ids and every
+      sign), an unknown one `cloud_unreachable`, and nothing changes.
+    - **Recorded, then carried out.** The change's own transaction records a
+      `PendingWithdrawal` (the digest and the affected item ids, accumulated) in the batch's
+      `pending_withdrawal` column. Then, still under the runs lock: the results of the affected
+      items (the excluded ones, or the one sent back to review) are deleted, then `_done.json`,
+      then the manifest, and the record is cleared. Results of the other items stay, so the
+      worker redoes only the jobs whose result is gone; `_done.json` must go, or the worker
+      would skip the batch once it is published again. A failure leaves the record: the next
+      `manifest_step` or `publish_held_manifests` finishes it (under the runs lock, with no run
+      active) before writing the new manifest. The orphan sweep of `run_upload` (M5.10) relies
+      on the same record; the cleanup of an `uploading` batch (M5.14) deletes the batch's
+      objects anyway.
+    - **Remaining window.** The runs lock and the activity check cover this app's runs and
+      every run the Runpod lists and heartbeats show. A worker started from another computer
+      (same account and bucket) in the seconds between the check and the manifest delete, or
+      one not listed yet, could still read the leftover manifest and write `_done.json` or a
+      result after their deletion; the batch would then be skipped or keep a stale subtitle
+      until its results are deleted again. This needs a crash in the manifest step, a later
+      exclusion or re-review, and a launch on another computer at that moment, and is accepted.
 
 ### 3.4 Conversion
 
@@ -739,10 +758,10 @@ requests wire it in M5.13):
   - a `runs/*/status.json` written (R2 `LastModified`, kept in `ObjectInfo.modified`) within
     `HEARTBEAT_STALE_S` (10 min) + `HEARTBEAT_MARGIN_S` (5 min) of the clock either cannot be
     read (invalid or another schema major: fail closed) or has a non-final state with an
-    `updated_at` at most `HEARTBEAT_STALE_S` before the clock. An `updated_at` ahead of the
-    clock counts, but is taken as at most the run's `deadline_at` + the margin and
-    `LastModified` + `HEARTBEAT_STALE_S`. An older object never counts, readable or not, so a
-    broken or far-future heartbeat cannot block for ever.
+    `updated_at` at most `HEARTBEAT_STALE_S` + `HEARTBEAT_MARGIN_S` before the clock (the margin
+    covers a worker clock behind this one). An `updated_at` ahead of the clock counts, but is
+    taken as at most the run's `deadline_at` + the margin. An older object never counts,
+    readable or not, so a broken or far-future heartbeat cannot block for ever.
 
   The check fails closed: a Runpod list or lookup that fails (after the client's retries)
   or an R2 list or read that fails raises `cloud_unreachable` (details `part`: `runpod` or
@@ -757,7 +776,8 @@ requests wire it in M5.13):
   one (`invalid`) is unreadable and not counted; otherwise every job whose result JSON is not
   listed under `<id>/results/` is pending (with its mode and audio duration). Batches with a
   held manifest are added from the database (`held`, every job pending) unless their manifest
-  is in R2 already (pending, finished or unreadable). Each batch says whether this database knows it (`known`; unknown ones are
+  is in R2 already, pending or finished there (an unreadable or vanished copy counts the held
+  version). Each batch says whether this database knows it (`known`; unknown ones are
   another computer's, Q28) and its file count. The fingerprint is the SHA-256 of the sorted
   covered batch ids, the sorted pending jobs (`<batch>/<item>/<language>/<mode>`) and the total
   pending duration (3 decimals): publishing a held batch keeps it, a new result or another
