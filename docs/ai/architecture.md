@@ -108,6 +108,38 @@ docs/human/, docs/ai/     see CLAUDE.md
   rejected identically everywhere. Local settings only shape what the GUI offers.
 - Long operations (upload, download) are resumable commands: re-sending the same request
   continues from persisted state instead of starting over.
+- **Language of the texts** (Q32; built in M6.14, `plans/m6.md`):
+  - Catalogs: GNU gettext, as Django uses them: `transcribe_ui/locale/{en,hu}/LC_MESSAGES/
+    transcribe_ui.po` and the compiled `.mo` next to them (package data), read with the
+    standard library's `gettext` through `transcribe_ui/i18n/` (no Qt, so the GUI, the CLI
+    and later MCP share one catalog; not Qt's `.ts`/`.qm`). The msgids are the English texts;
+    `en.po` may leave a msgstr empty (the msgid is shown) and exists so wording can change
+    without a code change. Code marks texts with `tr()` and `ntr()` (plural forms), not `_`,
+    which the linters reserve for unused names.
+  - Language choice: the setting `language` (§3.8): `system` (default), `en` or `hu`. With
+    `system` the OS user interface language decides, read through an injected port
+    (`i18n/system.py`): Windows `GetUserDefaultUILanguage`, macOS the first `AppleLanguages`
+    entry, Linux and other POSIX the first of `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG` that
+    is set; Hungarian when that language is `hu`, otherwise English. Each frontend resolves it
+    once at start-up (the CLI too; it has no `--lang` flag, since its JSON is not translated).
+    A change in Settings applies after a restart: the GUI asks "Restart now to change the
+    language?" (Restart now / Later; a restart goes through the close handling of Q30).
+    Switching live would need every page to re-render its texts on a signal, which costs
+    every GUI part extra work and tests for a rare action.
+  - The backend stays language-neutral: responses, error codes, `details`, progress stages and
+    the stored data do not depend on the language, so the same request gives the same response
+    everywhere (parity unchanged). An error's `message` stays English: it is the text of the
+    log, the CLI JSON and an LLM reading it.
+  - The frontends translate what they present: every GUI text; an error is shown from the
+    catalog entry of its code, formatted with its `details` (each value a message shows is
+    therefore also in `details`), with the English `message` only as the fallback for a code
+    without an entry (a test keeps every code covered). The CLI's JSON (requests, responses,
+    progress NDJSON) is a machine contract and is not translated; its human texts (`--help`,
+    `--progress text`, the `credentials` prompts) are. Numbers, dates and durations are
+    formatted by one `i18n` helper per language (Hungarian: decimal comma, `2026. 11. 27.`,
+    24-hour time).
+  - Not translated: subtitle content and its language codes, Whisper language names in
+    requests and responses, file and folder names, log records.
 
 ### 3.2 Discovery and selection
 
@@ -1311,8 +1343,9 @@ directories, the settings store, the locks and the lazily opened database.
   `DEFAULT_LANGUAGES`, at least one, validated against `WHISPER_LANGUAGES`, no duplicates),
   video and audio extensions (defaults and rules shared with the scan, §3.2), include hidden
   entries, the ffmpeg/ffprobe path override (absolute in the Windows or the POSIX sense, so the
-  rule does not depend on the machine; the tool lookup also checks it on this computer), and
-  placement defaults (strategy, output folder, folder count, overwrite). `update_settings`
+  rule does not depend on the machine; the tool lookup also checks it on this computer),
+  placement defaults (strategy, output folder, folder count, overwrite) and the language of the
+  texts (`system`, `en`, `hu`; §3.1). `update_settings`
   replaces the whole document: every field is required, so a partial document is refused with
   `invalid_request` instead of resetting the missing fields. Both responses list every Whisper
   language with its switch and whether WhisperX has an alignment model for it.
@@ -1325,7 +1358,8 @@ directories, the settings store, the locks and the lazily opened database.
   their defaults; saving from an older app therefore drops the fields it does not know. An
   unreadable or invalid file gives `settings_invalid` until settings are saved again; a failed
   write gives `settings_unwritable`. Readers: `get_settings`/`update_settings`, the GUI (to
-  fill request fields) and the media tool lookup (only the ffmpeg/ffprobe paths, §3.4). Other
+  fill request fields), the media tool lookup (only the ffmpeg/ffprobe paths, §3.4) and each
+  frontend's language choice at start-up (only `language`, §3.1). Other
   request handling never reads it: machine-dependent inputs (scan options, placement options,
   test mode) are request fields.
 - **Logging**: a frontend wraps its run in `log_to_file(<its log file>)`: a human-readable
@@ -1863,5 +1897,6 @@ next step are in `docs/ai/status.md`.
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
-  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit).
+  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit) and bundle
+  the `.mo` catalogs (§3.1 "Language of the texts").
 - **Later**: MCP frontend over the same requests.

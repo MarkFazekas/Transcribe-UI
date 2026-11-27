@@ -258,6 +258,10 @@ Naming and conflicts:
 ## Architecture and code quality
 
 - Project language: English (code, docs, commits, PR texts, product questions).
+- Language of the app's texts *(Q32, architect)*: "What is Django's language file? .po? Let
+  there be a Hungarian and an English .po file, and the OS language. If the OS language is
+  Hungarian, the app is Hungarian; the default is English." And: "It should be possible to
+  change the language in Settings."
 - Very high code quality standard.
   Quality and the end-user experience are the first and main principle
   (`working-agreements.md`).

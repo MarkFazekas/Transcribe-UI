@@ -10,13 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q32. Language of the app's texts
-
-The project is in English, the users are Hungarian and English speakers.
-
-Proposed default: the app's texts are in English only for now; they are kept together per screen
-so a Hungarian translation can be added later.
-
 ### Q33. Main window layout
 
 Proposed default: one main window with four pages in a left-side navigation:

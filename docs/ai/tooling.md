@@ -112,6 +112,19 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
   default and in CI; Runpod ones that create or change anything run only with the architect
   present (read-only calls may run any time).
 
+## Translations
+
+- Babel (`pybabel`, a dev dependency only; the app reads the catalogs with the standard
+  library) with `babel.cfg` in `apps/desktop`: `extract` (keywords `tr`, `ntr:1,2`) into
+  `transcribe_ui/locale/transcribe_ui.pot`, `update` into `en` and `hu`, `compile` into the
+  committed `.mo` files, so the app also runs from source.
+- The desktop target of `scripts/check.py` runs a catalog check: the `.pot` equals a fresh
+  extraction (ignoring `POT-Creation-Date`), each `.po` matches the `.pot`, `hu` has no
+  untranslated and no fuzzy entry, and each committed `.mo` equals a fresh compile.
+- PyInstaller bundles the `.mo` files in both executables (`--collect-data` for
+  `transcribe_ui.locale`); the release smoke test on Linux runs the CLI's `--help` with
+  `LANGUAGE=hu` and checks a Hungarian line.
+
 ## Commits and branches
 
 - Conventional Commits, enforced by gitlint (`.gitlint`, `contrib-title-conventional-commits`)

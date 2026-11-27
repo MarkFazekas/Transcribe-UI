@@ -33,7 +33,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - Architect: schedule the M4 approved Runpod run.
 - Architect: A21 (fixed run scope across computers), A22 (no absolute paths in the
   manifest) in `questions-for-architect.md`; they gate M6.13.
-- Product: Q32 (language of the app's texts), Q33 (main window layout), Q34 (stopping
+- Product: Q33 (main window layout), Q34 (stopping
   the cloud machine while it transcribes), Q35 (deleting subtitles several computers download) in `questions-for-product.md`. M5 is built and M6 is
   planned on the proposed defaults; an answer that differs changes the part that implements it.
 
@@ -45,7 +45,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
 2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Next: wave 1, M6.1 (backend
    additions, high effort; includes a new Alembic revision) and M6.2 (GUI foundation, high
-   effort) in parallel, M6.1 merged first. Then wave 2 M6.4, M6.5, M6.6 and M6.12 (the
+   effort) in parallel, M6.1 merged first. Then wave 2: M6.14 (texts in English and Hungarian, Q32) first, then M6.4, M6.5, M6.6 and M6.12 (the
    remaining-time estimate, backend), followed by M6.3 and M6.7; wave 3 M6.8, M6.9, M6.10; wave 4 M6.11 (marks M6 built). M6.13 (several installations on one bucket, Q28) once
    A21, A22 and Q35 are answered. M4 runs whenever the
    architect is available.
