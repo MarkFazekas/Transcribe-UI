@@ -18,7 +18,7 @@ from support.runs import READY, RunsWorld, batch_state, seed_uploaded
 from support.storage import store_client
 from transcribe_contracts.layout import result_json_key, results_prefix
 from transcribe_ui.batches.payloads import JobPayload
-from transcribe_ui.runs.constants import UNREADABLE_RESULT_ERROR
+from transcribe_ui.runs.constants import MISSING_RESULT_ERROR, UNREADABLE_RESULT_ERROR
 from transcribe_ui.runs.results import check_ready_batches
 from transcribe_ui.state.models import JobRow
 from transcribe_ui.storage.r2 import ObjectInfo, R2ObjectStore
@@ -100,3 +100,15 @@ def test_unreadable_result_fails_once_done(world: RunsWorld) -> None:
     )
     reasons = (_result_error(world, FILM_ID), _result_error(world, PODCAST_ID))
     assert (reasons, batch_state(world)) == (("decoding failed", UNREADABLE_RESULT_ERROR), TRANSCRIBED)
+
+
+def test_missing_result_fails_once_done(world: RunsWorld) -> None:
+    """A job without any result JSON fails (`missing result`) once its batch has `_done.json`."""
+    run_id = launch_run(world).run_id
+    write_result(world.store, FIRST_BATCH_ID, FILM_ID, run_id, world.now())
+    write_done(world.store, FIRST_BATCH_ID, run_id, world.now())
+    refresh(world)
+    assert (job_statuses(world, FIRST_BATCH_ID), _result_error(world, PODCAST_ID)) == (
+        {FILM_ID: "ok", PODCAST_ID: "failed"},
+        MISSING_RESULT_ERROR,
+    )

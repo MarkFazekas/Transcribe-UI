@@ -141,12 +141,18 @@ TRANSCRIBED_PHASE: Final = "transcribed"
 JOB_FAILED: Final = "failed"
 # Failure reason of a job whose result JSON could not be read once its batch had `_done.json`.
 UNREADABLE_RESULT_ERROR: Final = "unreadable result"
+# Failure reason of a job that has no result JSON although its batch has `_done.json`.
+MISSING_RESULT_ERROR: Final = "missing result"
 # Kind of the jobs the worker runs.
 TRANSCRIBE_KIND: Final = "transcribe"
 # Suffix of a job's result JSON (its "done" marker).
 RESULT_SUFFIX: Final = ".json"
 # Name of a run's worker log in the user log dir, kept after `runs/<run_id>/` is deleted.
 WORKER_LOG_NAME: Final = "worker-{run_id}.log"
+# Name of a further worker log of the run (collected again after a straggler; first number 2).
+WORKER_LOG_EXTRA_NAME: Final = "worker-{run_id}-{number}.log"
+# Number of the first further worker log of a run.
+FIRST_EXTRA_LOG_NUMBER: Final = 2
 # Decimals of the cost so far (dollars).
 COST_SO_FAR_DECIMALS: Final = 2
 

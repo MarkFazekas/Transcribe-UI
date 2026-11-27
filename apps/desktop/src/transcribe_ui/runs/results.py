@@ -7,7 +7,9 @@ exists moves to `transcribed` by compare-and-set. `_done.json` is looked for bef
 are listed: the worker writes it after the batch's last result, so a listing made after seeing
 it holds every result (one written in between is seen at the next refresh, before the batch can
 move on). A result that cannot be read stays pending (logged) until `_done.json` is there; then
-the job is `failed` with the reason `unreadable result`, so a retry can take it. Each batch's
+the job is `failed` with the reason `unreadable result`, and a job with no result JSON at all
+`failed` with `missing result` (the worker never comes back to a done batch), so a retry can
+take them. Each batch's
 lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
 is read outside any transaction.
 """
@@ -24,7 +26,13 @@ from transcribe_ui.batches.constants import JOB_PENDING
 from transcribe_ui.batches.payloads import JobPayload
 from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND, TRANSCRIBED_PHASE
 from transcribe_ui.runs.responses import BatchResults
-from transcribe_ui.runs.result_reads import UNREADABLE_RESULT, PendingJobs, ResultRead, read_results
+from transcribe_ui.runs.result_reads import (
+    MISSING_RESULT,
+    UNREADABLE_RESULT,
+    PendingJobs,
+    ResultRead,
+    read_results,
+)
 from transcribe_ui.state.database import compare_and_set_phase
 from transcribe_ui.state.models import BatchRow, JobRow
 from transcribe_ui.storage.r2 import ObjectStore
@@ -68,7 +76,7 @@ def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> 
         pending = _pending_jobs(session, batch_id)
     done = store.head(done_key(batch_id)) is not None
     found = read_results(store, batch_id, pending)
-    outcomes = _outcomes(found, done=done)
+    outcomes = _outcomes(found, pending, done=done)
     with state.session() as session:
         for job_id, outcome in outcomes.items():
             _record_result(session, job_id, outcome)
@@ -83,14 +91,21 @@ def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> 
 type FoundResults = dict[int, ResultRead | None]
 
 
-def _outcomes(found: FoundResults, *, done: bool) -> dict[int, ResultRead]:
-    """Return what to record per job: the readable results, and the unreadable ones as failed once done."""
+def _outcomes(found: FoundResults, pending: PendingJobs, *, done: bool) -> dict[int, ResultRead]:
+    """Return what to record per job: the readable results; once done, the unreadable and missing ones as failed.
+
+    With `_done.json` the worker never comes back to the batch, so a job without a readable result
+    would stay pending for good.
+    """
     outcomes: dict[int, ResultRead] = {}
     for job_id, outcome in found.items():
         if outcome is not None:
             outcomes[job_id] = outcome
         elif done:
             outcomes[job_id] = UNREADABLE_RESULT
+    if done:
+        for job_id in pending.values():
+            outcomes.setdefault(job_id, MISSING_RESULT)
     return outcomes
 
 
