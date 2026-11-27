@@ -1394,8 +1394,7 @@ directories, the settings store, the locks and the lazily opened database.
 
 Requirements "Runpod control" (Q28): installations on several computers share one bucket, and
 not all of them hold the Runpod key. Planned in `plans/m6.md` (M6.13 and the GUI parts named
-there); the open part is A22, and an answer that differs changes the part that
-implements it.
+there). The answers it rests on are Q28, Q35, A21 and A22.
 
 - **Roles.** Every installation needs the four R2 credentials; the Runpod key is optional.
   - An installation without it (R2-only) composes, reviews, uploads, checks for results,
@@ -1488,8 +1487,9 @@ implements it.
     subtitles extracted from inside video files (they are made and kept only on the uploading
     computer and never reach the cloud, §3.3); its download plan says so.
   - The manifest keeps each file's absolute original path, as the requirements ("UI app:
-    conversion and upload") ask, so every bucket user can read the uploader's paths; A22 asks
-    whether to store only relative paths instead.
+    conversion and upload") ask, so every bucket user can read the uploader's paths (A22,
+    decided: kept; no contract change). Other computers derive the relative paths locally and
+    refuse unsafe parts (above); leftover recognition stays on `created_at` and `scan_root`.
 - **Downloading twice.** Results leave R2 only through `cleanup_cloud` (manual; `everything`
   asks a second time while this database has a job without a placement outcome; an unknown
   batch's `everything` asks once, with no download check). Nothing deletes results on its own,

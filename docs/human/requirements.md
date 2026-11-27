@@ -86,6 +86,8 @@ folder, another for another folder).
 - A video file is converted to audio in a temporary folder, losslessly where possible, using
   stream copy (as the reference repo did).
 - Each file's original absolute path is stored in the batch metadata.
+- Absolute paths in the shared manifest *(A22, architect)*: "Keep it." (The manifest keeps the
+  absolute paths.)
 - Each file gets a unique ULID; it is stored in object storage under that name.
 
 ## Batches
