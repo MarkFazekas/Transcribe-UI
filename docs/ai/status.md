@@ -47,3 +47,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 2. M5 per `docs/ai/plans/m5.md` §4: M5.6 (the last of wave 2; M5.1-M5.5 and M5.7 are
    built), then wave 3 with M5.8 (batches and review); M4 runs whenever the architect is
    available.
+3. Small follow-up: the worker's `S3_MAX_ATTEMPTS = 5` (`pipeline/constants.py`) is passed
+   as botocore `max_attempts`, which counts retries, so a request makes 6 attempts while the
+   comment says "Attempts per S3 request". Set `total_max_attempts` (or fix the comment); the
+   desktop already uses `total_max_attempts=6`.
