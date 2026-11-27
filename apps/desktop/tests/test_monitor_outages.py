@@ -99,6 +99,7 @@ def _seed_second_run(world: RunsWorld, like: str) -> str:
 def test_r2_failure_of_one_run_still_stops_another(world: RunsWorld) -> None:
     """R2 fails while one run is followed; the other, past its deadline, is still stopped; then the error."""
     late_run = _launched_until_deadline(world)
+    assert late_run > RUN_ID, "the run seeded below is followed first"
     late_pod = pods_of(world)[0][0]
     other_pod = _seed_second_run(world, late_run)
     _break_r2(world)

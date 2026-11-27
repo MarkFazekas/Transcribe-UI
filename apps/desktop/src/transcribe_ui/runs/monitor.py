@@ -12,24 +12,24 @@ the runs lock, and no database transaction is open across a Runpod or R2 call. I
    an R2 error is raised once every run was handled.
 2. Every `ready` batch gets its job results and, with `_done.json`, moves to `transcribed`
    (`runs/results.py`).
-3. The objects of final runs are kept locally and deleted (`runs/collect.py`).
+3. The objects of final runs are kept locally and deleted (`runs/collect.py`), except while a
+   live straggler carries a run's name (`runs/lingering.py`). The Runpod lists are read once,
+   when a run is open or a final run waits for collection.
 4. Once no local run is open, `publish_held_manifests` publishes the held manifests (it checks
    the run activity itself, so a straggler or a recent heartbeat keeps them held).
 """
 
-from datetime import datetime
-
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runs.classes import RefreshStatusRequest
 from transcribe_ui.runs.cloud import CloudAccess, LazyStore, open_runpod
 from transcribe_ui.runs.collect import collect_run_objects
-from transcribe_ui.runs.progress import run_progress
+from transcribe_ui.runs.lingering import read_lists, straggler_check
+from transcribe_ui.runs.progress import runs_progress
 from transcribe_ui.runs.records import open_runs
-from transcribe_ui.runs.refreshing import Refreshed, first_failure, refresh_runs
-from transcribe_ui.runs.responses import RefreshStatusResponse, RunProgress
+from transcribe_ui.runs.refreshing import refresh_open_runs
+from transcribe_ui.runs.responses import RefreshStatusResponse
 from transcribe_ui.runs.results import check_ready_batches
-from transcribe_ui.state.store import LocalState
+from transcribe_ui.runs.settling import Listed
 from transcribe_ui.upload.classes import HeldPublication
 from transcribe_ui.upload.manifest import held_batch_ids
 from transcribe_ui.upload.publish import publish_held_manifests
@@ -48,13 +48,13 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
     state = ports.state
     with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
         store = LazyStore(context)
-        refreshed = _runs_refreshed(context, client.pods, store)
+        listed = read_lists(state, client.pods)
+        refreshed = refresh_open_runs(context, client.pods, store, listed)
         cloud = CloudAccess(store.get(), client.pods)
         checked = check_ready_batches(context, cloud.store)
-        collect_run_objects(state, cloud.store, ports.clock.now())
+        _collect(context, cloud, listed)
         published = _publish(context, cloud)
-        now = ports.clock.now()
-        runs = tuple(_progress(state, each, now) for each in refreshed)
+        runs = runs_progress(state, refreshed, ports.clock.now())
     return RefreshStatusResponse(
         runs=runs,
         batches=checked.batches,
@@ -64,17 +64,17 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
     )
 
 
-def _runs_refreshed(context: RequestContext, pods: PodsApi, store: LazyStore) -> list[Refreshed]:
-    """Follow the open runs; raise the first R2 failure once every run was handled.
+def _collect(context: RequestContext, cloud: CloudAccess, listed: Listed | None) -> None:
+    """Collect the objects of the final runs no live straggler carries the name of (nothing without lists).
 
-    Raises:
-        DomainError: Runpod or R2 (or the R2 credentials) failed.
+    Without lists no final run waits for collection, or they could not be read (logged): either
+    way nothing is collected this time.
     """
-    refreshed = refresh_runs(context, pods, store)
-    failure = first_failure(refreshed)
-    if failure is not None:
-        raise failure
-    return refreshed
+    if listed is None:
+        return
+    now = context.ports.clock.now()
+    straggling = straggler_check(listed, cloud.pods, now)
+    collect_run_objects(context.ports.state, cloud.store, now, straggling)
 
 
 def _publish(context: RequestContext, cloud: CloudAccess) -> HeldPublication:
@@ -91,7 +91,3 @@ def _still_held(published: HeldPublication) -> tuple[str, ...]:
     still = {*published.held, *published.busy}
     still.update(published.incomplete)
     return tuple(sorted(still))
-
-
-def _progress(state: LocalState, refreshed: Refreshed, now: datetime) -> RunProgress:
-    return run_progress(state, refreshed.run_id, refreshed.worker, refreshed.stop_error, now)

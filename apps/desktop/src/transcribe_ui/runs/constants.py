@@ -1,5 +1,6 @@
 """Constants of the run-activity check and the launch scope (architecture §3.7)."""
 
+import os
 from typing import Final
 
 from transcribe_ui.runpod.constants import QUEUED_POD_CANCELLED, QUEUED_POD_EXPIRED, QUEUED_POD_FAILED
@@ -153,6 +154,14 @@ WORKER_LOG_NAME: Final = "worker-{run_id}.log"
 WORKER_LOG_EXTRA_NAME: Final = "worker-{run_id}-{number}.log"
 # Number of the first further worker log of a run.
 FIRST_EXTRA_LOG_NUMBER: Final = 2
+# Prefix of the temp file a worker log is written to before it is published (by run id).
+WORKER_LOG_TEMP_PREFIX: Final = ".worker-{run_id}-"
+# Suffix of that temp file (never matches a kept log's name).
+WORKER_LOG_TEMP_SUFFIX: Final = ".part"
+# Permissions of a worker log created without a hard link (POSIX; like the temp file's).
+WORKER_LOG_FILE_MODE: Final = 0o600
+# Flags of that exclusive create for writing: it fails with `FileExistsError` on a taken name.
+WORKER_LOG_CREATE_FLAGS: Final = os.O_CREAT | os.O_EXCL | os.O_WRONLY
 # Decimals of the cost so far (dollars).
 COST_SO_FAR_DECIMALS: Final = 2
 
