@@ -57,5 +57,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `CopySource.source_key` must be the layout's audio key of its track and extension.
 4. M5.12 follows runs through `runs/records.py` (`RunPayload` in `runs/payloads.py`; it adds the
    first `RUNNING` sighting), resolves `launching` runs with `runs/settling.py`
-   `resolve_launching`, terminates with `runs/stopping.py` `terminate_verified`, and calls
+   `resolve_launching`, terminates with `runs/stopping.py` `terminate_verified` (a `KnownPod`:
+   a pod id known only from a queued pod is not seen, so a 404 counts as gone only after
+   `DEPLOY_SETTLE_S`; the run payload keeps `pod_seen` and `pod_deployed_at`), and calls
    `publish_held_manifests` under the runs lock once no run is active.
