@@ -1278,8 +1278,8 @@ database):
     estimate is. All three come from the stored refresh data only and never extrapolate against
     now, so `list_runs` (which reads the stored values) agrees with `refresh_status`. The clock
     is the injected one, so the parity goldens are stable.
-  - The GUI polls `refresh_status` every 300 s while a run is not final (the user can refresh
-    by hand) and counts down to `estimated_finish_at` every second in between; a countdown
+  - The GUI polls `refresh_status` every 300 s while a run is not final, or while
+    `awaiting_results` (§3.9, from M6.13) says so (the user can refresh by hand) and counts down to `estimated_finish_at` every second in between; a countdown
     that reaches 0 before the run is final shows "finishing" and never goes negative; each
     refresh replaces the target. The GUI computes no estimate; the CLI JSON has the same
     fields. The deadline stop still works with the 5-minute poll: it happens at the first
@@ -1407,7 +1407,8 @@ implements it.
     from R2 alone (A21). `refresh_status` without a key: steps 1 and 2 are skipped (a local run
     left open, the key removed later, gets `credentials_missing` as its `stop_error`); step 3
     runs; collection (step 4) is put off, as it already is when the Runpod lists cannot be read
-    (`runs/monitor.py` `_collect`); step 5 runs only when no local run is open.
+    (`runs/monitor.py` `_collect`); step 5 runs only when no local run is open (with A21's
+    default, step 5 goes away).
 - **Known batches.** A batch counts as this database's (`known`) only when its id is in the
   database and its manifest is recognised as this database's (`upload/leftover.py`
   `OwnManifest`: the digest, or the same `created_at` and `scan_root`), or the batch was
@@ -1423,11 +1424,13 @@ implements it.
   originals included) as for a run it started. Its response says whether results are still
   awaited (`awaiting_results`: some `ready` batch that was not removed from the cloud); the GUI
   polls every 300 s while that or an open run says so, with or without the Runpod key, and on
-  "Check now". The GUI does not derive the condition itself.
-- **A batch removed from the cloud by another computer.** A local `ready` batch whose manifest
-  is gone from R2 although this database did not clean it up: step 3 marks it
-  `removed_from_cloud` (shown as "removed from the cloud by another computer"), it no longer
-  counts for `awaiting_results`, and its history stays (extracted subtitles stay placeable).
+  "Refresh now". The GUI does not derive the condition itself.
+- **A batch removed from the cloud by another computer.** Step 3 looks for `_done.json` first;
+  a local `ready` batch with neither `_done.json` nor its manifest in R2, although this
+  database did not clean it up, is marked `removed_from_cloud` (shown as "removed from the
+  cloud by another computer"). Its stage is `done`, its `actions` row allows only hiding (and
+  placing extracted subtitles), `set_batch_hidden` accepts it, it no longer counts for
+  `awaiting_results`, and its history stays.
 - **Download of another installation's job.**
   - `list_cloud_batches` (new; R2 only): every manifest in R2 with its id, `known`, file count,
     audio length, and its state (waiting, transcribing with the results done so far,

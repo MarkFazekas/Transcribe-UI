@@ -27,8 +27,9 @@ itself, whatever any computer publishes later.
 
 Proposed default: (2). Manifests are then published as soon as an upload is verified, on any
 installation, without an activity check; the held-manifest machinery (`manifest_held`,
-`publish_held_manifests`) is removed, and "uploaded, waits for the current run" is shown when a
-live lease does not list the batch. A lease is live until its deadline, and stops counting
+`publish_held_manifests`) is removed, and the neutral flag `waits_for_current_run` (added by
+M6.8 from `manifest_held`) is computed from live leases: set while a live lease does not list
+the batch. A lease is live until its deadline, and stops counting
 once the run's `status.json` is final. Cleanup and the withdrawal of a leftover manifest (§3.3)
 are refused only for batches a live lease lists (or, with the Runpod key, while a run without a
 lease is seen, as now). The worker skips a listed batch whose manifest has disappeared (a
