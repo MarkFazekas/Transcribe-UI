@@ -225,6 +225,11 @@ Naming and conflicts:
   the run is queued, waiting or running, completes its upload and waits ("uploaded, waits for
   the current run"). It is not given to that run, and it becomes ready for the next Start once
   the current run ends.
+- Run scope across computers *(A21, architect, choosing option 2: the computer that starts a
+  run lists its jobs in the run's JSON, and the cloud machine processes only those)*: "The
+  problem is exactly that it holds back the job's 'ready for processing' signal (the manifest)
+  and publishes it only after the run. Whatever is not in the run's JSON must not be
+  processed."
 
 ## Deployed app (worker)
 

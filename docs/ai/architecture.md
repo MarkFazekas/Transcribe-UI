@@ -404,7 +404,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     reason of the job view (requirements "Failure handling").
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
   own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
-  `refresh_status` call `publish_held_manifests`).
+  `refresh_status` call `publish_held_manifests`). Replaced from M6.13 by §3.9 "Run scope"
+  (A21): the manifest is published without an activity check and nothing is held.
   - **Manifest from the database.** `build_manifest` lists every item with `transcribe` jobs,
     in selection order, with the audio objects its jobs use (by key) and its jobs by language;
     `scan_root` and `path_flavor` are the batch's (the flavour of the OS that scanned it). It is
@@ -1027,7 +1028,8 @@ database):
   cost so far), finished or failed.
 - **Run activity** (`transcribe_ui/runs/activity.py`, with `pods.py` and `heartbeats.py`;
   `check_activity`): used by `launch_worker`, `cleanup_cloud`, the manifest step and
-  `publish_held_manifests`, always under the runs lock (checked: `LockRegistry.holds_runs`,
+  `publish_held_manifests` (from M6.13 only by `launch_worker`, `cleanup_cloud` and the
+  withdrawal, with live leases as a source, §3.9 "Run scope"), always under the runs lock (checked: `LockRegistry.holds_runs`,
   else `LockOrderError`). It returns every sign of a live run (`RunActivity.sources`: kind,
   name, status and the run id, so a refusal can name the run); none means inactive. A run is
   active when:
@@ -1095,7 +1097,8 @@ database):
      `confirm_fingerprint`, details `plan`, the message saying when the plan changed), and
      nothing changes. The plan's `fingerprint` hashes the scope's fingerprint, `MAX_RUNTIME_S`
      and the test mode, so a plan confirmed without test mode cannot start a test-mode run;
-  4. `publish_held_manifests` (pending withdrawals finished, held manifests published; a sign
+  4. (removed from M6.13, §3.9 "Run scope"; the lease is written here instead, before the
+     pod create) `publish_held_manifests` (pending withdrawals finished, held manifests published; a sign
      of a run it finds gives `run_active`); a withdrawal left pending because its batch lock
      was busy gives `batch_busy` before any run is recorded (re-send), since a worker could read
      the leftover;
@@ -1254,7 +1257,7 @@ database):
      `cancel_queued_pod` mark a final, collected run uncollected (`records.reopen_collection`),
      so the first refresh after the straggler is gone collects what it wrote, once and whole.
      Refresh never calls reconcile, so nothing loops.
-  5. With no local run open, `publish_held_manifests` (its own activity check: a straggler or a
+  5. (removed from M6.13, §3.9 "Run scope") With no local run open, `publish_held_manifests` (its own activity check: a straggler or a
      recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
      heartbeat no longer counts.
 
@@ -1391,7 +1394,7 @@ directories, the settings store, the locks and the lazily opened database.
 
 Requirements "Runpod control" (Q28): installations on several computers share one bucket, and
 not all of them hold the Runpod key. Planned in `plans/m6.md` (M6.13 and the GUI parts named
-there); the open parts are A21 and A22, and an answer that differs changes the part that
+there); the open part is A22, and an answer that differs changes the part that
 implements it.
 
 - **Roles.** Every installation needs the four R2 credentials; the Runpod key is optional.
@@ -1408,11 +1411,30 @@ implements it.
     the Runpod lists), and `refresh_status` reads the Runpod key up front. So an R2-only
     installation can neither publish an upload, nor clean up, nor see its results.
   - Needed: these open the Runpod client only when a key is set, and the activity check works
-    from R2 alone (A21). `refresh_status` without a key: steps 1 and 2 are skipped (a local run
+    from R2 alone ("Run scope" below). `refresh_status` without a key: steps 1 and 2 are skipped (a local run
     left open, the key removed later, gets `credentials_missing` as its `stop_error`); step 3
     runs; collection (step 4) is put off, as it already is when the Runpod lists cannot be read
-    (`runs/monitor.py` `_collect`); step 5 runs only when no local run is open (with A21's
-    default, step 5 goes away).
+    (`runs/monitor.py` `_collect`); step 5 goes away with the held manifests ("Run scope").
+- **Run scope** (A21, decided: option 2; replaces the held manifests and the activity check
+  before publishing from M6.13; the code still has them today).
+  - Lease: before the pod create, the launching desktop writes `runs/<run_id>/launch.json`
+    (desktop-written; the covered batch ids and the pod name deadline; a contracts model and
+    key, contracts minor version). The worker (§5.3) processes only the batches listed there;
+    without the file it processes nothing and reports why. A listed batch whose manifest has
+    disappeared (a cleanup between the lease and the start) is skipped, not a failure. What a
+    run does not list is never processed by it, whatever any computer publishes later.
+  - Publishing: a manifest is written as soon as an upload is verified, on any installation,
+    without an activity check. `manifest_held` and `publish_held_manifests` are removed (a new
+    Alembic revision drops the flag; a held batch is published by the revision's first
+    `run_upload` resume or the next refresh).
+  - Live lease: until its deadline, and no longer once the run's `status.json` is final. The
+    batch label `waits_for_current_run` is set while a live lease exists that does not list the
+    batch ("uploaded, waits for the current run", requirements Q27).
+  - Activity: every installation reads it from R2 (live leases and fresh heartbeats), and one
+    with the Runpod key also from the Runpod lists, as now. Cleanup and the withdrawal of a
+    leftover manifest (§3.3) are refused only for batches a live lease lists (or, with the
+    Runpod key, while a run without a lease is seen). The launch keeps its own activity check
+    (one run at a time).
 - **Known batches.** A batch counts as this database's (`known`) only when its id is in the
   database and its manifest is recognised as this database's (`upload/leftover.py`
   `OwnManifest`: the digest, or the same `created_at` and `scan_root`), or the batch was
@@ -1647,7 +1669,9 @@ pods-only key is passed as a Runpod secret.
 
 ### 5.3 Pipeline
 
-- Discover: list `batch_metadata/`, load manifests, skip batches with `_done.json`.
+- Discover: list `batch_metadata/`, load manifests, skip batches with `_done.json`. From M6.13
+  (A21, §3.9 "Run scope"): only the batches listed in `runs/<run_id>/launch.json`; nothing
+  without that file; a listed batch whose manifest is gone is skipped.
 - Order: all pending jobs of the run are sorted by language, then batch, then item, so the
   per-language alignment model is loaded once per language (the previous one is released and
   the CUDA cache emptied first); the Whisper model stays loaded.
