@@ -82,8 +82,9 @@ def _follow_other_named(context: RequestContext, pods: PodsApi, run_id: str | No
 
     A run never becomes final while a pod carrying its name may still bill (another pod its
     queued pod deployed, say) or its queued pod still waits (`QUEUED`). The run keeps the pod it
-    follows when that pod was not stopped and is still listed live; otherwise it follows the
-    live pod under its name, or keeps waiting for its queued pod (followed by `refresh_status`).
+    follows when that pod was not stopped and is not listed `TERMINATED` (live, or not listed
+    yet); otherwise it follows a live pod under its name, else the pod its listed queued pod
+    names, or keeps waiting for its queued pod (followed by `refresh_status`).
 
     Raises:
         DomainError: The lists could not be read (the run stays as it is).
