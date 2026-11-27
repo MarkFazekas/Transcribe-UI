@@ -108,7 +108,7 @@ docs/human/, docs/ai/     see CLAUDE.md
   rejected identically everywhere. Local settings only shape what the GUI offers.
 - Long operations (upload, download) are resumable commands: re-sending the same request
   continues from persisted state instead of starting over.
-- **Language of the texts** (Q32; built in M6.14, `plans/m6.md`):
+- **Language of the texts** (Q32; to be built in M6.14, `plans/m6.md`):
   - Catalogs: GNU gettext, as Django uses them: `transcribe_ui/locale/{en,hu}/LC_MESSAGES/
     transcribe_ui.po` and the compiled `.mo` next to them (package data), read with the
     standard library's `gettext` through `transcribe_ui/i18n/` (no Qt, so the GUI, the CLI
@@ -139,13 +139,14 @@ docs/human/, docs/ai/     see CLAUDE.md
     shown from the catalog entry of its code, formatted with its `details` (each value a
     message shows is therefore also in `details`), with the English `message` only as the
     fallback for a code without an entry (a test keeps every code covered). The CLI's JSON (requests, responses,
-    progress NDJSON) is a machine contract and is not translated; its human texts (`--help`,
-    including argparse's own strings, which argparse takes through `gettext`; `--progress
-    text`; the `credentials` prompts) are. Numbers, dates and durations are
+    progress NDJSON) is a machine contract and is not translated; its human texts (the texts
+    the app passes to argparse for `--help`, `--progress text`, the `credentials` prompts) are,
+    through `tr()`; argparse's own fixed strings are not. Numbers, dates and durations are
     formatted by one `i18n` helper per language (Hungarian: decimal comma, `2026. 11. 27.`,
     24-hour time).
   - Not translated: subtitle content and its language codes, Whisper language names in
-    requests and responses, file and folder names, log records.
+    requests and responses, file and folder names, log records, and the worker's error texts.
+    The desktop's own `result_error` values (`unreadable result`, `missing result`) get codes.
 
 ### 3.2 Discovery and selection
 
@@ -1174,7 +1175,8 @@ database):
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
   `worker.py`, `results.py`, `result_reads.py`, `collect.py`, `progress.py`; request
   `refresh_status`, no fields; runs lock for the whole request, no transaction across a Runpod
-  or R2 call). The GUI sends it periodically while a run is active and once at start-up. Only
+  or R2 call). The GUI sends it periodically while a run is active, or while
+  `awaiting_results` says so (from M6.13), and once at start-up. Only
   the Runpod key is read up front; R2 is opened on first use (`runs/cloud.py` `LazyStore`), so
   missing or rejected R2 credentials never block a deadline stop. In order:
   1. Every run that is not final is followed; the Runpod lists are read once, only when such a
@@ -1303,8 +1305,10 @@ directories, the settings store, the locks and the lazily opened database.
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
   Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
   (developers delete their local database); from then on every change is a new revision,
-  including a change of a stored payload's shape (a field removed, renamed or retyped, a
-  literal value dropped): the revision rewrites the stored JSON, since readers do not migrate
+  including any change of a stored payload's shape (a field added, removed, renamed or
+  retyped, a literal value dropped; the payload models forbid unknown fields, so an older app
+  could not read a payload with an added field, and the revision makes it refuse the database
+  with `database_too_new` instead): the revision rewrites the stored JSON, since readers do not migrate
   it (only the probe cache treats an unreadable row as a miss). A test asserts that the
   migrated schema equals the models (Alembic `compare_metadata`).
 - **Database**: WAL mode, `synchronous=FULL` (a commit survives a power loss), foreign keys
@@ -1427,8 +1431,8 @@ implements it.
   "Refresh now". The GUI does not derive the condition itself.
 - **A batch removed from the cloud by another computer.** Step 3 looks for `_done.json` first;
   a local `ready` batch with neither `_done.json` nor its manifest in R2, although this
-  database did not clean it up, is marked `removed_from_cloud` (shown as "removed from the
-  cloud by another computer"). Its stage is `done`, its `actions` row allows only hiding (and
+  database did not clean it up, is marked `removed_from_cloud` (the batch label of that code,
+  "removed from the cloud by another computer"). Its stage is `done`, its `actions` row allows only hiding (and
   placing extracted subtitles), `set_batch_hidden` accepts it, it no longer counts for
   `awaiting_results`, and its history stays.
 - **Download of another installation's job.**
@@ -1437,7 +1441,7 @@ implements it.
     transcribed).
   - `adopt_cloud_batch` (new; one confirmation): refuses an id this database already uses
     (`batch_exists`), reads the manifest (`reading.read_manifest`) and records the batch in the
-    local history, marked as another computer's, with the manifest's jobs, `scan_root`,
+    local history, labelled as another computer's (`adopted`), with the manifest's jobs, `scan_root`,
     `path_flavor` and each item's `original_path` as stored. From then on it is followed by
     `refresh_status` and downloaded like any batch, again any number of times (Q25).
   - The manifest is untrusted input. Each item's path below the scan root is split with the
@@ -1928,6 +1932,6 @@ next step are in `docs/ai/status.md`.
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
   platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
-  the CLI's `--help` with `LANGUAGE=hu` showing a Hungarian line) and bundle the `.mo`
+  the CLI's `--help` with `LANGUAGE=hu` showing an app help text in Hungarian) and bundle the `.mo`
   catalogs (§3.1 "Language of the texts").
 - **Later**: MCP frontend over the same requests.

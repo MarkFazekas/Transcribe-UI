@@ -123,7 +123,7 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
   untranslated and no fuzzy entry, and each committed `.mo` equals a fresh compile.
 - PyInstaller bundles the `.mo` files in both executables (`--collect-data` for
   `transcribe_ui.locale`); the release smoke test on Linux runs the CLI's `--help` with
-  `LANGUAGE=hu` and checks a Hungarian line.
+  `LANGUAGE=hu` and checks for a Hungarian line from the app's own help texts.
 
 ## Commits and branches
 
