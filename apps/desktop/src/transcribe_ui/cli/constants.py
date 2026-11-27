@@ -20,6 +20,9 @@ ERROR_REQUEST_UNREADABLE: Final = "request_unreadable"
 # Error code: the command line is not valid.
 ERROR_INVALID_ARGUMENTS: Final = "invalid_arguments"
 
+# Log file of the CLI in the user log dir; each frontend has its own, so no two frontends rotate one file.
+CLI_LOG_FILE_NAME: Final = "transcribe-ui-cli.log"
+
 # Line end of every line the CLI writes, on every OS.
 LINE_END: Final = b"\n"
 

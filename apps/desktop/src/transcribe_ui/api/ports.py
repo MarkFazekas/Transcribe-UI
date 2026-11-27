@@ -1,7 +1,7 @@
 """Ports injected into the backend, and their production adapters (architecture §3.1).
 
-Clock, id source, progress sink and cancel token are injected so the same request gives the
-same response from every frontend and in tests.
+Clock, id source, local state (its directories), progress sink and cancel token are injected
+so the same request gives the same response from every frontend and in tests.
 """
 
 import threading
@@ -16,6 +16,7 @@ from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.discovery.cache import ScanCache
 from transcribe_ui.discovery.rules import PathRules, host_rules
+from transcribe_ui.state.store import LocalState
 
 if TYPE_CHECKING:
     # `media.ports` uses `CancelToken` from here, so the import is for type checking only.
@@ -109,6 +110,8 @@ class Ports:
     clock: Clock
     ids: IdSource
     media: "MediaTools"
+    # Settings, locks and the lazily opened database, under injectable directories.
+    state: LocalState
     # How the host's file system compares names; tests inject the Windows or macOS rule.
     path_rules: PathRules = field(default_factory=host_rules)
     # The latest scans, reused by `preview_selection` (process-local).

@@ -9,6 +9,7 @@ progress events are normalised (`<root>`, `/`, `<flavor>`) and compared step by 
 import io
 import json
 from collections.abc import Callable, Sequence
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self
@@ -17,6 +18,7 @@ from support.fakes import seeded_ports
 from support.normalise import ROOT_PLACEHOLDER, PathNormaliser
 from transcribe_ui.api.backend import Backend, Routes
 from transcribe_ui.api.classes import ProgressEvent, Response
+from transcribe_ui.api.ports import Ports
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.main import main
 from transcribe_ui.cli.output import exit_code
@@ -58,20 +60,26 @@ class RecordingProgress:
 
 @dataclass(frozen=True)
 class Leg:
-    """One side of a parity run: its root, its backend and its normaliser."""
+    """One side of a parity run: its root, its ports and backend, and its normaliser."""
 
     root: Path
+    ports: Ports
     backend: Backend
     normaliser: PathNormaliser
 
     @classmethod
     def create(cls, root: Path, routes: RoutesFactory | None, prepare: Prepare | None = None) -> Self:
-        """Make the root (filled by `prepare`) and a backend from the seeded factory."""
+        """Make the root (filled by `prepare`) and a backend from the seeded factory (local state under the root)."""
         root.mkdir(parents=True)
         if prepare is not None:
             prepare(root)
-        backend = Backend(seeded_ports(), None if routes is None else routes(root))
-        return cls(root, backend, PathNormaliser([root]))
+        ports = seeded_ports(root)
+        backend = Backend(ports, None if routes is None else routes(root))
+        return cls(root, ports, backend, PathNormaliser([root]))
+
+    def close(self) -> None:
+        """Close the leg's database, so its files can be removed (Windows)."""
+        self.ports.state.close()
 
     def document(self, template: str) -> str:
         """Return the request document with `<root>` replaced by this leg's root (JSON-escaped)."""
@@ -117,11 +125,12 @@ def run_parity(
     requests_dir = tmp_path / "requests-cli"
     requests_dir.mkdir()
     exchanges = []
-    for index, template in enumerate(templates):
-        expected = _via_backend(direct, template)
-        actual = _via_cli(via_cli, template, requests_dir / f"request-{index}.json")
-        assert actual == expected, f"request {index}: the CLI and the backend disagree"
-        exchanges.append(actual)
+    with closing(direct), closing(via_cli):
+        for index, template in enumerate(templates):
+            expected = _via_backend(direct, template)
+            actual = _via_cli(via_cli, template, requests_dir / f"request-{index}.json")
+            assert actual == expected, f"request {index}: the CLI and the backend disagree"
+            exchanges.append(actual)
     return exchanges
 
 

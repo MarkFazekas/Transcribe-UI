@@ -1,0 +1,26 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "video_extensions",
+              "0"
+            ],
+            "message": "String should match pattern '^[a-z0-9]{1,16}$'",
+            "type": "string_pattern_mismatch"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

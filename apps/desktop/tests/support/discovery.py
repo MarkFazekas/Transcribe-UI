@@ -141,7 +141,8 @@ def large_tree_names() -> list[str]:
 
 def scan_direct(root: Path, rules: PathRules | None = None, **fields: object) -> ScanTreeResponse:
     """Scan through a fresh seeded backend (no CLI leg), with another path rule if given."""
-    ports = seeded_ports()
+    # Scans need no database, so nothing is written under the root's state folder.
+    ports = seeded_ports(root)
     if rules is not None:
         ports = dataclasses.replace(ports, path_rules=rules)
     request = ScanTreeRequest.model_validate({"action": "scan_tree", "root": str(root), **fields})

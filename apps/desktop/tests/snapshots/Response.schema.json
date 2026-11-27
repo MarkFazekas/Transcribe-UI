@@ -89,6 +89,10 @@
       "title": "ErrorResponse",
       "type": "object"
     },
+    "FileExtension": {
+      "pattern": "^[a-z0-9]{1,16}$",
+      "type": "string"
+    },
     "FolderSelection": {
       "additionalProperties": false,
       "description": "Check state of a folder with at least one selected media file below it.",
@@ -148,9 +152,81 @@
       "title": "GetAppInfoResponse",
       "type": "object"
     },
+    "GetSettingsResponse": {
+      "additionalProperties": false,
+      "description": "The stored settings and every Whisper language, sorted by code.",
+      "properties": {
+        "action": {
+          "const": "get_settings",
+          "default": "get_settings",
+          "title": "Action",
+          "type": "string"
+        },
+        "languages": {
+          "items": {
+            "$ref": "#/$defs/LanguageOption"
+          },
+          "title": "Languages",
+          "type": "array"
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "settings",
+        "languages"
+      ],
+      "title": "GetSettingsResponse",
+      "type": "object"
+    },
     "JsonValue": {},
+    "LanguageOption": {
+      "additionalProperties": false,
+      "description": "A Whisper language as the settings page shows it.",
+      "properties": {
+        "alignment": {
+          "title": "Alignment",
+          "type": "boolean"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "name",
+        "enabled",
+        "alignment"
+      ],
+      "title": "LanguageOption",
+      "type": "object"
+    },
     "LocalPath": {
       "type": "string"
+    },
+    "MediaExtensions": {
+      "items": {
+        "$ref": "#/$defs/FileExtension"
+      },
+      "type": "array"
     },
     "MediaKind": {
       "enum": [
@@ -191,6 +267,51 @@
       "type": "object"
     },
     "PathFlavor": {
+      "type": "string"
+    },
+    "PlacementDefaults": {
+      "additionalProperties": false,
+      "description": "Placement choices a download request is pre-filled with (§3.5).",
+      "properties": {
+        "folder_count": {
+          "exclusiveMinimum": 0,
+          "title": "Folder Count",
+          "type": "integer"
+        },
+        "output_folder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overwrite": {
+          "title": "Overwrite",
+          "type": "boolean"
+        },
+        "strategy": {
+          "$ref": "#/$defs/PlacementStrategy"
+        }
+      },
+      "required": [
+        "strategy",
+        "output_folder",
+        "folder_count",
+        "overwrite"
+      ],
+      "title": "PlacementDefaults",
+      "type": "object"
+    },
+    "PlacementStrategy": {
+      "enum": [
+        "next_to_media",
+        "mirror",
+        "flat",
+        "flat_with_folders"
+      ],
       "type": "string"
     },
     "PreviewSelectionResponse": {
@@ -553,6 +674,67 @@
       "title": "SelectionCounts",
       "type": "object"
     },
+    "SetPath": {
+      "type": "string"
+    },
+    "Settings": {
+      "additionalProperties": false,
+      "description": "The user's settings (all fields required; see `state.settings.default_settings`).",
+      "properties": {
+        "audio_extensions": {
+          "$ref": "#/$defs/MediaExtensions"
+        },
+        "enabled_languages": {
+          "items": {
+            "$ref": "#/$defs/WhisperLanguage"
+          },
+          "minItems": 1,
+          "title": "Enabled Languages",
+          "type": "array"
+        },
+        "ffmpeg_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ffprobe_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "include_hidden": {
+          "title": "Include Hidden",
+          "type": "boolean"
+        },
+        "placement": {
+          "$ref": "#/$defs/PlacementDefaults"
+        },
+        "video_extensions": {
+          "$ref": "#/$defs/MediaExtensions"
+        }
+      },
+      "required": [
+        "enabled_languages",
+        "video_extensions",
+        "audio_extensions",
+        "include_hidden",
+        "ffmpeg_path",
+        "ffprobe_path",
+        "placement"
+      ],
+      "title": "Settings",
+      "type": "object"
+    },
     "Sidecar": {
       "additionalProperties": false,
       "description": "A subtitle file next to a media file.",
@@ -607,8 +789,10 @@
       "discriminator": {
         "mapping": {
           "get_app_info": "#/$defs/GetAppInfoResponse",
+          "get_settings": "#/$defs/GetSettingsResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
-          "scan_tree": "#/$defs/ScanTreeResponse"
+          "scan_tree": "#/$defs/ScanTreeResponse",
+          "update_settings": "#/$defs/UpdateSettingsResponse"
         },
         "propertyName": "action"
       },
@@ -621,11 +805,59 @@
         },
         {
           "$ref": "#/$defs/PreviewSelectionResponse"
+        },
+        {
+          "$ref": "#/$defs/GetSettingsResponse"
+        },
+        {
+          "$ref": "#/$defs/UpdateSettingsResponse"
         }
       ]
     },
+    "ToolPath": {
+      "$ref": "#/$defs/SetPath"
+    },
     "Ulid": {
       "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    },
+    "UpdateSettingsResponse": {
+      "additionalProperties": false,
+      "description": "The settings as stored now, and every Whisper language, sorted by code.",
+      "properties": {
+        "action": {
+          "const": "update_settings",
+          "default": "update_settings",
+          "title": "Action",
+          "type": "string"
+        },
+        "languages": {
+          "items": {
+            "$ref": "#/$defs/LanguageOption"
+          },
+          "title": "Languages",
+          "type": "array"
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "settings",
+        "languages"
+      ],
+      "title": "UpdateSettingsResponse",
+      "type": "object"
+    },
+    "WhisperLanguage": {
       "type": "string"
     }
   },

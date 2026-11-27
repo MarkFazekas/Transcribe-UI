@@ -13,6 +13,7 @@ from transcribe_ui.api.info import get_app_info
 from transcribe_ui.api.ports import CancelFlag, CancelToken, DiscardProgress, Ports, ProgressSink, RequestContext
 from transcribe_ui.api.schema import parse_request
 from transcribe_ui.discovery.services import preview_selection, scan_tree
+from transcribe_ui.state.requests import get_settings, update_settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,8 @@ def default_routes() -> Routes:
             "get_app_info": Route(run=get_app_info, needs_database=False),
             "scan_tree": Route(run=scan_tree, needs_database=False),
             "preview_selection": Route(run=preview_selection, needs_database=False),
+            "get_settings": Route(run=get_settings, needs_database=False),
+            "update_settings": Route(run=update_settings, needs_database=False),
         },
     )
 
@@ -66,6 +69,8 @@ class Backend:
         token = CancelFlag() if cancel is None else cancel
         context = RequestContext(self._ports, sink, token)
         try:
+            if route.needs_database:
+                self._ports.state.open_database()
             return route.run(request, context)
         except DomainError as error:
             return ErrorResponse(action=request.action, error=error.body())

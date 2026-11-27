@@ -36,16 +36,17 @@ def _preview_document(root: str, scan_id: str | None, **scan: object) -> dict[st
     }
 
 
-def _first_scan_id() -> str:
-    return seeded_ports().ids.new_id()
+def _first_scan_id(root: Path) -> str:
+    # Only the id source is used; nothing is written under `root`.
+    return seeded_ports(root).ids.new_id()
 
 
 def test_preview_reuses_the_scan_on_both_legs(tmp_path: Path) -> None:
     """A preview naming the scan just made answers from it, through the backend and the CLI."""
-    preview = json.dumps(_preview_document(MEDIA_ROOT, _first_scan_id()))
+    preview = json.dumps(_preview_document(MEDIA_ROOT, _first_scan_id(tmp_path)))
     scanned, previewed = run_parity(tmp_path, [scan_request(), preview], prepare=build_media_tree)
     scan_id = response_of(scanned)["scan_id"]
-    assert scan_id == _first_scan_id()
+    assert scan_id == _first_scan_id(tmp_path)
     assert response_of(previewed)["scan_id"] == scan_id
     assert len(file_names(previewed)) == len(file_names(scanned))
 
@@ -61,7 +62,7 @@ def test_kept_scan_is_used_and_unknown_ids_scan_anew(tmp_path: Path) -> None:
     """The kept scan is used as it was; an unknown id or other options scan anew."""
     build_media_tree(tmp_path)
     root = media_dir(tmp_path)
-    backend = Backend(seeded_ports())
+    backend = Backend(seeded_ports(tmp_path))
     scanned = backend.execute(ScanTreeRequest(action="scan_tree", root=str(root)))
     assert isinstance(scanned, ScanTreeResponse)
     (root / "Movies" / FILM).unlink()

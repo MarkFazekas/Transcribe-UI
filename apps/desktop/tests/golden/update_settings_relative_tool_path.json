@@ -1,0 +1,25 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "ffprobe_path"
+            ],
+            "message": "Value error, the path must be absolute",
+            "type": "value_error"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

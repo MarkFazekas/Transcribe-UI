@@ -20,12 +20,34 @@
       "title": "GetAppInfoRequest",
       "type": "object"
     },
+    "GetSettingsRequest": {
+      "additionalProperties": false,
+      "description": "Ask for the stored settings and every Whisper language (needs no database).",
+      "properties": {
+        "action": {
+          "const": "get_settings",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "GetSettingsRequest",
+      "type": "object"
+    },
     "LanguageCode": {
       "pattern": "^[a-z]{2,3}$",
       "type": "string"
     },
     "LocalPath": {
       "type": "string"
+    },
+    "MediaExtensions": {
+      "items": {
+        "$ref": "#/$defs/FileExtension"
+      },
+      "type": "array"
     },
     "NameFilter": {
       "additionalProperties": false,
@@ -54,6 +76,51 @@
         "ends_with",
         "contains",
         "regex"
+      ],
+      "type": "string"
+    },
+    "PlacementDefaults": {
+      "additionalProperties": false,
+      "description": "Placement choices a download request is pre-filled with (§3.5).",
+      "properties": {
+        "folder_count": {
+          "exclusiveMinimum": 0,
+          "title": "Folder Count",
+          "type": "integer"
+        },
+        "output_folder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overwrite": {
+          "title": "Overwrite",
+          "type": "boolean"
+        },
+        "strategy": {
+          "$ref": "#/$defs/PlacementStrategy"
+        }
+      },
+      "required": [
+        "strategy",
+        "output_folder",
+        "folder_count",
+        "overwrite"
+      ],
+      "title": "PlacementDefaults",
+      "type": "object"
+    },
+    "PlacementStrategy": {
+      "enum": [
+        "next_to_media",
+        "mirror",
+        "flat",
+        "flat_with_folders"
       ],
       "type": "string"
     },
@@ -324,6 +391,68 @@
       "title": "SelectionOperation",
       "type": "object"
     },
+    "SetPath": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "Settings": {
+      "additionalProperties": false,
+      "description": "The user's settings (all fields required; see `state.settings.default_settings`).",
+      "properties": {
+        "audio_extensions": {
+          "$ref": "#/$defs/MediaExtensions"
+        },
+        "enabled_languages": {
+          "items": {
+            "$ref": "#/$defs/WhisperLanguage"
+          },
+          "minItems": 1,
+          "title": "Enabled Languages",
+          "type": "array"
+        },
+        "ffmpeg_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ffprobe_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "include_hidden": {
+          "title": "Include Hidden",
+          "type": "boolean"
+        },
+        "placement": {
+          "$ref": "#/$defs/PlacementDefaults"
+        },
+        "video_extensions": {
+          "$ref": "#/$defs/MediaExtensions"
+        }
+      },
+      "required": [
+        "enabled_languages",
+        "video_extensions",
+        "audio_extensions",
+        "include_hidden",
+        "ffmpeg_path",
+        "ffprobe_path",
+        "placement"
+      ],
+      "title": "Settings",
+      "type": "object"
+    },
     "SubtitleFilter": {
       "additionalProperties": false,
       "description": "Match files by the languages of their (not forced) sidecar subtitles.",
@@ -355,16 +484,44 @@
       ],
       "type": "string"
     },
+    "ToolPath": {
+      "$ref": "#/$defs/SetPath"
+    },
     "Ulid": {
       "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    },
+    "UpdateSettingsRequest": {
+      "additionalProperties": false,
+      "description": "Replace the stored settings with these (needs no database; the last writer wins).",
+      "properties": {
+        "action": {
+          "const": "update_settings",
+          "title": "Action",
+          "type": "string"
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        }
+      },
+      "required": [
+        "action",
+        "settings"
+      ],
+      "title": "UpdateSettingsRequest",
+      "type": "object"
+    },
+    "WhisperLanguage": {
       "type": "string"
     }
   },
   "discriminator": {
     "mapping": {
       "get_app_info": "#/$defs/GetAppInfoRequest",
+      "get_settings": "#/$defs/GetSettingsRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
-      "scan_tree": "#/$defs/ScanTreeRequest"
+      "scan_tree": "#/$defs/ScanTreeRequest",
+      "update_settings": "#/$defs/UpdateSettingsRequest"
     },
     "propertyName": "action"
   },
@@ -377,6 +534,12 @@
     },
     {
       "$ref": "#/$defs/PreviewSelectionRequest"
+    },
+    {
+      "$ref": "#/$defs/GetSettingsRequest"
+    },
+    {
+      "$ref": "#/$defs/UpdateSettingsRequest"
     }
   ]
 }

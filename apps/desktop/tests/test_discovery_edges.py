@@ -76,7 +76,7 @@ def test_unreadable_root_is_an_error(tmp_path: Path) -> None:
     media = _build(tmp_path, ["media/ok.mkv"])
     media.chmod(LOCKED_MODE)
     try:
-        response = Backend(seeded_ports()).execute(ScanTreeRequest(action="scan_tree", root=str(media)))
+        response = Backend(seeded_ports(tmp_path)).execute(ScanTreeRequest(action="scan_tree", root=str(media)))
     finally:
         media.chmod(OPEN_MODE)
     assert isinstance(response, ErrorResponse)
