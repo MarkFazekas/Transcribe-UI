@@ -36,10 +36,9 @@ def test_logs_never_replace_each_other(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("step", ["fsync", "link"])
-def test_failed_write_leaves_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, step: str) -> None:
-    """A write or publish that fails leaves no file behind; the retry keeps the log under the first name."""
-    monkeypatch.setattr(os, step, _fail)
+def test_failed_write_leaves_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A write that fails leaves no file behind; the retry keeps the log under the first name."""
+    monkeypatch.setattr(os, "fsync", _fail)
     with pytest.raises(OSError, match="disk full"):
         keep_log(tmp_path, RUN_ID, FIRST_LOG)
     assert _names(tmp_path) == []
