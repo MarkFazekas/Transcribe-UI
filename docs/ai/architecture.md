@@ -1049,8 +1049,8 @@ the image and the pod-create request never contain credentials.
 - R2 client: boto3 with `request_checksum_calculation="when_required"` and
   `response_checksum_validation="when_required"` (botocore ≥ 1.36 default checksums are not
   reliably supported by R2), region `auto`, multipart ≥ 64 MiB parts; 6 attempts per request
-  (botocore `standard` mode, `max_attempts=5` retries in the worker, `total_max_attempts=6`
-  in the desktop), 10 s connect and 30 s read timeouts. The worker and the desktop each
+  (botocore `standard` mode, `total_max_attempts=6` in both the worker and
+  the desktop), 10 s connect and 30 s read timeouts. The worker and the desktop each
   have their own adapter (apps share only contracts) with the same settings.
   - Desktop (`storage/`): `ObjectStore` protocol with `check_access`, `head`, `list_objects`,
     `read`, `write`, `write_new` (`If-None-Match: *`), `copy` (server side; multipart copy

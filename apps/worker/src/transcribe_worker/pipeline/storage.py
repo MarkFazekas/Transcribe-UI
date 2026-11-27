@@ -12,10 +12,10 @@ from transcribe_worker.pipeline.constants import (
     HTTP_PRECONDITION_FAILED,
     R2_REGION,
     S3_CONNECT_TIMEOUT_S,
-    S3_MAX_ATTEMPTS,
     S3_MISSING_CODES,
     S3_MULTIPART_BYTES,
     S3_READ_TIMEOUT_S,
+    S3_TOTAL_ATTEMPTS,
 )
 
 if TYPE_CHECKING:
@@ -131,7 +131,7 @@ def r2_client(settings: "R2Settings") -> "S3Client":
     """Build an S3 client for R2 (checksums only when required: R2 rejects some defaults)."""
     config = Config(
         region_name=R2_REGION,
-        retries={"max_attempts": S3_MAX_ATTEMPTS, "mode": "standard"},
+        retries={"total_max_attempts": S3_TOTAL_ATTEMPTS, "mode": "standard"},
         connect_timeout=S3_CONNECT_TIMEOUT_S,
         read_timeout=S3_READ_TIMEOUT_S,
         request_checksum_calculation="when_required",
