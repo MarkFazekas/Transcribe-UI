@@ -79,9 +79,10 @@ runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`)
 Desktop test backends come from `support.fakes.seeded_ports(root)`: fixed clock, seeded ids and
 the local state under `<root>/app/{data,config,cache,log}`; close `ports.state` when a test opened
 the database (the parity runner closes its legs). The CLI run by hand uses the real per-user
-directories (architecture §3.8); its log is `transcribe-ui-cli.log` in the user log dir. Until M5 is
-marked built, the initial Alembic revision is edited in place: after a schema change, delete the
-local `state.sqlite3` (and its `-wal`/`-shm` files) in the user data dir. Alembic revisions
+directories (architecture §3.8); its log is `transcribe-ui-cli.log` in the user log dir. Every
+schema or stored payload change is a new Alembic revision (the existing ones are never edited), so
+a local database upgrades on its next opening; `test_state_revisions.py` upgrades a database of an
+older revision holding old payloads. Alembic revisions
 (`state/migrations/versions/`) are frozen snapshots, so `.flake8` lets them use literal names and
 lengths (`WPS226`, `WPS432`) instead of app constants.
 
