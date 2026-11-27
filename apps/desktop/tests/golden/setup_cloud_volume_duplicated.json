@@ -1,0 +1,18 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "setup_cloud",
+    "error": {
+      "code": "cloud_volume_duplicated",
+      "message": "Runpod holds 2 Global Volumes named 'transcribe-ui-backups'. They may hold result backups, so the app deletes none of them: delete the unwanted ones in the Runpod console, then run the cloud setup again.",
+      "details": {
+        "volume_ids": [
+          "gsb_5838",
+          "gsb_7919"
+        ]
+      }
+    }
+  },
+  "events": []
+}

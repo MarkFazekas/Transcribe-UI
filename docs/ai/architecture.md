@@ -454,8 +454,9 @@ requests wire it in M5.13):
   shows the pod-scoped key cannot delete its own pod.
 - Requests (all DB-free):
   - `store_credentials`: any subset of the five, keys and secrets as `SecretStr`, at least
-    one. Endpoint: an `https` URL with only a host (and port), stored without a trailing
-    slash; bucket: R2's naming rule; keys: no white space or control characters, at most 1024
+    one. Endpoint: an ASCII `https` URL with only a host (and port), stored without a trailing
+    slash; bucket: R2's naming rule; keys: ASCII without white space or control characters
+    (they go into HTTP headers; a stored non-ASCII value is `credentials_invalid`), at most 1024
     characters (fits the Windows Credential Manager limit). The response names what was
     stored. No keyring → `keyring_unavailable`, whose message names the environment variables
     to set instead; a backend failure → `keyring_failed`; both list what was written before.
@@ -464,9 +465,13 @@ requests wire it in M5.13):
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
-    `r2_failed`); M5.6 adds the Runpod check. The check's client makes 2 attempts with a 5 s
-    connect and a 10 s read timeout, so a hanging R2 is reported within about 30 s (an
-    unreachable host within about 10 s); the transfer clients keep the worker's limits (§6).
+    `r2_failed`); Runpod reads one entry of the pod list (`runpod_key_rejected`,
+    `runpod_key_missing_scope`, `cloud_unreachable`; `credentials_missing` /
+    `credentials_invalid` from the store). Each check's client makes 2 attempts with a 5 s
+    connect and a 10 s read timeout (the Runpod check waits at most 1 s between them, even for
+    a 429 asking for more, and stops on the request's cancel token), so a hanging service is
+    reported within about 30 s (an unreachable host within about 10 s); the transfer clients
+    keep the worker's limits (§6), the Runpod client its own (§3.7).
   - Operations that need credentials get `credentials_missing` (names the credentials and
     their variables) or `credentials_invalid` (names the credentials and their sources) from
     the store.
@@ -477,11 +482,73 @@ requests wire it in M5.13):
   models set `hide_input_in_errors`, so even `str(ValidationError)` omits the input; SDK error
   texts are never passed on (§6). Regression tests feed sentinel values through every
   validator and every flow and search responses and DEBUG-level logs for them.
+- The desktop's Runpod API key needs these scopes (OpenAPI `security` of each operation):
+  `pods:read`, `pods:write` (pods and queued pods), `templates:read`, `templates:write`,
+  `secrets:read`, `secrets:write`, `volumes:read`, `volumes:write` (only `setup_cloud` writes
+  templates, secrets and volumes) and `catalog:read` (GPU price). A 403 names the missing scope
+  (`runpod_key_missing_scope`); a 401 is `runpod_key_rejected`. A separate pods-only terminate
+  key for the pod exists only if M4 shows the pod-scoped key cannot delete its own pod.
+- The Runpod requests take the API key (and `setup_cloud` the R2 credentials) from this
+  credential store (`Ports.credentials`: keyring first, then the environment). `setup_cloud`
+  checks all five first, so one `credentials_missing` names every missing one.
 
 ### 3.7 Launching the worker
 
 - Runpod **REST API v2** (`https://api.runpod.io/v2`; v1 was retired on 2026-11-15) through a
-  thin typed `httpx` client.
+  thin typed `httpx` client (`transcribe_ui/runpod/`: `client.py` with `pods.py` and
+  `account.py` per resource, `session.py` for the HTTP session, `calls.py` for the calls and
+  the host check, `retry.py` for the policy, `timing.py` for waits, clock and cancel,
+  `parsing.py`, and `wire.py`/`bodies.py` for the bodies read and sent). The key is sent only
+  over https to exactly `api.runpod.io` (host compared case-insensitively; no port, no
+  trailing dot, no other Runpod host), checked for the base URL and again for every request;
+  redirects are never followed; environment proxies are ignored when a test transport is
+  injected; error messages name the call and the status or exception type only (no URL,
+  header or body), and errors are raised outside `except` blocks, so no exception chain
+  (`__cause__` or `__context__`) keeps a request or a response. Lists follow
+  `pagination.nextCursor` (at most 100 pages).
+- Retries: reads, deletes and updates (PATCH is idempotent) retry a 429 after `Retry-After`
+  (delta seconds or an HTTP date measured against the injected clock, clamped to 0-60 s; a
+  missing, unreadable or non-finite value backs off instead), a 5xx or a network failure with
+  backoff (1, 2, 4, 8 s), up to 5 attempts; other 4xx are final. A create retries only a 429
+  and a failure to connect (`ConnectError`, `ConnectTimeout`, `PoolTimeout`: nothing was
+  sent). A timeout, a 5xx, a redirect, a drop after sending, or a 2xx whose body does not
+  parse (the object exists) raises `AmbiguousCreateError` and is never re-sent. Waits go
+  through an injected wait that ends early on the request's cancel token, and no attempt
+  starts once it is set (`cancelled`), so a cancel never lags behind a long `Retry-After`;
+  tests record the waits instead of sleeping.
+- Bodies read from the API keep only the fields the app uses: a pod's `env` (R2 secrets and
+  the pod-scoped key) is never parsed, template env values are `SecretStr`, and no response,
+  log line or error message contains env values, keys or R2 secrets. Templates are validated
+  only after filtering by name, so an unrelated template of an unexpected shape cannot fail
+  the setup.
+- Cloud setup (`setup_cloud`, `cloud_setup_status`; DB-free, stateless, nothing stored
+  locally): by fixed names, the Global Volume `transcribe-ui-backups`, four Runpod secrets
+  holding the R2 endpoint, bucket, access key id and secret (`transcribe_ui_r2_*`, from the
+  desktop's credentials; open A18 proposes this one bucket-scoped token) and the template
+  `transcribe-ui-worker-schema-<contracts major>` (image
+  `markfazekasgh/transcribe-ui-worker:schema-<contracts major>`, `startSsh`/`startJupyter`
+  false, env `R2_*` = `{{ RUNPOD_SECRET_transcribe_ui_r2_* }}`). The template name carries the
+  major, so app versions of different contract majors keep their own template instead of
+  rewriting one back and forth. `setup_cloud` creates what is missing, always rewrites the
+  secret values (they are write-only, so a change cannot be detected; a token rotation is a
+  re-run), and updates an outdated template (image, `env` entries the app sets, `startSsh`,
+  `startJupyter`; other env entries are ignored, so merge or replace on PATCH does not
+  matter). Duplicate secrets and templates are deleted: of secrets the exact-name match is
+  kept before case variants (Runpod compares names case-insensitively), then the oldest
+  (`createdAt`, then id); of templates (no `createdAt`, ids not ordered by age) a stable pick
+  that prefers one already up to date, then the lowest id. A duplicate template still in use
+  (400) stops with `cloud_object_in_use`. Global Volumes are never deleted (they may hold
+  result backups): several with the app's name stop `setup_cloud` with
+  `cloud_volume_duplicated`, listing their ids, and the user removes the unwanted ones in the
+  Runpod console (open Q29). An ambiguous create, or a 409 on a secret name the list does not
+  show yet, stops with `cloud_setup_interrupted`; a re-run adopts the object, or (during list
+  lag) creates a second one that the run after removes (for a volume: reported as duplicated).
+  `cloud_setup_status` reports each object as `ok`, `missing`, `outdated` (with field names) or
+  `duplicated`; `require_cloud_setup` gives `launch_worker` the template and volume ids, or
+  refuses with `cloud_volume_duplicated`, `cloud_not_set_up` or `cloud_setup_outdated`
+  (duplicates included), so no pod mounts an arbitrary volume.
+- `runpod/check.py` is the Runpod check of `check_credentials` (§3.6; `GET /v2/pods?limit=1`,
+  body not parsed, 2 attempts, 5 s connect and 10 s read timeouts).
 - `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}` (excludes
   A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer exists),
   `disk: 60`, the Global Volume mount, the template (which alone pins the image tag), non-secret
@@ -967,6 +1034,12 @@ Few unit tests; mostly regression and flow tests:
   prefetch pipeline, resume after a kill, failure isolation (one failing file, one empty
   file), `_done.json`, and the supervisor always calling terminate (child crash, hang →
   watchdog, normal exit; `KEEP_POD_ALIVE`).
+- **Runpod client tests**: a stateful fake Runpod API (`tests/support/runpod_api.py`, served
+  through `httpx.MockTransport` on the real host name, so nothing leaves the process) with
+  injectable statuses, failed connections, responses lost after the create took effect,
+  redirects, list lag, queued pods deploying on a schedule, terminal entries kept in the lists
+  and no capacity. The parity runner builds a fresh fake per leg (`support/runpod.py`). No
+  automated test calls the real Runpod API, not even read-only.
 - **Reaper flow tests**: a full pass against a fake Runpod API on 127.0.0.1 (pagination,
   overdue / in-grace / in-time / foreign / malformed names, queued pods, a DELETE that fails
   or does not take effect, dry run, pass budget, the command line).
@@ -1041,7 +1114,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.5 and M5.7 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.7 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

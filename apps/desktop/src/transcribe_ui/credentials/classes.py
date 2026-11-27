@@ -36,7 +36,7 @@ type CredentialSource = Literal["keyring", "environment", "missing"]
 # State of the keyring: usable, no backend on this system, or the backend failed (locked, broken).
 type KeyringState = Literal["available", "unavailable", "failed"]
 # A service whose credentials `check_credentials` tries.
-type CheckedService = Literal["r2"]
+type CheckedService = Literal["r2", "runpod"]
 # Result of one service check: accepted, credentials missing, or refused / unreachable.
 type CheckOutcome = Literal["ok", "missing", "failed"]
 
@@ -49,8 +49,13 @@ def _stripped(pasted: object) -> object:
 
 
 def _is_compact(text: str) -> bool:
-    """Return whether the text has no white space and no control characters."""
-    return text.isprintable() and not any(map(str.isspace, text))
+    """Return whether the text is ASCII without white space and control characters.
+
+    ASCII also because the values go into HTTP headers and URLs: a non-ASCII character would
+    fail deep in the HTTP client (and could reach a traceback) instead of being refused here.
+    """
+    printable = text.isascii() and text.isprintable()
+    return printable and not any(map(str.isspace, text))
 
 
 def _token_problem(text: str) -> str | None:
@@ -173,7 +178,7 @@ class CredentialsStatusRequest(FrozenModel):
 
 
 class CheckCredentialsRequest(FrozenModel):
-    """Try the credentials against the services (R2: list the bucket); changes nothing."""
+    """Try the credentials against the services (R2: list the bucket; Runpod: read the pod list); changes nothing."""
 
     action: Literal["check_credentials"]
 

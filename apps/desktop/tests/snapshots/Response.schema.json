@@ -41,8 +41,150 @@
       "type": "string"
     },
     "CheckedService": {
-      "const": "r2",
+      "enum": [
+        "r2",
+        "runpod"
+      ],
       "type": "string"
+    },
+    "CloudObjectKind": {
+      "enum": [
+        "global_volume",
+        "secret",
+        "template"
+      ],
+      "type": "string"
+    },
+    "CloudObjectOutcome": {
+      "additionalProperties": false,
+      "description": "What `setup_cloud` did with one object.",
+      "properties": {
+        "duplicates_removed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Duplicates Removed",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/CloudObjectKind"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/SetupOutcome"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "object_id",
+        "outcome",
+        "duplicates_removed"
+      ],
+      "title": "CloudObjectOutcome",
+      "type": "object"
+    },
+    "CloudObjectState": {
+      "enum": [
+        "ok",
+        "missing",
+        "outdated",
+        "duplicated"
+      ],
+      "type": "string"
+    },
+    "CloudObjectStatus": {
+      "additionalProperties": false,
+      "description": "One object of the setup as found on Runpod.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CloudObjectKind"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "object_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object Id"
+        },
+        "outdated_fields": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Outdated Fields",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/CloudObjectState"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "state",
+        "object_id",
+        "outdated_fields"
+      ],
+      "title": "CloudObjectStatus",
+      "type": "object"
+    },
+    "CloudSetupStatusResponse": {
+      "additionalProperties": false,
+      "description": "Whether `launch_worker` can use the cloud setup as it is.",
+      "properties": {
+        "action": {
+          "const": "cloud_setup_status",
+          "default": "cloud_setup_status",
+          "title": "Action",
+          "type": "string"
+        },
+        "cloud_objects": {
+          "items": {
+            "$ref": "#/$defs/CloudObjectStatus"
+          },
+          "title": "Cloud Objects",
+          "type": "array"
+        },
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "worker_image": {
+          "title": "Worker Image",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "ready",
+        "worker_image",
+        "cloud_objects"
+      ],
+      "title": "CloudSetupStatusResponse",
+      "type": "object"
     },
     "Confirmation": {
       "additionalProperties": false,
@@ -900,6 +1042,46 @@
       "title": "Settings",
       "type": "object"
     },
+    "SetupCloudResponse": {
+      "additionalProperties": false,
+      "description": "Every object of the setup, in setup order (volume, secrets, template).",
+      "properties": {
+        "action": {
+          "const": "setup_cloud",
+          "default": "setup_cloud",
+          "title": "Action",
+          "type": "string"
+        },
+        "cloud_objects": {
+          "items": {
+            "$ref": "#/$defs/CloudObjectOutcome"
+          },
+          "title": "Cloud Objects",
+          "type": "array"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "cloud_objects"
+      ],
+      "title": "SetupCloudResponse",
+      "type": "object"
+    },
+    "SetupOutcome": {
+      "enum": [
+        "created",
+        "updated",
+        "unchanged"
+      ],
+      "type": "string"
+    },
     "Sidecar": {
       "additionalProperties": false,
       "description": "A subtitle file next to a media file.",
@@ -986,11 +1168,13 @@
       "discriminator": {
         "mapping": {
           "check_credentials": "#/$defs/CheckCredentialsResponse",
+          "cloud_setup_status": "#/$defs/CloudSetupStatusResponse",
           "credentials_status": "#/$defs/CredentialsStatusResponse",
           "get_app_info": "#/$defs/GetAppInfoResponse",
           "get_settings": "#/$defs/GetSettingsResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
           "scan_tree": "#/$defs/ScanTreeResponse",
+          "setup_cloud": "#/$defs/SetupCloudResponse",
           "store_credentials": "#/$defs/StoreCredentialsResponse",
           "update_settings": "#/$defs/UpdateSettingsResponse"
         },
@@ -1020,6 +1204,12 @@
         },
         {
           "$ref": "#/$defs/CheckCredentialsResponse"
+        },
+        {
+          "$ref": "#/$defs/SetupCloudResponse"
+        },
+        {
+          "$ref": "#/$defs/CloudSetupStatusResponse"
         }
       ]
     },

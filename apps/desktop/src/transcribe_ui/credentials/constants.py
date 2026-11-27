@@ -50,8 +50,8 @@ BUCKET_PATTERN: Final = r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
 VALUE_EMPTY: Final = "must not be empty"
 # A key, secret or token is longer than `TOKEN_MAX_LENGTH`.
 VALUE_TOO_LONG: Final = f"must be at most {TOKEN_MAX_LENGTH} characters"
-# A key, secret, token or URL contains white space or control characters.
-VALUE_NOT_COMPACT: Final = "must not contain spaces or control characters"
+# A key, secret, token or URL is not ASCII, or contains white space or control characters.
+VALUE_NOT_COMPACT: Final = "must be ASCII without spaces or control characters"
 # A key, secret or token is only `*` characters: a masked value pasted back, not the real one.
 VALUE_MASKED: Final = "is a masked value (only '*' characters); enter the real one"
 # Character a masked `SecretStr` is shown with.

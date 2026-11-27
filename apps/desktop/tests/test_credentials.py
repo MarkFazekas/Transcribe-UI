@@ -253,7 +253,8 @@ def test_check_uses_short_limits(tmp_path: Path) -> None:
     ports = dataclasses.replace(seeded_ports(tmp_path), credentials=store, r2_clients=clients)
     context = RequestContext(ports, DiscardProgress(), CancelFlag())
     response = check_credentials(CheckCredentialsRequest(action="check_credentials"), context)
-    assert [check.outcome for check in response.checks] == ["ok"]
+    # The environment holds no Runpod key, so the Runpod check reports it missing.
+    assert [(check.service, check.outcome) for check in response.checks] == [("r2", "ok"), ("runpod", "missing")]
     assert clients.limits == [CHECK_LIMITS]
     config: Any = r2_client(store.r2(), CHECK_LIMITS).meta.config  # botocore sets the options dynamically.
     assert config.retries == {"total_max_attempts": 2, "mode": "standard"}

@@ -27,6 +27,8 @@ from transcribe_ui.cli.output import exit_code
 type RoutesFactory = Callable[[Path], Routes]
 # Fills a leg's fresh root before the first request (a media tree, for example).
 type Prepare = Callable[[Path], None]
+# Builds the ports of one leg from the leg's root (tests with a fake Runpod API per leg).
+type PortsFactory = Callable[[Path], Ports]
 
 
 @dataclass(frozen=True)
@@ -68,14 +70,23 @@ class Leg:
     normaliser: PathNormaliser
 
     @classmethod
-    def create(cls, root: Path, routes: RoutesFactory | None, prepare: Prepare | None = None) -> Self:
-        """Make the root (filled by `prepare`) and a backend from the seeded factory (local state under the root)."""
+    def create(
+        cls,
+        root: Path,
+        routes: RoutesFactory | None,
+        prepare: Prepare | None = None,
+        ports: PortsFactory | None = None,
+    ) -> Self:
+        """Make the root (filled by `prepare`) and a backend from the seeded factory (or `ports`).
+
+        Local state lives under the root either way.
+        """
         root.mkdir(parents=True)
         if prepare is not None:
             prepare(root)
-        ports = seeded_ports(root)
-        backend = Backend(ports, None if routes is None else routes(root))
-        return cls(root, ports, backend, PathNormaliser([root]))
+        leg_ports = seeded_ports(root) if ports is None else ports(root)
+        backend = Backend(leg_ports, None if routes is None else routes(root))
+        return cls(root, leg_ports, backend, PathNormaliser([root]))
 
     def close(self) -> None:
         """Close the leg's database, so its files can be removed (Windows)."""
@@ -113,14 +124,15 @@ def run_parity(
     templates: Sequence[str],
     routes: RoutesFactory | None = None,
     prepare: Prepare | None = None,
+    ports: PortsFactory | None = None,
 ) -> list[Exchange]:
     """Run the request documents through both legs, assert they agree, return the CLI leg's outcomes.
 
     A document may contain `<root>`, which each leg replaces with its own root; `prepare` fills
-    each leg's root first.
+    each leg's root first, and `ports` (if given) builds each leg's ports.
     """
-    direct = Leg.create(tmp_path / "backend", routes, prepare)
-    via_cli = Leg.create(tmp_path / "cli", routes, prepare)
+    direct = Leg.create(tmp_path / "backend", routes, prepare, ports)
+    via_cli = Leg.create(tmp_path / "cli", routes, prepare, ports)
     # Request files live outside the leg's root, so they never show up in what a request sees there.
     requests_dir = tmp_path / "requests-cli"
     requests_dir.mkdir()
@@ -139,6 +151,7 @@ def run_one(
     template: str,
     routes: RoutesFactory | None = None,
     prepare: Prepare | None = None,
+    ports: PortsFactory | None = None,
 ) -> Exchange:
     """Run one request document through both legs; return the CLI leg's outcome."""
-    return run_parity(tmp_path, [template], routes, prepare)[0]
+    return run_parity(tmp_path, [template], routes, prepare, ports)[0]

@@ -3,7 +3,7 @@
 Answer each with "default" to accept the proposed default, or with a different decision.
 Answered questions are removed from this file; the answer goes to
 `docs/human/requirements.md` and its consequences to the affected docs. IDs are never reused
-(next: Q29).
+(next: Q30).
 
 Terms used below: a **job** is one run of transcriptions that the user starts; the **cloud
 machine** is the rented graphics-card computer that does the transcription.
@@ -82,3 +82,13 @@ has no history for them, so it cannot place their subtitles.
 Proposed default: the start confirmation lists these jobs (job id, number of files, audio
 length) and includes them in the audio length and cost estimate. The user can delete such a job
 from the cloud from that list (with one confirmation) before starting.
+
+### Q29. Several cloud backup volumes with the app's name
+
+The app keeps one backup volume on Runpod for the cloud machine's result backups. If Runpod ever
+holds two or more with the app's name (a setup interrupted at the wrong moment, or one created by
+hand), the app cannot tell which holds backups that matter, so it never deletes one itself and
+refuses to start a cloud machine until only one is left.
+
+Proposed default: the cloud setup and the start show an error listing the volumes' ids; the user
+deletes the unwanted volume in the Runpod console (Storage page) and runs the setup again.

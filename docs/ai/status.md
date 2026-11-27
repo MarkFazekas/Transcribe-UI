@@ -26,7 +26,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- None.
+- M5.8 (batches and review) on its own branch (see "Next").
 
 ## Waiting on humans
 
@@ -36,17 +36,17 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - Architect: schedule the M4 approved Runpod run.
 - Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
   gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
-  before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud) in
-  `questions-for-product.md`. M5 is planned on the proposed defaults.
+  before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud), Q29
+  (duplicate backup volumes) in `questions-for-product.md`. M5 is planned on the proposed defaults.
 - Architect: A18 (R2 credentials for the pod), A19 (maximum wait for a machine) in
   `questions-for-architect.md`.
 
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. M5 per `docs/ai/plans/m5.md` §4: M5.6 (the last of wave 2; M5.1-M5.5 and M5.7 are
-   built), then wave 3 with M5.8 (batches and review); M4 runs whenever the architect is
-   available.
+2. M5 wave 3 per `docs/ai/plans/m5.md` §4 (M5.1-M5.7 are built): M5.8 (batches and review)
+   is in progress on its own branch, then M5.9 (manifests and run activity); M4 runs whenever
+   the architect is available.
 3. Small follow-up: the worker's `S3_MAX_ATTEMPTS = 5` (`pipeline/constants.py`) is passed
    as botocore `max_attempts`, which counts retries, so a request makes 6 attempts while the
    comment says "Attempts per S3 request". Set `total_max_attempts` (or fix the comment); the
