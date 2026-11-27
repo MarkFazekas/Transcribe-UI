@@ -26,8 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.2 (GUI foundation) on `feat/m6.2-gui-foundation`: built, rebased onto `main` with M6.1,
-  checked locally; waiting for its PR and review.
+- M6.14 (language of the texts) on `feat/m6.14-i18n`: built and checked locally; waiting for
+  its PR and review.
 
 ## Waiting on humans
 
@@ -40,8 +40,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
 2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Wave 1: M6.1 (backend
-   additions) is merged; M6.2 (GUI foundation) is built on its branch.
-   Then wave 2: M6.14 (texts in English and Hungarian, Q32) first, then M6.5 (it changes the
+   additions) and M6.2 (GUI foundation) are merged.
+   Then wave 2: M6.14 (texts in English and Hungarian, Q32; built on its branch) first, then M6.5 (it changes the
    shared goldens once) before M6.4 and M6.6 start, then M6.4, M6.6 and M6.12 (the
    remaining-time estimate, backend), followed by M6.3 and M6.7; wave 3 M6.8, M6.9, M6.10; wave
    4 M6.11. M6.13 (several installations on one bucket, Q28, with its GUI) after M6.6 and M6.9;
