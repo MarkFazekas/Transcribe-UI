@@ -2,11 +2,13 @@
 
 For stragglers and overdue entries that `reconcile_cloud` reports. Each needs `confirm` (the
 first answer names the pod and its run), refuses pods that are not the app's, and verifies the
-stop with a follow-up read. A local run of that id that is not final becomes `cancelled`; a final
-one whose run objects were collected is marked uncollected, since the stopped pod may have written
-some again (the next `refresh_status` collects them). Under the runs lock.
+stop with a follow-up read. A local run of that id that is not final ends as `cancel_worker` ends
+it (`runs/stopped.py`), only when the stop covered the pod it recorded; a final one whose run
+objects were collected is marked uncollected, since the stopped pod may have written some again
+(the next `refresh_status` collects them). Under the runs lock.
 """
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 from transcribe_contracts.pods import is_app_pod_name, parse_pod_name
@@ -17,10 +19,16 @@ from transcribe_ui.runs.classes import CancelQueuedPodRequest, TerminatePodReque
 from transcribe_ui.runs.cloud import open_runpod
 from transcribe_ui.runs.constants import POD_KIND, QUEUED_POD_KIND
 from transcribe_ui.runs.errors import NotAppPodError, PodNotFoundError, runpod_call
-from transcribe_ui.runs.records import PayloadChanges, cancel_local_run, reopen_collection
 from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
-from transcribe_ui.runs.stopping import CloudObject, KnownPod, cancel_queued_verified, terminate_verified
-from transcribe_ui.state.models import RunStatus
+from transcribe_ui.runs.stopped import end_stopped_run, follow_deployed
+from transcribe_ui.runs.stopping import (
+    CloudObject,
+    KnownPod,
+    QueuedTarget,
+    cancel_queued_verified,
+    ended_without_pod,
+    terminate_verified,
+)
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -49,9 +57,10 @@ def terminate_pod(request: TerminatePodRequest, context: RequestContext) -> Term
         run_id = _app_run_id(found)
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
-        if pod.status != POD_TERMINATED:
+        stopped_now = pod.status != POD_TERMINATED
+        if stopped_now:
             terminate_verified(pods, KnownPod(pod_id, seen=True), ports.clock)
-        local = _end_local(context, run_id, {"pod_id": pod_id, "pod_seen": True})
+        local = end_stopped_run(context, run_id, {"pod_id": pod_id, "pod_seen": True}, stopped_now=stopped_now)
     return TerminatePodResponse(pod_id=pod_id, name=pod.name, run_id=run_id, local_status=local)
 
 
@@ -78,9 +87,14 @@ def cancel_queued_pod(
         run_id = _app_run_id(found)
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
-        stopped = cancel_queued_verified(pods, queued_id, ports.clock)
+        stopped = cancel_queued_verified(
+            pods,
+            QueuedTarget.read_from(entry),
+            ports.clock,
+            partial(follow_deployed, context, run_id, queued_id),
+        )
         changes = {"queued_pod_id": queued_id, "pod_id": stopped.pod_id}
-        local = _end_local(context, run_id, changes)
+        local = end_stopped_run(context, run_id, changes, stopped_now=not ended_without_pod(entry))
     return CancelQueuedPodResponse(
         queued_pod_id=queued_id,
         name=entry.name,
@@ -89,14 +103,6 @@ def cancel_queued_pod(
         run_id=run_id,
         local_status=local,
     )
-
-
-def _end_local(context: RequestContext, run_id: str | None, changes: PayloadChanges) -> RunStatus | None:
-    """Cancel the local run the stopped pod belonged to, or mark its objects for collection again; return its status."""
-    ports = context.ports
-    now = ports.clock.now()
-    reopen_collection(ports.state, run_id, now)
-    return cancel_local_run(ports.state, run_id, now, changes)
 
 
 def _app_run_id(found: CloudObject) -> str | None:

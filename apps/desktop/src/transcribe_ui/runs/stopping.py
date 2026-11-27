@@ -16,6 +16,7 @@ from typing import NamedTuple
 from transcribe_ui.api.ports import Clock
 from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runpod.pods import PodsApi
+from transcribe_ui.runpod.wire import QueuedPod
 from transcribe_ui.runs.classes import RunpodKind
 from transcribe_ui.runs.constants import DEPLOY_SETTLE_S, IGNORED_QUEUED_POD_STATUSES, POD_KIND, QUEUED_POD_KIND
 from transcribe_ui.runs.errors import StopUnverifiedError, runpod_call
@@ -95,32 +96,78 @@ def terminate_verified(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSe
         raise StopUnverifiedError(POD_KIND, pod_id)
 
 
+@dataclass(frozen=True)
+class QueuedTarget:
+    """A queued pod to cancel, with what is known of a pod it may have deployed.
+
+    `deployed` is the pod an earlier read of the queued pod named (None if none did); `name` is
+    the queued pod's name, which a pod it deploys carries too, to look the pod up when the queued
+    pod is gone (404) after the cancel without having named one.
+    """
+
+    queued_pod_id: str
+    name: str | None = None
+    deployed: KnownPod | None = None
+
+    @classmethod
+    def read_from(cls, entry: QueuedPod) -> "QueuedTarget":
+        """Return the queued pod as read, with the pod this read names (not seen: it settles from the deploy)."""
+        pod_id = entry.pod_id
+        deployed = None
+        if pod_id is not None:
+            deployed = KnownPod(pod_id, seen=False, deployed_at=entry.resolved_at)
+        return cls(entry.queued_pod_id, name=entry.name, deployed=deployed)
+
+
+def ended_without_pod(entry: QueuedPod) -> bool:
+    """Return whether the queued pod as read had ended without a pod (a cancel then stops nothing)."""
+    return entry.pod_id is None and entry.status in IGNORED_QUEUED_POD_STATUSES
+
+
 def cancel_queued_verified(
     pods: PodsApi,
-    queued_pod_id: str,
+    target: QueuedTarget,
     clock: Clock,
     on_deployed: OnDeployed | None = None,
     on_seen: OnSeen | None = None,
 ) -> QueuedStopped:
-    """Cancel the queued pod and read it again; terminate (verified) a pod it deployed meanwhile.
+    """Cancel the queued pod and read it again; terminate (verified) a pod it deployed.
+
+    The pod to terminate is the one the queued pod names now, else the one an earlier read named
+    (`target.deployed`), else, when the queued pod is gone (404), a live pod listed under its
+    name: a queued pod that deployed just before the cancel and then vanished must not leave its
+    pod running.
 
     Raises:
         StopUnverifiedError: It still reads waiting, reads deployed without naming its pod, or its
             pod still reads live (or is missing right after the deploy).
         DomainError: A Runpod call failed.
     """
+    queued_pod_id = target.queued_pod_id
     runpod_call(lambda: pods.cancel_queued(queued_pod_id))
     entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
-    if entry is None:
-        return QueuedStopped("cancelled")
-    pod_id = entry.pod_id
-    if pod_id is not None:
-        deployed = KnownPod(pod_id, seen=False, deployed_at=entry.resolved_at)
+    deployed = target.deployed
+    if entry is not None and entry.pod_id is not None:
+        deployed = KnownPod(entry.pod_id, seen=False, deployed_at=entry.resolved_at)
+    if deployed is None and entry is None and target.name is not None:
+        deployed = _listed_pod(pods, target.name)
+    if deployed is not None:
         if on_deployed is not None:
             on_deployed(deployed)
         terminate_verified(pods, deployed, clock, on_seen)
-        return QueuedStopped("pod_terminated", pod_id)
-    if entry.status in IGNORED_QUEUED_POD_STATUSES:
+        return QueuedStopped("pod_terminated", deployed.pod_id)
+    if entry is None or entry.status in IGNORED_QUEUED_POD_STATUSES:
         return QueuedStopped("cancelled")
     # QUEUED (the cancel did not take effect), DEPLOYED without its pod's id, or an unknown status.
     raise StopUnverifiedError(QUEUED_POD_KIND, queued_pod_id)
+
+
+def _listed_pod(pods: PodsApi, name: str) -> KnownPod | None:
+    """Return a live pod listed under the name (a listing is a sighting), or None.
+
+    Raises:
+        DomainError: The pod list could not be read.
+    """
+    named = [pod for pod in runpod_call(pods.list_pods) if pod.name == name]
+    live = [pod for pod in named if pod.status != POD_TERMINATED]
+    return KnownPod(live[0].pod_id, seen=True) if live else None

@@ -128,10 +128,19 @@ def run_statuses(state: LocalState) -> dict[str, str]:
 
 
 def _stopped_is_recorded(payload: RunPayload, changes: PayloadChanges) -> bool:
-    recorded = {payload.pod_id, payload.queued_pod_id} - {None}
+    """Return whether what was stopped (verified) is what the run recorded.
+
+    A run that recorded a pod ends only when that pod is among the stopped ones: a pod that may
+    still bill keeps the run followed. Else its queued pod must be; a run that recorded neither
+    ends too.
+    """
     stopped_ids = (changes.get("pod_id"), changes.get("queued_pod_id"))
     stopped = set(stopped_ids) - {None}
-    return not recorded or bool(recorded & stopped)
+    if payload.pod_id is not None:
+        return payload.pod_id in stopped
+    if payload.queued_pod_id is not None:
+        return payload.queued_pod_id in stopped
+    return True
 
 
 def open_runs(state: LocalState) -> list[RunInfo]:
@@ -142,11 +151,18 @@ def open_runs(state: LocalState) -> list[RunInfo]:
         return [run_info(row) for row in session.scalars(query)]
 
 
-def cancel_local_run(state: LocalState, run_id: str | None, now: datetime, changes: PayloadChanges) -> RunStatus | None:
-    """Mark the local run of that id `cancelled` (with the payload fields that are set) if it is not final.
+def cancel_local_run(
+    state: LocalState,
+    run_id: str | None,
+    now: datetime,
+    changes: PayloadChanges,
+    end: tuple[RunStatus, PayloadChanges],
+) -> RunStatus | None:
+    """End the local run of that id as `end` says (status, end fields), with the stopped ids, if it is not final.
 
-    Only when what was stopped (the `pod_id` and `queued_pod_id` of `changes`) is what the run
-    recorded, or the run recorded neither: a stray pod carrying the run's name does not end it.
+    Only when what was stopped (the `pod_id` and `queued_pod_id` of `changes`, verified) is what
+    the run recorded (`_stopped_is_recorded`): a stray pod carrying the run's name does not end
+    it, and neither does a stop that missed the pod the run recorded.
     Return its status now; None when the id is None or this database does not know the run.
     """
     if run_id is None:
@@ -156,10 +172,11 @@ def cancel_local_run(state: LocalState, run_id: str | None, now: datetime, chang
         return None
     if status in FINAL_RUN_STATUSES or not _stopped_is_recorded(read_payload(state, run_id), changes):
         return read_run(state, run_id).status
+    status, end_changes = end
     known: dict[str, object] = {field: change for field, change in changes.items() if change}
-    known.update({"ended_at": now, "end_reason": "cancelled"})
-    cancelled = update_run(state, run_id, now, "cancelled", known)
-    return cancelled.status
+    known.update(end_changes)
+    ended = update_run(state, run_id, now, status, known)
+    return ended.status
 
 
 def has_uncollected(state: LocalState) -> bool:

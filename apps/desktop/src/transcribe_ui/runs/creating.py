@@ -53,7 +53,8 @@ def request_pod(state: LocalState, pods: PodsApi, run: NewRun, body: CreatePod, 
     if isinstance(sent, AmbiguousCreateError):
         update_run(state, run_id, now, changes={"posted_at": now})
         return look_up(state, pods, run_id, now)
-    update_run(state, run_id, now, "launch_failed", {"posted_at": now})
+    ended = {"posted_at": now, "ended_at": now, "end_reason": "launch_failed"}
+    update_run(state, run_id, now, "launch_failed", ended)
     # Cancelled before an attempt: only a 429 or a failed connection came before, so nothing exists.
     raise sent if isinstance(sent, CancelledError) else launch_refusal(run_id, sent)
 

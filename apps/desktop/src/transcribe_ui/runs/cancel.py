@@ -1,9 +1,11 @@
 """`cancel_worker`: stop a run's queued pod or pod, verified (plan m5 §1 "Cancel follows a deploy").
 
 A queued pod is cancelled, then read again: if it deployed meanwhile, its pod is terminated and
-the termination verified. The run becomes `cancelled` only once that is verified; until then it
-stays as it was (a pod learned on the way is recorded and the run follows it as `running`), so
-`refresh_status` keeps following it. Under the runs lock.
+the termination verified (a queued pod gone after the cancel has its pod looked up by the run's
+name). The run ends only once that is verified (`runs/stopped.py`: `cancelled`, or as its worker
+reported if it had finished or failed); until then it stays as it was (a pod learned on the way
+is recorded and the run follows it as `running`), so `refresh_status` keeps following it. Under
+the runs lock.
 """
 
 from datetime import datetime
@@ -18,11 +20,15 @@ from transcribe_ui.runs.halting import stop_run
 from transcribe_ui.runs.records import read_run, update_run
 from transcribe_ui.runs.responses import CancelWorkerResponse, RunInfo
 from transcribe_ui.runs.settling import Listed, resolve_launching
+from transcribe_ui.runs.stopped import last_report, stopped_end
 from transcribe_ui.state.store import LocalState
 
 
 def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> CancelWorkerResponse:
-    """Stop the run's queued pod or pod and mark the run `cancelled` once that is verified.
+    """Stop the run's queued pod or pod and end the run once that is verified.
+
+    The run becomes `cancelled`, unless its worker had reported `finished` or `failed` before
+    the stop (read best effort from R2): then it ends as the worker reported.
 
     Raises:
         RunNotFoundError: The database does not know the run.
@@ -42,10 +48,11 @@ def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> Canc
         if run.status in FINAL_RUN_STATUSES:
             raise RunNotActiveError(run.run_id, run.status)
         terminated = stop_run(state, client.pods, run.run_id, ports.clock)
+        worker = last_report(context, run.run_id)
         now = ports.clock.now()
-        ended = {"ended_at": now, "end_reason": "cancelled"}
-        cancelled = update_run(state, run.run_id, now, "cancelled", ended)
-    return CancelWorkerResponse(run=cancelled, terminated_pod_id=terminated)
+        status, ended = stopped_end(state, worker, now)
+        stopped = update_run(state, run.run_id, now, status, ended)
+    return CancelWorkerResponse(run=stopped, terminated_pod_id=terminated)
 
 
 def _resolve(state: LocalState, pods: PodsApi, run_id: str, now: datetime) -> RunInfo:

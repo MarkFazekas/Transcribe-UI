@@ -13,7 +13,12 @@ from datetime import datetime, timedelta
 from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_CANCELLED, QUEUED_POD_QUEUED
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import Pod, QueuedPod
-from transcribe_ui.runs.constants import IGNORED_QUEUED_POD_STATUSES, LAUNCH_LOOKUP_GAP_S, LAUNCH_SETTLE_S
+from transcribe_ui.runs.constants import (
+    FINAL_RUN_STATUSES,
+    IGNORED_QUEUED_POD_STATUSES,
+    LAUNCH_LOOKUP_GAP_S,
+    LAUNCH_SETTLE_S,
+)
 from transcribe_ui.runs.records import PayloadChanges, load_run, payload_of, read_run, update_run
 from transcribe_ui.runs.responses import RunInfo
 from transcribe_ui.state.models import RunStatus
@@ -107,12 +112,16 @@ def resolve_launching(state: LocalState, run_id: str, listed: Listed, now: datet
         settle_from = max(moment for moment in sent if moment is not None)
     found = find_by_name(name, listed)
     if found is not None:
-        return update_run(state, run_id, now, found.status, found.changes())
+        changes = found.changes()
+        if found.status in FINAL_RUN_STATUSES:
+            # A queued pod found ended (cancelled, expired or failed) without a pod.
+            changes = {**changes, "ended_at": now, "end_reason": "queue_ended"}
+        return update_run(state, run_id, now, found.status, changes)
     first = payload.first_empty_lookup_at
     if now - settle_from < SETTLE:
         return read_run(state, run_id)  # too early: the pod may not be listed yet
     if first is None:
         return update_run(state, run_id, now, changes={"first_empty_lookup_at": now})
     if now - first >= LOOKUP_GAP:
-        return update_run(state, run_id, now, "launch_failed")
+        return update_run(state, run_id, now, "launch_failed", {"ended_at": now, "end_reason": "launch_failed"})
     return read_run(state, run_id)
