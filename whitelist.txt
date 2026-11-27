@@ -8,6 +8,7 @@ chunksize
 cjk
 cloudflarestorage
 codec
+codeload
 coeng
 copyfile
 crockford
@@ -18,7 +19,9 @@ e2e
 enospc
 exc
 exitcode
+extractall
 ffmpeg
+fileobj
 formatter
 fromkeys
 fromtimestamp
@@ -72,6 +75,7 @@ setenv
 setframerate
 setnchannels
 setsampwidth
+sha
 sig
 sighup
 sigint
@@ -79,6 +83,7 @@ sigkill
 signum
 sigterm
 silero
+snakers4
 srt
 strerror
 tmp
@@ -95,6 +100,7 @@ utils
 v2
 v3
 vad
+vads
 validator
 virama
 watchdog

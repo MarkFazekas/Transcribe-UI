@@ -1,5 +1,7 @@
 """Constants of the transcription engines (WhisperX settings, architecture §5.3), the engine process and the fake."""
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Final
 
 # Engine process message: models loaded; payload = settings of normal and careful mode.
@@ -40,8 +42,6 @@ MODEL: Final = "large-v3"
 DEVICE: Final = "cuda"
 # Compute type of the Whisper model in `ctranslate2`.
 COMPUTE_TYPE: Final = "float16"
-# Voice activity detection of the batched pipeline (WhisperX defaults to `pyannote`).
-VAD_METHOD: Final = "silero"
 # Segments decoded together by the batched (normal mode) pipeline.
 BATCH_SIZE: Final = 16
 
@@ -70,7 +70,21 @@ CAREFUL_VAD_SPEECH_PAD_MS: Final = 400
 # Start of the ValueError message WhisperX raises when a language has no default alignment model.
 NO_ALIGN_MODEL_MESSAGE: Final = "No default align-model for language"
 
-# Torch hub repository WhisperX loads its Silero VAD from (baked into the image's hub cache).
-SILERO_HUB_REPO: Final = "snakers4/silero-vad"
-# Torch hub entry point of the Silero VAD.
+# Torch hub entry point of the Silero VAD (loaded from the baked local copy, never from GitHub).
 SILERO_HUB_MODEL: Final = "silero_vad"
+# Silero VAD release baked into the image, and its commit (the archive is fetched by commit).
+SILERO_RELEASE_TAG: Final = "v6.3"
+# Commit of SILERO_RELEASE_TAG in snakers4/silero-vad.
+SILERO_COMMIT: Final = "63d4a2a7bfce8cd9bb39ed8fa0afcb5236d73e01"
+# Source archive of SILERO_COMMIT (codeload, not the rate-limited GitHub API).
+SILERO_ARCHIVE_URL: Final = f"https://codeload.github.com/snakers4/silero-vad/tar.gz/{SILERO_COMMIT}"
+# SHA-256 of that archive, checked before it is unpacked.
+SILERO_ARCHIVE_SHA256: Final = "f39a3de8508467b2bbd25bd72bee17d0d5fdfd3d16800c671b441ccf3a77cf61"
+# Folder under the torch hub dir ($TORCH_HOME/hub) holding the unpacked Silero repository.
+SILERO_HUB_DIR_NAME: Final = "snakers4_silero-vad_master"
+# WhisperX 3.8.6 default VAD options (`asr.load_model`), passed explicitly with our own Silero.
+WHISPERX_VAD_OPTIONS: Final[Mapping[str, float]] = MappingProxyType(
+    {"chunk_size": 30, "vad_onset": 0.5, "vad_offset": 0.363},
+)
+# Seconds allowed for a model download at image build time.
+DOWNLOAD_TIMEOUT_S: Final = 300

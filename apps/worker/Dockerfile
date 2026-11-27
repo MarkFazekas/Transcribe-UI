@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # Runpod worker image (architecture §5.1). Build from the repository root:
 #   docker build -f apps/worker/Dockerfile -t transcribe-ui-worker .
 
@@ -40,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package transcribe-worker --extra engine --no-editable
 
 # cuBLAS and cuDNN come from the torch wheels; CTranslate2 finds them through this path.
-ENV LD_LIBRARY_PATH=/opt/venv/lib/python3.13/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.13/site-packages/nvidia/cudnn/lib
+ENV LD_LIBRARY_PATH=/opt/venv/lib/python3.13/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.13/site-packages/nvidia/cudnn/lib:${LD_LIBRARY_PATH}
 
 RUN python -m transcribe_worker.engine.bake
 

@@ -2,9 +2,9 @@
 
 The only module that imports the GPU stack (`whisperx`, `torch`, `ctranslate2`); it is
 imported in the worker image only. Model weights resolve through `HF_HOME` (Whisper, HF
-aligners) and `TORCH_HOME` (torchaudio aligners; the Silero VAD of WhisperX, which it loads
-with `torch.hub.load("snakers4/silero-vad")` and so must be in the hub cache, baked at image
-build, to avoid a fetch at run time), which the image sets.
+aligners) and `TORCH_HOME` (torchaudio aligners, and the Silero VAD baked as a local hub
+repository and loaded through `engine.silero.LocalSilero`, so the engine start never contacts
+GitHub), which the image sets.
 
 Normal mode runs WhisperX's batched pipeline (WhisperX 3.8.6 `asr.py`
 `generate_segment_batched`), which decodes each speech chunk once: it reads `beam_size` from
@@ -32,6 +32,7 @@ from transcribe_contracts.classes import EngineInfo
 from transcribe_worker.engine import constants
 from transcribe_worker.engine.classes import Transcript
 from transcribe_worker.engine.convert import build_transcript, same_text
+from transcribe_worker.engine.silero import LocalSilero
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,11 @@ class WhisperXTranscriber:
             constants.MODEL,
             constants.DEVICE,
             compute_type=constants.COMPUTE_TYPE,
-            vad_method=constants.VAD_METHOD,
+            vad_model=LocalSilero(
+                vad_onset=constants.WHISPERX_VAD_OPTIONS["vad_onset"],
+                chunk_size=constants.WHISPERX_VAD_OPTIONS["chunk_size"],
+            ),
+            vad_options=dict(constants.WHISPERX_VAD_OPTIONS),
             model=self._model,
         )
         self._aligner: Aligner | None = None
