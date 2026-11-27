@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QLabel
 from pytestqt.qtbot import QtBot
 
 from support.fakes import seeded_ports
-from support.gated import HELD_STAGE, UPLOAD, GatedRunner, upload, uploads, wait_for
+from support.gated import HELD_STAGE, UPLOAD, GatedRunner, listing, upload, uploads, wait_for
 from support.gui import window_over
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, NeedsConfirmation
@@ -106,8 +106,11 @@ def test_the_error_dialog_fix_opens_the_named_batch(window: MainWindow) -> None:
     assert window.pages.current_page() == PAGE_JOBS
 
 
-def test_the_error_dialog_retries_app_busy(window: MainWindow) -> None:
-    """`app_busy`'s fix calls the retry of the action that failed; details stay collapsed until asked."""
+def test_the_error_dialog_retries_app_busy(window: MainWindow, gated: GatedRunner, qtbot: QtBot) -> None:
+    """`app_busy`'s fix re-sends the failed action and probes the lock, so the notice clears too."""
+    lock = window.context.lock
+    lock.note(listing(), _error("app_busy"))
+    assert lock.state == "busy"
     retried: list[bool] = []
     dialog = window.show_error(error_view(_error("app_busy")), lambda: retried.append(True))
     assert not dialog.details.isVisibleTo(dialog)
@@ -115,7 +118,8 @@ def test_the_error_dialog_retries_app_busy(window: MainWindow) -> None:
     assert dialog.details.isVisibleTo(dialog)
     assert dialog.fix_button is not None
     dialog.fix_button.click()
-    assert retried == [True]
+    wait_for(qtbot, lambda: lock.state == "held")
+    assert (retried, gated.started("list_batches")) == ([True], 1)
 
 
 def test_app_busy_without_a_retry_probes_the_lock(window: MainWindow, gated: GatedRunner, qtbot: QtBot) -> None:
