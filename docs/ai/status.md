@@ -44,5 +44,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. M5 wave 2 per `docs/ai/plans/m5.md` §4: M5.5, M5.6 and M5.7 (M5.1-M5.4 are built); M4
-   runs whenever the architect is available.
+2. M5 wave 2 per `docs/ai/plans/m5.md` §4: M5.5 and M5.6 (M5.1-M5.4 and M5.7 are built);
+   M4 runs whenever the architect is available.
