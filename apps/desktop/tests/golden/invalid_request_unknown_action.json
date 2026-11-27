@@ -1,0 +1,21 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [],
+            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info'",
+            "type": "union_tag_invalid"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

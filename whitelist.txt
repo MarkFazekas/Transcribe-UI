@@ -5,6 +5,8 @@ asr
 astimezone
 backoff
 base32
+bom
+boms
 caplog
 casefold
 chunksize
@@ -16,9 +18,12 @@ coeng
 copyfile
 crockford
 ctranslate2
+ctrl
 cuda
 delenv
+dest
 devnull
+dfl
 divmod
 dns
 e2e
@@ -36,7 +41,9 @@ fullwidth
 gc
 getframerate
 getnchannels
+getrandbits
 getsampwidth
+getsignal
 gettempdir
 groupby
 hhmmss
@@ -53,9 +60,12 @@ levelname
 linkname
 liveness
 localhost
+metavar
 misconfigured
 moto
 ngram
+normaliser
+normcase
 nowait
 onnx
 openai
@@ -67,6 +77,7 @@ posix
 prefetch
 prefetcher
 preprocess
+prog
 pyannote
 pydantic
 q10
@@ -96,7 +107,9 @@ silero
 snakers4
 srt
 strerror
+subparsers
 symtype
+sysconfig
 tmp
 tokenizer
 ui
@@ -108,6 +121,7 @@ unspaced
 untimed
 untracked
 untrusted
+utf16
 utils
 v2
 v3

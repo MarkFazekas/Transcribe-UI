@@ -1,0 +1,24 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "get_app_info",
+              "verbose"
+            ],
+            "message": "Extra inputs are not permitted",
+            "type": "extra_forbidden"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

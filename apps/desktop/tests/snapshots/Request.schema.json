@@ -1,0 +1,31 @@
+{
+  "$defs": {
+    "GetAppInfoRequest": {
+      "additionalProperties": false,
+      "description": "Ask for the app version and the data contract version (nothing machine-specific).",
+      "properties": {
+        "action": {
+          "const": "get_app_info",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "GetAppInfoRequest",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "get_app_info": "#/$defs/GetAppInfoRequest"
+    },
+    "propertyName": "action"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/GetAppInfoRequest"
+    }
+  ]
+}

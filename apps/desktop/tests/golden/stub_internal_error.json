@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "get_app_info",
+    "error": {
+      "code": "internal_error",
+      "message": "Unexpected internal error; the details are in the log.",
+      "details": {}
+    }
+  },
+  "events": []
+}

@@ -51,15 +51,42 @@ docs/human/, docs/ai/     see CLAUDE.md
 
 ### 3.1 Backend / frontend boundary
 
-- The backend exposes one façade: `Backend.execute(request: Request, progress: ProgressSink) ->
-  Response`. `Request` is a Pydantic discriminated union on `action` (for example
-  `scan_tree`, `preview_selection`, `create_batch`, `review_batch`, `run_upload`, `launch_worker`,
-  `refresh_status`, `plan_download`, `run_download`, `cleanup_cloud`, `export_custom_plan`,
-  `import_custom_plan`). Each request type has a matching response model.
+- The backend exposes one façade: `Backend.execute(request: Request, progress: ProgressSink,
+  cancel: CancelToken) -> Response` (`execute_json` validates a JSON document first; an invalid
+  one is answered with the error `invalid_request`). `Request` is a Pydantic discriminated union
+  on `action` (for example `get_app_info`, `scan_tree`, `preview_selection`, `create_batch`,
+  `review_batch`, `run_upload`, `launch_worker`, `refresh_status`, `plan_download`,
+  `run_download`, `cleanup_cloud`, `export_custom_plan`, `import_custom_plan`). `Response` is a
+  union discriminated on `status`:
+  - `ok`: the request's own response model (discriminated on `action`);
+  - `needs_confirmation`: nothing was changed; it lists the request fields to set
+    (confirmations are data, so GUI, CLI and MCP behave the same);
+  - `error`: `{"status": "error", "action": ..., "error": {"code", "message", "details"}}`
+    (§6). Handlers raise `DomainError(code, ...)`; an unexpected exception becomes
+    `internal_error` with a generic message (the traceback goes to the log only).
+- Models live in `transcribe_ui/api/classes.py` (not in contracts: they are not shared with the
+  worker). A path on the user's computer is typed `LocalPath`, the host's path flavour
+  `PathFlavor`; golden-file tests normalise exactly these fields (§7).
+- The dispatch table (`api/backend.py`) maps each action to its handler and marks whether it
+  needs the database; request types that do not (app info, settings, credentials, scans) never
+  open it, so the CLI can run them while the GUI holds the writer lock.
+- Cancellation: long requests check the `CancelToken` between items and stop with the error
+  `cancelled` after persisting what is done; re-sending the request resumes.
 - Frontends only build requests and render responses/progress events:
-  - **CLI**: `transcribe-ui run request.json` validates the file into `Request`, prints the
-    `Response` as JSON; progress events go to stderr as NDJSON. `transcribe-ui schema` prints
-    the JSON Schema of `Request` so requests can be written by hand or by an LLM.
+  - **CLI** (argparse): `transcribe-ui run request.json` validates the file into `Request`,
+    prints the `Response` as indented JSON; progress events go to stderr as NDJSON; both UTF-8
+    with `\n` line ends on every OS. Nothing else reaches stderr (log records and warnings are
+    dropped until the M5.2 log file), and stdout gets a JSON response whatever fails: an
+    unexpected exception outside the backend gives `internal_error` (exit 1), a Ctrl+C before a
+    request was read gives `cancelled` (exit 130). The one exception is `--help`/`-h`: argparse's
+    usage text, exit 0. The request file must be UTF-8; a UTF-8 byte order mark is stripped,
+    and a UTF-16 file (PowerShell 5.1 `>` / `Out-File`) is refused with `invalid_request`
+    ("must be UTF-8"). Ctrl+C sets the cancel token, a second Ctrl+C stops at
+    once (every step is idempotent, so the state is consistent either way). Exit codes: 0
+    success, 1 error response, 2 request file (or command line) invalid, 3
+    `needs_confirmation`, 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
+    `Request` (`--response`: of `Response`) so requests can be written by hand or by an LLM;
+    `--version` prints the app version.
   - **GUI**: view-models translate widget state into the same request models.
   - **MCP (later)**: one FastMCP tool per request type; the tool signature is the request
     model, so no new business logic is needed.
@@ -574,8 +601,9 @@ the image and the pod-create request never contain credentials.
 
 Few unit tests; mostly regression and flow tests:
 
-- **Contract tests** (`packages/contracts`): JSON Schema snapshots of the manifest, results and
-  `Request`/`Response` unions; any change is a visible diff.
+- **Contract tests**: JSON Schema snapshots of the stored objects (manifest, results, run
+  status, batch summary) in `packages/contracts/tests/snapshots/`, and of the desktop's
+  `Request`/`Response` unions in `apps/desktop/tests/snapshots/`; any change is a visible diff.
 - **Desktop flow tests**: a tiny media tree is generated at test time with ffmpeg `lavfi`
   sources (multi-track video, AAC/Opus/AC3/PCM audio, existing sidecar subtitles); S3 is
   `moto`; Runpod is an `httpx` mock. Flows: scan → filter → select → create batch → convert +
@@ -585,6 +613,22 @@ Few unit tests; mostly regression and flow tests:
   media adapter and normalise temp roots, path separators and the path flavour, so the files
   match on every OS; flows with the real ffmpeg assert structure, since its output differs
   across builds.
+  - Parity runner (`apps/desktop/tests/support/parity.py`): each leg gets a fresh temp root and
+    a backend from the same seeded factory (fixed clock, seeded ULID randomness); the backend
+    leg calls `Backend.execute_json`, the CLI leg calls the CLI's `main(["run", <file>])`
+    in-process with the same backend injected. Responses, progress events and exit codes are
+    compared step by step after normalisation. A request document may contain `<root>`, which
+    each leg replaces with its own root. One test runs the installed `transcribe-ui` entry
+    point as a subprocess.
+  - Normalisation touches only `LocalPath` and `PathFlavor` fields (their serializers apply
+    rewrite functions passed in the serialization context): the leg's root, as created and as
+    resolved (`os.path.realpath`; symlinks, Windows 8.3 short names such as `RUNNER~1`) →
+    `<root>`, separators → `/`; the flavour → `<flavor>`. Test trees get fixed mtimes, and the
+    clock, time zone and ULID randomness are fixed, so the normalised JSON is byte-identical on
+    every OS.
+  - Golden files live in `apps/desktop/tests/golden/` and are compared byte for byte;
+    `UPDATE_SNAPSHOTS=1` regenerates them and the schema snapshots. On a rebase conflict in a
+    golden or snapshot file, regenerate it; never merge it by hand.
 - **Worker flow tests**: fake transcriber behind the engine protocol + `moto` (the WhisperX
   stack is an optional extra, not installed in CI): discovery, language ordering,
   prefetch pipeline, resume after a kill, failure isolation (one failing file, one empty
@@ -610,7 +654,8 @@ Few unit tests; mostly regression and flow tests:
 
 - `ci.yml` runs on every pull request and push to `main` (no workflow-level path filter, so
   required checks always report). A first job detects which members changed; lint, typecheck
-  and test jobs per member run only when needed; one aggregate `ci-ok` job is the single
+  and test jobs per member run only when needed (the desktop member on Ubuntu and on
+  `windows-2025`); one aggregate `ci-ok` job is the single
   required status check. gitlint checks PR commits.
 - `release-desktop.yml` on push to `main` when desktop/contracts code changes: PyInstaller
   one-file builds on Windows, macOS arm64, macOS x86_64 and Ubuntu 22.04, smoke-run
@@ -663,7 +708,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`): Desktop backend: façade, discovery and selection,
+- **M5** (planned in `plans/m5.md`; M5.1 built): Desktop backend: façade, discovery and selection,
   batches, conversion and resumable R2 upload, credentials, worker launch and monitoring,
   download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

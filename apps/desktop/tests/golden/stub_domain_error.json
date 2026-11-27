@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "get_app_info",
+    "error": {
+      "code": "batch_busy",
+      "message": "Another request is working on this batch.",
+      "details": {
+        "batch_id": "batch_20261127_120000"
+      }
+    }
+  },
+  "events": []
+}
