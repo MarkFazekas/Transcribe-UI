@@ -33,12 +33,17 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - Architect: create the pods-only Runpod key and store it as `RUNPOD_REAPER_API_KEY` in a
   `runpod-reaper` GitHub environment restricted to `main`. Until then the reaper is inactive.
 - Architect: schedule the M4 approved Runpod run.
-- Product: Q22 (Chinese and Japanese line length) in `questions-for-product.md`.
+- Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
+  gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
+  before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud) in
+  `questions-for-product.md`. M5 is planned on the proposed defaults.
+- Architect: A18 (R2 credentials for the pod), A19 (maximum wait for a machine) in
+  `questions-for-architect.md`.
 
 ## Next
 
 1. Merge the reaper; check its first scheduled run.
 2. Check the release-worker run on `main` pushed the image tags `sha-<short>`, `latest` and
    `schema-1` to `markfazekasgh/transcribe-ui-worker`.
-3. Write `docs/ai/plans/m5.md`, then M5 part by part (M4 runs whenever the architect is
-   available).
+3. M5 part by part per `docs/ai/plans/m5.md` §3-4, starting with M5.1 (desktop package
+   bootstrap and façade); M4 runs whenever the architect is available.
