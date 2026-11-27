@@ -574,8 +574,9 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5**: Desktop backend: façade, discovery and selection, batches, conversion and resumable
-  R2 upload, credentials, worker launch and monitoring, download and placement (§3.1-3.7).
+- **M5** (planned in `plans/m5.md`): Desktop backend: façade, discovery and selection,
+  batches, conversion and resumable R2 upload, credentials, worker launch and monitoring,
+  download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` one-file builds for the four platforms (§8).
