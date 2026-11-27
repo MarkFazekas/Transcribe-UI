@@ -2611,6 +2611,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "sqlalchemy" },
     { name = "transcribe-contracts" },
+    { name = "tzdata" },
 ]
 
 [package.metadata]
@@ -2623,6 +2624,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12" },
     { name = "sqlalchemy", specifier = ">=2.1" },
     { name = "transcribe-contracts", editable = "packages/contracts" },
+    { name = "tzdata", specifier = ">=2026.6" },
 ]
 
 [[package]]

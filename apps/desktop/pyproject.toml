@@ -15,6 +15,8 @@ dependencies = [
     "pydantic>=2.12",
     "sqlalchemy>=2.1",
     "transcribe-contracts",
+    # IANA time zones for zoneinfo where the OS has none (Windows).
+    "tzdata>=2026.6",
 ]
 
 [project.scripts]
