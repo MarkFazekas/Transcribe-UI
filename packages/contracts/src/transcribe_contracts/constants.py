@@ -1,6 +1,7 @@
 """Constants of the R2 data contract."""
 
 from collections.abc import Mapping
+from datetime import timedelta
 from types import MappingProxyType
 from typing import Final
 
@@ -48,6 +49,19 @@ ULID_TIME_BITS: Final = 48
 ULID_RANDOM_BITS: Final = 80
 # Audio file extension without the dot; lower case so keys are canonical.
 AUDIO_EXTENSION_PATTERN: Final = r"^[a-z0-9]{1,10}$"
+
+# Prefix of every pod and queued pod the app creates; the reaper and the single-worker check match it.
+POD_NAME_PREFIX: Final = "transcribe-ui-"
+# Separator between the run id and the deadline in a pod name.
+POD_NAME_DEADLINE_SEPARATOR: Final = "-until-"
+# strftime/strptime format of the deadline in a pod name (UTC, whole minutes).
+POD_DEADLINE_FORMAT: Final = "%Y%m%dT%H%MZ"
+# Full pod name "transcribe-ui-<run ULID>-until-<YYYYMMDDTHHMMZ>"; groups `run_id` and `deadline`.
+POD_NAME_PATTERN: Final = r"^transcribe-ui-(?P<run_id>[0-9A-HJKMNP-TV-Z]{26})-until-(?P<deadline>[0-9]{8}T[0-9]{4}Z)$"
+# Resolution of the deadline in a pod name; deadlines are rounded up to it.
+POD_DEADLINE_RESOLUTION: Final = timedelta(minutes=1)
+# Longest pod name we build: the v2 spec sets no maximum, so we keep to a DNS label (63).
+POD_NAME_MAX_LENGTH: Final = 63
 
 # Shape of a language code in stored objects (ISO 639-1, or 639-3 such as "haw", "yue").
 LANGUAGE_CODE_PATTERN: Final = r"^[a-z]{2,3}$"

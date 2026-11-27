@@ -1,0 +1,71 @@
+name: reaper
+
+# Termination layer 4 (architecture §5.2): terminates overdue `transcribe-ui-*` pods and cancels
+# overdue queued pods with a pods-only Runpod key. Scheduled runs always use the default branch;
+# the key lives in the `runpod-reaper` environment, whose deployment branch policy allows only
+# main. Until the key exists, every run only warns and succeeds.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Only report what would be done (no DELETE)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # Live passes never overlap, and a running pass is never cancelled by the next one. Dry runs
+  # have their own group: GitHub keeps only one pending run per group, so a manual dry run must
+  # not replace a pending scheduled live pass (on schedule `inputs.dry-run` is empty: live).
+  group: reaper-${{ inputs.dry-run && 'dry' || 'live' }}
+  cancel-in-progress: false
+
+jobs:
+  reap:
+    runs-on: ubuntu-24.04
+    # A pass ends by about 10.7 minutes in the worst case (arithmetic in reaper/constants.py:
+    # queued phase, then a pod phase that always gets its own window); 15 leaves room for
+    # checkout and install.
+    timeout-minutes: 15
+    environment: runpod-reaper
+    steps:
+      - id: key
+        name: Check the reaper key
+        env:
+          RUNPOD_REAPER_API_KEY: ${{ secrets.RUNPOD_REAPER_API_KEY }}
+        run: |
+          if [ -n "$RUNPOD_REAPER_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::reaper disabled: RUNPOD_REAPER_API_KEY not set"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.key.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - if: steps.key.outputs.present == 'true'
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          # Pinned (the local uv version), so the job does not pick up a new uv unreviewed.
+          version: "0.11.8"
+          # No cache in a job that holds a deployment secret.
+          enable-cache: false
+      - if: steps.key.outputs.present == 'true'
+        name: Install the worker package without the GPU stack
+        run: uv sync --locked --no-dev --package transcribe-worker
+      - if: steps.key.outputs.present == 'true'
+        name: Reap overdue pods
+        env:
+          RUNPOD_REAPER_API_KEY: ${{ secrets.RUNPOD_REAPER_API_KEY }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          uv run --no-sync transcribe-worker-reaper "${args[@]}"

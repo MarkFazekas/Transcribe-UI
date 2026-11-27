@@ -34,6 +34,7 @@ from transcribe_worker.entry.watchdog import watch
 
 POD_ID = "pod_test123"
 API_KEY = "test-key"
+URL_CREDENTIAL = "url-credential-value"
 TERMINATE = "terminate"
 STOP = "stop"
 DELETE = "DELETE"
@@ -299,12 +300,19 @@ def test_config_repr_hides_the_api_key() -> None:
 
 @pytest.mark.parametrize(
     "base_url",
-    ["http://api.runpod.io/v2", "https://evil.example/v2", "http://127.0.0.1:@evil.example/v2", "ftp://127.0.0.1/"],
+    [
+        "http://api.runpod.io/v2",
+        "https://evil.example/v2",
+        "http://127.0.0.1:@evil.example/v2",
+        "ftp://127.0.0.1/",
+        f"https://user:{URL_CREDENTIAL}@api.runpod.io/v2",
+    ],
 )
 def test_untrusted_api_urls_are_refused(base_url: str) -> None:
-    """The API key only goes to runpod.io over TLS, or to the local fake API."""
-    with pytest.raises(ValueError, match="refusing API base URL"):
+    """The API key only goes to runpod.io over TLS, or to the local fake API; the URL is not echoed."""
+    with pytest.raises(ValueError, match="refusing API base URL") as refused:
         RunpodPodApi(base_url, API_KEY, POD_ID)
+    assert URL_CREDENTIAL not in str(refused.value)
 
 
 @dataclass
@@ -454,7 +462,7 @@ def test_protocol_errors_are_pod_api_errors(monkeypatch: pytest.MonkeyPatch) -> 
     partial_body = b"secret"
     opener = Mock(spec=["open"])
     opener.open.side_effect = IncompleteRead(partial_body)
-    monkeypatch.setattr(api, "_opener", opener)
+    monkeypatch.setattr(api._session, "_opener", opener)  # noqa: SLF001 - inject the failure below the client
     with pytest.raises(PodApiError, match="IncompleteRead") as caught:
         api.terminate()
     assert "secret" not in str(caught.value)
