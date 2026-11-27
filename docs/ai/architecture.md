@@ -826,7 +826,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     `ffmpeg.exe` runs the real ffmpeg as its own child):
     - POSIX: a new session (`start_new_session`; no `preexec_fn`, which is not thread-safe);
       the kill is `killpg(SIGKILL)`. The runner tracks every running tool, so the GUI's "Quit
-      now" kills them before `os._exit` (`kill_running_tools`). If the app itself dies
+      now" kills them before `os._exit` (`kill_running_tools`). A tool killed that way, or one
+      that ends while the cancel token is set, gives `cancelled`, never a result (so no
+      `media_tool_failed` is stored). If the app itself dies
       otherwise, a running ffmpeg is orphaned and runs to its end; this is accepted, since it writes only its own uniquely named partial
       file, which the next `run_upload` of its batch removes when it empties the batch's temp
       folder (§3.3 "Upload");

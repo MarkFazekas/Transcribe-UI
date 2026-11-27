@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from transcribe_ui.api.errors import CancelledError
-from transcribe_ui.api.ports import CancelFlag
+from transcribe_ui.api.ports import CancelFlag, CancelToken
 from transcribe_ui.media.runner import ProcessTimeoutError, SubprocessRunner, kill_running_tools, running_tools
 
 # Child that appends a dot to the file named by its argument every 10 ms, forever.
@@ -173,22 +173,38 @@ def test_child_runs_in_its_own_session() -> None:
     assert child_session != os.getsid(0)
 
 
-def _run_beating(beat: Path, outcome: list[int]) -> None:
-    outcome.append(SubprocessRunner().run(_python(HEARTBEAT, str(beat)), RUN_TIMEOUT_S, CancelFlag()).returncode)
+def _run_beating(beat: Path, cancel: CancelToken, outcome: list[BaseException | int]) -> None:
+    try:
+        outcome.append(SubprocessRunner().run(_python(HEARTBEAT, str(beat)), RUN_TIMEOUT_S, cancel).returncode)
+    except CancelledError as error:
+        outcome.append(error)
+
+
+def _quit_now_while_running(beat: Path, cancel: CancelFlag, *, flag_first: bool) -> list[BaseException | int]:
+    outcome: list[BaseException | int] = []
+    waiter = threading.Thread(target=_run_beating, args=(beat, cancel, outcome))
+    waiter.start()
+    _wait_for_beat(beat)
+    assert running_tools.count() == 1
+    if flag_first:
+        cancel.cancel()
+    kill_running_tools()
+    waiter.join(KILL_BUDGET_S)
+    assert not waiter.is_alive()
+    _assert_stopped(beat)
+    assert running_tools.count() == 0
+    return outcome
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows: the kill-on-close job ends the tools with the process")
 def test_quit_now_kills_running_tools(tmp_path: Path) -> None:
-    """`kill_running_tools` (the GUI's "Quit now") kills a tool another thread still waits for (POSIX)."""
-    beating = tmp_path / "heartbeat"
-    outcome: list[int] = []
-    waiter = threading.Thread(target=_run_beating, args=(beating, outcome))
-    waiter.start()
-    _wait_for_beat(beating)
-    assert running_tools.count() == 1
-    kill_running_tools()
-    waiter.join(KILL_BUDGET_S)
-    assert not waiter.is_alive()
-    _assert_stopped(beating)
-    # A negative return code: the tool ended by a signal (SIGKILL), not by itself.
-    assert ([code < 0 for code in outcome], running_tools.count()) == ([True], 0)
+    """`kill_running_tools` (the GUI's "Quit now") kills a waited-for tool; the run is cancelled, not failed."""
+    outcome = _quit_now_while_running(tmp_path / "heartbeat", CancelFlag(), flag_first=False)
+    assert [type(ended) for ended in outcome] == [CancelledError]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows: the kill-on-close job ends the tools with the process")
+def test_quit_now_with_the_flag_set_is_a_cancel(tmp_path: Path) -> None:
+    """Killed while its cancel flag is set (close, then "Quit now"): `CancelledError`, never a result."""
+    outcome = _quit_now_while_running(tmp_path / "heartbeat", CancelFlag(), flag_first=True)
+    assert [type(ended) for ended in outcome] == [CancelledError]
