@@ -82,9 +82,10 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 - boto3 is typed through the `types-boto3[s3]` dev dependency (imported only under
   `TYPE_CHECKING`).
 - CI installs the system `ffmpeg` for the worker and desktop targets (apt on Ubuntu,
-  Chocolatey on Windows; the worker's decode tests and the desktop's media tests run the real
-  binary, the desktop's generating tiny media with `lavfi` sources in
-  `apps/desktop/tests/support/media.py`); locally it must be on `PATH`. Kill-on-cancel and
+  Chocolatey on Windows, retried up to three times and passed only once the `ffmpeg` and
+  `ffprobe` shims run, since Chocolatey can exit 0 without installing; the worker's decode
+  tests and the desktop's media tests run the real binary, the desktop's generating tiny media
+  with `lavfi` sources in `apps/desktop/tests/support/media.py`); locally it must be on `PATH`. Kill-on-cancel and
   timeout through the media adapter are tested on every OS with a Python child standing in for
   ffmpeg (directly and behind a shim-like parent, `test_media_kill.py`); the same tests on the
   real ffmpeg read a named pipe and run on POSIX only.
