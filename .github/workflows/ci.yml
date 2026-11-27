@@ -84,13 +84,32 @@ jobs:
       - name: Install ffmpeg (desktop media tests)
         if: runner.os == 'Windows'
         shell: pwsh
-        # Up to three attempts: a Chocolatey feed hiccup must not fail the leg.
+        # Up to three attempts. Chocolatey can exit 0 without installing anything (a feed
+        # 504 did), so an attempt only counts once the ffmpeg and ffprobe shims run. The
+        # shims live in the Chocolatey bin directory, which is put on PATH for later steps.
         run: |
+          $bin = Join-Path $env:ChocolateyInstall 'bin'
           for ($attempt = 1; $attempt -le 3; $attempt++) {
-            choco install ffmpeg --yes --no-progress
-            if ($LASTEXITCODE -eq 0) { exit 0 }
-            Start-Sleep -Seconds 30
+            $force = @()
+            if ($attempt -gt 1) { $force = @('--force') }
+            choco install ffmpeg --yes --no-progress @force
+            $ok = $true
+            foreach ($tool in 'ffmpeg', 'ffprobe') {
+              try {
+                & (Join-Path $bin "$tool.exe") -version | Out-Null
+                if ($LASTEXITCODE -ne 0) { $ok = $false }
+              } catch {
+                $ok = $false
+              }
+            }
+            if ($ok) {
+              $bin | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+              exit 0
+            }
+            Write-Warning "ffmpeg install attempt $attempt did not produce working shims"
+            if ($attempt -lt 3) { Start-Sleep -Seconds 30 }
           }
+          Write-Host "::error::ffmpeg and ffprobe are not usable after 3 Chocolatey attempts"
           exit 1
       - run: uv sync --locked --all-packages
       - run: uv run scripts/check.py ${{ matrix.target }}
