@@ -45,8 +45,8 @@ BYTES_PER_GB: Final = 1024**3
 
 # R2 region name (R2 ignores it, botocore needs one).
 R2_REGION: Final = "auto"
-# Attempts per S3 request (botocore "standard" retry mode, with backoff).
-S3_MAX_ATTEMPTS: Final = 5
+# Total attempts per S3 request, the first included (botocore "standard" retry mode, with backoff).
+S3_TOTAL_ATTEMPTS: Final = 6
 # Seconds to wait for a connection to R2 (bounded, so an outage cannot block a billed pod).
 S3_CONNECT_TIMEOUT_S: Final = 10
 # Seconds to wait for data on an open R2 connection.
