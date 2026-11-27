@@ -605,7 +605,8 @@ docs/human/, docs/ai/     see CLAUDE.md
   subtracted (ffmpeg's default without `-copyts`), since players count from the start of the
   file. Bitmap codecs (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`, `xsub`) and unknown
   ones are transcribe-only.
-- ffmpeg/ffprobe: bundled static LGPL builds inside the executable. Resolution order: the
+- ffmpeg/ffprobe: bundled static LGPL builds inside each executable (GUI and CLI; the CLI needs
+  them for `run_upload`). Resolution order: the
   path set in the settings, then the bundled build (`sys._MEIPASS` of a PyInstaller build),
   then `PATH` (development runs without a bundle), so a `PATH` ffmpeg of unknown version never
   silently replaces the tested one. A settings path that is not absolute on this computer or
@@ -1521,7 +1522,7 @@ pods-only key is passed as a Runpod secret.
   share the word's time, or the segment's when untimed, in proportion to length, so the
   line and cue limits hold; lines and cues may break between units. Thai and similar
   scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
-  width (42 characters for every language, requirements "Subtitle download options"); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  width (42 characters for every language, requirements "Deployed app (worker)"); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
   text (the compression and segment checks still do).
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
@@ -1713,8 +1714,9 @@ Few unit tests; mostly regression and flow tests:
 - `release-desktop.yml` on push to `main` when desktop/contracts code changes: PyInstaller
   one-file builds on Windows, macOS arm64, macOS x86_64 and Ubuntu 22.04, two per platform:
   the GUI build (windowed, with Qt) and the CLI build (console, without Qt; it must never
-  import Qt). Smoke-run the CLI build's `--version`, upload only the executables
-  (`actions/upload-artifact` with `archive: false`) and attach the eight executables to a
+  import Qt; it is small and fast to start). Smoke-test both builds: the CLI build's
+  `--version`, and the GUI build's start-and-quit (offscreen platform, on every OS). Upload only the executables
+  (`actions/upload-artifact` with `archive: false`) and attach the eight executables (file names unique per OS and variant) to a
   GitHub Release. Builds are unsigned for now (macOS
   users clear the quarantine flag; Windows SmartScreen may warn).
 - `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
@@ -1770,5 +1772,5 @@ next step are in `docs/ai/status.md`.
   (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
-  platforms, eight files (§8; the workflow does not exist yet).
+  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit).
 - **Later**: MCP frontend over the same requests.
