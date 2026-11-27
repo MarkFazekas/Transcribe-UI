@@ -413,7 +413,7 @@ docs/human/, docs/ai/     see CLAUDE.md
       its `manifest_step`, before the new manifest is written; `publish_held_manifests`, which
       first finishes the pending withdrawal of every `uploading` batch (held or not, its lock
       only tried) and is called by `launch_worker` before it launches and by
-      `refresh_status`; the orphan sweep of `run_upload` (before it deletes anything); and the
+      `refresh_status`; the start of every `run_upload` (before its orphan sweep); and the
       extract-only transition to `transcribed` (below). The launch scope counts a leftover whose digest a
       pending withdrawal recorded as absent (a held batch is counted from the database).
     - **Remaining window.** This app cannot launch during a withdrawal: its launch holds the
@@ -434,12 +434,13 @@ docs/human/, docs/ai/     see CLAUDE.md
   and the runs lock is taken only through its bounded wait.
   - **Start.** A batch in `reviewing` needs every item `reviewed` (else `review_incomplete`,
     details: the item ids). Batch ids are unique only in this database, so before the first
-    upload `batch_metadata/<id>.json` and everything under `<id>/` must be absent (else
+    upload `batch_metadata/<id>.json`, every object under `<id>/` and every open multipart
+    upload there (`ObjectStore.count_uploads`; an error fails closed) must be absent (else
     `batch_id_taken`: another computer's batch of the same second, or one of a deleted
     database; nothing changes, the user deletes the batch and creates it again, which gives a
     new id); then the batch moves `reviewing` → `uploading` by compare-and-set. From then on
     objects under the prefix are taken as the batch's own. Remaining window: another computer
-    creating the same id in the same second and checking before this one uploads anything
+    creating the same id in the same second and checking before this one has started an upload
     shares the prefix; the sweep and the stale-upload abort below could then remove its
     objects. Accepted (two computers, same second, both uploading at once).
   - **Leftovers of an interruption.** Each batch has its own temp folder
@@ -449,18 +450,22 @@ docs/human/, docs/ai/     see CLAUDE.md
     the batch: objects of excluded or re-reviewed items whose deletion was interrupted, objects
     uploaded but never recorded, another extension of a track (one rule covers the plan's
     "orphans" and "what is left under a re-uploaded item's prefix"). A pending withdrawal is
-    finished first (under the runs lock, no run active), since its leftover manifest may list
-    those objects; while a run is active, the cloud cannot be checked or the runs lock stays
-    busy, the sweep is put off (`sweep_skipped: true`) and the upload goes on: the objects are
-    in no manifest this database builds, and the withdrawal is finished before any new
-    manifest is written.
+    finished first, whether or not there are orphans (under the runs lock, no run active),
+    since its leftover manifest may list those objects; while a run is active, the cloud
+    cannot be checked or the runs lock stays busy, the withdrawal and the sweep are put off
+    (`sweep_skipped: true`) and the upload goes on: the objects are in no manifest this
+    database builds, and the withdrawal is finished before any new manifest is written.
   - **Per item** (resolved items in selection order; `uploaded` ones are skipped, items in
     review are reported), each step in its own transaction, so a resume continues after the
     last recorded step:
     - the source-unchanged check (size and mtime as probed; a missing file counts as changed),
       before the item and again after every read of the file before its outcome is recorded;
       a changed file sends the item back to review (`return_item_to_review`: its rows and
-      objects go); a file that cannot be read during the upload counts the same;
+      objects go). A file that cannot be stat-ed or read for another reason (an unreachable
+      network share) is not a change: the request fails with `source_unreadable` (details: the
+      item id) and re-sending resumes; a converted temp file that cannot be read gives
+      `media_output_unwritable`. An object that does not verify is also checked against the
+      source first. Media tool errors during the upload carry the item id in their details;
     - each `extract` job without a stored SRT: extracted, stored in `extracted_subtitles`
       (payload: the stream index), the job status becomes `extracted`;
     - each audio track a `transcribe` job uses without a verified object: an audio file is
@@ -478,7 +483,9 @@ docs/human/, docs/ai/     see CLAUDE.md
     source batch's key and its `AudioObjectPayload` per track) copies each object server side
     (`CopyObject`) to `<id>/audio/<item>[.a<track>].<ext>`, verifies the size and records the
     source's payload; it has no source-unchanged check, since its audio is never read from the
-    file. A missing source object gives `r2_object_missing`.
+    file. `CopySource.source_key` must be the layout's audio key of its track and extension
+    (validated when the payload is built). A missing source object gives `r2_object_missing`;
+    a track without a copy source gives `copy_source_missing` (details: item id, track).
   - **End.** Items still in review: outcome `items_in_review` (their ids), no manifest. A batch
     with `transcribe` jobs goes through the manifest step (outcome `ready`, or `held` with the
     activity sources). A batch with only `extract` jobs moves `uploading` → `transcribed`

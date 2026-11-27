@@ -50,7 +50,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `ItemPayload.copy_sources` (`upload/payloads.py` `CopySource`) and are created in phase
    `reviewed` in an `uploading` batch; `run_upload` (or the retry request through the same
    path) copies, verifies and publishes them. Cloud cleanup of an `uploading` batch also
-   empties its temp folder (`upload/temp.py` `clear_temp`).
+   empties its temp folder (`upload/temp.py` `clear_temp`). Retry batches are created in
+   `uploading`, so `run_upload` never runs the `batch_id_taken` check for them:
+   `create_retry_batch` must run the same cross-computer check (`upload/start.py`: manifest,
+   objects and open multipart uploads under the id) before it creates the batch.
+   `CopySource.source_key` must be the layout's audio key of its track and extension.
 4. M5.11 uses `runs/activity.py` `check_activity`, `runs/scope.py` `read_launch_scope`
    (fingerprint) and `publish_held_manifests`, all under the runs lock; the run row payload is
    still `{}` (M5.11 defines it).
