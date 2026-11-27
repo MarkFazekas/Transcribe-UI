@@ -16,9 +16,10 @@ takes it to `transcribed` without a manifest.
 
 from sqlalchemy import delete
 
-from transcribe_ui.api.classes import ProgressEvent
+from transcribe_ui.api.classes import NeedsConfirmation, ProgressEvent
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.classes import ExcludeItemsRequest
+from transcribe_ui.batches.confirmations import exclude_confirmation
 from transcribe_ui.batches.constants import DELETE_OBJECTS_STAGE, REVIEW_PHASES, UPLOADING_PHASES
 from transcribe_ui.batches.errors import ItemNotFoundError, LastItemError
 from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store
@@ -83,10 +84,15 @@ def _delete_objects(request: ExcludeItemsRequest, context: RequestContext, store
     return deleted
 
 
-def exclude_items(request: ExcludeItemsRequest, context: RequestContext) -> ExcludeItemsResponse:
-    """Remove the items from the batch, then delete their uploaded audio; refuses to remove the last item."""
+def exclude_items(request: ExcludeItemsRequest, context: RequestContext) -> ExcludeItemsResponse | NeedsConfirmation:
+    """Remove the items from the batch, then delete their uploaded audio; refuses to remove the last item.
+
+    Without `confirm` the answer asks first, and nothing is changed.
+    """
     with context.ports.state.locks.batch(request.batch_id):
         phase = _checked_phase(request, context)
+        if not request.confirm:
+            return exclude_confirmation(request, phase)
         if phase not in UPLOADING_PHASES:
             return ExcludeItemsResponse(batch=_remove_items(request, context, phase, None), deleted_objects=0)
         store = object_store(context.ports)

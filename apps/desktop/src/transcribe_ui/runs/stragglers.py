@@ -118,5 +118,5 @@ def _confirmation(action: str, found: CloudObject, run_id: str | None) -> NeedsC
     message = (
         f"{what} {found.name} ({found.status})? A worker it runs stops at once; finished results stay in the cloud."
     )
-    confirmation = Confirmation(field=CONFIRM_FIELD, message=message, details=details)
+    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
     return NeedsConfirmation(action=action, confirmations=(confirmation,))

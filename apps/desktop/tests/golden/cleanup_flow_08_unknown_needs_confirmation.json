@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm",
+        "set_to": true,
         "message": "This batch is not known on this computer; all its data will be deleted from the cloud.",
         "details": {
           "batch_id": "batch_20260101_090000",

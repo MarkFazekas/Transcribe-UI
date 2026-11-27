@@ -70,7 +70,7 @@ def load_source(context: RequestContext, batch_id: str) -> DownloadSource:
         stored = select(ExtractedSubtitleRow.job_id).join(JobRow)
         of_batch = JobRow.batch_id == batch_id
         extracted = frozenset(session.scalars(stored.where(of_batch)))
-        summary = summary_of(row, members)
+        summary = summary_of(session, row, members)
         scan_root = BatchPayload.model_validate(row.payload).scan_root
         cleaned = row.phase == CLEANED_PHASE
     jobs = _download_jobs(members, extracted, cleaned=cleaned)

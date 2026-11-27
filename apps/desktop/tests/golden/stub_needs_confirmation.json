@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirmed",
+        "set_to": true,
         "message": "Overwrite the existing subtitle?",
         "details": {
           "count": 1

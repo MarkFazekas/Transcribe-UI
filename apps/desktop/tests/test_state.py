@@ -42,7 +42,7 @@ GET_APP_INFO_JSON = '{"action": "get_app_info"}'
 BATCH_ID = "batch_20261127_120000"
 COMPOSING: Final = "composing"
 REVIEWING: Final = "reviewing"
-HEAD = "5d0c3b1e7a42"
+HEAD = "b7e2c4a91f03"
 UNKNOWN_REVISION = "ffffffffffff"
 EXPECTED_TABLES = frozenset(
     (
@@ -120,6 +120,7 @@ def test_migrations_are_package_data() -> None:
     assert migrations.joinpath("env.py").is_file()
     assert migrations.joinpath("script.py.mako").is_file()
     assert migrations.joinpath("versions", "initial_schema.py").is_file()
+    assert migrations.joinpath("versions", "composition_and_run_report.py").is_file()
 
 
 def _run_in_second_process(root: Path, request_json: str) -> tuple[int, Response]:

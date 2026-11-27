@@ -72,7 +72,7 @@ def retry_response(
     """Return the response: the retry batch as stored now and what this request's upload did (None: nothing)."""
     with context.ports.state.session() as session:
         row = load_batch(session, retry_id)
-        summary = summary_of(row, stored_items(session, retry_id))
+        summary = summary_of(session, row, stored_items(session, retry_id))
     if report is None:
         return CreateRetryBatchResponse(
             source_batch_id=request.batch_id,

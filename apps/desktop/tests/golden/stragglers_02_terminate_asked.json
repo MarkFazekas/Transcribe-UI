@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm",
+        "set_to": true,
         "message": "Terminate the pod transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR01-until-20261127T1500Z (RUNNING)? A worker it runs stops at once; finished results stay in the cloud.",
         "details": {
           "kind": "pod",

@@ -4,9 +4,11 @@ from datetime import timedelta
 
 import pytest
 
+from support.confirm import confirmed_document
 from support.launch import (
     CANCEL_QUEUED,
     TERMINATE,
+    document,
     error_code,
     launch_run,
     ok_as,
@@ -33,7 +35,8 @@ def test_cancel_a_straggler_queued_pod(runs_world: RunsWorld) -> None:
     queued_id = str(runs_world.cloud.api.queued_pods.add(app_pod_name(RUN_ID, runs_world.now()))["id"])
     asked = send(runs_world, CANCEL_QUEUED, queued_pod_id=queued_id)
     assert (asked.status, queued_of(runs_world)[0][1]) == ("needs_confirmation", "QUEUED")
-    stopped = _cancel(runs_world, queued_id)
+    resent = confirmed_document(document(CANCEL_QUEUED, queued_pod_id=queued_id), asked)
+    stopped = ok_as(runs_world.leg.backend.execute_json(resent), CancelQueuedPodResponse)
     assert (stopped.outcome, stopped.local_status, queued_of(runs_world)[0][1]) == (
         "cancelled",
         None,

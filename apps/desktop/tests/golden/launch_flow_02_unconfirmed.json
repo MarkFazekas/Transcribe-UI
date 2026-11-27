@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm_fingerprint",
+        "set_to": "a5e21202d7f76d1b60fd04e15da36911f1616e9cea94bec113958c26d173b9b1",
         "message": "Start one worker for 3 job(s) in 2 batch(es), 2.0 h of audio; estimated cost 0.05-0.20 USD. 1 of the batches were uploaded from another computer.",
         "details": {
           "plan": {

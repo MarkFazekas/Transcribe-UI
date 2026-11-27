@@ -56,7 +56,7 @@ class Composition:
         if not files:
             return None
         message = f"{len(files)} selected file(s) already have a subtitle in a target language."
-        return Confirmation(field="confirm_existing_languages", message=message, details={"files": files})
+        return Confirmation(field="confirm_existing_languages", set_to=True, message=message, details={"files": files})
 
 
 def _tree(request: BatchComposition, context: RequestContext, action: str) -> ScanTreeResponse:

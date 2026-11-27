@@ -2,7 +2,8 @@
 
 The flow: create (needs a confirmation for an existing language) → get → edit → start the
 review → review (fake probes) → review narrowed by filters → resolve → refused choices →
-exclude → list → delete; plus the refusals of each request.
+exclude (asked, then confirmed) → list → delete (asked, then confirmed); plus the refusals of
+each request.
 """
 
 import json
@@ -69,8 +70,16 @@ def _resolve_audio_track(ids: dict[str, str]) -> str:
     return batch_request("resolve_review", choices=[transcribe(ids[PODCAST], EN, 0)])
 
 
-def _exclude(ids: dict[str, str]) -> str:
-    return batch_request("exclude_items", item_ids=[ids[PODCAST]])
+def _exclude(ids: dict[str, str], *, confirm: bool) -> str:
+    return batch_request("exclude_items", item_ids=[ids[PODCAST]], confirm=confirm)
+
+
+def _exclude_asking(ids: dict[str, str]) -> str:
+    return _exclude(ids, confirm=False)
+
+
+def _exclude_confirmed(ids: dict[str, str]) -> str:
+    return _exclude(ids, confirm=True)
 
 
 def _edit(*languages: str, paths: tuple[str, ...] = (MEDIA_ROOT,), **fields: object) -> str:
@@ -94,11 +103,13 @@ FLOW: tuple[tuple[str, Template], ...] = (
     ("resolve", WithIds(_resolve)),
     ("resolve_bitmap_refused", WithIds(_resolve_bitmap)),
     ("resolve_audio_track_refused", WithIds(_resolve_audio_track)),
-    ("exclude", WithIds(_exclude)),
+    ("exclude_needs_confirmation", WithIds(_exclude_asking)),
+    ("exclude", WithIds(_exclude_confirmed)),
     ("list", list_request()),
     ("hide_refused", batch_request("set_batch_hidden", hidden=True)),
     ("edit_refused", _edit(EN)),
-    ("delete", batch_request("delete_batch")),
+    ("delete_needs_confirmation", batch_request("delete_batch")),
+    ("delete", batch_request("delete_batch", confirm=True)),
     ("list_empty", list_request(include_hidden=True)),
 )
 # Names of the flow steps, in order.

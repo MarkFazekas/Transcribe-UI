@@ -44,8 +44,7 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
             and re-sending resumes.
         RunsBusyError: Another request held the runs lock for the whole wait.
     """
-    ports = context.ports
-    state = ports.state
+    state = context.ports.state
     with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
         store = LazyStore(context)
         listed = read_lists(state, client.pods)
@@ -54,7 +53,7 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         checked = check_ready_batches(context, cloud.store)
         _collect(context, cloud, listed)
         published = _publish(context, cloud)
-        runs = runs_progress(state, refreshed, ports.clock.now())
+        runs = runs_progress(state, [each.run_id for each in refreshed])
     return RefreshStatusResponse(
         runs=runs,
         batches=checked.batches,

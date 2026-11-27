@@ -18,7 +18,18 @@
       "manifest_held": false,
       "audio_deleted": false,
       "cleanup_pending": null,
-      "extract_only": false
+      "extract_only": false,
+      "actions": [
+        "plan_download",
+        "run_download",
+        "export_custom_plan",
+        "import_custom_plan",
+        "create_retry_batch",
+        "cleanup_audio",
+        "cleanup_everything",
+        "hide_batch",
+        "show_batch"
+      ]
     },
     "plan": {
       "version": 1,

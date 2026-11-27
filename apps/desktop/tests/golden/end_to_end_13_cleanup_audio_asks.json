@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm",
+        "set_to": true,
         "message": "The batch's audio will be deleted from the cloud; its subtitles stay, but it can no longer be retried.",
         "details": {
           "batch_id": "batch_20261127_130000",

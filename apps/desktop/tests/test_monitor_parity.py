@@ -10,13 +10,14 @@ from collections.abc import Callable
 from datetime import timedelta
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from support.batches import FIRST_BATCH_ID, build_batch_tree
 from support.credentials import moto_bucket
 from support.golden import assert_golden
 from support.launch import LAUNCH, PLAN, document
 from support.launch_legs import LaunchLegs, seed_held_leg
-from support.monitor import REFRESH, write_done, write_log, write_result, write_status
+from support.monitor import LIST_RUNS, REFRESH, write_done, write_log, write_result, write_status
 from support.parity import Exchange, Template, run_parity
 from support.runpod import Cloud
 from transcribe_contracts.classes import JobRef
@@ -25,6 +26,8 @@ from transcribe_ui.storage.r2 import R2ObjectStore
 
 # Two hours of waiting for a machine.
 TWO_HOURS_S = 7200
+# How long the clock moves on before a run list (elapsed time and cost must not follow it).
+LATER_S = 600
 # How long the simulated worker transcribes before the next refresh.
 TRANSCRIBING_S = 1200
 # Item ids of the seeded batch.
@@ -86,22 +89,78 @@ def _finish(cloud: Cloud, store: R2ObjectStore, run_id: str) -> None:
     cloud.clock.advance(timedelta(minutes=1))
 
 
-def test_monitor_flow(tmp_path: Path) -> None:
-    """Plan, launch (queued), then refreshes: waiting, starting, transcribing, finished, nothing open."""
+def _advance(cloud: Cloud, _store: R2ObjectStore, _run: str) -> None:
+    cloud.clock.advance(timedelta(seconds=LATER_S))
+
+
+def _list_after(legs: LaunchLegs, change: LegChange) -> Template:
+    """Return a template that applies `change` to both legs, then lists the runs."""
+    return partial(_changed_list, legs, change)
+
+
+def _changed_list(legs: LaunchLegs, change: LegChange, exchanges: list[Exchange]) -> str:
+    for cloud, store in zip(legs.clouds, legs.stores, strict=True):
+        change(cloud, store, _run_id(exchanges))
+    return document(LIST_RUNS)
+
+
+def _only_run(exchange: Exchange) -> dict[str, Any]:
+    runs = json.loads(exchange.response)["runs"]
+    assert len(runs) == 1
+    run = runs[0]
+    assert isinstance(run, dict)
+    return run
+
+
+# The steps of the monitoring flow, by golden name.
+FLOW_NAMES = (
+    "plan",
+    "launched",
+    "listed_launched",
+    "waiting",
+    "starting",
+    "transcribing",
+    "listed_transcribing",
+    "finished",
+    "nothing_open",
+    "listed_finished",
+)
+
+
+def _flow(tmp_path: Path) -> dict[str, Exchange]:
+    """Plan, launch (queued), then refreshes and run lists through both legs; return each step by name."""
     legs = LaunchLegs(seed=_seed_queued)
     templates: list[Template] = [
         document(PLAN),
         _launch,
+        document(LIST_RUNS),
         document(REFRESH),
         _refresh_after(legs, _deploy),
         _refresh_after(legs, _transcribe),
+        _list_after(legs, _advance),
         _refresh_after(legs, _finish),
         document(REFRESH),
+        _list_after(legs, _advance),
     ]
     with moto_bucket():
         exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=legs)
-    statuses = [json.loads(exchange.response)["status"] for exchange in exchanges]
-    assert set(statuses) == {"ok"}
-    names = ["plan", "launched", "waiting", "starting", "transcribing", "finished", "nothing_open"]
-    for index, (name, exchange) in enumerate(zip(names, exchanges, strict=True), start=1):
-        assert_golden(f"monitor_flow_{index:02d}_{name}.json", exchange.golden())
+    return dict(zip(FLOW_NAMES, exchanges, strict=True))
+
+
+def test_monitor_flow(tmp_path: Path) -> None:
+    """Plan, launch (queued), then refreshes and run lists: waiting, starting, transcribing, finished.
+
+    `list_runs` shows what the last refresh stored: elapsed time and cost do not move with the
+    clock between refreshes, and the worker report names the current file.
+    """
+    flow = _flow(tmp_path)
+    assert {json.loads(exchange.response)["status"] for exchange in flow.values()} == {"ok"}
+    for index, name in enumerate(FLOW_NAMES, start=1):
+        assert_golden(f"monitor_flow_{index:02d}_{name}.json", flow[name].golden())
+    launched = _only_run(flow["listed_launched"])
+    assert (launched["stage"], launched["refreshed_at"], launched["elapsed_s"]) == ("waiting", None, None)
+    listed = _only_run(flow["listed_transcribing"])
+    assert listed == json.loads(flow["transcribing"].response)["runs"][0]
+    assert listed["worker"]["current"]["name"] == "Film.mkv"
+    finished = _only_run(flow["listed_finished"])
+    assert (finished["stage"], finished["elapsed_until"]) == ("finished", finished["ended_at"])
