@@ -37,6 +37,8 @@ from transcribe_ui.runpod.classes import (
     SetupCloudRequest,
     SetupCloudResponse,
 )
+from transcribe_ui.upload.classes import RunUploadRequest
+from transcribe_ui.upload.responses import RunUploadResponse
 
 
 def _check_absolute(path: str) -> str:
@@ -163,7 +165,8 @@ type Request = Annotated[
     | batch_requests.ExcludeItemsRequest
     | batch_requests.ListBatchesRequest
     | batch_requests.GetBatchRequest
-    | batch_requests.SetBatchHiddenRequest,
+    | batch_requests.SetBatchHiddenRequest
+    | RunUploadRequest,
     Field(discriminator="action"),
 ]
 
@@ -253,7 +256,8 @@ type SuccessResponse = Annotated[
     | batch_responses.ExcludeItemsResponse
     | batch_responses.ListBatchesResponse
     | batch_responses.GetBatchResponse
-    | batch_responses.SetBatchHiddenResponse,
+    | batch_responses.SetBatchHiddenResponse
+    | RunUploadResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

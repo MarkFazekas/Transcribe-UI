@@ -5,7 +5,14 @@ from collections.abc import Collection
 from pydantic import JsonValue
 
 from transcribe_ui.api.errors import DomainError
-from transcribe_ui.upload.constants import ERROR_NOTHING_TO_TRANSCRIBE, ERROR_UPLOAD_INCOMPLETE
+from transcribe_ui.upload.constants import (
+    ERROR_AUDIO_UNUSABLE,
+    ERROR_BATCH_ID_TAKEN,
+    ERROR_NOTHING_TO_TRANSCRIBE,
+    ERROR_REVIEW_INCOMPLETE,
+    ERROR_UPLOAD_INCOMPLETE,
+    ERROR_UPLOAD_UNVERIFIED,
+)
 
 
 class UploadIncompleteError(DomainError):
@@ -35,4 +42,53 @@ class NothingToTranscribeError(DomainError):
             ERROR_NOTHING_TO_TRANSCRIBE,
             "The batch has nothing to transcribe, so it gets no manifest.",
             {"batch_id": batch_id},
+        )
+
+
+class BatchIdTakenError(DomainError):
+    """R2 already holds objects under the batch's id, so its upload cannot start; nothing was changed."""
+
+    def __init__(self, batch_id: str) -> None:
+        """Name the batch."""
+        super().__init__(
+            ERROR_BATCH_ID_TAKEN,
+            "The cloud already holds data under this batch's id (another computer's batch, or one of an earlier "
+            "database); delete this batch and create it again, which gives it a new id.",
+            {"batch_id": batch_id},
+        )
+
+
+class ReviewIncompleteError(DomainError):
+    """An item of the batch is not resolved, so its upload cannot start; nothing was changed."""
+
+    def __init__(self, batch_id: str, item_ids: Collection[str]) -> None:
+        """Name the unresolved items (sorted)."""
+        super().__init__(
+            ERROR_REVIEW_INCOMPLETE,
+            "The review is not complete: resolve or exclude every file first.",
+            {"batch_id": batch_id, "item_ids": _sorted(item_ids)},
+        )
+
+
+class UploadUnverifiedError(DomainError):
+    """An audio object is missing in R2 after its upload or copy, or has the wrong size; re-sending uploads it again."""
+
+    def __init__(self, object_key: str) -> None:
+        """Name the object."""
+        super().__init__(
+            ERROR_UPLOAD_UNVERIFIED,
+            "An uploaded audio object could not be verified in the cloud; send the request again to upload it again.",
+            {"object_key": object_key},
+        )
+
+
+class AudioUnusableError(DomainError):
+    """A file's audio cannot be uploaded as it is: the file is empty, or its extension is not allowed in R2 keys."""
+
+    def __init__(self, item_id: str) -> None:
+        """Name the item."""
+        super().__init__(
+            ERROR_AUDIO_UNUSABLE,
+            "This file's audio cannot be uploaded (it is empty, or its extension is not usable); exclude it.",
+            {"item_id": item_id},
         )

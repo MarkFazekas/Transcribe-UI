@@ -1,4 +1,4 @@
-"""Pydantic payload of the `audio_objects` rows (the JSON column of `state/models.py`)."""
+"""Pydantic payloads of the upload: `audio_objects` and `extracted_subtitles` rows, and retry copies."""
 
 from pydantic import NonNegativeFloat, NonNegativeInt, PositiveInt
 
@@ -15,3 +15,18 @@ class AudioObjectPayload(FrozenModel):
     codec: str
     duration_s: NonNegativeFloat
     size_bytes: PositiveInt
+
+
+class CopySource(FrozenModel):
+    """An audio object of another batch that a retry item copies server side instead of uploading (M5.14)."""
+
+    source_key: str
+    # The copied object's manifest entry: the same track, extension, codec, duration and size.
+    audio: AudioObjectPayload
+
+
+class ExtractedSubtitlePayload(FrozenModel):
+    """What an `extracted_subtitles` row keeps besides the SRT text."""
+
+    # The embedded subtitle stream it was extracted from (among the file's subtitle streams).
+    stream_index: NonNegativeInt
