@@ -12,30 +12,8 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, StringConstraints, model_validator
 
 from transcribe_ui.api.base import FrozenModel, LocalPath, WhisperLanguage
-from transcribe_ui.batches.classes import (
-    CreateBatchRequest,
-    DeleteBatchRequest,
-    EditBatchRequest,
-    ExcludeItemsRequest,
-    GetBatchRequest,
-    ListBatchesRequest,
-    ResolveReviewRequest,
-    ReviewBatchRequest,
-    SetBatchHiddenRequest,
-    StartReviewRequest,
-)
-from transcribe_ui.batches.responses import (
-    CreateBatchResponse,
-    DeleteBatchResponse,
-    EditBatchResponse,
-    ExcludeItemsResponse,
-    GetBatchResponse,
-    ListBatchesResponse,
-    ResolveReviewResponse,
-    ReviewBatchResponse,
-    SetBatchHiddenResponse,
-    StartReviewResponse,
-)
+from transcribe_ui.batches import classes as batch_requests
+from transcribe_ui.batches import responses as batch_responses
 from transcribe_ui.credentials.classes import (
     CheckCredentialsRequest,
     CheckCredentialsResponse,
@@ -176,16 +154,16 @@ type Request = Annotated[
     | CheckCredentialsRequest
     | SetupCloudRequest
     | CloudSetupStatusRequest
-    | CreateBatchRequest
-    | EditBatchRequest
-    | DeleteBatchRequest
-    | StartReviewRequest
-    | ReviewBatchRequest
-    | ResolveReviewRequest
-    | ExcludeItemsRequest
-    | ListBatchesRequest
-    | GetBatchRequest
-    | SetBatchHiddenRequest,
+    | batch_requests.CreateBatchRequest
+    | batch_requests.EditBatchRequest
+    | batch_requests.DeleteBatchRequest
+    | batch_requests.StartReviewRequest
+    | batch_requests.ReviewBatchRequest
+    | batch_requests.ResolveReviewRequest
+    | batch_requests.ExcludeItemsRequest
+    | batch_requests.ListBatchesRequest
+    | batch_requests.GetBatchRequest
+    | batch_requests.SetBatchHiddenRequest,
     Field(discriminator="action"),
 ]
 
@@ -266,16 +244,16 @@ type SuccessResponse = Annotated[
     | CheckCredentialsResponse
     | SetupCloudResponse
     | CloudSetupStatusResponse
-    | CreateBatchResponse
-    | EditBatchResponse
-    | DeleteBatchResponse
-    | StartReviewResponse
-    | ReviewBatchResponse
-    | ResolveReviewResponse
-    | ExcludeItemsResponse
-    | ListBatchesResponse
-    | GetBatchResponse
-    | SetBatchHiddenResponse,
+    | batch_responses.CreateBatchResponse
+    | batch_responses.EditBatchResponse
+    | batch_responses.DeleteBatchResponse
+    | batch_responses.StartReviewResponse
+    | batch_responses.ReviewBatchResponse
+    | batch_responses.ResolveReviewResponse
+    | batch_responses.ExcludeItemsResponse
+    | batch_responses.ListBatchesResponse
+    | batch_responses.GetBatchResponse
+    | batch_responses.SetBatchHiddenResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

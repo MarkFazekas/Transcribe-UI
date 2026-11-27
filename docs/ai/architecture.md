@@ -71,7 +71,7 @@ docs/human/, docs/ai/     see CLAUDE.md
   `api/classes.py` can import them without a cycle. A path on the user's computer is typed
   `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
   fields (§7).
-- The dispatch table (`api/backend.py`) maps each action to its handler and marks whether it
+- The dispatch table (`api/routes.py`) maps each action to its handler and marks whether it
   needs the database; request types that do not (app info, settings, credentials, scans) never
   open it, so the CLI can run them while the GUI holds the writer lock.
 - Cancellation: long requests check the `CancelToken` between items and stop with the error

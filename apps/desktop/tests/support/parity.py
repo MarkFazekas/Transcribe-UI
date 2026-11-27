@@ -16,9 +16,10 @@ from typing import Self
 
 from support.fakes import seeded_ports
 from support.normalise import ROOT_PLACEHOLDER, PathNormaliser
-from transcribe_ui.api.backend import Backend, Routes
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ProgressEvent, Response
 from transcribe_ui.api.ports import Ports
+from transcribe_ui.api.routes import Routes
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.main import main
 from transcribe_ui.cli.output import exit_code

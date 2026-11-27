@@ -10,9 +10,10 @@ from pathlib import Path
 import pytest
 
 from support.fakes import seeded_ports
-from transcribe_ui.api.backend import Backend, Route
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import GetAppInfoRequest, Response
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.api.routes import Route
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.cli.main import main
