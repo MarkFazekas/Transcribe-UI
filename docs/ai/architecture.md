@@ -105,22 +105,34 @@ docs/human/, docs/ai/     see CLAUDE.md
 
 ### 3.2 Discovery and selection
 
-- Two requests in `discovery/`, both stateless and without the database: `scan_tree` (the media
-  tree below a root) and `preview_selection` (scans again, then resolves the selection), so the
-  same request JSON gives the same answer from every frontend.
+- Two requests in `discovery/`, both without the database: `scan_tree` (the media tree below a
+  root) and `preview_selection` (resolves a selection on a scan).
+- Scan cache: each scan gets a `scan_id` (from the injected id source), and the backend keeps
+  the latest 4 scans in process (`discovery/cache.py`, `Ports.scan_cache`) with the options
+  they were made with. `preview_selection` takes an optional `scan_id`: when that scan is kept
+  and was made with the same options, it is used as it is (the GUI previews on every click,
+  and the preview stays consistent with the tree on screen); otherwise the request scans again
+  and keeps the new scan. The response names the scan it used. A one-shot CLI process starts
+  empty, so its previews always scan; the answer differs only if the disk changed in between.
 - Scan options are request fields with defaults (`discovery/constants.py`): the video and audio
   extension lists (lower case, no dot, compared case-insensitively; the two lists are disjoint
   and never contain a subtitle extension) and `include_hidden`. The GUI fills them from the
   settings; request handling never reads the settings file.
-- The root must be an absolute path of an existing folder (`root_not_absolute`,
-  `root_not_found`, `root_not_a_folder`); it is reported after `os.path.normpath`. A symlinked
+- The root must be an absolute path of an existing, listable folder (`root_not_absolute`,
+  `root_not_found`, `root_not_a_folder`, `root_unreadable`); it is reported after
+  `os.path.normpath`. A symlinked
   root is followed (the user chose it).
-- Walk: `os.scandir` without following links. Symlinks and Windows junctions are reported
-  (`link_skipped`) and skipped, so loops cannot occur; folders deeper than 256 levels give
-  `too_deep`. Hidden entries (a name starting with `.`, the Windows hidden or system
-  attribute, the macOS `UF_HIDDEN` flag) are skipped unless `include_hidden`. An unreadable
-  folder or entry gives `unreadable`. A name that is not valid Unicode (undecodable bytes on
-  POSIX, lone surrogates on Windows) cannot be shown or stored: it is reported as
+- Walk: `os.scandir` without following links, iterative (an explicit stack, so no recursion
+  limit). Symlinks and Windows junctions are reported (`link_skipped`) and skipped, so loops
+  cannot occur; folders deeper than 256 levels give `too_deep`. Entries are classified by
+  their directory-entry type and name first; `stat` runs only for media files (size, mtime)
+  and, where the OS keeps hidden flags there, for each entry (free on Windows; macOS/BSD
+  `st_flags`). Hidden entries (a name starting with `.`, the Windows hidden attribute alone or
+  with system, the macOS `UF_HIDDEN` flag) are skipped unless `include_hidden`; a system-only
+  entry stays visible. macOS AppleDouble files (`._` prefix) are never media or sidecars, even
+  with `include_hidden`. An unreadable folder or entry gives `unreadable`; an entry that
+  vanishes during the scan is skipped silently. A name that is not valid Unicode (undecodable
+  bytes on POSIX, lone surrogates on Windows) cannot be shown or stored: it is reported as
   `invalid_name` with U+FFFD in its place and skipped. Warnings never stop the scan. The cancel
   token is checked per folder; a progress event goes out every 1000 media files.
 - No ffprobe during the scan: tens of thousands of files must list in seconds. ffprobe runs
@@ -134,21 +146,26 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Sidecar subtitles (`srt`, `vtt`, `ass`, `ssa`, `sub`; not configurable): a subtitle file
   belongs to the media files whose stem is the longest `.`-bounded prefix of its name
   (`Movie.part2.en.srt` belongs to `Movie.part2.mkv`, not `Movie.mkv`); media files sharing
-  that stem (`Movie.mkv`, `Movie.mp4`) all get it; a subtitle of no media file is ignored, and
-  a dot-prefixed one (macOS `._` AppleDouble files) never matches. The remaining name tokens
-  give the language (the first token that names one) and the `forced` flag (a `forced` token
-  anywhere); other tokens (`sdh`, `cd2`) are ignored. Languages recognised: Whisper's codes and
+  that stem (`Movie.mkv`, `Movie.mp4`) all get it. When the stem is shorter than the name, the
+  next token must be a language, `forced` or a known tag (`sdh`, `cc`, `hi`, `default`,
+  `full`, `cd1`, `cd2`, ...); otherwise the subtitle belongs to no media file
+  (`Show.S01E02.en.srt` is not `Show.mkv`'s). A subtitle of no media file is ignored, and a
+  dot-prefixed one never matches. The remaining name tokens give the language (the first token
+  that names one) and the `forced` flag (a `forced` token anywhere); other tokens are ignored. Languages recognised: Whisper's codes and
   English names, ISO 639-2/B and /T codes (and the 639-3 codes `cmn`, `fil`, `nob`, `nno`,
   `yue`), a few other spellings (`iw`, `jv`, `nb`, `farsi`, ...) and a code with a region or
   script suffix (`pt-BR`, `en_US`, `zh-Hans`). Anything else, including real languages Whisper
   does not support, is "unknown language" (`language: null`). Embedded subtitles are handled in
   the review step.
 - Path-flavour rule (`discovery/rules.py`, injected as `Ports.path_rules`, so the Windows and
-  macOS rules are tested on Linux): Windows compares names case-insensitively and splits paths
-  on `\` and `/`; macOS compares case- and Unicode-normalisation-insensitively (APFS and HFS+
-  defaults); other POSIX systems compare exactly. The rule shapes comparisons only (sidecar
-  stems, selection paths); reported names and paths stay as the OS returned them. The
-  response's `path_flavor` is the rule's flavour.
+  macOS rules are tested on Linux): Windows compares names case-insensitively by simple
+  one-to-one upper-casing per character, as NTFS does (`ß` stays `ß`), and splits paths on
+  `\` and `/`; macOS compares with full Unicode case folding and normalisation-insensitively
+  (APFS and HFS+ defaults); other POSIX systems compare exactly. The rule shapes comparisons
+  only (sidecar stems, selection paths); reported names and paths stay as the OS returned them.
+  The response's `path_flavor` is the rule's flavour. Limitation: the rule is per OS, not per
+  volume, so a case-sensitive macOS volume or a Windows folder with per-directory case
+  sensitivity (WSL) can match two files that differ only in case as one.
 - Languages: the global settings list every Whisper language with an on/off switch (`hu`, `en`
   on by default); GUI choosers and filters offer only enabled languages. Languages
   without a WhisperX alignment model are marked there.
@@ -161,9 +178,13 @@ docs/human/, docs/ai/     see CLAUDE.md
   counting only sidecars that are not forced; name of the file without its extension
   (`starts_with`, `ends_with`, `contains`, compared NFC and case-folded; `regex`, searched in the
   NFC name ignoring case). Requests are validated machine-independently (languages against the
-  full Whisper set, the regex compiled). An operation path that is relative, contains `..` or
-  is outside the root is `path_outside_root`; one with no media file at or below it gives the
-  warning `no_media_at_path`.
+  full Whisper set, the regex compiled and at most 200 characters). The cancel token is checked
+  per file while filters run; a single regex match cannot be interrupted (relevant for the MCP
+  frontend, whose requests come from a model). An operation path that is relative, contains
+  `..` or is outside the root is `path_outside_root` with the operation's index in the details
+  (not the path: details are not path-normalised, and the request holds it); one with no media
+  file at or below it gives the warning `no_media_at_path`. Paths are matched by binary search
+  over the sorted file keys.
 - `preview_selection` returns the selected files in scan order (with their sidecar languages,
   forced ones and unknown-language count), each folder with a selected file below it as `all`
   or `partial`, and totals (files, video, audio, bytes).
@@ -402,7 +423,7 @@ compatibility); the Whisper language set is enforced where the desktop app build
 Paths are stored as text exactly as the OS reported them (no case or Unicode normalisation),
 plus `path_flavor`. Names that are not valid Unicode (unpaired surrogates on Windows, non-UTF-8
 bytes on POSIX) are rejected at scan time with a visible warning instead of being mangled.
-Comparisons for sidecar matching use NFC on macOS and case-insensitive matching on Windows.
+How names are compared (sidecar stems, selection paths) is the path-flavour rule of §3.2.
 
 ## 5. Worker (Runpod)
 
