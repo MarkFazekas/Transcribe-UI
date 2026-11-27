@@ -467,8 +467,10 @@ docs/human/, docs/ai/     see CLAUDE.md
       first finishes the pending withdrawal of every `uploading` batch (held or not, its lock
       only tried) and is called by `launch_worker` before it launches and by
       `refresh_status`; the start of every `run_upload` (before its orphan sweep); and the
-      extract-only transition to `transcribed` (below). The launch scope counts a leftover whose digest a
-      pending withdrawal recorded as absent (a held batch is counted from the database).
+      extract-only transition to `transcribed` (below) (replaced from M6.13 by §3.9 "Run scope"): no `publish_held_manifests`
+      or launch, and "no run active" means no live lease lists the batch). The launch scope
+      counts a leftover whose digest a pending withdrawal recorded as absent (a held batch is
+      counted from the database (replaced from M6.13 by §3.9 "Run scope")).
     - **Remaining window.** This app cannot launch during a withdrawal: its launch holds the
       runs lock for its whole check-publish-launch sequence, and a launch already under way
       (`launching`, `queued`, a pod or a heartbeat) makes the check report a run. Runs of
@@ -590,7 +592,7 @@ docs/human/, docs/ai/     see CLAUDE.md
     batch lock of the id (never waited for). For a known batch the runs lock is held through
     the checks, the activity check and the transaction that records the cleanup, then released
     before the deletes: the recorded marker keeps every launch out, and the batch lock and the
-    phase keep the manifest step and `publish_held_manifests` out, so a long delete never
+    phase keep the manifest step and `publish_held_manifests` (replaced from M6.13 by §3.9 "Run scope") out, so a long delete never
     blocks `refresh_status` (the deadline stop) or `cancel_worker`. The batch lock is held to
     the end. An unknown batch keeps both locks to the end (nothing local blocks a launch).
   - **Known batch.** Phases: `everything` from `uploading` on, again in `cleaned` (to finish an
@@ -600,7 +602,7 @@ docs/human/, docs/ai/     see CLAUDE.md
     details: the retry batch). Confirmations: `confirm`, and for `everything` on a `ready` or
     `transcribed` batch also `confirm_not_downloaded` while a transcribe job that did not fail
     has no recorded placement outcome (the rule that moves a batch to `downloaded`, §3.5;
-    a `downloaded` batch never asks; both listed at once). The activity check runs (`run_active`, `cloud_unreachable`) unless the batch is
+    a `downloaded` batch never asks; both listed at once). The activity check (replaced from M6.13 by §3.9 "Run scope") runs (`run_active`, `cloud_unreachable`) unless the batch is
     `uploading` or `cleaned` and R2 holds no manifest for it. Then one transaction records the
     intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), the
     batch payload's `cleanup_pending` (the scope; shown in `BatchSummary`), and for
@@ -1032,8 +1034,8 @@ database):
   cost so far), finished or failed.
 - **Run activity** (`transcribe_ui/runs/activity.py`, with `pods.py` and `heartbeats.py`;
   `check_activity`): used by `launch_worker`, `cleanup_cloud`, the manifest step and
-  `publish_held_manifests` (from M6.13 only by `launch_worker`, `cleanup_cloud` and the
-  withdrawal, with live leases as a source, §3.9 "Run scope"), always under the runs lock (checked: `LockRegistry.holds_runs`,
+  `publish_held_manifests` (from M6.13 only by `launch_worker`, with any live lease as a
+  source; cleanup and the withdrawal use a per-batch lease check, §3.9 "Run scope"), always under the runs lock (checked: `LockRegistry.holds_runs`,
   else `LockOrderError`). It returns every sign of a live run (`RunActivity.sources`: kind,
   name, status and the run id, so a refusal can name the run); none means inactive. A run is
   active when:
@@ -1160,8 +1162,8 @@ database):
   becomes `cancelled` (answered again for a run already `cancelled`); a stop that does not show
   gives `stop_unverified` and a failed read `cloud_unreachable`, and the run stays as it was.
   Other final runs give `run_not_active`, unknown ids `run_not_found`. From M6.13 a verified
-  cancel (also of `terminate_pod` and `cancel_queued_pod`) deletes the run's lease, under the
-  runs lock and outside any transaction (§3.9 "Run scope").
+  cancel that makes the run final (also of `terminate_pod` and `cancel_queued_pod`) deletes the
+  run's lease, best effort, after the final status is committed (§3.9 "Run scope").
 - **Reconcile and stragglers** (`runs/reconcile.py`, `stragglers.py`; runs lock):
   `reconcile_cloud` reads both lists once, resolves every `launching` run, and returns every
   run that was not final (as it is now) and the live `transcribe-ui-*` entries: pods in any
@@ -1225,9 +1227,9 @@ database):
      verified stop makes the run `failed` (`deadline`). `stop_unverified` (or
      `launch_unresolved`) is reported as the run's `stop_error` and the run stays followed, so
      a pod that may still bill is never marked final; a failed Runpod call fails the request.
-     From M6.13 a run that becomes final with its pod gone (pod gone, a verified deadline stop,
-     `resolve_launching` → `launch_failed`) has its lease deleted here, before collection
-     (§3.9 "Run scope").
+     From M6.13 a run that becomes final here or in step 1 with its pod gone or never created
+     has its lease deleted, best effort, before collection (§3.9 "Run scope" lists the
+     paths).
   3. Every `ready` batch (not only the run's: the worker processes every manifest, from M6.13
      only its lease's; another computer's run may list it; its lock
      only tried, a busy one listed in `busy`) gets the status of each pending transcribe job
@@ -1444,22 +1446,31 @@ there). The answers it rests on are Q28, Q35, A21 and A22.
     possible span: 24 h wait + 24 h `MAX_RUNTIME_S` + 10 min + `HEARTBEAT_MARGIN_S`); a
     readable deadline is capped at that bound, an unreadable lease inside it counts as live and
     lists every batch, and an older lease never counts.
-  - Lease removal: the launching desktop deletes `launch.json` as soon as the run becomes final
-    with its pod verified gone: `cancel_worker`, `terminate_pod`, `cancel_queued_pod`, the
-    deadline stop, `resolve_launching` → `launch_failed`, and a pod gone in `refresh_status`.
-    It does so under the runs lock, outside any transaction, before collection (which deletes
-    the rest of `runs/<run_id>/`). A run that never writes `status.json` (cancelled while
+  - Lease removal: every transition of a run to a final status whose pod is verified gone or
+    never existed deletes its `launch.json`, best effort, with collection (which deletes all of
+    `runs/<run_id>/`) as the backstop. The paths: `cancel_worker`, `terminate_pod` and
+    `cancel_queued_pod` when they make the run final; the deadline stop; a pod gone in
+    `refresh_status`; the launch's own `launch_failed` (`runs/creating.py`: POST refused, or
+    cancelled before sending); `resolve_launching` → `launch_failed`, `cancelled` or `failed`
+    from a queued-pod status; the launch lookup's `ended` outcome; and the queued-pod endings
+    of refresh step 1 (`CANCELLED`, `EXPIRED`, `FAILED`, `queue_ended`). An ambiguously failed
+    lease write that stored the object is covered by the same rule. The delete runs under the
+    runs lock, outside any transaction and only after the final status is committed; it opens
+    R2 lazily (as `LazyStore`), and an R2 or credentials failure is logged and never fails or
+    reverts a verified stop (collection or the next refresh removes the lease). A run that never writes `status.json` (cancelled while
     queued, `launch_failed`, a crash before the POST) therefore does not block Start here or on
     other computers until its deadline. A straggler that starts later finds no lease and
     processes nothing, which is safe.
   - `waits_for_current_run` (batch label, "uploaded, waits for the current run", requirements
     Q27): only for `ready` batches, set while a live lease exists that does not list the batch.
     It is derived from the local open run's covered batch ids plus the leases `refresh_status`
-    last read (stored with the refresh time), so no list request reads R2.
-  - Activity: every installation reads live leases and fresh heartbeats from R2, and one with
-    the Runpod key also the Runpod lists, as now. Cleanup and the withdrawal of a leftover
-    manifest (§3.3) are refused only for batches a live lease lists. The launch keeps its own
-    activity check (one run at a time; another computer's live lease counts).
+    step 3 last read, kept in the backend's memory with the refresh time (no database change;
+    the start-up refresh fills it again), so no list request reads R2.
+  - Activity: `cleanup_cloud` and the withdrawal of a leftover manifest (§3.3) use only a
+    per-batch lease check (a live lease that lists the batch, with `status.json` finality; no
+    Runpod lists), so they work on every installation. `check_activity` (heartbeats, the
+    Runpod lists, a local open run, any live lease) serves only the launch (one run at a time;
+    another computer's live lease counts).
   - Withdrawals: from M6.13 the launch no longer finishes pending withdrawals (with
     `publish_held_manifests`, its `batch_busy` refusal for an unfinished one goes). The scope
     already counts a leftover whose pending withdrawal is recorded as absent, so no lease lists
@@ -1537,9 +1548,9 @@ there). The answers it rests on are Q28, Q35, A21 and A22.
   risk is a manual "everything" on one computer before the other one downloaded (Q35):
   - Installation id: a random id (a ULID, not hardware-based) from a dedicated injected port
     (not the shared id source, so goldens and M6.11's id-draw matching do not shift), created
-    on first use under the writer lock and written atomically (temp file, fsync, then a link
-    or rename that never replaces, as for the worker logs) as the file `installation_id` in the
-    data dir. An invalid file is replaced by a new id; the only cost is the stronger warning
+    on first use under the writer lock and written atomically (temp file, fsync, then
+    `os.replace`) as the file `installation_id` in the data dir; the same write replaces an
+    invalid file with a new id; the only cost is the stronger warning
     below for this installation's earlier uploads. The architect
     asked for a machine ID; an id per installation identifies the uploader without hardware
     access, and two installations on one machine are distinct uploaders.
