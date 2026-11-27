@@ -13,12 +13,18 @@ dependencies = [
     "keyring>=25.7",
     "platformdirs>=4.14",
     "pydantic>=2.12",
+    # QtCore, QtGui, QtWidgets, QtTest only (LGPL modules); added for all of M6 by M6.2.
+    "pyside6-essentials>=6.12",
     "sqlalchemy>=2.1",
     "transcribe-contracts",
 ]
 
+# Two executables (A20): the console CLI, which never imports Qt, and the windowed GUI.
 [project.scripts]
 transcribe-ui = "transcribe_ui.cli.main:run"
+
+[project.gui-scripts]
+transcribe-ui-gui = "transcribe_ui.gui.main:run"
 
 [tool.uv.sources]
 transcribe-contracts = { workspace = true }
