@@ -112,6 +112,8 @@ REQUIRED_SCOPES: Final = (
 
 # Pod status of a terminated pod (the only status in which a pod no longer exists).
 POD_TERMINATED: Final = "TERMINATED"
+# Pod status of a running pod (its first sighting starts the desktop deadline).
+POD_RUNNING: Final = "RUNNING"
 # Queued-pod status while it still waits for capacity.
 QUEUED_POD_QUEUED: Final = "QUEUED"
 # Queued-pod status once its pod was created (`podId` set).
@@ -124,7 +126,7 @@ QUEUED_POD_EXPIRED: Final = "EXPIRED"
 QUEUED_POD_FAILED: Final = "FAILED"
 
 # Every pod status of the v2 API (`PodStatus`).
-POD_STATUSES: Final = frozenset(("PROVISIONING", "STARTING", "RUNNING", "EXITED", "ERROR", POD_TERMINATED))
+POD_STATUSES: Final = frozenset(("PROVISIONING", "STARTING", POD_RUNNING, "EXITED", "ERROR", POD_TERMINATED))
 # Every queued-pod status of the v2 API (`QueuedPodStatus`).
 QUEUED_POD_STATUSES: Final = frozenset(
     (QUEUED_POD_QUEUED, QUEUED_POD_DEPLOYED, QUEUED_POD_FAILED, QUEUED_POD_EXPIRED, QUEUED_POD_CANCELLED),

@@ -752,8 +752,8 @@ requests wire it in M5.13):
 - Cloud setup (`setup_cloud`, `cloud_setup_status`; DB-free, stateless, nothing stored
   locally): by fixed names, the Global Volume `transcribe-ui-backups`, four Runpod secrets
   holding the R2 endpoint, bucket, access key id and secret (`transcribe_ui_r2_*`, from the
-  desktop's credentials; open A18 proposes this one bucket-scoped token) and the template
-  `transcribe-ui-worker-schema-<contracts major>` (image
+  desktop's credentials: the one bucket-scoped token the desktop and the pod share, A18) and
+  the template `transcribe-ui-worker-schema-<contracts major>` (image
   `markfazekasgh/transcribe-ui-worker:schema-<contracts major>`, `startSsh`/`startJupyter`
   false, env `R2_*` = `{{ RUNPOD_SECRET_transcribe_ui_r2_* }}`). The template name carries the
   major, so app versions of different contract majors keep their own template instead of
@@ -781,7 +781,7 @@ requests wire it in M5.13):
   A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer exists),
   `disk: 60`, the Global Volume mount, the template (which alone pins the image tag), non-secret
   env, and `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the
-  wait at every start, 5 min to 24 h (open A19), default 1 hour. A 202 response means "queued";
+  wait at every start, 5 min to 24 h (A19), default 1 hour. A 202 response means "queued";
   the app shows the queued state and can cancel it (a queued pod that deploys during the cancel
   is terminated; the run counts as cancelled only once that is verified). Before starting, the
   app shows the total audio duration and an estimated cost range for confirmation; there is no
@@ -872,7 +872,7 @@ requests wire it in M5.13):
   batch changes it.
 - **Plan and estimate** (`runs/planning.py`, `estimate.py`; request `plan_launch`, DB, no
   lock, reads only; field `test_mode`): the launch scope, `MAX_RUNTIME_S`, the cost range and the
-  wait bounds (default 1 h, 5 min to 24 h, open A19). `MAX_RUNTIME_S` = 20 min start-up
+  wait bounds (default 1 h, 5 min to 24 h, A19). `MAX_RUNTIME_S` = 20 min start-up
   allowance + per pending job (audio × 0.2 × 2 + 60 s), `careful` jobs counted twice, capped at
   24 h; test mode a fixed 2 h. Cost = price per hour × (5 to 20 min start-up + weighted audio ×
   0.05 to 0.2), rounded to cents; in test mode the pod stays up for its whole 2 h, so that
@@ -919,8 +919,8 @@ requests wire it in M5.13):
   `launching`. `sending_at` is written before each attempt of the POST and `posted_at` after it
   ended, so a crash during the request leaves a time no earlier than the last send.
 - **Resolving a `launching` run** (`runs/settling.py` `resolve_launching`; used by
-  `reconcile_cloud`, `cancel_worker` and the launch's own lookup, and by `refresh_status` from
-  M5.12): a pod in the pod list with the run's name (a live one before a terminated one) is
+  `reconcile_cloud`, `cancel_worker`, `refresh_status` and the launch's own lookup): a pod in
+  the pod list with the run's name (a live one before a terminated one) is
   adopted as seen and the run becomes `running` (also when the pod already ended:
   `refresh_status` reads its end); a queued pod naming its pod gives `running` with that pod
   recorded as not seen (`pod_seen` false, `pod_deployed_at` = the queued pod's `resolvedAt`);
@@ -958,7 +958,8 @@ requests wire it in M5.13):
   entry carries the run id and
   deadline from its name, the local run's status, `role` (`current`: its local run is not
   final; else `straggler`), `overdue` (past its name deadline) and the response `attention`
-  when any entry is a straggler or overdue. `terminate_pod` (`pod_id`) and `cancel_queued_pod`
+  when any entry is a straggler or overdue. A straggler of a final run whose objects were
+  collected marks that run uncollected (see "Monitoring", step 4). `terminate_pod` (`pod_id`) and `cancel_queued_pod`
   (`queued_pod_id`) read the object first (404 → `pod_not_found`; a name that is not the app's
   → `not_an_app_pod`, left alone), answer `needs_confirmation` (field `confirm`, details: kind,
   id, name, status, run id) until confirmed, then stop it verified as `cancel_worker` does (the
@@ -966,9 +967,84 @@ requests wire it in M5.13):
   becomes `cancelled` only when the stopped pod or queued pod is the one it recorded, or it
   recorded neither; a stray pod carrying the run's name leaves the run as it is. Ids follow the reaper's rule
   `[A-Za-z0-9_-]{1,64}`.
-- Progress and cost shown in the app come from `runs/<run_id>/status.json` and the pod's `cost`
-  field (USD/h) from the Runpod API. After a run has ended and its pod is gone, the app keeps
-  the final status and the worker log locally and deletes `runs/<run_id>/`.
+- **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
+  `worker.py`, `results.py`, `result_reads.py`, `collect.py`, `progress.py`; request
+  `refresh_status`, no fields; runs lock for the whole request, no transaction across a Runpod
+  or R2 call). The GUI sends it periodically while a run is active and once at start-up. Only
+  the Runpod key is read up front; R2 is opened on first use (`runs/cloud.py` `LazyStore`), so
+  missing or rejected R2 credentials never block a deadline stop. In order:
+  1. Every run that is not final is followed; the Runpod lists are read once, only when such a
+     run exists (a failed read or lookup fails the request with nothing more changed, re-send).
+     A `launching` run is resolved by its name (`resolve_launching`). A run without a pod id
+     follows its queued pod: a pod listed under the run's name is adopted as seen; else the
+     queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
+     `podId`: `running` with that pod not seen; `CANCELLED`: `cancelled`; `EXPIRED`, `FAILED`:
+     `failed`). A queued pod Runpod no longer knows (404) with no pod under the run's name ends
+     the run (`failed`, `queue_ended`) only `DEPLOY_SETTLE_S` after the queue's `expiresAt`, when
+     a pod deployed just before it would be listed, and only after two such lookups at least
+     `LAUNCH_LOOKUP_GAP_S` apart (the first recorded in `first_empty_lookup_at`, which a later
+     sighting of the queued pod clears), as for a `launching` run. A run with a pod id follows that pod (listed, else read by
+     id): a read is a sighting (`pod_seen`) and records the status, the price (`cost`, USD/h),
+     the creation time (`createdAt`, else now) and the first `RUNNING` read
+     (`first_running_at`). The pod is gone when it reads `TERMINATED`, or is missing (404) and
+     `KnownPod.gone_when_missing` holds (seen, or `DEPLOY_SETTLE_S` after its deploy: the queued
+     pod's `resolvedAt`, else `pod_recorded_at`, which `update_run` sets when the run first
+     records a pod id); a missing pod never seen stays followed. `EXITED` and `ERROR` pods still exist and are followed until
+     gone or the deadline (the worker's entry terminates its own pod).
+  2. Whether the pod is gone and whether the desktop deadline has passed are decided from the
+     Runpod data alone. Then the worker's `runs/<run_id>/status.json` is read
+     (`reading.read_run_status`; an invalid one or another major shows as `unreadable`). When R2
+     (or its credentials) fails, a run whose pod is gone is not ended (fail closed), a run past
+     its deadline is still stopped, and the R2 error is raised once every run was handled. A run
+     whose pod is gone ends: `finished` when
+     the worker reported `finished` (`end_reason` `worker_finished`), else `failed`
+     (`worker_failed`, or `pod_gone` without a final report); the readable report is kept in
+     the payload (`final_status`). Otherwise, past the **desktop deadline** (`first_running_at`
+     + `MAX_RUNTIME_S` + `DESKTOP_DEADLINE_MARGIN_S` (10 min), capped by the pod name deadline,
+     which alone applies while the pod was never seen running) the run is stopped exactly as
+     `cancel_worker` stops it (`halting.stop_run`: `terminate_verified` with the `KnownPod`
+     rules, or the queued pod cancelled and a pod it deployed recorded and terminated); only a
+     verified stop makes the run `failed` (`deadline`). `stop_unverified` (or
+     `launch_unresolved`) is reported as the run's `stop_error` and the run stays followed, so
+     a pod that may still bill is never marked final; a failed Runpod call fails the request.
+  3. Every `ready` batch (not only the run's: the worker processes every manifest; its lock
+     only tried, a busy one listed in `busy`) gets the status of each pending transcribe job
+     whose result JSON is listed (`ok`, `no_speech`, `failed` through `reading.read_job_result`,
+     stored in the job's `status` column: the failed/no-speech flags; a failed result's `error` in
+     the job payload's `result_error`), then moves to `transcribed` by compare-and-set when
+     `_done.json` exists (HEAD, as the launch scope decides). `_done.json` is looked for before
+     the results are listed: the worker writes it after the batch's last result, so a listing
+     made after seeing it holds every result (one written in between is read at the next
+     refresh, while the batch is still `ready`). An unreadable result stays pending (logged)
+     until `_done.json` is there; then the job is `failed` with `result_error` `unreadable
+     result`, and a job with no result JSON at all `failed` with `missing result` (the worker
+     never comes back to a done batch), so a retry (M5.14) can take them. The `downloaded` rule is M5.13's.
+  4. Every final run not yet collected (`objects_collected`; `cancelled` and `launch_failed`
+     runs too, whose pod is verified gone or never existed) keeps its last status in the
+     payload (if its end did not; written before anything is deleted), writes `worker.log` to
+     `<log dir>/worker-<run_id>.log`, deletes every object under `runs/<run_id>/` and is then
+     marked collected. A kept log is never overwritten: a log collected again goes to
+     `worker-<run_id>-<n>.log` with the next free n from 2, and a log already kept with the same
+     bytes (a retried collection) is not written again. An R2 or file error is logged and
+     retried at the next refresh, without failing the request. A straggler pod carrying a
+     collected run's name may write objects again: `reconcile_cloud` (for every straggler it
+     lists), `terminate_pod` and `cancel_queued_pod` mark such a final run uncollected
+     (`collect.reopen_collection`), so the next refresh collects them. Refresh never calls
+     reconcile, so this cannot loop; a straggler still running is collected again at each
+     reconcile that lists it, until it is stopped.
+  5. With no local run open, `publish_held_manifests` (its own activity check: a straggler or a
+     recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
+     heartbeat no longer counts.
+
+  The response lists every run that was not final before the refresh (`RunProgress`: the run,
+  `stage` (`launching`, `waiting` for a machine, `starting`, `transcribing`, `stopping` while
+  the worker is done and its pod still exists, or the final status), the pod status as last
+  read, the worker report (state, current job, done/total, error), `first_running_at`, the
+  desktop `deadline`, `elapsed_s` and `cost_so_far_usd` (from the pod's creation until the
+  end or now, at its price; a display estimate), `ended_at`, `end_reason`, `stop_error`, the
+  kept `worker_log` path), the checked `ready` batches with their job counts and phase, the
+  `busy` ones, and the manifests `published` or still `held`. `cancel_worker` records
+  `ended_at` too.
 
 ### 3.8 Local state, settings and concurrency
 
@@ -1200,7 +1276,8 @@ Termination layers, each sufficient on its own for the failures it covers:
    unparseable or naive `createdAt` fails the run, but the entry is still handled with the pass
    start as its creation time (a `createdAt` after the pass start is capped to it). Untrusted
    names and ids are logged truncated and escaped (`%r`), so they cannot inject workflow
-   commands. Each call is retried a few times within the pass. The queued phase starts no new
+   commands. The public run log may show pod ids, run ids, deadlines and action times
+   (architect decision, `requirements.md` "Failure handling"). Each call is retried a few times within the pass. The queued phase starts no new
    cancel after 1 minute from the pass start, its list included (a slow list fails the run, and
    a queued pod that deploys meanwhile is caught by the pod phase); the pod phase always lists
    and starts terminates until 4 minutes after the pass start or 2 minutes after its own start,
@@ -1330,9 +1407,11 @@ pods-only key is passed as a Runpod secret.
 
 ### 5.4 Credentials in the pod
 
-An R2 API token scoped to the single bucket (R2 cannot scope by prefix) is stored as Runpod
-Secrets and referenced from a Runpod template that the desktop app creates/updates via API;
-the image and the pod-create request never contain credentials.
+One R2 API token scoped to the single bucket (R2 cannot scope by prefix), shared by the
+desktop and the pod (A18). `setup_cloud` creates or updates the Runpod secrets from the R2
+credentials in the desktop keyring, then the template that references them (§3.7); rotating
+the token means re-running `setup_cloud`. The image and the pod-create request never contain
+credentials.
 
 ## 6. Cross-cutting
 
@@ -1459,7 +1538,7 @@ Few unit tests; mostly regression and flow tests:
   the image.
 - `reaper.yml` every 15 minutes and on manual dispatch (with a dry-run input): runs the
   reaper (§5.2, layer 4) with `RUNPOD_REAPER_API_KEY` from the `runpod-reaper` environment,
-  restricted to `main` the same way. It installs only the worker package without the `engine`
+  restricted to `main` the same way (the key's scope: Pods read+write only). It installs only the worker package without the `engine`
   extra, never overlaps itself (concurrency group) and times out after 12 minutes. While the
   secret is missing or empty the run only emits a `::warning::` and succeeds, so it does not
   fail every 15 minutes before the key exists; with the key, any failure or a malformed
@@ -1495,7 +1574,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.11 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.12 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

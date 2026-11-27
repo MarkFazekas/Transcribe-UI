@@ -94,10 +94,19 @@ def update_run(
     status: RunStatus | None = None,
     changes: PayloadChanges | None = None,
 ) -> RunInfo:
-    """Set the run's status (if given) and payload fields, and commit."""
+    """Set the run's status (if given) and payload fields, and commit.
+
+    A pod id the run records for the first time also records `pod_recorded_at` (now).
+    """
     with state.session() as session:
         row = load_run(session, run_id)
-        payload = payload_of(row).model_copy(update=dict(changes or {}))
+        earlier = payload_of(row)
+        updates = dict(changes or {})
+        recorded = updates.get("pod_id")
+        if recorded is not None and recorded != earlier.pod_id:
+            # The settle anchor of a pod first known from its queued pod without `resolvedAt`.
+            updates.setdefault("pod_recorded_at", now)
+        payload = earlier.model_copy(update=updates)
         # Validated again, so a wrong field type fails here rather than when read back.
         row.payload = RunPayload.model_validate(payload.model_dump()).model_dump(mode="json")
         if status is not None:

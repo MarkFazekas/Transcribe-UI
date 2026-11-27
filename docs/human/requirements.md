@@ -135,10 +135,16 @@ Naming and conflicts:
   While waiting for a machine, the user can cancel *(accepted proposal)*.
 - The app asks at every start how long to wait for a free machine; default 1 hour, at any time
   of day.
+- Maximum wait for a machine (A19, architect decision): the wait is 5 min to 24 h, with a 1 h
+  default. `MAX_RUNTIME_S` is at most 24 h. The worst case is under 50 h, about 13 USD.
 - Before starting, the app shows the total audio length and an estimated cost range and asks
   for confirmation. No separate spending limit in the app; the cloud account's own spending
   limit applies *(accepted proposal)*.
 - The S3-compatible credentials and the Runpod API key are stored in the OS credential store.
+- R2 credentials for the pod (A18, accepted default): there is one bucket-scoped R2 token,
+  shared by the desktop and the pod. `setup_cloud` creates or updates the Runpod secrets from
+  the R2 credentials in the desktop keyring, then the template that references them. Rotating
+  the token means re-running `setup_cloud`.
 
 ## Deployed app (worker)
 
@@ -173,6 +179,9 @@ Naming and conflicts:
   setting *(accepted proposal)*.
 - The Runpod pod must never be left running, not even after a major failure. A scheduled
   external job (GitHub Actions, pods-only key) terminates forgotten pods.
+- Architect decision (2026-11-27): the reaper's public GitHub Actions log may keep showing pod
+  ids, run ids and deadlines (taken from pod names) and action times. Reason: low risk, since
+  nothing can be done with a pod id without the key, and the key is masked.
 - A failed transcription or an interrupted batch must not harm the successful transcriptions.
 - Batch handling should be smarter than "download all audio files, then upload everything".
 

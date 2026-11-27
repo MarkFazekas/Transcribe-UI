@@ -2,11 +2,11 @@
 
 from typing import Literal
 
-from pydantic import AwareDatetime, PositiveInt
+from pydantic import AwareDatetime, NonNegativeFloat, NonNegativeInt, PositiveInt
 
-from transcribe_ui.api.base import FrozenModel
-from transcribe_ui.runs.classes import LaunchPlan, RunpodKind
-from transcribe_ui.state.models import RunStatus
+from transcribe_ui.api.base import FrozenModel, LocalPath
+from transcribe_ui.runs.classes import EndReason, LaunchPlan, RunpodKind
+from transcribe_ui.state.models import BatchPhase, RunStatus
 
 # How `launch_worker` ended: a pod (direct start), a queued pod, an unknown outcome (the run
 # stays `launching`; `refresh_status` or `reconcile_cloud` resolves it by its name), or, after a
@@ -17,6 +17,19 @@ type LaunchOutcome = Literal["pod", "queued", "unconfirmed", "ended"]
 type EntryRole = Literal["current", "straggler"]
 # What stopping a queued pod did: cancelled it (or it had ended), or terminated the pod it deployed.
 type QueuedStop = Literal["cancelled", "pod_terminated"]
+# What the app shows of a run: its pod request unanswered, waiting for a machine, the worker
+# starting, transcribing, or done while its pod is being stopped; then how the run ended.
+type RunStage = Literal[
+    "launching",
+    "waiting",
+    "starting",
+    "transcribing",
+    "stopping",
+    "finished",
+    "failed",
+    "cancelled",
+    "launch_failed",
+]
 
 
 class OkResponse(FrozenModel):
@@ -121,3 +134,74 @@ class CancelQueuedPodResponse(OkResponse):
     terminated_pod_id: str | None = None
     run_id: str | None
     local_status: RunStatus | None
+
+
+class CurrentJob(FrozenModel):
+    """The job the worker reports working on."""
+
+    batch_id: str
+    item_id: str
+    language: str
+
+
+class WorkerProgress(FrozenModel):
+    """The worker's own report (`runs/<run_id>/status.json`)."""
+
+    # `starting`, `transcribing`, `finished`, `failed`, or `unreadable` (invalid, another schema major).
+    state: str
+    updated_at: AwareDatetime | None = None
+    current: CurrentJob | None = None
+    done_jobs: NonNegativeInt = 0
+    total_jobs: NonNegativeInt = 0
+    error: str | None = None
+
+
+class RunProgress(FrozenModel):
+    """A run as `refresh_status` left it, with what the app shows while it runs."""
+
+    run: RunInfo
+    stage: RunStage
+    # The pod's status as last read (None before a pod is known).
+    pod_status: str | None
+    # None while the worker has written no report (or after its objects were collected).
+    worker: WorkerProgress | None
+    first_running_at: AwareDatetime | None
+    # Desktop deadline: first `RUNNING` sighting + `MAX_RUNTIME_S` + margin, capped by the name deadline.
+    deadline: AwareDatetime
+    # Since the pod's creation, until the run ended (None before a pod is known).
+    elapsed_s: NonNegativeFloat | None
+    price_per_hour_usd: NonNegativeFloat | None
+    cost_so_far_usd: NonNegativeFloat | None
+    ended_at: AwareDatetime | None
+    end_reason: EndReason | None
+    # Error code of a stop at the deadline that does not show yet (the next refresh tries again).
+    stop_error: str | None = None
+    # The worker's log, kept in the user log dir once the run's objects were collected.
+    worker_log: LocalPath | None = None
+
+
+class BatchResults(FrozenModel):
+    """A `ready` batch's transcribe jobs by result, and its phase now (`transcribed` once `_done.json` is there)."""
+
+    batch_id: str
+    phase: BatchPhase
+    ok: NonNegativeInt
+    no_speech: NonNegativeInt
+    failed: NonNegativeInt
+    pending: NonNegativeInt
+
+
+class RefreshStatusResponse(OkResponse):
+    """The runs that were not final, the `ready` batches' results, and the held manifests published."""
+
+    action: Literal["refresh_status"] = "refresh_status"
+    # Every run that was not final before the refresh, as it is now, oldest first.
+    runs: tuple[RunProgress, ...]
+    # Every batch that was `ready` (not skipped as busy), by batch id.
+    batches: tuple[BatchResults, ...]
+    # `ready` batches skipped because another request holds their lock (checked next time).
+    busy: tuple[str, ...] = ()
+    # Held manifests published now that no run is active, by batch id.
+    published: tuple[str, ...] = ()
+    # Held manifests still held (a run is active, or their batch was busy or incomplete).
+    held: tuple[str, ...] = ()

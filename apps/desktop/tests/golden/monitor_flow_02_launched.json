@@ -1,0 +1,29 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "launch_worker",
+    "outcome": "queued",
+    "adopted": false,
+    "run": {
+      "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+      "status": "queued",
+      "pod_name": "transcribe-ui-01M8EE0VG08BW9FC8PBW4Q3DY4-until-20261127T1522Z",
+      "pod_id": null,
+      "queued_pod_id": "qpod7919",
+      "test_mode": false,
+      "max_runtime_s": 4284,
+      "queue_expires_at": "2026-11-27T14:00:00Z",
+      "name_deadline": "2026-11-27T15:22:00Z",
+      "covered_batch_ids": [
+        "batch_20260101_090000",
+        "batch_20261127_130000"
+      ],
+      "created_at": "2026-11-27T12:00:00Z"
+    },
+    "published": [
+      "batch_20261127_130000"
+    ]
+  },
+  "events": []
+}
