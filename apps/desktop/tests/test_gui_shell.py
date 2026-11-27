@@ -161,7 +161,8 @@ def test_activity_retry_resumes_the_entry(qtbot: QtBot, tmp_path: Path) -> None:
     assert dialog.fix_button is not None
     dialog.fix_button.click()
     wait_for(qtbot, lambda: entry.state == "finished")
-    assert [request.action for request in runner.sent] == [UPLOAD, UPLOAD, "list_batches"]
+    # The re-send (long pool) and the lock probe (short pool) run side by side, in any order.
+    assert sorted(request.action for request in runner.sent) == sorted([UPLOAD, UPLOAD, "list_batches"])
 
 
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:
