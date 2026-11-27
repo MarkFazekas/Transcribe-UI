@@ -3,6 +3,7 @@
 import codecs
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -129,9 +130,10 @@ def test_plan_file_over_the_limit(world: RunsWorld) -> None:
     assert error_of(_import(world, check_only=True)) == ("custom_plan_unreadable", {"reason": "too_large"})
 
 
-@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX only")
 def test_plan_path_must_be_a_regular_file(world: RunsWorld) -> None:
     """A FIFO (or a folder) at the plan path is refused at once instead of blocking under the lock."""
+    if sys.platform == "win32":
+        pytest.skip("FIFOs are POSIX only")
     os.mkfifo(_plan_path(world))
     assert error_of(_import(world)) == ("custom_plan_unreadable", {"reason": "not_a_file"})
 
