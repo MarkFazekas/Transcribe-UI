@@ -8,6 +8,7 @@ from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import CancelToken
 from transcribe_ui.media.classes import Operation, Tool
 from transcribe_ui.media.constants import (
+    ERROR_MEDIA_INDEX_INVALID,
     ERROR_MEDIA_TOOL_FAILED,
     ERROR_MEDIA_TOOL_NOT_FOUND,
     ERROR_MEDIA_TOOL_TIMEOUT,
@@ -50,6 +51,17 @@ class ToolInvoker:
         except OSError as error:
             message = f"{tool} could not be started: {error.strerror or type(error).__name__}"
             raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, {"tool": tool, "source": "start"}) from error
+
+
+def require_index(index: int, operation: Operation) -> None:
+    """Refuse a negative track or stream index before anything runs.
+
+    Raises:
+        DomainError: `media_index_invalid` if the index is negative.
+    """
+    if index < 0:
+        message = f"The track or stream index must not be negative, got {index}."
+        raise DomainError(ERROR_MEDIA_INDEX_INVALID, message, {"operation": operation, "index": index})
 
 
 def tool_failed(tool: Tool, operation: Operation, completed: ProcessResult, summary: str) -> DomainError:

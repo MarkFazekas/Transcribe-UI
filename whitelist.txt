@@ -1,14 +1,17 @@
 a15
 a6
 addfile
+argtypes
 asr
 astimezone
 backoff
 base32
 bom
 boms
+byref
 caplog
 casefold
+chdir
 chunksize
 cjk
 cloudflarestorage
@@ -31,6 +34,7 @@ divmod
 dns
 dotall
 durations
+dword
 e2e
 enospc
 exc
@@ -74,6 +78,7 @@ islower
 isreg
 isspace
 iterdir
+jobobject
 joinpath
 kernel32
 killpg
@@ -82,6 +87,8 @@ levelname
 linkname
 liveness
 localhost
+lpcwstr
+m2ts
 macos
 matroska
 maxsplit
@@ -98,11 +105,14 @@ normaliser
 normcase
 normpath
 nowait
+ntdll
 onnx
 openai
 ord
 paginator
 param
+pathext
+pathsep
 pcm
 pgs
 popen
@@ -123,6 +133,7 @@ recv
 removeprefix
 removesuffix
 repo
+restype
 retryable
 rfile
 runpod
@@ -152,6 +163,7 @@ tokenizer
 uf
 ui
 ulid
+ulonglong
 und
 unicodedata
 unittest
@@ -160,6 +172,7 @@ unspaced
 untimed
 untracked
 untrusted
+unwritable
 utf16
 utils
 v2
@@ -173,6 +186,8 @@ watchdog
 wav
 wfile
 whisperx
+winjob
+wintypes
 writeframes
 yue
 yyyymmdd

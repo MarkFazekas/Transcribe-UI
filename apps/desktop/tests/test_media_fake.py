@@ -7,7 +7,12 @@ import pytest
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import CancelFlag
 from transcribe_ui.media.classes import AudioTrack, ProbeResult, SubtitleStream
-from transcribe_ui.media.constants import CONVERT_FAILED_MESSAGE, ERROR_MEDIA_TOOL_FAILED, PROBE_FAILED_MESSAGE
+from transcribe_ui.media.constants import (
+    CONVERT_FAILED_MESSAGE,
+    ERROR_MEDIA_INDEX_INVALID,
+    ERROR_MEDIA_TOOL_FAILED,
+    PROBE_FAILED_MESSAGE,
+)
 from transcribe_ui.media.fake import FakeMediaTools, default_fake_probe
 
 # Duration of the registered file.
@@ -15,6 +20,7 @@ REGISTERED_DURATION_S = 5.0
 # A registered probe result: two tracks (the second refused by Matroska), a text and a bitmap subtitle.
 REGISTERED = ProbeResult(
     duration_s=REGISTERED_DURATION_S,
+    start_s=0,
     has_video=True,
     audio_tracks=(
         AudioTrack(index=0, codec="ac3", language="hun", title=None, default=True, channels=6),
@@ -94,3 +100,17 @@ def test_missing_file_and_cancel(tmp_path: Path, fake: FakeMediaTools) -> None:
 
     assert (caught.value.code, caught.value.message) == (ERROR_MEDIA_TOOL_FAILED, PROBE_FAILED_MESSAGE)
     assert fake.calls == ["probe gone.mkv"]
+
+
+def test_negative_index_refused(tmp_path: Path, film: Path, fake: FakeMediaTools) -> None:
+    """A negative track or stream index is refused before anything is recorded or written."""
+    with pytest.raises(DomainError) as convert_error:
+        fake.convert(film, -1, tmp_path / "item", CancelFlag())
+    with pytest.raises(DomainError) as extract_error:
+        fake.extract(film, -1, CancelFlag())
+
+    assert (convert_error.value.code, extract_error.value.code) == (
+        ERROR_MEDIA_INDEX_INVALID,
+        ERROR_MEDIA_INDEX_INVALID,
+    )
+    assert not fake.calls

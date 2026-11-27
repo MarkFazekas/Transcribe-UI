@@ -163,9 +163,10 @@ def test_missing_executable_raises_os_error(tmp_path: Path) -> None:
     assert isinstance(caught.value, FileNotFoundError)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="sessions are POSIX; Windows uses CREATE_NEW_PROCESS_GROUP")
 def test_child_runs_in_its_own_session() -> None:
     """The child leads a new session, so a terminal Ctrl+C reaches only the app (plan m5 M5.4)."""
+    if sys.platform == "win32":
+        pytest.skip("sessions are POSIX; Windows uses CREATE_NEW_PROCESS_GROUP and a job object")
     completed = SubprocessRunner().run(_python("import os; print(os.getsid(0))"), RUN_TIMEOUT_S, CancelFlag())
 
     child_session = int(completed.stdout)

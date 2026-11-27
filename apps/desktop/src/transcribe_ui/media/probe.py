@@ -54,6 +54,7 @@ def summarise(output: FfprobeOutput) -> ProbeResult:
     subtitles = [stream for stream in streams if stream.codec_type == SUBTITLE_STREAM_TYPE]
     return ProbeResult(
         duration_s=_duration(output),
+        start_s=_number(output.container.start_time),
         has_video=any(_is_real_video(stream) for stream in streams),
         audio_tracks=tuple(map(_audio_track, range(len(audio)), audio)),
         subtitle_streams=tuple(map(_subtitle_stream, range(len(subtitles)), subtitles)),
@@ -133,13 +134,19 @@ def _duration(output: FfprobeOutput) -> float | None:
 
 
 def _seconds(text: str | None) -> float | None:
-    """Return ffprobe's duration text as seconds; None for missing, "N/A" or nonsense."""
+    """Return ffprobe's duration text as seconds; None for missing, "N/A", negative or nonsense."""
+    seconds = _number(text)
+    if seconds is None or seconds < 0:
+        return None
+    return seconds
+
+
+def _number(text: str | None) -> float | None:
+    """Return ffprobe's number text as a float; None for missing, "N/A" or not finite."""
     if text is None:
         return None
     try:
-        seconds = float(text)
+        number = float(text)
     except ValueError:
         return None
-    if not math.isfinite(seconds) or seconds < 0:
-        return None
-    return seconds
+    return number if math.isfinite(number) else None

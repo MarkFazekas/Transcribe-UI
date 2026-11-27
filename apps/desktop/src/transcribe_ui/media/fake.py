@@ -34,6 +34,7 @@ from transcribe_ui.media.constants import (
     PROBE_FAILED_MESSAGE,
 )
 from transcribe_ui.media.convert import output_path
+from transcribe_ui.media.invoke import require_index
 
 
 def default_fake_probe() -> ProbeResult:
@@ -46,7 +47,13 @@ def default_fake_probe() -> ProbeResult:
         default=True,
         channels=None,
     )
-    return ProbeResult(duration_s=FAKE_DEFAULT_DURATION_S, has_video=False, audio_tracks=(track,), subtitle_streams=())
+    return ProbeResult(
+        duration_s=FAKE_DEFAULT_DURATION_S,
+        start_s=0,
+        has_video=False,
+        audio_tracks=(track,),
+        subtitle_streams=(),
+    )
 
 
 @dataclass
@@ -65,6 +72,7 @@ class FakeMediaTools:
 
     def convert(self, source: Path, track_index: int, output_base: Path, cancel: CancelToken) -> ConvertedAudio:
         """Write a small file naming the source and track; FLAC for a refused codec."""
+        require_index(track_index, "convert")
         self._begin("convert", FFMPEG, source, cancel)
         tracks = self._probed(source).audio_tracks
         if track_index >= len(tracks):
@@ -80,6 +88,7 @@ class FakeMediaTools:
 
     def extract(self, source: Path, stream_index: int, cancel: CancelToken) -> str:
         """Return a one-cue SRT naming the source and stream; only text streams can be extracted."""
+        require_index(stream_index, "extract")
         self._begin("extract", FFMPEG, source, cancel)
         streams = self._probed(source).subtitle_streams
         stream: SubtitleStream | None = streams[stream_index] if stream_index < len(streams) else None

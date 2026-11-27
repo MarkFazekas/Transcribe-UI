@@ -5,17 +5,17 @@ Order: the path set in the settings, then the build bundled with the app (PyInst
 the tested bundled one, and a wrong override is reported instead of silently skipped.
 """
 
-import shutil
+import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.media.classes import Tool
-from transcribe_ui.media.constants import ERROR_MEDIA_TOOL_NOT_FOUND, FFMPEG, WINDOWS_EXECUTABLE_SUFFIX
+from transcribe_ui.media.constants import DEFAULT_PATHEXT, ERROR_MEDIA_TOOL_NOT_FOUND, FFMPEG, WINDOWS_EXECUTABLE_SUFFIX
 
-# Looks a command up on `PATH` (`shutil.which` signature, narrowed).
+# Looks a command up on `PATH` (`search_path` with this process's environment).
 type Which = Callable[[str], str | None]
 
 
@@ -31,8 +31,38 @@ class ToolOverrides:
         return self.ffmpeg if tool == FFMPEG else self.ffprobe
 
 
+def search_path(command: str, environ: Mapping[str, str], *, windows: bool) -> str | None:
+    """Return the first executable named `command` in the absolute folders of `PATH`.
+
+    Unlike `shutil.which`, the current folder is never searched (Windows searches it first), and
+    neither are relative `PATH` entries, so a file dropped next to the user's media is never run.
+    On Windows each `PATHEXT` extension is tried.
+    """
+    entries = environ.get("PATH", "").split(os.pathsep)
+    folders = [Path(entry) for entry in entries if entry]
+    names = [command]
+    if windows:
+        extensions = environ.get("PATHEXT", DEFAULT_PATHEXT).split(";")
+        names = [f"{command}{extension.lower()}" for extension in extensions if extension]
+    for folder in folders:
+        if not folder.is_absolute():
+            continue
+        found = _executable_in(folder, names, windows=windows)
+        if found is not None:
+            return str(found)
+    return None
+
+
+def _executable_in(folder: Path, names: list[str], *, windows: bool) -> Path | None:
+    for name in names:
+        candidate = folder / name
+        if candidate.is_file() and (windows or os.access(candidate, os.X_OK)):
+            return candidate
+    return None
+
+
 def _which(command: str) -> str | None:
-    return shutil.which(command)
+    return search_path(command, os.environ, windows=sys.platform == "win32")
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,8 @@ FFMPEG: Final = "ffmpeg"
 FFPROBE: Final = "ffprobe"
 # Suffix of executables on Windows; the bundled build is looked up with it there.
 WINDOWS_EXECUTABLE_SUFFIX: Final = ".exe"
+# Executable extensions tried on Windows when `PATHEXT` is not set (its usual start).
+DEFAULT_PATHEXT: Final = ".COM;.EXE;.BAT;.CMD"
 
 # Longest a probe may run before the process is killed (a hang, not a slow file: ffprobe reads headers).
 PROBE_TIMEOUT_S: Final = 120.0
@@ -15,6 +17,14 @@ PROBE_TIMEOUT_S: Final = 120.0
 CONVERT_TIMEOUT_S: Final = 3600.0
 # Longest a subtitle extraction may run (it demuxes the whole file, like a conversion).
 EXTRACT_TIMEOUT_S: Final = 3600.0
+# Slowest read speed (bytes/s) the conversion and extraction limits allow for: a large file gets
+# size / this when that is longer than the base limit (2 MB/s: an old USB 2 drive or a slow share).
+SLOWEST_READ_BYTES_PER_S: Final = 2_000_000.0
+# Largest container start time (s) whose cues are kept as stored; a later start (MPEG-TS, M2TS)
+# is subtracted from the cues, as players count the time from the start of the file.
+START_SHIFT_THRESHOLD_S: Final = 0.5
+# Windows `CREATE_SUSPENDED`: the tool waits until it is inside its job object (not in `subprocess`).
+WINDOWS_CREATE_SUSPENDED: Final = 0x4
 # How often a running process is checked for the cancel token and its deadline.
 POLL_INTERVAL_S: Final = 0.1
 # How long to wait for a killed process to exit and close its pipes.
@@ -40,6 +50,10 @@ FILE_PROTOCOL: Final = "file:"
 STDOUT_OUTPUT: Final = "pipe:1"
 # Suffix of an output while ffmpeg writes it; renamed into place only once ffmpeg succeeded.
 PARTIAL_SUFFIX: Final = ".part"
+# Tries to rename a finished output into place (Windows: a scanner may hold a new file briefly).
+REPLACE_ATTEMPTS: Final = 10
+# Pause between those tries.
+REPLACE_RETRY_S: Final = 0.2
 
 # Extension of a stream-copied audio track (Matroska audio accepts practically every codec).
 MATROSKA_EXTENSION: Final = "mka"
@@ -93,5 +107,9 @@ FAKE_DEFAULT_DURATION_S: Final = 60.0
 ERROR_MEDIA_TOOL_NOT_FOUND: Final = "media_tool_not_found"
 # Error code: ffmpeg or ffprobe failed on the file; `details.stderr` has the end of its message.
 ERROR_MEDIA_TOOL_FAILED: Final = "media_tool_failed"
+# Error code: the converted audio cannot be written (output folder missing rights, disk full, ...).
+ERROR_MEDIA_OUTPUT_UNWRITABLE: Final = "media_output_unwritable"
+# Error code: a track or stream index is negative (the caller's bug; nothing was run).
+ERROR_MEDIA_INDEX_INVALID: Final = "media_index_invalid"
 # Error code: ffmpeg or ffprobe outlived its timeout and was killed; nothing was left behind.
 ERROR_MEDIA_TOOL_TIMEOUT: Final = "media_tool_timeout"

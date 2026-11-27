@@ -54,6 +54,8 @@ class ProbeResult(MediaModel):
 
     # Container duration (else the longest stream's); None when the file does not say.
     duration_s: NonNegativeFloat | None
+    # Container start time (MPEG-TS often starts later than zero); None when the file does not say.
+    start_s: float | None
     # Whether the file has a real video stream (cover art does not count).
     has_video: bool
     audio_tracks: tuple[AudioTrack, ...]
@@ -90,6 +92,7 @@ class FfprobeFormat(FfprobeModel):
     """ffprobe's `format` (the container)."""
 
     duration: str | None = None
+    start_time: str | None = None
 
 
 class FfprobeOutput(FfprobeModel):
