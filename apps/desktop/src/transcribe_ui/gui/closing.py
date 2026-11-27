@@ -90,7 +90,8 @@ class CloseGuard:
 
     def _stop_and_close(self) -> None:
         self._executor.shutdown()
-        if self._executor.pending():
+        # Calls still queued were just cancelled; only running ones make the user wait.
+        if self._executor.running():
             self.finishing = FinishingDialog(FINISHING_TEXT, self._quit_now, self._window)
             self.finishing.open()
         self._executor.when_idle(self._close_now)
