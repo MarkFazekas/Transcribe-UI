@@ -233,7 +233,7 @@ docs/human/, docs/ai/     see CLAUDE.md
 
   Extracted subtitles are placed together with the transcribed ones. A batch with only
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
-  The phases are not a strict line (planned on the proposed defaults of Q25-Q27 and the requirements "Subtitle download options", `plans/m5.md` §1):
+  The phases are not a strict line (planned on the proposed default of Q27 and the requirements "Subtitle download options", `plans/m5.md` §1):
   a batch in `composing` or `reviewing` can be deleted; finished subtitles can already be
   downloaded in `ready` and again in `downloaded` (extracted ones even in `cleaned`); a batch
   reaches `downloaded` once it has `_done.json` (or is extract-only) and every job has a placement
@@ -262,7 +262,7 @@ docs/human/, docs/ai/     see CLAUDE.md
     running; a live `transcribe-ui-*` pod or queued pod; or a `status.json` younger than its
     heartbeat timeout; `plans/m5.md` §1), so no worker writes after a cleanup.
     A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
-    (`everything` only, Q26) is allowed during a run (unless R2 holds a leftover manifest of an
+    (`everything` only, requirements "Cloud cleanup") is allowed during a run (unless R2 holds a leftover manifest of an
     interrupted manifest step for it) and also aborts open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
     then `_done.json` and results, then audio; a crash in between leaves only objects under the
@@ -757,7 +757,7 @@ database):
 
 - **Phases.** Allowed in `ready` (the jobs whose results the last `refresh_status` recorded; the
   others are `not_finished`, requirements "Subtitle download options"), `transcribed`, `downloaded` (again, any number of times, with
-  any strategy, Q25) and `cleaned` (only the extract jobs are planned: their SRT is in SQLite, the
+  any strategy, requirements "Subtitle download options") and `cleaned` (only the extract jobs are planned: their SRT is in SQLite, the
   transcribed results are gone); any other phase is `wrong_phase`. A job's subtitle state comes
   from the database: a transcribe job's status (`ok` → `available`, `no_speech` → `empty`,
   `failed` → `failed`, `pending` → `pending`), an extract job's stored SRT. Sources are the items'

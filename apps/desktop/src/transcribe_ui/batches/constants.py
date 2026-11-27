@@ -22,7 +22,7 @@ REVIEWING: Final = "reviewing"
 ALL_PHASES: Final[frozenset[str]] = frozenset(get_args(BatchPhase.__value__))
 # Batch phases in which the items can still be edited (`edit_batch`).
 EDITABLE_PHASES: Final = frozenset(("composing",))
-# Batch phases in which a batch can be deleted (nothing is in the cloud yet, Q26).
+# Batch phases in which a batch can be deleted (nothing is in the cloud yet, requirements "Cloud cleanup").
 DELETABLE_PHASES: Final = frozenset(("composing", "reviewing"))
 # Batch phases in which items are probed, resolved and excluded (§3.3; `uploading` for items back in review).
 REVIEW_PHASES: Final = frozenset(("reviewing", "uploading"))

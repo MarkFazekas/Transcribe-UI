@@ -95,7 +95,7 @@ def test_next_to_media_skips_the_existing_sidecar(world: RunsWorld) -> None:
 
 
 def test_download_again_with_another_strategy(world: RunsWorld) -> None:
-    """A downloaded batch can be downloaded again with another strategy (Q25); the phase stays."""
+    """A downloaded batch can be downloaded again with another strategy (requirements "Subtitle download options"); the phase stays."""
     leg = world.leg
     _download(leg)
     assert (_download(leg, "flat"), phase_of(leg)) == (expected_outcomes(), DOWNLOADED)

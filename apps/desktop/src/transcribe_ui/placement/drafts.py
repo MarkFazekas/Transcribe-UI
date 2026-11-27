@@ -1,7 +1,7 @@
 """Target names of the placement strategies and their collision rules (architecture §3.5).
 
 Names are worked out for every job of a download, whatever its subtitle state, so a partial
-download names its files the same way as a later one (requirements "Subtitle download options", Q25).
+download names its files the same way as a later one (requirements "Subtitle download options").
 
 Collisions (two names equal under the path-flavour rule in one target folder):
 

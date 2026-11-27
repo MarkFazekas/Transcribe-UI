@@ -105,6 +105,12 @@ Cleaning up the cloud is available after the download and at any time when the j
 as a maintenance action: "delete audio only" or "delete everything (audio and subtitles)".
 Deleting something that is already gone is not an error.
 
+- Abandoning a job before it is uploaded *(Q26, accepted default)*: a job in the review step
+  can still be deleted (nothing is in the cloud yet; it disappears from the history). A job
+  whose upload has started can be abandoned with the cloud cleanup "delete everything": the
+  uploaded audio and unfinished uploads are deleted, and the job stays in the history as
+  cleaned up.
+
 ## Subtitle download options
 
 - Next to the original video/audio file.
@@ -137,6 +143,12 @@ Naming and conflicts:
   or several. The next start of transcription does the missing files. A failed file (no subtitle
   could be made) does not keep the job from counting as downloaded; retry batches handle failed
   jobs.
+- Download again *(Q25, accepted default)*: a downloaded job can be downloaded again any number
+  of times, with any placement option, as long as its subtitles are still in the cloud (not
+  after "delete everything"; subtitles taken from inside the video files are kept on the
+  computer and can be placed again even after that). Files already in place are listed as
+  existing and skipped unless overwrite is chosen. This is also how the files skipped because
+  their original folder is gone are placed later.
 - Two subtitles that would get the same name in one folder are shown; by default each gets its
   folder name as prefix: `A_movie.hu.srt`, `B_movie.hu.srt`. No numbering.
 

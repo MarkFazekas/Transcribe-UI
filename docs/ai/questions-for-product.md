@@ -10,26 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q25. Downloading a job's subtitles again
-
-After a download, the subtitles stay in the cloud until the user cleans up.
-
-Proposed default: a downloaded job can be downloaded again any number of times, with any
-placement option, as long as its subtitles are still in the cloud (not after "delete
-everything"; subtitles taken from inside the video files are kept on the computer and can be
-placed again even after that). Files already in place are listed as existing and skipped
-unless overwrite is chosen. This is also how the files skipped because their original folder is gone are placed later.
-
-### Q26. Abandoning a job before it is uploaded
-
-A job can be deleted while its files are being selected. Once the review step started, or the
-upload started, there is no way out: a half-uploaded job keeps its audio in the cloud.
-
-Proposed default: a job in the review step can still be deleted (nothing is in the cloud yet;
-it disappears from the history). A job whose upload has started can be abandoned with the cloud
-cleanup "delete everything": the uploaded audio and unfinished uploads are deleted, and the job
-stays in the history as cleaned up.
-
 ### Q27. A job that finishes uploading while the cloud machine is waiting or working
 
 Starting transcription sends every uploaded job, with a cost estimate and a time limit worked

@@ -9,7 +9,7 @@ outcome even without a row (it can fail at `_done.json`, after the last download
 never block `downloaded`, retry batches take them (requirements "Subtitle download options"). `run_download` and
 `import_custom_plan` apply the rule after each download; `refresh_status` applies it when it
 moves a `ready` batch to `transcribed`, and to every `transcribed` batch whose lock is free (a
-download killed after its last outcome). Downloading again (Q25) only adds rows; the phase never
+download killed after its last outcome). Downloading again (requirements "Subtitle download options") only adds rows; the phase never
 moves back.
 """
 
