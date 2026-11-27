@@ -31,7 +31,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Waiting on humans
 
 - Architect: schedule the M4 approved Runpod run.
-- Architect: A21 (fixed run scope across computers), A22 (no absolute paths in the
+- Architect: A21 (fixed run scope across computers), A22 (absolute paths in the shared
   manifest) in `questions-for-architect.md`; they gate M6.13.
 - Product: Q33 (main window layout), Q34 (stopping
   the cloud machine while it transcribes), Q35 (deleting subtitles several computers download) in `questions-for-product.md`. M5 is built and M6 is
