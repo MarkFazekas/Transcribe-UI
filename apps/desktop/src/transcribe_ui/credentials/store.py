@@ -92,6 +92,31 @@ class Lookup:
         if missing:
             raise _missing_error(missing, self.keyring)
 
+    def r2(self) -> R2Credentials:
+        """Return the R2 credentials of this lookup (call `require` first).
+
+        Raises:
+            DomainError: `credentials_invalid` (names, never values).
+        """
+        fields = {_r2_field(name): self.text(name) for name in R2_CREDENTIALS}
+        try:
+            return R2Credentials.model_validate(fields)
+        except ValidationError as error:
+            invalid: list[CredentialName] = [name for name in R2_CREDENTIALS if _names_field(error, _r2_field(name))]
+        raise _invalid_error(invalid, self)
+
+    def runpod_api_key(self) -> SecretStr:
+        """Return the Runpod API key of this lookup (call `require` first).
+
+        Raises:
+            DomainError: `credentials_invalid` (names, never values).
+        """
+        try:
+            return _token_adapter().validate_python(self.text(RUNPOD_API_KEY))
+        except ValidationError:
+            invalid: list[CredentialName] = [RUNPOD_API_KEY]
+        raise _invalid_error(invalid, self)
+
 
 def _json_list(texts: Iterable[str]) -> list[JsonValue]:
     return [str(text) for text in texts]
@@ -186,12 +211,7 @@ class CredentialStore:
         """
         lookup = self.lookup(R2_CREDENTIALS)
         lookup.require(R2_CREDENTIALS)
-        fields = {_r2_field(name): lookup.text(name) for name in R2_CREDENTIALS}
-        try:
-            return R2Credentials.model_validate(fields)
-        except ValidationError as error:
-            invalid: list[CredentialName] = [name for name in R2_CREDENTIALS if _names_field(error, _r2_field(name))]
-            raise _invalid_error(invalid, lookup) from None
+        return lookup.r2()
 
     def runpod_api_key(self) -> SecretStr:
         """Return the Runpod API key.
@@ -201,10 +221,7 @@ class CredentialStore:
         """
         lookup = self.lookup((RUNPOD_API_KEY,))
         lookup.require((RUNPOD_API_KEY,))
-        try:
-            return _token_adapter().validate_python(lookup.text(RUNPOD_API_KEY))
-        except ValidationError:
-            raise _invalid_error([RUNPOD_API_KEY], lookup) from None
+        return lookup.runpod_api_key()
 
     def _keyring(self) -> SecretBackend:
         with self._lock:

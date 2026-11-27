@@ -24,6 +24,8 @@ from transcribe_ui.runpod.check import check_runpod
 from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.constants import (
     CHECK_ATTEMPTS,
+    CHECK_CONNECT_TIMEOUT_S,
+    CHECK_READ_TIMEOUT_S,
     MAX_ATTEMPTS,
     POD_TERMINATED,
     QUEUED_POD_CANCELLED,
@@ -420,3 +422,34 @@ def test_key_check(
     outcome = (checked.outcome, checked.code, cloud.api.count(GET, PODS))
     assert (checked.service, outcome) == ("runpod", expected)
     assert all(seen.query == "limit=1" for seen in cloud.api.seen())
+
+
+def test_key_check_bounds_rate_limit_waits(tmp_path: Path) -> None:
+    """A 429 asking for 9999 s waits at most 1 s; 2 attempts with 5 s / 10 s timeouts (about 30 s)."""
+    cloud = Cloud()
+    cloud.api.fail(GET, PODS, *(Failure(status=TOO_MANY, retry_after="9999"),) * CHECK_ATTEMPTS)
+    context = RequestContext(cloud.ports(tmp_path), DiscardProgress(), CancelFlag())
+    checked = check_runpod(context)
+    assert (checked.outcome, checked.code, cloud.sleeps.delays) == ("failed", "cloud_unreachable", [1.0])
+    seen = cloud.api.seen()
+    assert len(seen) == CHECK_ATTEMPTS
+    assert {request.timeouts for request in seen} == {(CHECK_CONNECT_TIMEOUT_S, CHECK_READ_TIMEOUT_S)}
+
+
+def test_key_check_stops_on_cancel(tmp_path: Path) -> None:
+    """The check's client gets the request's cancel token: a cancel during its wait ends it."""
+    cancel = CancelFlag()
+    cloud = Cloud(sleeps=WaitRecorder(on_wait=cancel.cancel))
+    cloud.api.fail(GET, PODS, *_failing(SERVICE_UNAVAILABLE))
+    context = RequestContext(cloud.ports(tmp_path), DiscardProgress(), cancel)
+    with pytest.raises(CancelledError):
+        check_runpod(context)
+    assert cloud.api.count(GET, PODS) == 1
+
+
+def test_non_ascii_key_never_reaches_the_client() -> None:
+    """A non-ASCII key (which httpx cannot encode) is refused before any request."""
+    cloud = Cloud()
+    with pytest.raises(ValueError, match="ASCII"):
+        RunpodClient(SecretStr("rpa_KEY\u00e9"), transport=cloud.api.transport())
+    assert not cloud.api.seen()

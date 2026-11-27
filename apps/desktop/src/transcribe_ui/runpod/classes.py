@@ -20,8 +20,11 @@ type CloudObjectState = Literal["ok", "missing", "outdated", "duplicated"]
 class SetupCloudRequest(FrozenModel):
     """Create or update, by their fixed names, the Runpod objects the worker needs.
 
-    The R2 secrets, the Global Volume and the worker template; duplicates by name are reduced to
-    the oldest. Idempotent: run it again after an interruption or a credential rotation.
+    The R2 secrets, the Global Volume and the worker template. Duplicate secrets and templates
+    are deleted (one is kept: the exact-name, oldest secret; a stable pick of the templates that
+    prefers an up-to-date one); Global Volumes are never deleted, so duplicates stop the request
+    with `cloud_volume_duplicated`. Idempotent: run it again after an interruption or a
+    credential rotation.
     """
 
     action: Literal["setup_cloud"]
@@ -61,7 +64,8 @@ class CloudObjectStatus(FrozenModel):
     kind: CloudObjectKind
     name: str
     state: CloudObjectState
-    # Id of the object `launch_worker` would use (the oldest of duplicates); None when missing.
+    # Id of the object `launch_worker` would use (for duplicates: the one the setup keeps; none
+    # for volumes, which the user resolves); None when missing.
     object_id: str | None = None
     # Fields that differ from what the app needs (names only, never values).
     outdated_fields: tuple[str, ...] = ()

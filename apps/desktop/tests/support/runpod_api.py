@@ -143,6 +143,8 @@ class SeenRequest:
     path: str
     query: str
     authorised: bool
+    # The client's connect and read timeouts for this request (seconds).
+    timeouts: tuple[float | None, float | None] = (None, None)
 
 
 @dataclass
@@ -438,7 +440,9 @@ class FakeRunpodApi:
         """Answer one request (raising the transport errors a failure asks for)."""
         authorised = request.headers.get("Authorization") == f"Bearer {self._api_key}"
         path = request.url.path
-        self._seen.append(SeenRequest(request.method, path, request.url.query.decode(), authorised))
+        timeout = request.extensions.get("timeout", {})
+        timeouts = (timeout.get("connect"), timeout.get("read"))
+        self._seen.append(SeenRequest(request.method, path, request.url.query.decode(), authorised, timeouts))
         if request.url.host != FAKE_API_HOST or not path.startswith(FAKE_API_PREFIX):
             return problem(HTTP_NOT_FOUND, "unknown host or path")
         if not authorised:

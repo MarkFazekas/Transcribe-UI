@@ -17,6 +17,7 @@ from transcribe_ui.runpod.constants import (
     CHECK_ATTEMPTS,
     CHECK_CONNECT_TIMEOUT_S,
     CHECK_READ_TIMEOUT_S,
+    CHECK_RETRY_WAIT_MAX_S,
     ERROR_CLOUD_UNREACHABLE,
     ERROR_RUNPOD_KEY_REJECTED,
     ERROR_RUNPOD_KEY_SCOPE,
@@ -49,15 +50,22 @@ class RunpodAccess:
         """
         return RunpodClient(api_key, transport=self.transport, timing=self.timing(stopped))
 
-    def check_client(self, api_key: SecretStr) -> RunpodClient:
-        """Return a client with the credential check's short limits (2 attempts, 5 s / 10 s)."""
-        timing = replace(
-            self.timing(),
+    def check_client(self, api_key: SecretStr, stopped: Stopped = never_stopped) -> RunpodClient:
+        """Return a client with the credential check's short limits (see `check_timing`)."""
+        return RunpodClient(api_key, transport=self.transport, timing=self.check_timing(stopped))
+
+    def check_timing(self, stopped: Stopped = never_stopped) -> Timing:
+        """Return the credential check's timing: 2 attempts, 5 s connect, 10 s read, waits of at most 1 s.
+
+        So a hanging or rate-limiting API is reported within about 30 s.
+        """
+        return replace(
+            self.timing(stopped),
             attempts=CHECK_ATTEMPTS,
             connect_timeout_s=CHECK_CONNECT_TIMEOUT_S,
             read_timeout_s=CHECK_READ_TIMEOUT_S,
+            wait_max_s=CHECK_RETRY_WAIT_MAX_S,
         )
-        return RunpodClient(api_key, transport=self.transport, timing=timing)
 
     def timing(self, stopped: Stopped = never_stopped) -> Timing:
         """Return the waits, clock and cancel check of a client."""
@@ -85,9 +93,10 @@ def setup_credentials(store: CredentialStore) -> tuple[SecretStr, dict[str, Secr
         DomainError: `credentials_missing` naming every missing credential (all five are
             checked first), or `credentials_invalid`.
     """
-    store.lookup(CREDENTIAL_ORDER).require(CREDENTIAL_ORDER)
-    api_key = store.runpod_api_key()
-    r2 = store.r2()
+    lookup = store.lookup(CREDENTIAL_ORDER)  # one keyring read for all five
+    lookup.require(CREDENTIAL_ORDER)
+    api_key = lookup.runpod_api_key()
+    r2 = lookup.r2()
     endpoint = SecretStr(r2.endpoint_url)
     parts = (endpoint, SecretStr(r2.bucket), r2.access_key_id, r2.secret_access_key)
     names = [secret for _, secret in SECRET_FOR_ENV]

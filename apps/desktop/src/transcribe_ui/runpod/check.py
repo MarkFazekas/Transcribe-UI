@@ -1,7 +1,8 @@
 """The Runpod half of `check_credentials`: does the stored key work? (`GET /v2/pods?limit=1`).
 
-The check uses short limits (2 attempts, 5 s connect, 10 s read), like the R2 check, and never
-parses the pod list (pods carry secrets in their `env`).
+The check uses short limits (2 attempts, 5 s connect, 10 s read, waits of at most 1 s), like
+the R2 check, stops on the request's cancel token, and never parses the pod list (pods carry
+secrets in their `env`).
 """
 
 from transcribe_ui.api.errors import DomainError
@@ -22,7 +23,7 @@ def check_runpod(context: RequestContext) -> ServiceCheck:
         outcome = "missing" if error.code == ERROR_CREDENTIALS_MISSING else "failed"
         return ServiceCheck(service="runpod", outcome=outcome, code=error.code, message=error.message)
     try:
-        with ports.runpod.check_client(api_key) as client:
+        with ports.runpod.check_client(api_key, context.cancel.is_cancelled) as client:
             client.pods.probe()
     except RunpodApiError as error:
         failure = api_failure(error)

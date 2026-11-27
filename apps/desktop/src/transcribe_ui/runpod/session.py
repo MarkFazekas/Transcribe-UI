@@ -53,13 +53,17 @@ class RunpodHttp:
             timing: Waits, clock and cancel check (default: real time, never cancelled).
 
         Raises:
-            ValueError: If the base URL is not allowed.
+            ValueError: If the base URL is not allowed or the key is not ASCII.
         """
         check_base_url(base_url)
+        token = api_key.get_secret_value()
+        if not token.isascii():  # the credential store refuses these; never let httpx fail on one
+            msg = "the Runpod API key must be ASCII"
+            raise ValueError(msg)
         self._timing = timing or Timing()
         self._client = httpx.Client(
             base_url=base_url,
-            headers={"Authorization": f"Bearer {api_key.get_secret_value()}"},
+            headers={"Authorization": f"Bearer {token}"},
             timeout=httpx.Timeout(self._timing.read_timeout_s, connect=self._timing.connect_timeout_s),
             follow_redirects=False,
             transport=transport,
@@ -99,15 +103,16 @@ class RunpodHttp:
             outcome = self._attempt(call, attempt)
             if not isinstance(outcome, Retry):
                 return outcome
+            delay_s = min(outcome.delay_s, self._timing.wait_max_s)
             logger.warning(
                 "%s: %s (attempt %d of %d); retrying in %.1f s",
                 call.label,
                 outcome.reason,
                 attempt,
                 self._timing.attempts,
-                outcome.delay_s,
+                delay_s,
             )
-            self._timing.wait(outcome.delay_s, self._timing.stopped)
+            self._timing.wait(delay_s, self._timing.stopped)
             attempt += 1
 
     def require(self, call: Call) -> httpx.Response:

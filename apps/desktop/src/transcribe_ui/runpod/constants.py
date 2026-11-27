@@ -31,6 +31,9 @@ CHECK_ATTEMPTS: Final = 2
 CHECK_CONNECT_TIMEOUT_S: Final = 5.0
 # Read timeout of the credential check.
 CHECK_READ_TIMEOUT_S: Final = 10.0
+# Longest wait between the credential check's attempts (a 429 included), so it reports
+# within about 30 s: 2 x (5 s connect + 10 s read) + this.
+CHECK_RETRY_WAIT_MAX_S: Final = 1.0
 # Message of a passed Runpod credential check.
 RUNPOD_CHECK_PASSED: Final = "Runpod accepted the API key and the pod list can be read."
 # Longest single sleep while waiting to retry, so a cancel is noticed within this time.

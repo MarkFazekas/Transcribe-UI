@@ -5,7 +5,7 @@
     },
     "CheckCredentialsRequest": {
       "additionalProperties": false,
-      "description": "Try the credentials against the services (R2: list the bucket); changes nothing.",
+      "description": "Try the credentials against the services (R2: list the bucket; Runpod: read the pod list); changes nothing.",
       "properties": {
         "action": {
           "const": "check_credentials",
@@ -509,7 +509,7 @@
     },
     "SetupCloudRequest": {
       "additionalProperties": false,
-      "description": "Create or update, by their fixed names, the Runpod objects the worker needs.\n\nThe R2 secrets, the Global Volume and the worker template; duplicates by name are reduced to\nthe oldest. Idempotent: run it again after an interruption or a credential rotation.",
+      "description": "Create or update, by their fixed names, the Runpod objects the worker needs.\n\nThe R2 secrets, the Global Volume and the worker template. Duplicate secrets and templates\nare deleted (one is kept: the exact-name, oldest secret; a stable pick of the templates that\nprefers an up-to-date one); Global Volumes are never deleted, so duplicates stop the request\nwith `cloud_volume_duplicated`. Idempotent: run it again after an interruption or a\ncredential rotation.",
       "properties": {
         "action": {
           "const": "setup_cloud",

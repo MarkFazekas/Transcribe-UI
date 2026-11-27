@@ -5,7 +5,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from transcribe_ui.runpod.constants import CONNECT_TIMEOUT_S, MAX_ATTEMPTS, READ_TIMEOUT_S, WAIT_SLICE_S
+from transcribe_ui.runpod.constants import (
+    CONNECT_TIMEOUT_S,
+    MAX_ATTEMPTS,
+    READ_TIMEOUT_S,
+    RETRY_AFTER_MAX_S,
+    WAIT_SLICE_S,
+)
 
 # The current time, timezone-aware (dates in `Retry-After` are measured against it).
 type Clock = Callable[[], datetime]
@@ -46,3 +52,5 @@ class Timing:
     attempts: int = MAX_ATTEMPTS
     connect_timeout_s: float = CONNECT_TIMEOUT_S
     read_timeout_s: float = READ_TIMEOUT_S
+    # Longest wait between two attempts (backoff and `Retry-After` alike).
+    wait_max_s: float = RETRY_AFTER_MAX_S
