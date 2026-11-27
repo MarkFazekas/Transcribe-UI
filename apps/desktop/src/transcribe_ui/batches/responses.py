@@ -29,6 +29,9 @@ class JobView(FrozenModel):
     status: str
     # Whether the choice is complete and fits the probed file.
     resolved: bool
+    # Why a transcribe job failed (`status` `failed`): its result's error, `unreadable result` or
+    # `missing result`; None otherwise.
+    result_error: str | None
 
 
 class BatchItem(FrozenModel):

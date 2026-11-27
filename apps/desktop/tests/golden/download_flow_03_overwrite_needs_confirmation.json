@@ -1,0 +1,19 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "run_download",
+    "confirmations": [
+      {
+        "field": "confirm_overwrite",
+        "message": "1 existing subtitle file(s) will be replaced.",
+        "details": {
+          "targets": [
+            "Film.en.srt"
+          ]
+        }
+      }
+    ]
+  },
+  "events": []
+}

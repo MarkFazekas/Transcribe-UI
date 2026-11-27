@@ -11,6 +11,7 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches import exclusion, listing, review, services
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.discovery.services import preview_selection, scan_tree
+from transcribe_ui.placement import services as downloads
 from transcribe_ui.runpod.setup import cloud_setup_status, setup_cloud
 from transcribe_ui.runs import cancel, launch, monitor, planning, reconcile, stragglers
 from transcribe_ui.state.requests import get_settings, update_settings
@@ -63,5 +64,9 @@ def default_routes() -> Routes:
             "reconcile_cloud": Route(run=reconcile.reconcile_cloud, needs_database=True),
             "terminate_pod": Route(run=stragglers.terminate_pod, needs_database=True),
             "cancel_queued_pod": Route(run=stragglers.cancel_queued_pod, needs_database=True),
+            "plan_download": Route(run=downloads.plan_download, needs_database=True),
+            "run_download": Route(run=downloads.run_download, needs_database=True),
+            "export_custom_plan": Route(run=downloads.export_custom_plan, needs_database=True),
+            "import_custom_plan": Route(run=downloads.import_custom_plan, needs_database=True),
         },
     )

@@ -1,5 +1,8 @@
 {
   "$defs": {
+    "AbsoluteFile": {
+      "$ref": "#/$defs/LocalPath"
+    },
     "BatchId": {
       "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
       "type": "string"
@@ -161,6 +164,33 @@
       "title": "CredentialsStatusRequest",
       "type": "object"
     },
+    "CustomPlacementOptions": {
+      "additionalProperties": false,
+      "description": "Where an imported custom plan's relative output folders start.",
+      "properties": {
+        "include_empty": {
+          "default": false,
+          "description": "Also place empty subtitles (no speech found).",
+          "title": "Include Empty",
+          "type": "boolean"
+        },
+        "output_folder": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "Absolute folder every target of the custom plan must be inside."
+        },
+        "overwrite": {
+          "default": false,
+          "description": "Replace existing target files instead of skipping them.",
+          "title": "Overwrite",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "output_folder"
+      ],
+      "title": "CustomPlacementOptions",
+      "type": "object"
+    },
     "DeleteBatchRequest": {
       "additionalProperties": false,
       "description": "Delete a batch in `composing` or `reviewing` (nothing of it is in the cloud yet).",
@@ -278,6 +308,37 @@
       "title": "ExcludeItemsRequest",
       "type": "object"
     },
+    "ExportCustomPlanRequest": {
+      "additionalProperties": false,
+      "description": "Return the custom plan of the batch's jobs, pre-filled with the mirror folders and the default names.",
+      "properties": {
+        "action": {
+          "const": "export_custom_plan",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AbsoluteFile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "ExportCustomPlanRequest",
+      "type": "object"
+    },
     "ExtractChoice": {
       "additionalProperties": false,
       "description": "Extract an embedded text subtitle stream as the job's subtitle.",
@@ -362,6 +423,44 @@
         "action"
       ],
       "title": "GetSettingsRequest",
+      "type": "object"
+    },
+    "ImportCustomPlanRequest": {
+      "additionalProperties": false,
+      "description": "Validate an edited custom plan file, then place the batch's finished subtitles as it says.",
+      "properties": {
+        "action": {
+          "const": "import_custom_plan",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "check_only": {
+          "default": false,
+          "title": "Check Only",
+          "type": "boolean"
+        },
+        "confirm_overwrite": {
+          "default": false,
+          "title": "Confirm Overwrite",
+          "type": "boolean"
+        },
+        "placement": {
+          "$ref": "#/$defs/CustomPlacementOptions"
+        },
+        "plan_path": {
+          "$ref": "#/$defs/AbsoluteFile"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id",
+        "plan_path",
+        "placement"
+      ],
+      "title": "ImportCustomPlanRequest",
       "type": "object"
     },
     "ItemLanguages": {
@@ -523,6 +622,59 @@
       "title": "PlacementDefaults",
       "type": "object"
     },
+    "PlacementOptions": {
+      "additionalProperties": false,
+      "description": "A placement strategy and its parameters.",
+      "properties": {
+        "folder_count": {
+          "default": 1,
+          "description": "flat_with_folders: the number of folders closest to the file joined into the name.",
+          "exclusiveMinimum": 0,
+          "title": "Folder Count",
+          "type": "integer"
+        },
+        "folder_levels": {
+          "default": [],
+          "description": "flat_with_folders: explicit folder levels joined into the name instead of the closest ones, counted from the scan root (1 = the first folder below it); not combined with folder_count.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "title": "Folder Levels",
+          "type": "array"
+        },
+        "include_empty": {
+          "default": false,
+          "description": "Also place empty subtitles (no speech found).",
+          "title": "Include Empty",
+          "type": "boolean"
+        },
+        "output_folder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Absolute target folder of the mirror and flat strategies; ignored by next_to_media."
+        },
+        "overwrite": {
+          "default": false,
+          "description": "Replace existing target files instead of skipping them.",
+          "title": "Overwrite",
+          "type": "boolean"
+        },
+        "strategy": {
+          "$ref": "#/$defs/PlacementStrategy",
+          "default": "next_to_media"
+        }
+      },
+      "title": "PlacementOptions",
+      "type": "object"
+    },
     "PlacementStrategy": {
       "enum": [
         "next_to_media",
@@ -531,6 +683,29 @@
         "flat_with_folders"
       ],
       "type": "string"
+    },
+    "PlanDownloadRequest": {
+      "additionalProperties": false,
+      "description": "Show what a download of the batch's subtitles with a strategy would do; nothing is written.",
+      "properties": {
+        "action": {
+          "const": "plan_download",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "placement": {
+          "$ref": "#/$defs/PlacementOptions"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "PlanDownloadRequest",
+      "type": "object"
     },
     "PlanLaunchRequest": {
       "additionalProperties": false,
@@ -725,6 +900,34 @@
         }
       },
       "title": "ReviewFilter",
+      "type": "object"
+    },
+    "RunDownloadRequest": {
+      "additionalProperties": false,
+      "description": "Download the batch's finished subtitles and place them with a strategy (resumable: send it again).",
+      "properties": {
+        "action": {
+          "const": "run_download",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "confirm_overwrite": {
+          "default": false,
+          "title": "Confirm Overwrite",
+          "type": "boolean"
+        },
+        "placement": {
+          "$ref": "#/$defs/PlacementOptions"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "RunDownloadRequest",
       "type": "object"
     },
     "RunUploadRequest": {
@@ -1325,17 +1528,21 @@
       "delete_batch": "#/$defs/DeleteBatchRequest",
       "edit_batch": "#/$defs/EditBatchRequest",
       "exclude_items": "#/$defs/ExcludeItemsRequest",
+      "export_custom_plan": "#/$defs/ExportCustomPlanRequest",
       "get_app_info": "#/$defs/GetAppInfoRequest",
       "get_batch": "#/$defs/GetBatchRequest",
       "get_settings": "#/$defs/GetSettingsRequest",
+      "import_custom_plan": "#/$defs/ImportCustomPlanRequest",
       "launch_worker": "#/$defs/LaunchWorkerRequest",
       "list_batches": "#/$defs/ListBatchesRequest",
+      "plan_download": "#/$defs/PlanDownloadRequest",
       "plan_launch": "#/$defs/PlanLaunchRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
       "reconcile_cloud": "#/$defs/ReconcileCloudRequest",
       "refresh_status": "#/$defs/RefreshStatusRequest",
       "resolve_review": "#/$defs/ResolveReviewRequest",
       "review_batch": "#/$defs/ReviewBatchRequest",
+      "run_download": "#/$defs/RunDownloadRequest",
       "run_upload": "#/$defs/RunUploadRequest",
       "scan_tree": "#/$defs/ScanTreeRequest",
       "set_batch_hidden": "#/$defs/SetBatchHiddenRequest",
@@ -1431,6 +1638,18 @@
     },
     {
       "$ref": "#/$defs/CancelQueuedPodRequest"
+    },
+    {
+      "$ref": "#/$defs/PlanDownloadRequest"
+    },
+    {
+      "$ref": "#/$defs/RunDownloadRequest"
+    },
+    {
+      "$ref": "#/$defs/ExportCustomPlanRequest"
+    },
+    {
+      "$ref": "#/$defs/ImportCustomPlanRequest"
     }
   ]
 }

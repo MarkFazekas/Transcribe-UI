@@ -1,6 +1,11 @@
 """Constants of the placement planner (architecture §3.5)."""
 
-from typing import Final
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from transcribe_ui.placement.classes import SubtitleState
 
 # Extension of every placed subtitle file (lower case, without the dot).
 SUBTITLE_EXTENSION: Final = "srt"
@@ -89,3 +94,47 @@ ERROR_CUSTOM_INVALID_NAME: Final = "custom_plan_invalid_name"
 ERROR_CUSTOM_NOT_SRT: Final = "custom_plan_not_srt"
 # Custom plan error: a target is outside the chosen output folder after resolving `..` and links.
 ERROR_CUSTOM_OUTSIDE_ROOT: Final = "custom_plan_outside_root"
+
+# Download (`plan_download`, `run_download`, the custom plan requests; plan m5 §1 "Download").
+
+# Batch phases whose subtitles can be downloaded: the finished jobs of a `ready` batch, again and
+# again while the results are in R2, and the extracted subtitles of a `cleaned` batch (they are
+# kept in SQLite).
+DOWNLOAD_PHASES: Final = frozenset(("ready", "transcribed", "downloaded", "cleaned"))
+# Batch phase whose manifest is published: its finished jobs can be downloaded already.
+READY_PHASE: Final = "ready"
+# Batch phase whose transcribed subtitles are gone from R2: only its extracted ones are placed.
+CLEANED_PHASE: Final = "cleaned"
+# Batch phase of a batch with `_done.json` (or extract-only) that is not downloaded yet.
+TRANSCRIBED_PHASE: Final = "transcribed"
+# Batch phase of a batch whose every job has a placement outcome.
+DOWNLOADED_PHASE: Final = "downloaded"
+# Outcomes recorded for a job: each counts towards `downloaded` (`not_finished` is no outcome).
+RECORDED_OUTCOMES: Final = frozenset(
+    ("place", "overwrite", "skip_existing", "skip_folder_missing", "skip_empty", "skip_failed"),
+)
+# Job kind of an embedded subtitle extracted locally (its SRT is in SQLite).
+EXTRACT_KIND: Final = "extract"
+# Subtitle state of a `transcribe` job by its status; any other status (`pending`) has no result yet.
+TRANSCRIBE_SUBTITLES: Final[Mapping[str, "SubtitleState"]] = MappingProxyType(
+    {"ok": "available", "no_speech": "empty", "failed": "failed"},
+)
+# Progress stage of a download: one event per job.
+DOWNLOAD_STAGE: Final = "download"
+# Encoding of the extracted SRT texts written to disk.
+SUBTITLE_ENCODING: Final = "utf-8"
+# Largest custom plan file read by `import_custom_plan` (32 MiB; a plan has a few hundred bytes per job).
+MAX_CUSTOM_PLAN_BYTES: Final = 33_554_432
+# Indentation of the custom plan file written by `export_custom_plan`.
+CUSTOM_PLAN_INDENT: Final = 2
+
+# Error code: the placement plan has errors, so nothing was written (details: the plan errors).
+ERROR_DOWNLOAD_PLAN_INVALID: Final = "download_plan_invalid"
+# Error code: a subtitle could not be written to its target (the jobs before it are placed and recorded).
+ERROR_DOWNLOAD_WRITE_FAILED: Final = "download_write_failed"
+# Error code: a finished job's subtitle is not in R2 (the jobs before it are placed and recorded).
+ERROR_SUBTITLE_MISSING: Final = "subtitle_missing"
+# Error code: the custom plan file cannot be read.
+ERROR_CUSTOM_PLAN_UNREADABLE: Final = "custom_plan_unreadable"
+# Error code: the custom plan file cannot be written.
+ERROR_CUSTOM_PLAN_UNWRITABLE: Final = "custom_plan_unwritable"

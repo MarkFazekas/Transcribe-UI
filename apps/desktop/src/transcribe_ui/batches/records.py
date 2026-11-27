@@ -131,6 +131,7 @@ def job_view(member: ItemPayload, job: StoredJob) -> JobView:
         stream_index=payload.stream_index,
         status=job.row.status,
         resolved=choice_problem(member, job.kind, payload) is None,
+        result_error=payload.result_error,
     )
 
 

@@ -42,7 +42,8 @@
               "track_index": null,
               "stream_index": 0,
               "status": "pending",
-              "resolved": true
+              "resolved": true,
+              "result_error": null
             },
             {
               "language": "hu",
@@ -51,7 +52,8 @@
               "track_index": 1,
               "stream_index": null,
               "status": "pending",
-              "resolved": true
+              "resolved": true,
+              "result_error": null
             }
           ]
         },
@@ -72,7 +74,8 @@
               "track_index": null,
               "stream_index": 0,
               "status": "pending",
-              "resolved": true
+              "resolved": true,
+              "result_error": null
             },
             {
               "language": "hu",
@@ -81,7 +84,8 @@
               "track_index": null,
               "stream_index": 0,
               "status": "pending",
-              "resolved": true
+              "resolved": true,
+              "result_error": null
             }
           ]
         }

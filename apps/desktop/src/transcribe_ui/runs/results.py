@@ -9,8 +9,9 @@ it holds every result (one written in between is seen at the next refresh, befor
 move on). A result that cannot be read stays pending (logged) until `_done.json` is there; then
 the job is `failed` with the reason `unreadable result`, and a job with no result JSON at all
 `failed` with `missing result` (the worker never comes back to a done batch), so a retry can
-take them. Each batch's
-lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
+take them. A batch that moves to `transcribed` moves on to `downloaded` when every job already
+has a placement outcome (`placement/recording.py`: downloaded in full while it was `ready`). Each
+batch's lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
 is read outside any transaction.
 """
 
@@ -24,7 +25,8 @@ from transcribe_contracts.layout import done_key
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import JOB_PENDING
 from transcribe_ui.batches.payloads import JobPayload
-from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND, TRANSCRIBED_PHASE
+from transcribe_ui.placement.recording import mark_transcribed
+from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND
 from transcribe_ui.runs.responses import BatchResults
 from transcribe_ui.runs.result_reads import (
     MISSING_RESULT,
@@ -33,8 +35,7 @@ from transcribe_ui.runs.result_reads import (
     ResultRead,
     read_results,
 )
-from transcribe_ui.state.database import compare_and_set_phase
-from transcribe_ui.state.models import BatchRow, JobRow
+from transcribe_ui.state.models import BatchPhase, BatchRow, JobRow
 from transcribe_ui.storage.r2 import ObjectStore
 
 
@@ -80,11 +81,11 @@ def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> 
     with state.session() as session:
         for job_id, outcome in outcomes.items():
             _record_result(session, job_id, outcome)
+        phase: BatchPhase = READY_PHASE
         if done:
-            now = context.ports.clock.now()
-            compare_and_set_phase(session, batch_id, READY_PHASE, TRANSCRIBED_PHASE, now=now)
+            phase = mark_transcribed(session, batch_id, context.ports.clock.now())
         statuses = _transcribe_statuses(session, batch_id)
-    return _batch_results(batch_id, statuses, done=done)
+    return _batch_results(batch_id, statuses, phase)
 
 
 # Results read per job id (None: unreadable).
@@ -137,11 +138,11 @@ def _transcribe_statuses(session: Session, batch_id: str) -> list[str]:
     return list(session.scalars(query))
 
 
-def _batch_results(batch_id: str, statuses: list[str], *, done: bool) -> BatchResults:
+def _batch_results(batch_id: str, statuses: list[str], phase: BatchPhase) -> BatchResults:
     counted = Counter(statuses)
     return BatchResults(
         batch_id=batch_id,
-        phase=TRANSCRIBED_PHASE if done else READY_PHASE,
+        phase=phase,
         ok=counted["ok"],
         no_speech=counted["no_speech"],
         failed=counted["failed"],
