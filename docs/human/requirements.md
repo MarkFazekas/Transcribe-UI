@@ -129,9 +129,6 @@ Naming and conflicts:
   lists the file with the reason "original folder not found" and skips it; every other subtitle
   is placed. The user can download the skipped ones again with another option (for example into
   a chosen folder).
-- Subtitle line length *(Q22, accepted default)*: lines hold at most 42 characters for every
-  language, including Chinese and Japanese (Hungarian and English are the main languages);
-  revisit if Chinese or Japanese subtitles are actually used.
 - Two subtitles that would get the same name in one folder are shown; by default each gets its
   folder name as prefix: `A_movie.hu.srt`, `B_movie.hu.srt`. No numbering.
 
@@ -165,6 +162,9 @@ Naming and conflicts:
   output per batch, then stops the pod.
 - Engine: output quality comes first, so word-timestamp alignment is kept (WhisperX with
   forced alignment rather than plain faster-whisper).
+- Subtitle format *(Q22, accepted default)*: lines hold at most 42 characters for every
+  language, including Chinese and Japanese (Hungarian and English are the main languages);
+  revisit if Chinese or Japanese subtitles are actually used.
 - Model weights are baked into the Docker image so the pod starts faster.
 - No SSH server in the image: SSH goes through Runpod's own system.
 - R2 credentials reach the pod as Runpod secrets.
@@ -213,10 +213,9 @@ Naming and conflicts:
   Python 3.13 everywhere.
 - Desktop stack *(accepted proposal)*: PySide6, PyInstaller one-file, static LGPL ffmpeg
   bundled, unsigned builds for four platforms.
-- Two executables per platform *(A20, architect: option b)*: a GUI executable (windowed, GUI
-  subsystem, contains Qt, opens the GUI) and a CLI executable (console, without Qt, so it is
-  small and fast to start; serves `run`, `schema`, `--version` and `credentials`). The release
-  has eight files, two per platform.
+- Two executables per platform *(A20, architect decision)*: a GUI executable (windowed, GUI
+  subsystem, contains Qt, opens the GUI) and a CLI executable (console, without Qt; serves `run`,
+  `schema`, `--version` and `credentials`). The release has eight files, two per platform.
 - Local state: SQLite with SQLAlchemy and Alembic.
 - Code layout, Django-like: constants per folder / app / sub-app in a `constants.py`, each with
   a roughly one-line explanation of its purpose, not with an underscore at the top of other
