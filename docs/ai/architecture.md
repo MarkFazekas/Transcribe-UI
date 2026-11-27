@@ -1425,8 +1425,8 @@ implements it.
     run does not list is never processed by it, whatever any computer publishes later.
   - Publishing: a manifest is written as soon as an upload is verified, on any installation,
     without an activity check. `manifest_held` and `publish_held_manifests` are removed (a new
-    Alembic revision drops the flag; a held batch is published by the revision's first
-    `run_upload` resume or the next refresh).
+    Alembic revision drops the flag; a batch still held at the upgrade stays `uploading` and is
+    published when its upload is resumed with `run_upload`).
   - Live lease: until its deadline, and no longer once the run's `status.json` is final. The
     batch label `waits_for_current_run` is set while a live lease exists that does not list the
     batch ("uploaded, waits for the current run", requirements Q27).
