@@ -1,6 +1,7 @@
 # Working agreements (human input)
 
-Source: the architect's initial brief (2026-11-26), translated to English.
+Source: the architect's initial brief (2026-11-26) and later chat input (2026-11-27),
+translated to English.
 
 ## Roles and communication
 
