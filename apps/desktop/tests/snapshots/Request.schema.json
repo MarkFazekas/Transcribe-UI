@@ -19,6 +19,22 @@
       "title": "CheckCredentialsRequest",
       "type": "object"
     },
+    "CloudSetupStatusRequest": {
+      "additionalProperties": false,
+      "description": "Report which Runpod objects of the setup are missing, outdated or duplicated; changes nothing.",
+      "properties": {
+        "action": {
+          "const": "cloud_setup_status",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "CloudSetupStatusRequest",
+      "type": "object"
+    },
     "CredentialsStatusRequest": {
       "additionalProperties": false,
       "description": "Report which credentials are set and where from; never their values.",
@@ -491,6 +507,22 @@
       "title": "Settings",
       "type": "object"
     },
+    "SetupCloudRequest": {
+      "additionalProperties": false,
+      "description": "Create or update, by their fixed names, the Runpod objects the worker needs.\n\nThe R2 secrets, the Global Volume and the worker template; duplicates by name are reduced to\nthe oldest. Idempotent: run it again after an interruption or a credential rotation.",
+      "properties": {
+        "action": {
+          "const": "setup_cloud",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "SetupCloudRequest",
+      "type": "object"
+    },
     "StoreCredentialsRequest": {
       "additionalProperties": false,
       "description": "Store credentials in the keyring; fields left out keep what is stored. Values are never echoed.",
@@ -637,11 +669,13 @@
   "discriminator": {
     "mapping": {
       "check_credentials": "#/$defs/CheckCredentialsRequest",
+      "cloud_setup_status": "#/$defs/CloudSetupStatusRequest",
       "credentials_status": "#/$defs/CredentialsStatusRequest",
       "get_app_info": "#/$defs/GetAppInfoRequest",
       "get_settings": "#/$defs/GetSettingsRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
       "scan_tree": "#/$defs/ScanTreeRequest",
+      "setup_cloud": "#/$defs/SetupCloudRequest",
       "store_credentials": "#/$defs/StoreCredentialsRequest",
       "update_settings": "#/$defs/UpdateSettingsRequest"
     },
@@ -671,6 +705,12 @@
     },
     {
       "$ref": "#/$defs/CheckCredentialsRequest"
+    },
+    {
+      "$ref": "#/$defs/SetupCloudRequest"
+    },
+    {
+      "$ref": "#/$defs/CloudSetupStatusRequest"
     }
   ]
 }

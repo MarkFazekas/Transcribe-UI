@@ -16,6 +16,7 @@ from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.discovery.cache import ScanCache
 from transcribe_ui.discovery.rules import PathRules, host_rules
+from transcribe_ui.runpod.access import RunpodAccess
 from transcribe_ui.state.store import LocalState
 
 if TYPE_CHECKING:
@@ -123,6 +124,8 @@ class Ports:
     path_rules: PathRules = field(default_factory=host_rules)
     # The latest scans, reused by `preview_selection` (process-local).
     scan_cache: ScanCache = field(default_factory=ScanCache)
+    # Runpod API: credentials lookup and transport (tests: the fake API).
+    runpod: RunpodAccess = field(default_factory=RunpodAccess)
 
 
 @dataclass(frozen=True)

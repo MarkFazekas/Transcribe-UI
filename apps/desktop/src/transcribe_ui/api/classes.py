@@ -30,6 +30,12 @@ from transcribe_ui.discovery.classes import (
 )
 from transcribe_ui.discovery.constants import SIDECAR_EXTENSIONS
 from transcribe_ui.placement.classes import PlacementStrategy
+from transcribe_ui.runpod.classes import (
+    CloudSetupStatusRequest,
+    CloudSetupStatusResponse,
+    SetupCloudRequest,
+    SetupCloudResponse,
+)
 
 
 def _check_whisper_language(code: str) -> str:
@@ -153,7 +159,9 @@ type Request = Annotated[
     | UpdateSettingsRequest
     | StoreCredentialsRequest
     | CredentialsStatusRequest
-    | CheckCredentialsRequest,
+    | CheckCredentialsRequest
+    | SetupCloudRequest
+    | CloudSetupStatusRequest,
     Field(discriminator="action"),
 ]
 
@@ -231,7 +239,9 @@ type SuccessResponse = Annotated[
     | UpdateSettingsResponse
     | StoreCredentialsResponse
     | CredentialsStatusResponse
-    | CheckCredentialsResponse,
+    | CheckCredentialsResponse
+    | SetupCloudResponse
+    | CloudSetupStatusResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

@@ -14,6 +14,7 @@ from transcribe_ui.api.ports import CancelFlag, CancelToken, DiscardProgress, Po
 from transcribe_ui.api.schema import parse_request
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.discovery.services import preview_selection, scan_tree
+from transcribe_ui.runpod.setup import cloud_setup_status, setup_cloud
 from transcribe_ui.state.requests import get_settings, update_settings
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,8 @@ def default_routes() -> Routes:
             "store_credentials": Route(run=store_credentials, needs_database=False),
             "credentials_status": Route(run=credentials_status, needs_database=False),
             "check_credentials": Route(run=check_credentials, needs_database=False),
+            "setup_cloud": Route(run=setup_cloud, needs_database=False),
+            "cloud_setup_status": Route(run=cloud_setup_status, needs_database=False),
         },
     )
 

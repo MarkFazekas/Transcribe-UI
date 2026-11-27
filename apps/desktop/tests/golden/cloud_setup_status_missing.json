@@ -1,0 +1,54 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "cloud_setup_status",
+    "ready": false,
+    "worker_image": "markfazekasgh/transcribe-ui-worker:schema-1",
+    "cloud_objects": [
+      {
+        "kind": "global_volume",
+        "name": "transcribe-ui-backups",
+        "state": "missing",
+        "object_id": null,
+        "outdated_fields": []
+      },
+      {
+        "kind": "secret",
+        "name": "transcribe_ui_r2_endpoint_url",
+        "state": "missing",
+        "object_id": null,
+        "outdated_fields": []
+      },
+      {
+        "kind": "secret",
+        "name": "transcribe_ui_r2_bucket",
+        "state": "missing",
+        "object_id": null,
+        "outdated_fields": []
+      },
+      {
+        "kind": "secret",
+        "name": "transcribe_ui_r2_access_key_id",
+        "state": "missing",
+        "object_id": null,
+        "outdated_fields": []
+      },
+      {
+        "kind": "secret",
+        "name": "transcribe_ui_r2_secret_access_key",
+        "state": "missing",
+        "object_id": null,
+        "outdated_fields": []
+      },
+      {
+        "kind": "template",
+        "name": "transcribe-ui-worker",
+        "state": "missing",
+        "object_id": null,
+        "outdated_fields": []
+      }
+    ]
+  },
+  "events": []
+}

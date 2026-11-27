@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "setup_cloud",
+    "error": {
+      "code": "runpod_key_rejected",
+      "message": "Runpod rejected the API key (expired, revoked or mistyped). Store a valid key.",
+      "details": {}
+    }
+  },
+  "events": []
+}

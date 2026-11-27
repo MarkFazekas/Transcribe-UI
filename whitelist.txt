@@ -37,6 +37,7 @@ dbapi
 defs
 delenv
 demuxes
+deque
 dest
 devnull
 dfl
@@ -90,8 +91,10 @@ getsid
 getsignal
 gettempdir
 gitignore
+gpus
 groupby
 hhmmss
+httpx
 hu
 ident
 ign
@@ -113,6 +116,7 @@ isspace
 iterdir
 jobobject
 joinpath
+jupyter
 kernel32
 keyring
 kibibytes
@@ -161,6 +165,7 @@ ord
 orm
 paginator
 param
+params
 pathext
 pathsep
 pcm
@@ -168,6 +173,7 @@ pgs
 platformdirs
 popen
 popitem
+popleft
 posix
 prefetch
 prefetcher
@@ -215,6 +221,7 @@ sqlalchemy
 sqlite3
 srt
 stacklevel
+starmap
 strerror
 stubber
 subparsers
