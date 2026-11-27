@@ -1,4 +1,6 @@
 a15
+a19
+a5000
 a6
 addfile
 appauthor
@@ -137,11 +139,13 @@ linkname
 liveness
 lk
 localhost
+lookups
 lpcwstr
 lseek
 lstat
 m2ts
 m5
+m7
 macos
 mako
 matroska
@@ -263,6 +267,7 @@ untracked
 untrusted
 unwritable
 urllib
+usd
 usefixtures
 usegmt
 utf16
