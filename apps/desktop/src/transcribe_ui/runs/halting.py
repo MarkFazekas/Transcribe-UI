@@ -29,8 +29,8 @@ def stop_run(state: LocalState, pods: PodsApi, run_id: str, clock: Clock) -> str
     """
     payload = read_payload(state, run_id)
     seen = partial(_mark_seen, state, run_id, clock)
-    if payload.pod_id is not None:
-        pod = KnownPod(payload.pod_id, seen=payload.pod_seen, deployed_at=payload.pod_deployed_at)
+    pod = payload.known_pod()
+    if pod is not None:
         terminate_verified(pods, pod, clock, seen)
         return pod.pod_id
     if payload.queued_pod_id is None:

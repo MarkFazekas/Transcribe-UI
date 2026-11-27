@@ -5,10 +5,11 @@ follows its queued pod: a pod listed under the run's name is adopted (seen); oth
 pod (listed, else read by id) decides: still waiting, deployed (its pod recorded as not seen),
 or ended without a pod (the run fails; a queued pod Runpod no longer knows counts as ended only
 `DEPLOY_SETTLE_S` after the queue's `expiresAt`, when a pod deployed just before it would be
-listed). A run with a pod id follows that pod (listed, else read by id): a read records the
+listed, and after two empty lookups at least `LAUNCH_LOOKUP_GAP_S` apart). A run with a pod id follows that pod (listed, else read by id): a read records the
 sighting, its status and price, and the first `RUNNING` read (the desktop deadline counts from
 it). The pod is gone when it reads `TERMINATED`, or is missing after it was seen or after its
-deploy settled (`KnownPod`); a missing pod that was never seen may be list lag and is followed.
+deploy settled (`KnownPod`; without `resolvedAt`, after the run recorded it); a missing pod that
+was never seen may be list lag and is followed.
 """
 
 from dataclasses import dataclass
@@ -22,8 +23,7 @@ from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.runs.records import PayloadChanges, read_payload, read_run, update_run
 from transcribe_ui.runs.responses import RunInfo
-from transcribe_ui.runs.settling import Adoption, Listed, find_by_name, resolve_launching
-from transcribe_ui.runs.stopping import KnownPod
+from transcribe_ui.runs.settling import LOOKUP_GAP, Adoption, Listed, find_by_name, resolve_launching
 from transcribe_ui.state.store import LocalState
 
 # Time after the queue's `expiresAt` after which a queued pod Runpod no longer knows has ended.
@@ -81,31 +81,44 @@ def _follow_queued(state: LocalState, pods: PodsApi, run: RunInfo, listed: Liste
 
 
 def _adopted(found: Adoption, now: datetime) -> PayloadChanges:
-    """Return the payload fields of an adoption, with the end of a queued pod that ended without a pod."""
-    changes = dict(found.changes())
+    """Return the payload fields of an adoption, with the end of a queued pod that ended without a pod.
+
+    The queued pod (or its pod) was found, so an empty lookup recorded before no longer counts.
+    """
+    changes = {**found.changes(), "first_empty_lookup_at": None}
     if found.status in FINAL_RUN_STATUSES:
         changes.update({"ended_at": now, "end_reason": "queue_ended"})
     return changes
 
 
 def _queue_vanished(state: LocalState, run: RunInfo, payload: RunPayload, now: datetime) -> RunInfo:
-    """Fail a run whose queued pod Runpod no longer knows, once no pod of it can still show up."""
-    if now - payload.queue_expires_at < QUEUE_SETTLE:
+    """Fail a run whose queued pod Runpod no longer knows, once no pod of it can still show up.
+
+    Like a `launching` run's settling rule: only `DEPLOY_SETTLE_S` after the queue's `expiresAt`,
+    and only when two lookups after that, at least `LAUNCH_LOOKUP_GAP_S` apart, found neither the
+    queued pod nor a pod under the run's name (one empty answer may be lag or a glitch).
+    """
+    settled_from = payload.queue_expires_at + QUEUE_SETTLE
+    if now < settled_from:
+        return run
+    first = payload.first_empty_lookup_at
+    if first is None or first < settled_from:
+        return update_run(state, run.run_id, now, changes={"first_empty_lookup_at": now})
+    if now - first < LOOKUP_GAP:
         return run
     return update_run(state, run.run_id, now, "failed", {"ended_at": now, "end_reason": "queue_ended"})
 
 
 def _follow_pod(state: LocalState, pods: PodsApi, run: RunInfo, listed: Listed, now: datetime) -> Followed:
     payload = read_payload(state, run.run_id)
-    pod_id = payload.pod_id
-    if pod_id is None:
+    known = payload.known_pod()
+    if known is None:
         return Followed(run)
+    pod_id = known.pod_id
     pod = _listed_pod(listed, pod_id)
     if pod is None:
         pod = runpod_call(lambda: pods.get_pod(pod_id))
     if pod is None:
-        deployed = payload.pod_deployed_at
-        known = KnownPod(pod_id, seen=payload.pod_seen, deployed_at=deployed)
         return Followed(run, gone=known.gone_when_missing(now))
     changes = _sighting(payload, pod, now)
     followed = update_run(state, run.run_id, now, changes=changes)
