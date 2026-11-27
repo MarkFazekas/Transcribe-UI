@@ -1,5 +1,7 @@
 """The GUI's request bridge: pools, queued-call cancellation and close (plan m6 M6.2)."""
 
+import gc
+import weakref
 from collections.abc import Iterator
 
 import pytest
@@ -56,6 +58,10 @@ def _only(responses: Answers) -> Response:
 def _code(responses: Answers) -> str | None:
     response = _only(responses)
     return response.error.code if isinstance(response, ErrorResponse) else None
+
+
+def _ignore(_response: Response) -> None:
+    """Drop the answer."""
 
 
 def _never_taken() -> bool:
@@ -130,3 +136,34 @@ def test_close_clears_pools_and_stops_calls(
     assert {_code(responses) for _call, responses in calls} == {ERROR_CANCELLED}
     assert (gated.started(UPLOAD), gated.started(REFRESH), gated.started("list_batches")) == (LONG_POOL_THREADS, 1, 0)
     assert sorted(gated.cancelled) == sorted([REFRESH, *(UPLOAD for _ in range(LONG_POOL_THREADS))])
+
+
+def _runnables() -> int:
+    # The bridge's runnable class is private; count its live instances by name.
+    return sum(1 for alive in gc.get_objects() if type(alive).__name__ == "_CallRunnable")
+
+
+def _send_and_forget(executor: QtExecutor, gated: GatedRunner, qtbot: QtBot) -> list[weakref.ref[object]]:
+    """Send uploads (one taken off its queue, one cancelled while running); return weak references only."""
+    requests = uploads(LONG_POOL_THREADS + 1)
+    calls = [executor.submit(request, _ignore) for request in requests]
+    wait_for(qtbot, lambda: gated.started(UPLOAD) == LONG_POOL_THREADS)
+    calls[-1].cancel()
+    calls[0].cancel()
+    return [weakref.ref(sent) for sent in (*requests, *calls)]
+
+
+def test_completed_calls_are_freed(gated: GatedRunner, qtbot: QtBot) -> None:
+    """Runnables, handles and requests of finished, cancelled and taken-off calls do not outlive them."""
+    executor = QtExecutor(gated)
+    gc.collect()
+    before = _runnables()
+    sent = _send_and_forget(executor, gated, qtbot)
+    gated.release()
+    wait_for(qtbot, lambda: executor.pending() == 0)
+    assert executor.wait_for_threads(DRAIN_MS)
+    # The gated runner records the requests it ran; only the bridge may not keep them.
+    gated.requests.clear()
+    gc.collect()
+    assert [ref() for ref in sent] == [None for _ in sent]
+    assert _runnables() == before

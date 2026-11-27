@@ -11,9 +11,9 @@ import logging
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass
-from functools import partial
 from typing import override
 
+import shiboken6
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, ProgressEvent, Request, Response
@@ -73,14 +73,27 @@ def _internal_error(request: Request) -> ErrorResponse:
 
 
 class _CallRunnable(QRunnable):
-    """Runs one call on a pool thread; never deleted by the pool (Python owns it)."""
+    """Runs one call on a pool thread.
 
-    def __init__(self, backend: RequestRunner, relay: _Relay) -> None:
+    The pool deletes it after `run` (auto-delete, the default), and `clear()` deletes it while
+    still queued, so finished calls do not pile up. `take_off` is used only while its call is
+    queued; a runnable taken off is handed back by Qt and deleted here.
+    """
+
+    def __init__(self, backend: RequestRunner, relay: _Relay, pool: QThreadPool) -> None:
         super().__init__()
-        self.setAutoDelete(False)
         self._backend = backend
         self._relay = relay
+        self._pool = pool
         self.call: PooledCall | None = None
+
+    def take_off(self) -> bool:
+        """Remove the runnable from its queue if it has not started; return whether it was."""
+        if not self._pool.tryTake(self):
+            return False
+        # The pool gave ownership back; nothing else deletes it now.
+        shiboken6.delete(self)
+        return True
 
     @override
     def run(self) -> None:
@@ -126,6 +139,7 @@ class _Dispatcher:
         callbacks = self.live.pop(call, None)
         if callbacks is None:
             return
+        call.mark_delivered()
         with ExitStack() as after:
             # Even when a callback fails (its exception reaches the log), the close dialog must hear that all is done.
             after.callback(self._notify_idle)
@@ -174,8 +188,8 @@ class QtExecutor:
     ) -> CallHandle:
         """Queue the request on its pool; after `shutdown` it completes as `cancelled` without running."""
         pool = self._pools[pool_of(request.action)]
-        runnable = _CallRunnable(self._backend, self._relay)
-        call = PooledCall(request, partial(pool.tryTake, runnable), self._deliver)
+        runnable = _CallRunnable(self._backend, self._relay, pool)
+        call = PooledCall(request, runnable.take_off, self._deliver)
         runnable.call = call
         self._dispatcher.live[call] = _Callbacks(on_done, on_progress, on_started)
         if self._shut:

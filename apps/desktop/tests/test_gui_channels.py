@@ -6,7 +6,7 @@ from types import MappingProxyType
 import pytest
 from pytestqt.qtbot import QtBot
 
-from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, refresh, uploads, wait_for
+from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, listing, refresh, uploads, wait_for
 from transcribe_ui.api.classes import ErrorResponse, GetAppInfoResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.gui.bridge import QtExecutor
@@ -138,3 +138,15 @@ def test_cancelled_queued_tick_frees_channel(executor: QtExecutor, gated: GatedR
     assert isinstance(first, ErrorResponse)
     assert first.error.code == ERROR_CANCELLED
     assert (_kinds(ticks[1:]), gated.started(REFRESH)) == ([GetAppInfoResponse], TWO_CALLS)
+
+
+def test_channel_waits_for_delivery(executor: QtExecutor, qtbot: QtBot) -> None:
+    """A call the backend answered stays busy until its answer reached the sender on the GUI thread."""
+    channel = ExclusiveChannel(executor)
+    responses: list[Response] = []
+    channel.send("list", listing(), responses.append)
+    # Wait for the pool thread without running the event loop: answered, not delivered yet.
+    assert executor.wait_for_threads(DRAIN_MS)
+    assert (channel.busy("list"), responses) == (True, [])
+    wait_for(qtbot, lambda: bool(responses))
+    assert not channel.busy("list")

@@ -73,6 +73,11 @@ class PooledCall:
     thread calls `cancel` (a queued call is taken off its pool by `take_off`) and `abandon`
     (after the pools were cleared, on close). `deliver` hands the response to the GUI thread;
     it is called exactly once per call, never under the lock.
+
+    A call that ran is `running` until the GUI thread delivers its answer (`mark_delivered`
+    comes before the sender's `on_done`), so a channel is not freed while an answer is still on
+    its way. A call that never ran (taken off its pool, cleared on close, cancelled before it
+    started) is `done` at once: nothing of it can still run.
     """
 
     def __init__(
@@ -88,10 +93,12 @@ class PooledCall:
         self._deliver = deliver
         self._lock = threading.Lock()
         self._state: CallState = CALL_QUEUED
+        # Whether the backend answered (the answer may not be delivered yet).
+        self._answered = False
 
     @property
     def state(self) -> CallState:
-        """Return whether the call is queued, running or done."""
+        """Return whether the call is queued, running (or answered, not delivered yet) or done."""
         with self._lock:
             return self._state
 
@@ -106,39 +113,46 @@ class PooledCall:
                 return False
             cancelled = self.flag.is_cancelled()
             self._state = CALL_DONE if cancelled else CALL_RUNNING
+            self._take_off = _already_off
         if cancelled:
             self._deliver(self, cancelled_response(self.request))
         return not cancelled
 
     def finish(self, response: Response) -> None:
-        """Complete a running call with the backend's response."""
+        """Hand the backend's answer of a running call to the GUI thread."""
+        with self._lock:
+            self._answered = True
+        self._deliver(self, response)
+
+    def mark_delivered(self) -> None:
+        """Note on the GUI thread that the answer reached its sender (before `on_done` runs)."""
         with self._lock:
             self._state = CALL_DONE
-        self._deliver(self, response)
 
     def cancel(self) -> None:
         """Set the cancel flag; a queued call taken off its pool completes at once as `cancelled`."""
-        self._stop(take_off=self._take_off)
+        self._stop(abandoning=False)
 
     def abandon(self) -> None:
         """Cancel after the pools were cleared: a call still queued will never run, so it completes now."""
-        self._stop(take_off=_already_off)
+        self._stop(abandoning=True)
 
-    def _stop(self, take_off: Callable[[], bool]) -> None:
+    def _stop(self, *, abandoning: bool) -> None:
         with self._lock:
-            if self._state == CALL_DONE:
+            if self._state == CALL_DONE or self._answered:
                 return
             self.flag.cancel()
-            dropped = self._state == CALL_QUEUED and take_off()
+            dropped = self._state == CALL_QUEUED and (abandoning or self._take_off())
             if dropped:
                 self._state = CALL_DONE
+                self._take_off = _already_off
         if dropped:
             self._deliver(self, cancelled_response(self.request))
 
 
 def _already_off() -> bool:
-    """`take_off` after the pools were cleared: a queued call is off its pool already."""
-    return True
+    """`take_off` of a call that left its queue: nothing to take off (and no reference to its runnable)."""
+    return False
 
 
 class DoneHandle:
