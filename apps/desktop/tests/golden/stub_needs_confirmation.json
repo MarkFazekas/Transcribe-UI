@@ -1,0 +1,25 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "get_app_info",
+    "confirmations": [
+      {
+        "field": "confirmed",
+        "message": "Overwrite the existing subtitle?",
+        "details": {
+          "count": 1
+        }
+      }
+    ]
+  },
+  "events": [
+    {
+      "action": "get_app_info",
+      "stage": "probe",
+      "completed": 1,
+      "total": 2,
+      "path": "<root>/media/Movies/clip.mkv"
+    }
+  ]
+}

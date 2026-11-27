@@ -1,0 +1,191 @@
+{
+  "$defs": {
+    "Confirmation": {
+      "additionalProperties": false,
+      "description": "One thing the user has to confirm before the request is carried out.",
+      "properties": {
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "message",
+        "details"
+      ],
+      "title": "Confirmation",
+      "type": "object"
+    },
+    "ErrorBody": {
+      "additionalProperties": false,
+      "description": "What went wrong: a stable code, a human-readable message and structured details.",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "details"
+      ],
+      "title": "ErrorBody",
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "additionalProperties": false,
+      "description": "The request failed; for most codes nothing was changed (see the code's documentation).",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Action"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorBody"
+        },
+        "status": {
+          "const": "error",
+          "default": "error",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "error"
+      ],
+      "title": "ErrorResponse",
+      "type": "object"
+    },
+    "GetAppInfoResponse": {
+      "additionalProperties": false,
+      "description": "Versions of the running app.",
+      "properties": {
+        "action": {
+          "const": "get_app_info",
+          "default": "get_app_info",
+          "title": "Action",
+          "type": "string"
+        },
+        "app_version": {
+          "title": "App Version",
+          "type": "string"
+        },
+        "contracts_schema_version": {
+          "title": "Contracts Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "app_version",
+        "contracts_schema_version"
+      ],
+      "title": "GetAppInfoResponse",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "NeedsConfirmation": {
+      "additionalProperties": false,
+      "description": "Nothing was changed: send the same request again with the listed fields set.",
+      "properties": {
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "confirmations": {
+          "items": {
+            "$ref": "#/$defs/Confirmation"
+          },
+          "minItems": 1,
+          "title": "Confirmations",
+          "type": "array"
+        },
+        "status": {
+          "const": "needs_confirmation",
+          "default": "needs_confirmation",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "confirmations"
+      ],
+      "title": "NeedsConfirmation",
+      "type": "object"
+    },
+    "SuccessResponse": {
+      "discriminator": {
+        "mapping": {
+          "get_app_info": "#/$defs/GetAppInfoResponse"
+        },
+        "propertyName": "action"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GetAppInfoResponse"
+        }
+      ]
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "error": "#/$defs/ErrorResponse",
+      "needs_confirmation": "#/$defs/NeedsConfirmation",
+      "ok": "#/$defs/SuccessResponse"
+    },
+    "propertyName": "status"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/ErrorResponse"
+    },
+    {
+      "$ref": "#/$defs/NeedsConfirmation"
+    }
+  ]
+}

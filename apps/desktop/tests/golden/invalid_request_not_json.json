@@ -1,0 +1,21 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [],
+            "message": "Invalid JSON: key must be a string at line 1 column 2",
+            "type": "json_invalid"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

@@ -134,7 +134,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "scripts/*.py" = ["INP001", "S603"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["transcribe_contracts", "transcribe_ui", "transcribe_worker"]
+known-first-party = ["support", "transcribe_contracts", "transcribe_ui", "transcribe_worker"]
 
 [tool.ruff.lint.mccabe]
 # Same limit as flake8 (`max_complexity` in .flake8).
@@ -153,6 +153,8 @@ docstring-code-format = true
 # importlib mode: several workspace members have `tests/` dirs without `__init__.py`.
 addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib", "-m", "not integration"]
 xfail_strict = true
+# The desktop tests import their helpers as `support.*` (importlib mode adds no test dir to sys.path).
+pythonpath = ["apps/desktop/tests"]
 markers = [
     "integration: talks to real R2/Runpod; deselected by default, Runpod writes only with the architect present",
 ]
