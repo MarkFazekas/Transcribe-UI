@@ -108,6 +108,7 @@ def _overwrite_confirmation(action: str, entries: Sequence[PlannedPlacement]) ->
         return None
     confirmation = Confirmation(
         field=CONFIRM_OVERWRITE_FIELD,
+        set_to=True,
         message=f"{len(replaced)} existing subtitle file(s) will be replaced.",
         details={"targets": list(replaced)},
     )

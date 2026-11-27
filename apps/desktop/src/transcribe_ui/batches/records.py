@@ -8,14 +8,12 @@ from typing import cast
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from transcribe_ui.batches.actions import JobKey, allowed_actions, batch_facts, copying_sources
 from transcribe_ui.batches.choices import choice_problem
 from transcribe_ui.batches.constants import ITEM_REVIEW_PHASES
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, ItemPhase, JobKind, JobPayload
 from transcribe_ui.batches.responses import BatchDetail, BatchItem, BatchSummary, JobView
 from transcribe_ui.state.models import AudioObjectRow, BatchPhase, BatchRow, ExtractedSubtitleRow, ItemRow, JobRow
-
-# A job's (language, kind), as the batch summary counts it.
-type JobKey = tuple[str, str]
 
 
 @dataclass(frozen=True)
@@ -151,15 +149,20 @@ def batch_item(member: StoredItem) -> BatchItem:
     )
 
 
-def batch_summary(row: BatchRow, item_count: int, jobs: Sequence[JobKey]) -> BatchSummary:
-    """Return a batch as the batch list shows it, from its item count and its jobs' (language, kind)."""
-    languages = sorted({language for language, _kind in jobs})
+def batch_summary(row: BatchRow, item_phases: Sequence[str], jobs: Sequence[JobKey], *, copying: bool) -> BatchSummary:
+    """Return a batch as the batch list shows it.
+
+    From its items' phases, its jobs' (language, kind, status) and whether a retry batch still
+    copies its audio (`actions.copying_sources`).
+    """
+    languages = sorted({language for language, _kind, _status in jobs})
+    facts = batch_facts(row, item_phases, jobs, copying=copying)
     return BatchSummary(
         batch_id=row.batch_id,
         phase=cast("BatchPhase", row.phase),
         created_at=row.created_at,
         updated_at=row.updated_at,
-        items=item_count,
+        items=len(item_phases),
         jobs=len(jobs),
         languages=tuple(languages),
         hidden=row.hidden,
@@ -167,32 +170,36 @@ def batch_summary(row: BatchRow, item_count: int, jobs: Sequence[JobKey]) -> Bat
         audio_deleted=row.audio_deleted,
         cleanup_pending=BatchPayload.model_validate(row.payload).cleanup_pending,
         extract_only=_extract_only(jobs),
+        actions=allowed_actions(facts),
     )
 
 
 def _extract_only(jobs: Sequence[JobKey]) -> bool:
-    kinds = {kind for _language, kind in jobs}
+    kinds = {kind for _language, kind, _status in jobs}
     return kinds == {"extract"}
 
 
-def summary_of(row: BatchRow, members: Sequence[StoredItem]) -> BatchSummary:
-    """Return the summary of a batch whose items are read."""
+def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchSummary:
+    """Return the summary of a batch whose items are read (in the session that read them)."""
     stored = [job.row for member in members for job in member.jobs]
-    jobs = [(row.language, row.kind) for row in stored]
-    return batch_summary(row, len(members), jobs)
+    jobs = [(job_row.language, job_row.kind, job_row.status) for job_row in stored]
+    phases = [member.phase for member in members]
+    copying = row.batch_id in copying_sources(session)
+    return batch_summary(row, phases, jobs, copying=copying)
 
 
-def batch_detail(row: BatchRow, members: Sequence[StoredItem]) -> BatchDetail:
+def batch_detail(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchDetail:
     """Return a batch with its items and jobs."""
     payload = BatchPayload.model_validate(row.payload)
     return BatchDetail(
-        summary=summary_of(row, members),
+        summary=summary_of(session, row, members),
         scan_root=payload.scan_root,
         path_flavor=payload.path_flavor,
+        composition=payload.composition,
         items=tuple(batch_item(member) for member in members),
     )
 
 
 def load_detail(session: Session, row: BatchRow) -> BatchDetail:
     """Read the batch's items and return the batch with them."""
-    return batch_detail(row, stored_items(session, row.batch_id))
+    return batch_detail(session, row, stored_items(session, row.batch_id))

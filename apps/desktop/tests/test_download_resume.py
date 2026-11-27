@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from support.batches import FIRST_BATCH_ID, media_dir
+from support.confirm import confirmed_document
 from support.download import (
     EXTRACTED_SRT,
     FILM_ID,
@@ -186,7 +187,7 @@ def test_overwrite_needs_confirmation(world: RunsWorld) -> None:
     assert asked.status == "needs_confirmation"
     assert asked.confirmations[0].details == {"targets": ["Film.en.srt"]}
     assert (recorded(leg), sidecar.read_bytes()) == ([], b"")
-    confirmed = ok_document(send(leg, request(RUN_DOWNLOAD, placement=options, confirm_overwrite=True)))
+    confirmed = ok_document(send(leg, confirmed_document(request(RUN_DOWNLOAD, placement=options), asked)))
     assert (outcomes(confirmed)[FILM_ID], sidecar.read_bytes()) == ("overwrite", SUBTITLE)
 
 

@@ -73,7 +73,7 @@ def neighbour_untouched(world: RunsWorld, ids: dict[str, str]) -> bool:
 
 def exclude_film(world: RunsWorld, ids: dict[str, str]) -> Response:
     """Send `exclude_items` for the film."""
-    return run(world.leg, batch_request("exclude_items", item_ids=[ids[FILM]]))
+    return run(world.leg, batch_request("exclude_items", confirm=True, item_ids=[ids[FILM]]))
 
 
 def rereview(world: RunsWorld, item_id: str) -> bool:

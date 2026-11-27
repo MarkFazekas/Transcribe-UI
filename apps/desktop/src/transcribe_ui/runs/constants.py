@@ -94,6 +94,10 @@ FALLBACK_PRICE_PER_HOUR: Final = 0.27
 COST_DECIMALS: Final = 2
 # Seconds per hour.
 SECONDS_PER_HOUR: Final = 3600
+# Runs `list_runs` returns when the request gives no `limit`.
+LIST_RUNS_DEFAULT: Final = 20
+# Most runs one `list_runs` returns.
+LIST_RUNS_MAX: Final = 1000
 
 # Seconds after the pod request (`POST /pods`) before an empty name lookup may count; a pod
 # missing from the lists earlier may be list lag.

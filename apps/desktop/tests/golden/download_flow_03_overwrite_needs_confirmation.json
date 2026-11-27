@@ -6,6 +6,7 @@
     "confirmations": [
       {
         "field": "confirm_overwrite",
+        "set_to": true,
         "message": "1 existing subtitle file(s) will be replaced.",
         "details": {
           "targets": [

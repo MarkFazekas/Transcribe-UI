@@ -1,0 +1,140 @@
+"""Batches seeded straight into the database in every phase and state the allowed actions depend on.
+
+Each scenario is one batch of its own (`batch_20261127_1300<nn>`), so one database holds them all
+and a request sent to one leaves the others alone. Files do not exist on disk: requests that read
+them (a review, an edit) fail after their phase guard, which is all the action tests need.
+"""
+
+from dataclasses import dataclass
+from types import MappingProxyType
+
+from support.fakes import FIXED_NOW
+from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, JobPayload, RetryJob, RetryOrigin
+from transcribe_ui.state.models import BatchRow, ItemRow, JobRow
+from transcribe_ui.state.store import LocalState
+
+# Scan root of every seeded batch (it does not exist).
+SEEDED_ROOT = "/nowhere/media"
+# The scenario whose retry batch still copies its audio, and that retry batch.
+COPIED_SOURCE = "copied_source"
+COPYING_RETRY = "copying_retry"
+# The language of every seeded job.
+LANGUAGE = "en"
+# Item phases and job statuses of the scenarios.
+PENDING = "pending"
+UPLOADED_OK = ("uploaded", "ok")
+UPLOADED_FAILED = ("uploaded", "failed")
+UPLOADED_PENDING = ("uploaded", PENDING)
+REVIEWED = ("reviewed", PENDING)
+IN_REVIEW = ("reviewing", PENDING)
+COMPOSED = ("composing", PENDING)
+# Job statuses a retry takes.
+FLAGGED = frozenset(("failed", "no_speech"))
+
+
+@dataclass(frozen=True)
+class Scenario:
+    """A batch to seed: its phase, its items' phases and transcribe job statuses, its flags."""
+
+    phase: str
+    # Per item: (item phase, status of its transcribe job).
+    members: tuple[tuple[str, str], ...]
+    audio_deleted: bool = False
+    # Source scenario of a retry batch (its `retry_of`), or None.
+    retry_of: str | None = None
+
+
+# The seeded batches by name, in seeding order (a retry batch after its source).
+SCENARIOS = MappingProxyType(
+    {
+        "composing": Scenario("composing", (COMPOSED, COMPOSED)),
+        "reviewing_open": Scenario("reviewing", (IN_REVIEW, REVIEWED)),
+        "reviewing_done": Scenario("reviewing", (REVIEWED, REVIEWED)),
+        "reviewing_single": Scenario("reviewing", (REVIEWED,)),
+        "uploading": Scenario("uploading", (UPLOADED_PENDING, IN_REVIEW)),
+        "ready": Scenario("ready", (UPLOADED_OK, UPLOADED_PENDING)),
+        "transcribed_flagged": Scenario("transcribed", (UPLOADED_OK, UPLOADED_FAILED)),
+        "transcribed_clean": Scenario("transcribed", (UPLOADED_OK, UPLOADED_OK)),
+        "downloaded_no_speech": Scenario("downloaded", (UPLOADED_OK, ("uploaded", "no_speech"))),
+        "downloaded_audio_deleted": Scenario("downloaded", (UPLOADED_OK, UPLOADED_FAILED), audio_deleted=True),
+        "cleaned": Scenario("cleaned", (UPLOADED_OK, UPLOADED_FAILED), audio_deleted=True),
+        COPIED_SOURCE: Scenario("transcribed", (UPLOADED_OK, UPLOADED_FAILED)),
+        COPYING_RETRY: Scenario("uploading", (REVIEWED,), retry_of=COPIED_SOURCE),
+    },
+)
+
+
+def scenario_batch_id(name: str) -> str:
+    """Return the batch id of a scenario."""
+    index = list(SCENARIOS).index(name)
+    return f"batch_20261127_1300{index:02d}"
+
+
+def scenario_item_id(name: str, position: int) -> str:
+    """Return the item id of a scenario's item (a valid ULID)."""
+    index = list(SCENARIOS).index(name)
+    return f"01JD{index:02d}{position:020d}"
+
+
+def retry_job(name: str) -> dict[str, str]:
+    """Return the scenario's first flagged job, else its first job (which a retry refuses)."""
+    members = SCENARIOS[name].members
+    flagged = [index for index, (_phase, status) in enumerate(members) if status in FLAGGED]
+    position = flagged[0] if flagged else 0
+    return {"item_id": scenario_item_id(name, position), "language": LANGUAGE}
+
+
+def seed_scenarios(state: LocalState) -> None:
+    """Store every scenario's batch."""
+    for name, scenario in SCENARIOS.items():
+        _seed_batch(state, name, scenario)
+        for position, member in enumerate(scenario.members):
+            _seed_item(state, name, position, member)
+
+
+def _seed_batch(state: LocalState, name: str, scenario: Scenario) -> None:
+    origin = None
+    if scenario.retry_of is not None:
+        jobs = (RetryJob.model_validate(retry_job(scenario.retry_of)),)
+        origin = RetryOrigin(source_batch_id=scenario_batch_id(scenario.retry_of), jobs=jobs)
+    payload = BatchPayload(scan_root=SEEDED_ROOT, path_flavor="posix", languages=(LANGUAGE,), retry_of=origin)
+    row = BatchRow(
+        batch_id=scenario_batch_id(name),
+        phase=scenario.phase,
+        manifest_held=False,
+        audio_deleted=scenario.audio_deleted,
+        hidden=False,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+        payload=payload.model_dump(mode="json"),
+    )
+    with state.session() as session:
+        session.add(row)
+
+
+def _seed_item(state: LocalState, name: str, position: int, member: tuple[str, str]) -> None:
+    batch_id = scenario_batch_id(name)
+    item_id = scenario_item_id(name, position)
+    item_phase, status = member
+    file_name = f"file{position}.mp3"
+    stored = ItemPayload(
+        position=position,
+        path=f"{SEEDED_ROOT}/{file_name}",
+        relative_path=file_name,
+        name=file_name,
+        kind="audio",
+        size_bytes=1,
+        mtime_ns=0,
+        subtitle_languages=(),
+    )
+    job = JobPayload(mode="normal").model_dump(mode="json")
+    with state.session() as session:
+        session.add(
+            ItemRow(item_id=item_id, batch_id=batch_id, phase=item_phase, payload=stored.model_dump(mode="json"))
+        )
+        session.flush()
+        session.add(
+            JobRow(
+                item_id=item_id, batch_id=batch_id, language=LANGUAGE, kind="transcribe", status=status, payload=job
+            ),
+        )

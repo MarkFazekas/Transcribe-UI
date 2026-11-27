@@ -80,7 +80,9 @@ def plan_retry(session: Session, origin: RetryOrigin, request: CreateRetryBatchR
     retried = [_retry_item(member, chosen, audio) for member in taken]
     source = BatchPayload.model_validate(row.payload)
     languages = sorted({job.language for job in origin.jobs})
-    payload = source.model_copy(update={"languages": tuple(languages), "retry_of": origin})
+    # A retry batch is not composed from a selection, so it keeps none of the source's.
+    changes = {"languages": tuple(languages), "retry_of": origin, "composition": None}
+    payload = source.model_copy(update=changes)
     return RetryPlan(payload, tuple(retried))
 
 

@@ -6,8 +6,11 @@ from transcribe_contracts.classes import RunStatus as WorkerStatus
 from transcribe_contracts.errors import ContractError
 from transcribe_contracts.layout import run_status_key
 from transcribe_contracts.reading import read_run_status
+from transcribe_ui.batches.payloads import ItemPayload
 from transcribe_ui.runs.constants import UNREADABLE_STATE
 from transcribe_ui.runs.responses import CurrentJob, WorkerProgress
+from transcribe_ui.state.models import ItemRow
+from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
 
 
@@ -37,6 +40,21 @@ class WorkerReport:
             total_jobs=status.total_jobs,
             error=status.error,
         )
+
+
+def worker_progress(state: LocalState, report: WorkerReport) -> WorkerProgress:
+    """Return the report as the frontends show it, the current job named by its file (own transaction)."""
+    progress = report.progress()
+    current = progress.current
+    if current is None:
+        return progress
+    with state.session() as session:
+        row = session.get(ItemRow, current.item_id)
+        name = None
+        if row is not None and row.batch_id == current.batch_id:
+            name = ItemPayload.model_validate(row.payload).name
+    named = current.model_copy(update={"name": name})
+    return progress.model_copy(update={"current": named})
 
 
 def read_worker(store: ObjectStore, run_id: str) -> WorkerReport | None:

@@ -100,10 +100,12 @@ def missing_confirmations(request: CleanupCloudRequest, target: CleanupTarget) -
     needed: list[Confirmation] = []
     if not request.confirm:
         message = _message(request)
-        needed.append(Confirmation(field=CONFIRM_FIELD, message=message, details=details))
+        confirm = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
+        needed.append(confirm)
     if request.scope == "everything" and _not_downloaded(target) and not request.confirm_not_downloaded:
         message = "The batch's subtitles may not be downloaded yet; after this, only the backup on the cloud volume keeps them."
-        needed.append(Confirmation(field=CONFIRM_NOT_DOWNLOADED_FIELD, message=message, details=details))
+        not_downloaded = Confirmation(field=CONFIRM_NOT_DOWNLOADED_FIELD, set_to=True, message=message, details=details)
+        needed.append(not_downloaded)
     return tuple(needed)
 
 

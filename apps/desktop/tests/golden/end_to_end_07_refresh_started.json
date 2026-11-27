@@ -28,6 +28,8 @@
         "elapsed_s": 0.0,
         "price_per_hour_usd": 0.27,
         "cost_so_far_usd": 0.0,
+        "refreshed_at": "2026-11-27T12:00:00Z",
+        "elapsed_until": "2026-11-27T12:00:00Z",
         "ended_at": null,
         "end_reason": null,
         "stop_error": null,

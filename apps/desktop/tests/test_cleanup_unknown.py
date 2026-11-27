@@ -11,6 +11,7 @@ import pytest
 from support.batch_backend import error_code, error_of
 from support.buckets import create_bucket
 from support.cleanup import AUDIO, CLEANUP, EVERYTHING, cleanup_document, keys_under, patch_store, seed_world, send
+from support.confirm import confirmed_document
 from support.credentials import moto_bucket
 from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import FOREIGN_BATCH_ID, ok_as, write_foreign
@@ -55,7 +56,7 @@ def test_unknown_batch_cleaned_up_once_it_reads(world: RunsWorld) -> None:
     assert len(_seed_foreign(world)) == FOREIGN_OBJECTS
     asked = ok_as(send(world, _foreign()), NeedsConfirmation)
     assert asked.confirmations[0].details == {"batch_id": FOREIGN_BATCH_ID, "files": 1, "known": False}
-    cleaned = ok_as(send(world, _foreign(confirm=True)), CleanupCloudResponse)
+    cleaned = ok_as(send(world, confirmed_document(_foreign(), asked)), CleanupCloudResponse)
     assert (cleaned.batch, cleaned.deleted_objects) == (None, FOREIGN_OBJECTS)
     assert not keys_under(world.store, FOREIGN_BATCH_ID)
     assert error_code(send(world, _foreign(confirm=True))) == "batch_not_found"

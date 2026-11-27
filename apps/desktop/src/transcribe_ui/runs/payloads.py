@@ -5,6 +5,7 @@ from pydantic import AwareDatetime, NonNegativeFloat, PositiveInt
 from transcribe_contracts.classes import RunStatus as WorkerStatus
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.runs.classes import CostEstimate, EndReason
+from transcribe_ui.runs.responses import WorkerProgress
 from transcribe_ui.runs.stopping import KnownPod
 
 
@@ -60,6 +61,13 @@ class RunPayload(FrozenModel):
     final_status: WorkerStatus | None = None
     # Whether `runs/<run_id>/` was kept locally (status here, `worker.log` in the log dir) and deleted.
     objects_collected: bool = False
+    # The worker's report as last read (by `refresh_status`, or by the collection of a final run),
+    # as the frontends show it; None while none was read. `list_runs` shows it after a restart.
+    worker: WorkerProgress | None = None
+    # Error code of the deadline stop of the last refresh that did not show yet; None otherwise.
+    stop_error: str | None = None
+    # When `refresh_status` last followed the run: elapsed time and cost are as of then (or `ended_at`).
+    refreshed_at: AwareDatetime | None = None
 
     def known_pod(self) -> KnownPod | None:
         """Return the run's pod with what is known of its sightings (None without a pod id).

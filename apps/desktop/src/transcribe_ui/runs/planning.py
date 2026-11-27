@@ -64,5 +64,6 @@ def confirmation(plan: LaunchPlan, *, changed: bool) -> NeedsConfirmation:
     if changed:
         parts.insert(0, "The plan changed since it was confirmed (the work, the runtime limit or the test mode).")
     details = {"plan": plan.model_dump(mode="json")}
-    found = Confirmation(field=CONFIRM_FIELD, message=" ".join(parts), details=details)
+    message = " ".join(parts)
+    found = Confirmation(field=CONFIRM_FIELD, set_to=plan.fingerprint, message=message, details=details)
     return NeedsConfirmation(action="launch_worker", confirmations=(found,))

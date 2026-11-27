@@ -142,6 +142,8 @@ class CurrentJob(FrozenModel):
     batch_id: str
     item_id: str
     language: str
+    # The file name of the item (None for a batch or item this database does not know).
+    name: str | None = None
 
 
 class WorkerProgress(FrozenModel):
@@ -157,27 +159,42 @@ class WorkerProgress(FrozenModel):
 
 
 class RunProgress(FrozenModel):
-    """A run as `refresh_status` left it, with what the app shows while it runs."""
+    """A run as the last `refresh_status` left it, with what the app shows while it runs.
+
+    Built from the stored run only: elapsed time and cost are measured to `elapsed_until` (the
+    run's end, else its last refresh), never to the moment of the request.
+    """
 
     run: RunInfo
     stage: RunStage
     # The pod's status as last read (None before a pod is known).
     pod_status: str | None
-    # None while the worker has written no report (or after its objects were collected).
+    # The worker's report as last read; None while none was read.
     worker: WorkerProgress | None
     first_running_at: AwareDatetime | None
     # Desktop deadline: first `RUNNING` sighting + `MAX_RUNTIME_S` + margin, capped by the name deadline.
     deadline: AwareDatetime
-    # Since the pod's creation, until the run ended (None before a pod is known).
+    # Since the pod's creation, until `elapsed_until` (None before a pod is known or the run refreshed).
     elapsed_s: NonNegativeFloat | None
     price_per_hour_usd: NonNegativeFloat | None
     cost_so_far_usd: NonNegativeFloat | None
+    # When `refresh_status` last followed the run (None before the first refresh).
+    refreshed_at: AwareDatetime | None = None
+    # What elapsed time and cost are measured to: `ended_at`, else `refreshed_at`.
+    elapsed_until: AwareDatetime | None = None
     ended_at: AwareDatetime | None
     end_reason: EndReason | None
-    # Error code of a stop at the deadline that does not show yet (the next refresh tries again).
+    # Error code of a stop at the deadline that did not show at the last refresh (the next one tries again).
     stop_error: str | None = None
     # The worker's log, kept in the user log dir once the run's objects were collected.
     worker_log: LocalPath | None = None
+
+
+class ListRunsResponse(OkResponse):
+    """The latest runs, newest first, as stored (no cloud call)."""
+
+    action: Literal["list_runs"] = "list_runs"
+    runs: tuple[RunProgress, ...]
 
 
 class BatchResults(FrozenModel):

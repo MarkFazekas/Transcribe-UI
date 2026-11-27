@@ -72,10 +72,11 @@ class EditBatchRequest(BatchComposition):
 
 
 class DeleteBatchRequest(FrozenModel):
-    """Delete a batch in `composing` or `reviewing` (nothing of it is in the cloud yet)."""
+    """Delete a batch in `composing` or `reviewing` (nothing of it is in the cloud yet); needs `confirm`."""
 
     action: Literal["delete_batch"]
     batch_id: BatchId
+    confirm: bool = Field(default=False, description="Delete the batch; without it the answer asks first.")
 
 
 class StartReviewRequest(FrozenModel):
@@ -143,11 +144,12 @@ class ResolveReviewRequest(FrozenModel):
 
 
 class ExcludeItemsRequest(FrozenModel):
-    """Remove items from a batch in `reviewing` or `uploading`, deleting their uploaded audio."""
+    """Remove items from a batch in `reviewing` or `uploading`, deleting their uploaded audio; needs `confirm`."""
 
     action: Literal["exclude_items"]
     batch_id: BatchId
     item_ids: tuple[Ulid, ...] = Field(min_length=1)
+    confirm: bool = Field(default=False, description="Remove the items; without it the answer asks first.")
 
     @model_validator(mode="after")
     def _check_unique(self) -> Self:

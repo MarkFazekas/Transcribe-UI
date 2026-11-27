@@ -237,7 +237,7 @@ def test_concurrent_requests_on_a_batch_get_batch_busy(tmp_path: Path) -> None:
         busy = {
             error_code(run(leg, batch_request("resolve_review", choices=[transcribe(film, HU, 0)]))),
             error_code(run(leg, json.dumps({"action": "edit_batch", "batch_id": FIRST_BATCH_ID, **composition(HU)}))),
-            error_code(run(leg, batch_request("exclude_items", item_ids=[film]))),
+            error_code(run(leg, batch_request("exclude_items", confirm=True, item_ids=[film]))),
         }
         media.release.set()
         worker.join(THREAD_TIMEOUT_S)

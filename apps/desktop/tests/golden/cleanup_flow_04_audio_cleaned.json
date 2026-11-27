@@ -19,7 +19,16 @@
       "manifest_held": false,
       "audio_deleted": true,
       "cleanup_pending": null,
-      "extract_only": false
+      "extract_only": false,
+      "actions": [
+        "plan_download",
+        "run_download",
+        "export_custom_plan",
+        "import_custom_plan",
+        "cleanup_audio",
+        "cleanup_everything",
+        "show_batch"
+      ]
     },
     "deleted_objects": 2,
     "aborted_uploads": 0

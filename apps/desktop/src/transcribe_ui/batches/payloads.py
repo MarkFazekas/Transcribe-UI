@@ -6,6 +6,8 @@ from pydantic import NonNegativeInt
 
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel
+from transcribe_ui.batches.classes import ItemLanguages, TargetLanguages
+from transcribe_ui.discovery.classes import ScanSpec, SelectionOperation
 from transcribe_ui.media.classes import ProbeResult
 from transcribe_ui.upload.payloads import CopySource
 
@@ -34,6 +36,18 @@ class RetryOrigin(FrozenModel):
     jobs: tuple[RetryJob, ...]
 
 
+class StoredComposition(FrozenModel):
+    """The selection a batch was composed from (`create_batch`, `edit_batch`), kept so it can be reopened.
+
+    The request's fields without `scan_id` (a scan this process kept) and the confirmation flag.
+    """
+
+    scan: ScanSpec
+    operations: tuple[SelectionOperation, ...]
+    languages: TargetLanguages
+    item_languages: tuple[ItemLanguages, ...]
+
+
 class BatchPayload(FrozenModel):
     """What a batch row keeps besides its phase and flags."""
 
@@ -41,6 +55,9 @@ class BatchPayload(FrozenModel):
     path_flavor: Literal["windows", "posix"]
     # The batch's default target languages, as requested.
     languages: tuple[str, ...]
+    # The selection of the last `create_batch` or `edit_batch`; None for a retry batch and for a
+    # batch stored before the composition was kept (the Alembic revision `composition_and_run_report`).
+    composition: StoredComposition | None = None
     # Set on a retry batch (`create_retry_batch`): one retry batch per source and job set.
     retry_of: RetryOrigin | None = None
     # A cloud cleanup of this scope was recorded and has not finished its deletes yet; no worker

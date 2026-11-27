@@ -164,7 +164,7 @@ def test_exclusion_deletes_the_audio_of_the_item(batch_leg: Leg, batch_store: R2
     _upload(batch_store, [unrecorded])
     store_client().create_multipart_upload(Bucket=TEST_BUCKET, Key=f"{film_prefix}a2.mka")
     opened = _open_uploads(film_prefix)
-    deleted = run_ok(batch_leg, batch_request(EXCLUDE, item_ids=[ids[FILM]]))["deleted_objects"]
+    deleted = run_ok(batch_leg, batch_request(EXCLUDE, confirm=True, item_ids=[ids[FILM]]))["deleted_objects"]
     row = batch_row(batch_leg)
     film_keys = [unrecorded, *(key for key in keys if ids[FILM] in key)]
     assert (deleted, _listed(batch_store)) == (len(film_keys), [key for key in keys if ids[PODCAST] in key])
@@ -175,8 +175,8 @@ def test_exclusion_deletes_the_audio_of_the_item(batch_leg: Leg, batch_store: R2
 def test_excluding_the_last_item_is_refused(batch_leg: Leg, batch_store: R2ObjectStore) -> None:
     """A batch cannot lose its last item, and unknown items are refused; nothing is deleted."""
     ids, keys = _seeded(batch_leg, batch_store)
-    every = run(batch_leg, batch_request(EXCLUDE, item_ids=list(ids.values())))
-    unknown = run(batch_leg, batch_request(EXCLUDE, item_ids=["01JDZZZZZZZZZZZZZZZZZZZZ99"]))
+    every = run(batch_leg, batch_request(EXCLUDE, confirm=True, item_ids=list(ids.values())))
+    unknown = run(batch_leg, batch_request(EXCLUDE, confirm=True, item_ids=["01JDZZZZZZZZZZZZZZZZZZZZ99"]))
     assert (error_code(every), error_code(unknown)) == ("last_item", "item_not_found")
     assert (_listed(batch_store), _manifest_held(batch_leg)) == (keys, True)
 
@@ -186,7 +186,7 @@ def test_last_transcribe_item_excluded_leaves_extracts(batch_leg: Leg) -> None:
     start(batch_leg, HU, paths=(f"{MEDIA_ROOT}/Audio/{PODCAST}", f"{MEDIA_ROOT}/Movies/{SILENT}"))
     run_ok(batch_leg, REVIEW)
     ids = ids_of(batch_leg)
-    detail = run_ok(batch_leg, batch_request(EXCLUDE, item_ids=[ids[PODCAST]]))["batch"]
+    detail = run_ok(batch_leg, batch_request(EXCLUDE, confirm=True, item_ids=[ids[PODCAST]]))["batch"]
     review = run_ok(batch_leg, REVIEW)["review"]
     assert (detail["summary"]["extract_only"], review["complete"]) == (True, True)
 
@@ -194,11 +194,11 @@ def test_last_transcribe_item_excluded_leaves_extracts(batch_leg: Leg) -> None:
 def test_delete_only_before_the_upload(batch_leg: Leg) -> None:
     """A batch in review can be deleted with its items; one in `uploading` cannot."""
     start(batch_leg, HU)
-    deleted = run_ok(batch_leg, batch_request("delete_batch"))["batch_id"]
+    deleted = run_ok(batch_leg, batch_request("delete_batch", confirm=True))["batch_id"]
     with batch_leg.ports.state.session() as session:
         leftover = session.scalars(select(ItemRow)).first()
     seed_uploading_batch(batch_leg.ports.state, batch_leg.root)
-    refused = run(batch_leg, batch_request("delete_batch"))
+    refused = run(batch_leg, batch_request("delete_batch", confirm=True))
     assert (deleted, leftover) == (FIRST_BATCH_ID, None)
     assert (error_code(refused), batch_row(batch_leg).phase) == ("wrong_phase", "uploading")
 
@@ -234,7 +234,7 @@ def test_interrupted_exclusion_forgets_the_audio_first(
     film, podcast_keys = _film_with_unrecorded(batch_leg, batch_store)
     token = CancelFlag()
     _interrupt_with(monkeypatch, "exclusion", InterruptingStore(token if cancel else None))
-    request = batch_request(EXCLUDE, item_ids=[film])
+    request = batch_request(EXCLUDE, confirm=True, item_ids=[film])
     interrupted = batch_leg.backend.execute_json(batch_leg.document(request), DiscardProgress(), token)
     held, recorded = _manifest_held(batch_leg), _recorded(batch_leg)
     leftover = [key for key in _listed(batch_store) if film in key]
@@ -246,7 +246,7 @@ def test_exclusion_without_credentials_changes_nothing(batch_leg: Leg) -> None:
     """In an `uploading` batch the object store is opened first: a credentials error leaves the batch as it was."""
     film = seed_uploading_batch(batch_leg.ports.state, batch_leg.root)[FILM]
     keys = _recorded(batch_leg)
-    refused = run(batch_leg, batch_request(EXCLUDE, item_ids=[film]))
+    refused = run(batch_leg, batch_request(EXCLUDE, confirm=True, item_ids=[film]))
     assert (error_code(refused), _manifest_held(batch_leg), sorted(ids_of(batch_leg))) == (
         "credentials_missing",
         True,
@@ -267,7 +267,7 @@ def test_interrupted_rereview_forgets_the_audio_first(
         return_item_to_review(context_of(batch_leg), FIRST_BATCH_ID, film)
     state = (_manifest_held(batch_leg), item_phase(batch_leg, film), _recorded(batch_leg))
     leftover = [key for key in _listed(batch_store) if film in key]
-    done = run_ok(batch_leg, batch_request(EXCLUDE, item_ids=[film]))
+    done = run_ok(batch_leg, batch_request(EXCLUDE, confirm=True, item_ids=[film]))
     assert (state, len(leftover)) == ((False, "reviewing", podcast_keys), 1)
     assert (done["deleted_objects"], _listed(batch_store)) == (1, podcast_keys)
 

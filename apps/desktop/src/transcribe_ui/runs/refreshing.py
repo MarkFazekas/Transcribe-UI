@@ -10,6 +10,7 @@ run was handled. The Runpod lists are read once per refresh (`runs/monitor.py`).
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import RequestContext
@@ -19,9 +20,10 @@ from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.ending import desktop_deadline, end_run, stop_at_deadline
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.following import follow_run
-from transcribe_ui.runs.records import open_runs, read_payload
+from transcribe_ui.runs.records import open_runs, read_payload, update_run
 from transcribe_ui.runs.settling import Listed
-from transcribe_ui.runs.worker import WorkerReport, read_worker
+from transcribe_ui.runs.worker import WorkerReport, read_worker, worker_progress
+from transcribe_ui.state.store import LocalState
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,8 @@ class Refreshed:
     stop_error: str | None = None
     # The error that kept the worker report from being read (R2 or its credentials).
     failure: DomainError | None = None
+    # Whether R2 was read for the worker report (False: not followed that far, or R2 failed).
+    read: bool = False
 
 
 def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore, listed: Listed | None) -> list[Refreshed]:
@@ -49,7 +53,24 @@ def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore, liste
         return []
     if listed is None:
         listed = runpod_call(lambda: Listed.read(pods))
-    return [_refresh_run(context, pods, store, run.run_id, listed) for run in before]
+    refreshed = []
+    for run in before:
+        each = _refresh_run(context, pods, store, run.run_id, listed)
+        _record(context.ports.state, each, context.ports.clock.now())
+        refreshed.append(each)
+    return refreshed
+
+
+def _record(state: LocalState, refreshed: Refreshed, now: datetime) -> None:
+    """Store what the refresh saw of the run: when, the deadline stop's error, the worker report if read.
+
+    `list_runs` shows these after a restart; a report not read this time keeps the last one.
+    """
+    changes: dict[str, object] = {"refreshed_at": now, "stop_error": refreshed.stop_error}
+    if refreshed.read:
+        worker = refreshed.worker
+        changes["worker"] = None if worker is None else worker_progress(state, worker)
+    update_run(state, refreshed.run_id, now, changes=changes)
 
 
 def refresh_open_runs(
@@ -77,14 +98,15 @@ def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_i
         return Refreshed(run_id, None)
     past_deadline = clock.now() >= desktop_deadline(read_payload(state, run_id))
     worker, failure = _read_report(store, run_id)
+    read = failure is None
     if followed.gone:
-        if failure is None:
+        if read:
             end_run(state, run_id, worker, clock.now())
-        return Refreshed(run_id, worker, failure=failure)
+        return Refreshed(run_id, worker, failure=failure, read=read)
     if not past_deadline:
-        return Refreshed(run_id, worker, failure=failure)
+        return Refreshed(run_id, worker, failure=failure, read=read)
     stop_error = stop_at_deadline(state, pods, run_id, worker, clock)
-    return Refreshed(run_id, worker, stop_error, failure)
+    return Refreshed(run_id, worker, stop_error, failure, read=read)
 
 
 def _read_report(store: LazyStore, run_id: str) -> tuple[WorkerReport | None, DomainError | None]:

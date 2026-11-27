@@ -258,7 +258,7 @@
     },
     "DeleteBatchRequest": {
       "additionalProperties": false,
-      "description": "Delete a batch in `composing` or `reviewing` (nothing of it is in the cloud yet).",
+      "description": "Delete a batch in `composing` or `reviewing` (nothing of it is in the cloud yet); needs `confirm`.",
       "properties": {
         "action": {
           "const": "delete_batch",
@@ -267,6 +267,12 @@
         },
         "batch_id": {
           "$ref": "#/$defs/BatchId"
+        },
+        "confirm": {
+          "default": false,
+          "description": "Delete the batch; without it the answer asks first.",
+          "title": "Confirm",
+          "type": "boolean"
         }
       },
       "required": [
@@ -346,7 +352,7 @@
     },
     "ExcludeItemsRequest": {
       "additionalProperties": false,
-      "description": "Remove items from a batch in `reviewing` or `uploading`, deleting their uploaded audio.",
+      "description": "Remove items from a batch in `reviewing` or `uploading`, deleting their uploaded audio; needs `confirm`.",
       "properties": {
         "action": {
           "const": "exclude_items",
@@ -355,6 +361,12 @@
         },
         "batch_id": {
           "$ref": "#/$defs/BatchId"
+        },
+        "confirm": {
+          "default": false,
+          "description": "Remove the items; without it the answer asks first.",
+          "title": "Confirm",
+          "type": "boolean"
         },
         "item_ids": {
           "items": {
@@ -610,6 +622,29 @@
         "action"
       ],
       "title": "ListBatchesRequest",
+      "type": "object"
+    },
+    "ListRunsRequest": {
+      "additionalProperties": false,
+      "description": "List the latest runs as stored, newest first; reads only the database (no Runpod or R2 call).\n\nElapsed time and cost are as of each run's end, else its last `refresh_status`.",
+      "properties": {
+        "action": {
+          "const": "list_runs",
+          "title": "Action",
+          "type": "string"
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ListRunsRequest",
       "type": "object"
     },
     "LocalPath": {
@@ -1628,6 +1663,7 @@
       "import_custom_plan": "#/$defs/ImportCustomPlanRequest",
       "launch_worker": "#/$defs/LaunchWorkerRequest",
       "list_batches": "#/$defs/ListBatchesRequest",
+      "list_runs": "#/$defs/ListRunsRequest",
       "plan_download": "#/$defs/PlanDownloadRequest",
       "plan_launch": "#/$defs/PlanLaunchRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
@@ -1722,6 +1758,9 @@
     },
     {
       "$ref": "#/$defs/RefreshStatusRequest"
+    },
+    {
+      "$ref": "#/$defs/ListRunsRequest"
     },
     {
       "$ref": "#/$defs/ReconcileCloudRequest"

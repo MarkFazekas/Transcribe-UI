@@ -109,10 +109,41 @@
       "title": "AudioTrack",
       "type": "object"
     },
+    "BatchAction": {
+      "enum": [
+        "edit_batch",
+        "start_review",
+        "delete_batch",
+        "review_batch",
+        "resolve_review",
+        "exclude_items",
+        "run_upload",
+        "plan_download",
+        "run_download",
+        "export_custom_plan",
+        "import_custom_plan",
+        "create_retry_batch",
+        "cleanup_audio",
+        "cleanup_everything",
+        "hide_batch",
+        "show_batch"
+      ],
+      "type": "string"
+    },
     "BatchDetail": {
       "additionalProperties": false,
       "description": "A batch with its items and jobs.",
       "properties": {
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoredComposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "items": {
           "items": {
             "$ref": "#/$defs/BatchItem"
@@ -134,6 +165,7 @@
         "summary",
         "scan_root",
         "path_flavor",
+        "composition",
         "items"
       ],
       "title": "BatchDetail",
@@ -325,6 +357,13 @@
       "additionalProperties": false,
       "description": "A batch as the batch list shows it.",
       "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/BatchAction"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
         "audio_deleted": {
           "title": "Audio Deleted",
           "type": "boolean"
@@ -397,7 +436,8 @@
         "manifest_held",
         "audio_deleted",
         "cleanup_pending",
-        "extract_only"
+        "extract_only",
+        "actions"
       ],
       "title": "BatchSummary",
       "type": "object"
@@ -870,10 +910,14 @@
         "message": {
           "title": "Message",
           "type": "string"
+        },
+        "set_to": {
+          "$ref": "#/$defs/JsonValue"
         }
       },
       "required": [
         "field",
+        "set_to",
         "message",
         "details"
       ],
@@ -1120,12 +1164,25 @@
         "language": {
           "title": "Language",
           "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
         }
       },
       "required": [
         "batch_id",
         "item_id",
-        "language"
+        "language",
+        "name"
       ],
       "title": "CurrentJob",
       "type": "object"
@@ -1691,6 +1748,25 @@
       "title": "ImportCustomPlanResponse",
       "type": "object"
     },
+    "ItemLanguages": {
+      "additionalProperties": false,
+      "description": "Target languages of one selected file, instead of the batch's languages.",
+      "properties": {
+        "languages": {
+          "$ref": "#/$defs/TargetLanguages"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "The file's path exactly as the scan reported it."
+        }
+      },
+      "required": [
+        "path",
+        "languages"
+      ],
+      "title": "ItemLanguages",
+      "type": "object"
+    },
     "ItemPhase": {
       "enum": [
         "composing",
@@ -2015,6 +2091,38 @@
       "title": "ListBatchesResponse",
       "type": "object"
     },
+    "ListRunsResponse": {
+      "additionalProperties": false,
+      "description": "The latest runs, newest first, as stored (no cloud call).",
+      "properties": {
+        "action": {
+          "const": "list_runs",
+          "default": "list_runs",
+          "title": "Action",
+          "type": "string"
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/RunProgress"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "runs"
+      ],
+      "title": "ListRunsResponse",
+      "type": "object"
+    },
     "LocalPath": {
       "type": "string"
     },
@@ -2031,9 +2139,39 @@
       ],
       "type": "string"
     },
+    "NameFilter": {
+      "additionalProperties": false,
+      "description": "Match files by their name without the extension, ignoring case.",
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/NameMatch"
+        },
+        "text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "match",
+        "text"
+      ],
+      "title": "NameFilter",
+      "type": "object"
+    },
+    "NameMatch": {
+      "enum": [
+        "starts_with",
+        "ends_with",
+        "contains",
+        "regex"
+      ],
+      "type": "string"
+    },
     "NeedsConfirmation": {
       "additionalProperties": false,
-      "description": "Nothing was changed: send the same request again with the listed fields set.",
+      "description": "Nothing was changed: send the same request again with each listed field set to its `set_to`.",
       "properties": {
         "action": {
           "title": "Action",
@@ -2807,7 +2945,7 @@
     },
     "RunProgress": {
       "additionalProperties": false,
-      "description": "A run as `refresh_status` left it, with what the app shows while it runs.",
+      "description": "A run as the last `refresh_status` left it, with what the app shows while it runs.\n\nBuilt from the stored run only: elapsed time and cost are measured to `elapsed_until` (the\nrun's end, else its last refresh), never to the moment of the request.",
       "properties": {
         "cost_so_far_usd": {
           "anyOf": [
@@ -2837,6 +2975,19 @@
             }
           ],
           "title": "Elapsed S"
+        },
+        "elapsed_until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed Until"
         },
         "end_reason": {
           "anyOf": [
@@ -2895,6 +3046,19 @@
           ],
           "title": "Price Per Hour Usd"
         },
+        "refreshed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Refreshed At"
+        },
         "run": {
           "$ref": "#/$defs/RunInfo"
         },
@@ -2945,6 +3109,8 @@
         "elapsed_s",
         "price_per_hour_usd",
         "cost_so_far_usd",
+        "refreshed_at",
+        "elapsed_until",
         "ended_at",
         "end_reason",
         "stop_error",
@@ -3172,6 +3338,84 @@
       "title": "ScanFolder",
       "type": "object"
     },
+    "ScanSpec": {
+      "additionalProperties": false,
+      "description": "What to scan and how to classify it; the GUI fills the defaults from the settings.",
+      "properties": {
+        "audio_extensions": {
+          "default": [
+            "aac",
+            "ac3",
+            "aif",
+            "aiff",
+            "amr",
+            "ape",
+            "dts",
+            "eac3",
+            "flac",
+            "m4a",
+            "m4b",
+            "mka",
+            "mp2",
+            "mp3",
+            "oga",
+            "ogg",
+            "opus",
+            "wav",
+            "wma",
+            "wv"
+          ],
+          "items": {
+            "$ref": "#/$defs/FileExtension"
+          },
+          "title": "Audio Extensions",
+          "type": "array"
+        },
+        "include_hidden": {
+          "default": false,
+          "description": "Also scan hidden and system files and folders.",
+          "title": "Include Hidden",
+          "type": "boolean"
+        },
+        "root": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "Absolute path of the folder to scan."
+        },
+        "video_extensions": {
+          "default": [
+            "3gp",
+            "avi",
+            "flv",
+            "m2ts",
+            "m4v",
+            "mkv",
+            "mov",
+            "mp4",
+            "mpeg",
+            "mpg",
+            "mts",
+            "ogv",
+            "ts",
+            "vob",
+            "webm",
+            "wmv"
+          ],
+          "items": {
+            "$ref": "#/$defs/FileExtension"
+          },
+          "title": "Video Extensions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "root",
+        "video_extensions",
+        "audio_extensions",
+        "include_hidden"
+      ],
+      "title": "ScanSpec",
+      "type": "object"
+    },
     "ScanTreeResponse": {
       "additionalProperties": false,
       "description": "The media tree, flattened: folders in depth-first order, files grouped by folder.",
@@ -3397,6 +3641,83 @@
         "size_bytes"
       ],
       "title": "SelectionCounts",
+      "type": "object"
+    },
+    "SelectionFilter": {
+      "additionalProperties": false,
+      "description": "The filters active when an operation was made; every given part must match.",
+      "properties": {
+        "media_kind": {
+          "default": "any",
+          "enum": [
+            "any",
+            "audio",
+            "video"
+          ],
+          "title": "Media Kind",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NameFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtitles": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubtitleFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "media_kind",
+        "subtitles",
+        "name"
+      ],
+      "title": "SelectionFilter",
+      "type": "object"
+    },
+    "SelectionOperation": {
+      "additionalProperties": false,
+      "description": "Include or exclude the matching media files at or below a path (a folder or a file).",
+      "properties": {
+        "filters": {
+          "$ref": "#/$defs/SelectionFilter",
+          "default": {
+            "media_kind": "any",
+            "name": null,
+            "subtitles": null
+          }
+        },
+        "operation": {
+          "enum": [
+            "include",
+            "exclude"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        }
+      },
+      "required": [
+        "operation",
+        "path",
+        "filters"
+      ],
+      "title": "SelectionOperation",
       "type": "object"
     },
     "ServiceCheck": {
@@ -3664,6 +3985,63 @@
       "title": "StoreCredentialsResponse",
       "type": "object"
     },
+    "StoredComposition": {
+      "additionalProperties": false,
+      "description": "The selection a batch was composed from (`create_batch`, `edit_batch`), kept so it can be reopened.\n\nThe request's fields without `scan_id` (a scan this process kept) and the confirmation flag.",
+      "properties": {
+        "item_languages": {
+          "items": {
+            "$ref": "#/$defs/ItemLanguages"
+          },
+          "title": "Item Languages",
+          "type": "array"
+        },
+        "languages": {
+          "$ref": "#/$defs/TargetLanguages"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/SelectionOperation"
+          },
+          "title": "Operations",
+          "type": "array"
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanSpec"
+        }
+      },
+      "required": [
+        "scan",
+        "operations",
+        "languages",
+        "item_languages"
+      ],
+      "title": "StoredComposition",
+      "type": "object"
+    },
+    "SubtitleFilter": {
+      "additionalProperties": false,
+      "description": "Match files by the languages of their (not forced) sidecar subtitles.",
+      "properties": {
+        "languages": {
+          "items": {
+            "$ref": "#/$defs/LanguageCode"
+          },
+          "minItems": 1,
+          "title": "Languages",
+          "type": "array"
+        },
+        "rule": {
+          "$ref": "#/$defs/SubtitleRule"
+        }
+      },
+      "required": [
+        "languages",
+        "rule"
+      ],
+      "title": "SubtitleFilter",
+      "type": "object"
+    },
     "SubtitleFormat": {
       "enum": [
         "ass",
@@ -3679,6 +4057,14 @@
         "text",
         "bitmap",
         "other"
+      ],
+      "type": "string"
+    },
+    "SubtitleRule": {
+      "enum": [
+        "all",
+        "any",
+        "missing_one"
       ],
       "type": "string"
     },
@@ -3762,6 +4148,7 @@
           "import_custom_plan": "#/$defs/ImportCustomPlanResponse",
           "launch_worker": "#/$defs/LaunchWorkerResponse",
           "list_batches": "#/$defs/ListBatchesResponse",
+          "list_runs": "#/$defs/ListRunsResponse",
           "plan_download": "#/$defs/PlanDownloadResponse",
           "plan_launch": "#/$defs/PlanLaunchResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
@@ -3858,6 +4245,9 @@
           "$ref": "#/$defs/RefreshStatusResponse"
         },
         {
+          "$ref": "#/$defs/ListRunsResponse"
+        },
+        {
           "$ref": "#/$defs/ReconcileCloudResponse"
         },
         {
@@ -3885,6 +4275,13 @@
           "$ref": "#/$defs/CleanupCloudResponse"
         }
       ]
+    },
+    "TargetLanguages": {
+      "items": {
+        "$ref": "#/$defs/WhisperLanguage"
+      },
+      "minItems": 1,
+      "type": "array"
     },
     "TerminatePodResponse": {
       "additionalProperties": false,

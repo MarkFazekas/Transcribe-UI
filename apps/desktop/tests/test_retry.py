@@ -39,10 +39,14 @@ from transcribe_contracts.layout import audio_key, manifest_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.api.classes import Response
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.batches.payloads import BatchPayload, StoredComposition
+from transcribe_ui.batches.responses import GetBatchResponse
 from transcribe_ui.cleanup.classes import CleanupCloudResponse, CreateRetryBatchResponse
 from transcribe_ui.cleanup.origins import ExistingRetry
 from transcribe_ui.cleanup.planning import RetryPlan
 from transcribe_ui.cleanup.retry import retry_batch_id
+from transcribe_ui.discovery.classes import ScanSpec
+from transcribe_ui.state.models import BatchRow
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.responses import RunUploadResponse
 
@@ -94,6 +98,20 @@ def test_retry_copies_the_flagged_job_carefully(world: RunsWorld) -> None:
     assert jobs == [("en", "careful", _copied_key(world))]
     source_audio = audio_key(FIRST_BATCH_ID, FILM_ID, FILM_EXTENSION, FILM_TRACK)
     assert world.store.head(source_audio) is not None
+
+
+def test_retry_batch_keeps_no_composition(world: RunsWorld) -> None:
+    """A retry batch is not composed from a selection: even from a source that keeps one, it has none."""
+    selection = StoredComposition(scan=ScanSpec(root="/media"), operations=(), languages=("en",), item_languages=())
+    with world.ports.state.session() as session:
+        row = session.get(BatchRow, FIRST_BATCH_ID)
+        assert row is not None
+        source = BatchPayload.model_validate(row.payload).model_copy(update={"composition": selection})
+        row.payload = source.model_dump(mode="json")
+    assert _retry(world).status == "ok"
+    details = [send(world, batch_request("get_batch", batch_id)) for batch_id in BOTH_BATCHES]
+    compositions = [ok_as(detail, GetBatchResponse).batch.composition for detail in details]
+    assert compositions == [selection, None]
 
 
 def test_repeated_retry_returns_the_same_batch(world: RunsWorld) -> None:
