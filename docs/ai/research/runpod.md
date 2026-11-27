@@ -146,6 +146,42 @@ All from https://api.runpod.io/v2/openapi.json (fetched 2026-11-27) unless marke
   `maxLength: 191`). Our names are 61 characters; the builder caps them at 63 (a DNS label) as
   a conservative bound. [?] Whether the server enforces a limit the spec does not declare.
 
+## 10. Account objects, scopes and catalog (used by the desktop client)
+From the API reference pages on docs.runpod.io (generated from the OpenAPI spec; fetched
+2026-11-27, no API call made).
+- [V] Scopes per operation: `pods:read` (list/get pods and queued pods), `pods:write` (create,
+  terminate, cancel queued), `templates:read`/`templates:write`, `secrets:read`/`secrets:write`,
+  `volumes:read`/`volumes:write` (Global Volumes), `catalog:read`.
+- [V] Templates: `GET /v2/templates` (paginated, key `templates`), `POST /v2/templates` (201;
+  required `name`, `image`; `startSsh`/`startJupyter` default true; unknown fields rejected),
+  `PATCH /v2/templates/{id}` (omitted fields unchanged; whether `env` merges or replaces is not
+  documented), `DELETE /v2/templates/{id}` (204; 400 while a pod or endpoint uses it). The
+  Template object has no `createdAt`.
+- [V] Secrets: `GET /v2/account/secrets` (key `secrets`, not paginated, optional `name` filter
+  matched case-insensitively), `POST` (201; name 1-191 chars, `^[a-zA-Z_][a-zA-Z0-9_.\-/]*$`,
+  not starting with `RUNPOD`; 409 if the name exists), `PATCH /v2/account/secrets/{id}`
+  (`value` and/or `description`; running pods keep the old value until their next boot),
+  `DELETE` (204). Values are never returned; the object has `id`, `name`, `description`,
+  `createdAt`, `valueLastUpdatedAt`.
+- [V] Global Volumes: `GET /v2/global-volumes` (paginated, key `globalVolumes`; `id`, `name`,
+  `createdAt`, `createdByUserId`), `POST` (201; `name` 1-191 chars, not unique; 400 at the
+  account's volume cap), `DELETE /v2/global-volumes/{id}` (204; 409 while mounted, stopped pods
+  included).
+- [V] `GET /v2/catalog/gpus`: key `gpus` (not paginated); each with `id`, `name`, `price`
+  (`secure`, `community`, optional `serverless`, USD/h for one GPU), `maxCount`, ...
+- [V] `POST /v2/pods`: no `tags` field on create; a create matching a pod still queued returns
+  that queued pod instead of a second one (the only idempotency documented). 202 carries a
+  `Location: /v2/queued-pods/{id}` header and the queued pod as body. The pod object names its
+  template `template` (not `templateId`) and includes `env` in list responses.
+Sources: https://docs.runpod.io/api-reference-v2/templates/create-a-template.md ,
+.../templates/list-templates.md , .../templates/update-a-template.md ,
+.../templates/delete-a-template.md , .../account/list-secrets.md ,
+.../account/create-a-secret.md , .../account/update-a-secret.md ,
+.../account/delete-a-secret.md , .../global-volumes/list-global-volumes.md ,
+.../global-volumes/create-a-global-volume.md , .../global-volumes/delete-a-global-volume.md ,
+.../catalog/list-gpu-types.md , .../pods/list-pods.md , .../pods/list-queued-pods.md ,
+.../pods/create-a-pod.md
+
 ## Items to test with a real key (cheap)
 1. Pod-scoped RUNPOD_API_KEY can DELETE its own pod (204)?
 2. `{{ RUNPOD_SECRET_x }}` in direct-create `env`.

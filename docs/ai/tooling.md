@@ -67,6 +67,10 @@ mapping uses botocore's `Stubber`. The credential and storage tests use the `con
 fixture `no_credential_logs`, which captures DEBUG records and fails on any test credential. Golden files of the credential requests are named after the
 action first (`store_credentials_*.json`): `.gitignore` drops `credentials*.json`.
 
+Desktop tests never call the real Runpod API (not even read-only): the Runpod client gets an
+`httpx.MockTransport` over the fake API in `apps/desktop/tests/support/runpod_api.py`, and
+retry waits are recorded, not slept.
+
 Desktop tests import their helpers as `support.*` from `apps/desktop/tests/support/` (pytest
 `pythonpath` in the root `pyproject.toml`; `support` is first-party for isort). The desktop CLI
 runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`) after
