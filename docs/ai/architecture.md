@@ -296,12 +296,15 @@ Comparisons for sidecar matching use NFC on macOS and case-insensitive matching 
   `en` (a torchaudio bundle, which lives in the torch hub cache, not the HF cache). `HF_HOME`
   and `TORCH_HOME` point to the same fixed paths at build time and run time. WhisperX 3.8
   defaults to pyannote VAD; the worker uses Silero. WhisperX's own Silero loader calls
-  `torch.hub.load("snakers4/silero-vad")`, which contacts GitHub on every start, so the worker
-  passes its own `LocalSilero` (`engine/silero.py`) that loads the same model with
-  `source="local"` from `$TORCH_HOME/hub/snakers4_silero-vad_master`. The image bakes that
-  repository from a pinned release commit (v6.3) whose archive SHA-256 is checked at build
-  (careful mode uses faster-whisper's Silero ONNX model, which ships with the package). Alignment models for other enabled languages are downloaded at run time to
-  the container disk.
+  `torch.hub.load("snakers4/silero-vad")`, which contacts GitHub on every start, so
+  `engine/silero.py` builds WhisperX's own `Silero` while `torch.hub.load` is temporarily
+  redirected to `$TORCH_HOME/hub/snakers4_silero-vad_master` (`source="local"`), and passes
+  it as `vad_model`. The image bakes that repository from a pinned release commit (v6.3); the
+  archive is downloaded with retries, its SHA-256 checked and it is unpacked safely
+  (`engine/archive.py`). Careful mode uses faster-whisper's Silero ONNX model, which ships with
+  the package. The Whisper model is loaded with `local_files_only`, so the engine never
+  contacts Hugging Face for it. Alignment models for other enabled languages are downloaded at
+  run time to the container disk; if that fails, the job runs unaligned.
 - The `engine` extra pins `torch~=2.8.0` (WhisperX's pin) from the PyTorch cu128 index with a
   `sys_platform == 'linux'` marker, so the universal `uv.lock` still resolves on Windows/macOS.
 - `apps/worker/Dockerfile` (built from the repository root; `.dockerignore` keeps tests, docs
@@ -438,7 +441,8 @@ pods-only key is passed as a Runpod secret.
   and ignores temperatures and fallback thresholds, so `asr_options` cannot express it.
   Alignment runs one segment at a time; a segment WhisperX returns nothing for (its times stay
   NaN) keeps its transcription times without words. Only
-  `transcribe_worker.engine.whisperx_engine` imports the GPU stack; the conversion of WhisperX
+  the engine adapter modules (`engine/whisperx_engine.py`, `engine/silero.py`,
+  `engine/bake.py`) import the GPU stack; the conversion of WhisperX
   output into the engine `Transcript` (`engine/convert.py`) is pure and tested in CI.
 - Backup: each result file is also written to the Global Volume
   (`/workspace/backups/<R2 key>`) as a whole file (object-store semantics: no rename-based
@@ -533,8 +537,9 @@ Few unit tests; mostly regression and flow tests:
   users clear the quarantine flag; Windows SmartScreen may warn).
 - `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
   changes: build the Docker image and smoke-test it (a full pod run with the fake engine, a fake
-  Runpod API and moto S3; then, inside the image, the CUDA libraries load and every baked
-  model resolves without network). Only on `main` a
+  Runpod API and moto S3; then, inside the image, the CUDA libraries load and, with no
+  network, the Whisper model, the baked hu/en aligners and the Silero VAD load the way the
+  engine loads them). Only on `main` a
   separate job in the `dockerhub` environment (deployment branch policy: `main` only, so no
   other branch gets the token) loads the image from an artifact and pushes it; it never runs
   the image.

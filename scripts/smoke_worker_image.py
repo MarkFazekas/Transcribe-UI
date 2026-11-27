@@ -4,9 +4,12 @@ Usage: `uv run scripts/smoke_worker_image.py <image>`
 
 Starts an S3 server (moto, in Docker) and a fake Runpod API on localhost, uploads one batch
 with a short tone, and runs the image as a pod would (entry → worker → self-termination) with
-`TRANSCRIBE_ENGINE=fake`. Checks: the job result and `_done.json` exist, the run status is
-"finished", the pod was deleted through the API, and the container exited 0. Then checks
-that the GPU stack imports and the baked models are in the image.
+`TRANSCRIBE_ENGINE=fake`. Checks: the container exited 0 and the pod was deleted through the
+API; the job result and `_done.json` exist and the run status is "finished". Then, inside the
+image: the CUDA libraries of the torch wheels load (no GPU needed), and without any network the
+GPU stack imports, the Whisper model resolves the way the engine loads it
+(`local_files_only`), the baked hu/en aligners load, and WhisperX's Silero VAD is built and run
+on silence exactly as the engine does.
 """
 
 import argparse
@@ -41,17 +44,17 @@ THROWAWAY_CREDENTIAL = "smoke"
 # Python run in the image: the CUDA libraries of the torch wheels load (no GPU needed), so a
 # wrong library path fails here.
 CUDA_LIBRARY_CHECK = "import ctypes; ctypes.CDLL('libcublas.so.12'); ctypes.CDLL('libcudnn.so.9')"
-# Python run in the image without network: every baked model resolves from the image, and the
-# GPU stack imports.
+# Python run in the image without network, through the same calls as the engine: the Whisper
+# model with local_files_only, the baked aligners, and the VAD built and run on silence.
 OFFLINE_MODEL_CHECK = """
 import whisperx
 from faster_whisper.utils import download_model
-from transcribe_worker.engine.silero import load_silero
+from transcribe_worker.engine.silero import check_vad
 import transcribe_worker.engine.whisperx_engine
 download_model("large-v3", local_files_only=True)
 whisperx.load_align_model(language_code="hu", device="cpu")
 whisperx.load_align_model(language_code="en", device="cpu")
-load_silero()
+check_vad()
 """
 
 
@@ -59,13 +62,16 @@ class SmokeError(AssertionError):
     """A smoke check failed."""
 
 
-def docker(*args: str, timeout_s: float | None = None) -> int:
-    """Run a docker command and return its exit code."""
+def docker(*args: str, timeout_s: float | None = None, quiet: bool = False) -> int:
+    """Run a docker command and return its exit code (`quiet` hides its error output)."""
     executable = shutil.which("docker")
     if executable is None:
         msg = "docker is not installed"
         raise SmokeError(msg)
-    return subprocess.run([executable, *args], timeout=timeout_s, check=False).returncode
+    stderr = subprocess.DEVNULL if quiet else None
+    argv = [executable, *args]
+    completed = subprocess.run(argv, timeout=timeout_s, stderr=stderr, check=False)
+    return completed.returncode
 
 
 def s3_client() -> "S3Client":
@@ -131,14 +137,14 @@ def check_outputs(client: "S3Client", api: FakeRunpod, exit_code: int) -> None:
 
 
 def check_image_contents(image: str) -> None:
-    """Check that the CUDA libraries load and every baked model resolves without network.
+    """Check that the CUDA libraries load and the baked models load offline as the engine does.
 
     Raises:
         SmokeError: A check failed.
     """
     python = ("run", "--rm", "--entrypoint", "python")
     cuda = docker(*python, image, "-c", CUDA_LIBRARY_CHECK)
-    offline = docker(*python, "--network", "none", "--env", "HF_HUB_OFFLINE=1", image, "-c", OFFLINE_MODEL_CHECK)
+    offline = docker(*python, "--network", "none", image, "-c", OFFLINE_MODEL_CHECK)
     if cuda or offline:
         msg = f"image contents: CUDA libraries exit {cuda}, offline models exit {offline}"
         raise SmokeError(msg)
@@ -177,7 +183,8 @@ def smoke(image: str) -> None:
         api = FakeRunpod()
         threading.Thread(target=api.serve_forever, daemon=True).start()
         cleanup.callback(api.shutdown)
-        cleanup.callback(docker, "rm", "-f", WORKER_CONTAINER)
+        # Normally already removed by --rm; this catches a container left by a timeout.
+        cleanup.callback(docker, "rm", "-f", WORKER_CONTAINER, quiet=True)
         wait_for_s3()
         client = s3_client()
         upload_batch(client)
