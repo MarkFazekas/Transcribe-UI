@@ -1,6 +1,7 @@
 """The GUI's request bridge: pools, queued-call cancellation and close (plan m6 M6.2)."""
 
 import gc
+import time
 import weakref
 from collections.abc import Iterator
 
@@ -17,9 +18,11 @@ from transcribe_ui.api.classes import (
 from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.api.routes import default_routes
 from transcribe_ui.gui.bridge import QtExecutor, pool_of
-from transcribe_ui.gui.constants import ACTION_POOLS, LONG_POOL_THREADS, POLL_POOL, SHORT_POOL
+from transcribe_ui.gui.constants import ACTION_POOLS, LONG_POOL_THREADS, POLL_POOL, POOL_THREADS, SHORT_POOL
 from transcribe_ui.gui.executor import CallHandle, PooledCall
 
+# Timeout of the shared-deadline test, in milliseconds (three pools would take three times as long).
+WAIT_ONCE_MS = 500
 UPLOAD_LATER = "batch_20261127_130000"
 
 
@@ -167,3 +170,19 @@ def test_completed_calls_are_freed(gated: GatedRunner, qtbot: QtBot) -> None:
     gc.collect()
     assert [ref() for ref in sent] == [None for _ in sent]
     assert _runnables() == before
+
+
+def test_thread_wait_shares_one_deadline(qtbot: QtBot) -> None:
+    """With a stuck call on every pool, the wait gives up after one timeout, not one per pool."""
+    stuck = GatedRunner((UPLOAD, REFRESH, "cancel_worker"), honour_cancel=False)
+    executor = QtExecutor(stuck)
+    for request in (upload(), refresh(), stop()):
+        executor.submit(request, _ignore)
+    wait_for(qtbot, lambda: len(stuck.calls) == len(POOL_THREADS))
+    started = time.monotonic()
+    assert not executor.wait_for_threads(WAIT_ONCE_MS)
+    elapsed_ms = (time.monotonic() - started) * 1000
+    stuck.release()
+    wait_for(qtbot, lambda: executor.pending() == 0)
+    assert executor.wait_for_threads(DRAIN_MS)
+    assert elapsed_ms < WAIT_ONCE_MS * 2

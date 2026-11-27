@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import override
 
 import shiboken6
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QDeadlineTimer, QObject, QRunnable, Qt, QThreadPool, Signal
 
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, ProgressEvent, Request, Response
 from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
@@ -222,8 +222,13 @@ class QtExecutor:
             call.abandon()
 
     def wait_for_threads(self, timeout_ms: int = -1) -> bool:
-        """Wait until every pool thread is idle (after `shutdown` and the calls' completion)."""
-        return all(pool.waitForDone(timeout_ms) for pool in self._pools.values())
+        """Wait until every pool thread is idle, at most `timeout_ms` in all (-1: forever)."""
+        if timeout_ms < 0:
+            deadline = QDeadlineTimer(QDeadlineTimer.ForeverConstant.Forever)
+        else:
+            deadline = QDeadlineTimer(timeout_ms)
+        # One deadline shared by every pool, so three pools cannot wait three times as long.
+        return all(pool.waitForDone(deadline) for pool in self._pools.values())
 
     def _deliver(self, call: PooledCall, response: Response) -> None:
         # Any thread; always queued, so the sender hears it later on the GUI thread.
