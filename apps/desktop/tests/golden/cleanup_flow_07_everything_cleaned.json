@@ -1,0 +1,70 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "cleanup_cloud",
+    "batch_id": "batch_20261127_130000",
+    "scope": "everything",
+    "batch": {
+      "batch_id": "batch_20261127_130000",
+      "phase": "cleaned",
+      "created_at": "2026-11-27T12:00:00Z",
+      "updated_at": "2026-11-27T12:00:00Z",
+      "items": 2,
+      "jobs": 2,
+      "languages": [
+        "en"
+      ],
+      "hidden": false,
+      "manifest_held": false,
+      "audio_deleted": true,
+      "extract_only": false
+    },
+    "deleted_objects": 6,
+    "aborted_uploads": 0
+  },
+  "events": [
+    {
+      "action": "cleanup_cloud",
+      "stage": "delete_objects",
+      "completed": 1,
+      "total": null,
+      "path": null
+    },
+    {
+      "action": "cleanup_cloud",
+      "stage": "delete_objects",
+      "completed": 2,
+      "total": null,
+      "path": null
+    },
+    {
+      "action": "cleanup_cloud",
+      "stage": "delete_objects",
+      "completed": 3,
+      "total": null,
+      "path": null
+    },
+    {
+      "action": "cleanup_cloud",
+      "stage": "delete_objects",
+      "completed": 4,
+      "total": null,
+      "path": null
+    },
+    {
+      "action": "cleanup_cloud",
+      "stage": "delete_objects",
+      "completed": 5,
+      "total": null,
+      "path": null
+    },
+    {
+      "action": "cleanup_cloud",
+      "stage": "delete_objects",
+      "completed": 6,
+      "total": null,
+      "path": null
+    }
+  ]
+}
