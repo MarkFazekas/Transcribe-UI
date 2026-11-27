@@ -21,8 +21,13 @@ from transcribe_ui.storage.r2 import R2ObjectStore
 
 
 def pytest_configure() -> None:
-    """Let moto serve the test R2 endpoint (read once, when moto first loads its S3 routes)."""
+    """Let moto serve the test R2 endpoint; run Qt offscreen unless the developer chose a platform.
+
+    moto reads its endpoint once, when it first loads its S3 routes. `QT_QPA_PLATFORM` set
+    beforehand (for example to `xcb`) shows the GUI tests' windows.
+    """
     os.environ["MOTO_S3_CUSTOM_ENDPOINTS"] = TEST_ENDPOINT
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 @pytest.fixture

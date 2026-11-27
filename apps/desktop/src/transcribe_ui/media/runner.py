@@ -6,6 +6,8 @@ first Ctrl+C sets the cancel token. The adapter kills the process itself when th
 when the timeout passes, or when anything else interrupts the wait (a second Ctrl+C), together
 with anything it started: the whole session on POSIX, the whole job object on Windows (where the
 job also kills them if the app dies; on POSIX such orphans are accepted, see architecture §3.4).
+Every running tool is tracked, so the GUI's "Quit now" kills them before `os._exit`
+(`kill_running_tools`); on POSIX they would otherwise keep running.
 """
 
 import logging
@@ -13,6 +15,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -78,6 +81,54 @@ class _Child:
     group: _Group | None = None
 
 
+class _Running:
+    """The tools started by this process that have not been waited for yet; thread-safe."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._children: list[_Child] = []
+        # Children `kill_all` killed: their end is a cancel, not a tool failure.
+        self._killed: list[_Child] = []
+
+    def add(self, child: _Child) -> None:
+        with self._lock:
+            self._children.append(child)
+
+    def discard(self, child: _Child) -> None:
+        with self._lock:
+            if child in self._children:
+                self._children.remove(child)
+            if child in self._killed:
+                self._killed.remove(child)
+
+    def killed(self, child: _Child) -> bool:
+        with self._lock:
+            return child in self._killed
+
+    def count(self) -> int:
+        with self._lock:
+            return len(self._children)
+
+    def kill_all(self) -> None:
+        with self._lock:
+            children = list(self._children)
+            self._killed.extend(children)
+        for child in children:
+            # On Windows the kill-on-close job ends them when the process ends; on POSIX the
+            # session must be killed. The runner thread still waits for the process itself.
+            if child.group is None:
+                _kill_session(child.process)
+
+
+# Every tool `SubprocessRunner` started and still waits for.
+running_tools = _Running()
+
+
+def kill_running_tools() -> None:
+    """Kill every running tool and what it started, without waiting (before ending the process at once)."""
+    running_tools.kill_all()
+
+
 class SubprocessRunner:
     """`ProcessRunner` on `subprocess.Popen`, for Windows and POSIX."""
 
@@ -89,6 +140,9 @@ class SubprocessRunner:
     def run(self, argv: Sequence[str], timeout_s: float, cancel: CancelToken) -> ProcessResult:
         """Run the process; see `ProcessRunner.run`.
 
+        A tool that ends while the token is set, or that `kill_running_tools` killed, gives
+        `CancelledError`, never its result: its exit code says nothing about the media.
+
         Raises:
             CancelledError: The cancel token was set (the process was not started or was killed).
         """
@@ -96,25 +150,38 @@ class SubprocessRunner:
             raise CancelledError
         deadline = time.monotonic() + timeout_s
         child = _start(argv)
+        running_tools.add(child)
         try:
-            return self._wait(child.process, deadline, cancel)
+            return self._wait(child, deadline, cancel)
         except BaseException:
             _kill(child, self._kill_wait_s)
             raise
         finally:
+            running_tools.discard(child)
             if child.group is not None:
                 child.group.close()
 
-    def _wait(self, process: subprocess.Popen[bytes], deadline: float, cancel: CancelToken) -> ProcessResult:
+    def _wait(self, child: _Child, deadline: float, cancel: CancelToken) -> ProcessResult:
         while True:
             if cancel.is_cancelled():
                 raise CancelledError
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ProcessTimeoutError
-            output = _communicate(process, min(self._poll_interval_s, remaining))
+            output = _communicate(child.process, min(self._poll_interval_s, remaining))
             if output is not None:
-                return ProcessResult(process.returncode, *output)
+                return _ended(child, cancel, output)
+
+
+def _ended(child: _Child, cancel: CancelToken, output: CapturedOutput) -> ProcessResult:
+    """Return how the tool ended; one that ended by a cancel or by "Quit now" is a cancel.
+
+    Raises:
+        CancelledError: The token is set, or `kill_running_tools` killed the tool.
+    """
+    if cancel.is_cancelled() or running_tools.killed(child):
+        raise CancelledError
+    return ProcessResult(child.process.returncode, *output)
 
 
 def _communicate(process: subprocess.Popen[bytes], timeout_s: float) -> CapturedOutput | None:

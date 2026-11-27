@@ -19,6 +19,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEMBER_PARENTS = ("packages", "apps")
 TOOLING_PATHS = (".claude/hooks", "scripts")
+# Targets whose tests use Qt (pytest-qt is disabled for the others).
+QT_TARGETS = frozenset(("desktop",))
 
 
 @dataclass(frozen=True)
@@ -96,7 +98,10 @@ def build_steps(target: Target, *, fix: bool) -> list[Step]:
         ),
     )
     if target.test_path is not None:
-        steps.append(_tool("pytest", "pytest", "-q", target.test_path))
+        # pytest-qt imports QtGui/QtWidgets when pytest starts; only the GUI's target has the
+        # system libraries Qt loads (CI installs them for the desktop leg only).
+        plugins = () if target.name in QT_TARGETS else ("-p", "no:pytest-qt")
+        steps.append(_tool("pytest", "pytest", "-q", *plugins, target.test_path))
     return steps
 
 

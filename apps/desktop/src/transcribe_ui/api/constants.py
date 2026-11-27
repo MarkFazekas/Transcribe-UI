@@ -8,6 +8,8 @@ ERROR_INVALID_REQUEST: Final = "invalid_request"
 ERROR_CANCELLED: Final = "cancelled"
 # Error code: an unexpected failure; the details are in the log, never in the response.
 ERROR_INTERNAL: Final = "internal_error"
+# Error code: the GUI executable was started where no display is available (POSIX without a display server).
+ERROR_DISPLAY_UNAVAILABLE: Final = "display_unavailable"
 # Message of `internal_error`: generic, so no internals (or secrets) reach a response.
 INTERNAL_ERROR_MESSAGE: Final = "Unexpected internal error; the details are in the log."
 
