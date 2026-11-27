@@ -13,6 +13,7 @@ from support.fakes import seeded_ports
 from transcribe_ui.api.backend import Backend, Route
 from transcribe_ui.api.classes import GetAppInfoRequest, Response
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.cli.main import main
 from transcribe_ui.state.logs import SharedRotatingFileHandler
@@ -36,7 +37,9 @@ def log_file(tmp_path: Path) -> Path:
 @pytest.fixture
 def log_handler(log_file: Path) -> Iterator[SharedRotatingFileHandler]:
     """A handler with small rotation limits, closed afterwards."""
-    file_handler = SharedRotatingFileHandler(log_file, max_bytes=MAX_BYTES, backup_count=BACKUP_COUNT)
+    # retry_bytes=0: a rotation that fails for a moment (a Windows scanner holding the file) is
+    # retried at the next record, so the backups still end up complete.
+    file_handler = SharedRotatingFileHandler(log_file, max_bytes=MAX_BYTES, backup_count=BACKUP_COUNT, retry_bytes=0)
     file_handler.setFormatter(logging.Formatter("%(message)s"))
     yield file_handler
     file_handler.close()
@@ -106,11 +109,66 @@ def test_rotation_while_another_handle_holds_the_file(log_file: Path) -> None:
 def test_file_rotated_by_another_process_is_reopened(log_handler: SharedRotatingFileHandler, log_file: Path) -> None:
     """When another process renamed the file away, the next record goes to a new file at the path."""
     _emit(log_handler, "before")
-    log_handler.close()
-    log_handler.stream = log_handler._open()  # noqa: SLF001 -- reopen as a running handler would
     try:
         log_file.replace(log_file.with_name("test.log.1"))
     except PermissionError:
         pytest.skip("this OS refuses to rename an open file, so no other process can rotate it away")
     _emit(log_handler, "after")
     assert log_file.read_text(encoding=ENCODING).splitlines() == ["after"]
+
+
+def _refuse_open() -> io.TextIOWrapper:
+    msg = "simulated: the log file cannot be opened"
+    raise OSError(msg)
+
+
+def test_failed_reopen_never_raises_and_recovers(
+    log_handler: SharedRotatingFileHandler,
+    log_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rotation whose reopen fails drops records without raising; later records are written again."""
+    monkeypatch.setattr(logging, "raiseExceptions", False)
+    _emit(log_handler, _record_text(0))
+    monkeypatch.setattr(log_handler, "_open", _refuse_open)
+    for index in range(1, RECORDS):
+        _emit(log_handler, _record_text(index))
+    monkeypatch.undo()
+    _emit(log_handler, "recovered")
+    assert log_file.read_text(encoding=ENCODING).splitlines()[-1] == "recovered"
+
+
+def test_records_after_close_are_dropped(log_handler: SharedRotatingFileHandler, log_file: Path) -> None:
+    """A closed handler does not reopen its file for late records."""
+    _emit(log_handler, "kept")
+    log_handler.close()
+    _emit(log_handler, "late")
+    assert log_file.read_text(encoding=ENCODING).splitlines() == ["kept"]
+
+
+def test_leftover_rotating_file_becomes_a_backup(log_handler: SharedRotatingFileHandler, log_file: Path) -> None:
+    """A `.rotating` file left by an interrupted rotation is kept as a backup, not overwritten."""
+    log_file.parent.mkdir(parents=True)
+    log_file.with_name("test.log.rotating").write_text("interrupted\n", encoding=ENCODING)
+    for index in range(RECORDS // 4):
+        _emit(log_handler, _record_text(index))
+    assert not log_file.with_name("test.log.rotating").exists()
+    assert "interrupted" in _messages(log_file)
+
+
+def test_cli_answers_json_without_a_log_file(tmp_path: Path) -> None:
+    """With an unusable log file (its folder is a file), a crash is still answered with JSON."""
+    request_file = tmp_path / "request.json"
+    request_file.write_text('{"action": "get_app_info"}', encoding=ENCODING)
+    blocker = tmp_path / "not-a-folder"
+    blocker.write_bytes(b"")
+    backend = Backend(seeded_ports(tmp_path), {"get_app_info": Route(run=_crash_with_warning, needs_database=False)})
+    stdout = io.BytesIO()
+    stderr = io.BytesIO()
+    log_file = blocker / "test.log"
+    code = main(
+        ["run", str(request_file)], make_backend=lambda: backend, stdout=stdout, stderr=stderr, log_file=log_file
+    )
+    assert code == EXIT_ERROR
+    assert response_adapter().validate_json(stdout.getvalue()).status == "error"
+    assert not stderr.getvalue()

@@ -88,6 +88,7 @@ getsignal
 gettempdir
 groupby
 hhmmss
+ident
 ign
 ignorecase
 impl
@@ -110,6 +111,7 @@ kibibytes
 killpg
 lavfi
 levelname
+levelno
 linkname
 liveness
 lk

@@ -6,6 +6,7 @@ the `ProgressEvent`s. A response is one of: the request's own success model (`st
 set) or `ErrorResponse`.
 """
 
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, StringConstraints, model_validator
@@ -29,6 +30,13 @@ def _check_whisper_language(code: str) -> str:
     return code
 
 
+def _check_absolute(path: str) -> str:
+    if not (PureWindowsPath(path).is_absolute() or PurePosixPath(path).is_absolute()):
+        msg = "the path must be absolute"
+        raise ValueError(msg)
+    return path
+
+
 def _check_unique[ItemT](entries: tuple[ItemT, ...]) -> tuple[ItemT, ...]:
     if len(set(entries)) != len(entries):
         msg = "every entry must appear only once"
@@ -42,6 +50,9 @@ type WhisperLanguage = Annotated[str, AfterValidator(_check_whisper_language)]
 type MediaExtensions = Annotated[tuple[FileExtension, ...], AfterValidator(_check_unique)]
 # A non-empty path on this computer.
 type SetPath = Annotated[LocalPath, StringConstraints(min_length=1)]
+# An absolute path of an executable: absolute in the Windows or the POSIX sense, so the rule
+# does not depend on the machine; the tool lookup also refuses one that is not absolute here.
+type ToolPath = Annotated[SetPath, AfterValidator(_check_absolute)]
 # Placement strategies a download can be pre-filled with (§3.5; custom plans are per download).
 type PlacementStrategy = Literal["next_to_media", "mirror", "flat", "flat_with_folders"]
 
@@ -83,8 +94,8 @@ class Settings(FrozenModel):
     # Whether scans include hidden and system files and folders.
     include_hidden: bool
     # ffmpeg/ffprobe to use instead of the bundled build (§3.4); None uses the bundled one.
-    ffmpeg_path: SetPath | None
-    ffprobe_path: SetPath | None
+    ffmpeg_path: ToolPath | None
+    ffprobe_path: ToolPath | None
     placement: PlacementDefaults
 
     @model_validator(mode="after")

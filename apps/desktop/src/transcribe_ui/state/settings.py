@@ -1,8 +1,9 @@
 """The settings file: JSON in the user config dir, written atomically (temp file + `os.replace`).
 
-Only `get_settings`/`update_settings`, the GUI (to fill request fields) and the composition
-root (adapter configuration) read it; request handling never does (plan m5 §1). Several
-processes may write it; the last writer wins.
+It is read by `get_settings`/`update_settings`, by the GUI (to fill request fields) and by
+the media tool lookup (the ffmpeg/ffprobe override, `tool_paths`, read when a tool is run).
+Other request handling never reads it: machine-dependent inputs are request fields (plan m5
+§1). Several processes may write it; the last writer wins.
 
 Compatibility: reading starts from the defaults and takes every field the app knows from the
 file, so a file of an older app (fields missing) or a newer one (unknown fields) reads fine.
@@ -13,11 +14,8 @@ older app saves.
 import json
 import logging
 import os
-import sys
-import tempfile
-import time
-from collections.abc import Iterator, Mapping
-from contextlib import ExitStack, contextmanager, suppress
+from collections.abc import Mapping
+from functools import partial
 from pathlib import Path
 
 from pydantic import JsonValue, ValidationError
@@ -25,15 +23,10 @@ from pydantic import JsonValue, ValidationError
 from transcribe_contracts.constants import DEFAULT_LANGUAGES
 from transcribe_ui.api.classes import PlacementDefaults, Settings
 from transcribe_ui.discovery.constants import DEFAULT_AUDIO_EXTENSIONS, DEFAULT_VIDEO_EXTENSIONS
-from transcribe_ui.state.constants import (
-    DEFAULT_PLACEMENT_FOLDER_COUNT,
-    DEFAULT_PLACEMENT_STRATEGY,
-    SETTINGS_REPLACE_DELAYS_S,
-    SETTINGS_STALE_TEMP_S,
-    SETTINGS_TEMP_PREFIX,
-    SETTINGS_TEMP_SUFFIX,
-)
+from transcribe_ui.state.classes import ToolPaths
+from transcribe_ui.state.constants import DEFAULT_PLACEMENT_FOLDER_COUNT, DEFAULT_PLACEMENT_STRATEGY
 from transcribe_ui.state.errors import SettingsInvalidError, SettingsUnwritableError
+from transcribe_ui.state.files import remove_stale_temp_files, sync_folder, temp_file, with_sharing_retries
 
 logger = logging.getLogger(__name__)
 
@@ -73,55 +66,14 @@ def _known_fields(defaults: Mapping[str, JsonValue], stored: Mapping[str, JsonVa
     return merged
 
 
-@contextmanager
-def _temp_file(folder: Path) -> Iterator[tuple[int, Path]]:
-    """Yield a new temp file in the folder (descriptor, path); it is gone when the block ends."""
-    folder.mkdir(parents=True, exist_ok=True)
-    descriptor, temp_name = tempfile.mkstemp(prefix=SETTINGS_TEMP_PREFIX, suffix=SETTINGS_TEMP_SUFFIX, dir=folder)
-    temp_path = Path(temp_name)
-    try:
-        yield descriptor, temp_path
-    finally:
-        temp_path.unlink(missing_ok=True)
-
-
-def _remove_stale_temp_files(folder: Path) -> None:
-    """Remove temp files a crashed write left behind (old enough not to be another writer's)."""
-    cutoff = time.time() - SETTINGS_STALE_TEMP_S
-    for leftover in folder.glob(f"{SETTINGS_TEMP_PREFIX}*{SETTINGS_TEMP_SUFFIX}"):
-        with suppress(OSError):
-            if leftover.stat().st_mtime < cutoff:
-                leftover.unlink()
-
-
-def _sync_folder(folder: Path) -> None:
-    """Make the rename durable (POSIX; Windows cannot open a folder for fsync)."""
-    if sys.platform == "win32":
-        return
-    with ExitStack() as cleanup:
-        descriptor = os.open(folder, os.O_RDONLY)
-        cleanup.callback(os.close, descriptor)
-        os.fsync(descriptor)
-
-
-def _try_replace(temp_path: Path, target: Path) -> bool:
-    """Replace the target; return False on a Windows sharing violation (worth retrying)."""
-    try:
-        temp_path.replace(target)
-    except PermissionError:
-        # Windows refuses while another process has the file open; elsewhere it is a real refusal.
-        if sys.platform != "win32":
-            raise
-        return False
-    return True
-
-
 class SettingsStore:
     """Reads and writes the settings file; a missing file means the defaults."""
 
     def __init__(self, path: Path) -> None:
         """Use this settings file."""
         self._path = path
+        # The "not valid" warning is logged once per store (per process), not at every read.
+        self._warned = False
 
     def load(self) -> Settings:
         """Return the stored settings, or the defaults when there is no file yet.
@@ -129,18 +81,28 @@ class SettingsStore:
         Raises:
             SettingsInvalidError: If the file cannot be read or is not valid settings.
         """
-        try:
-            raw = self._path.read_bytes()
-        except FileNotFoundError:
+        stored = self._read_object()
+        if stored is None:
             return default_settings()
-        except OSError as error:
-            logger.exception("Cannot read the settings file %s", self._path)
-            raise SettingsInvalidError from error
+        defaults = default_settings().model_dump(mode="json")
         try:
-            return self._parse(raw)
-        except (ValueError, ValidationError) as error:
-            logger.warning("The settings file %s is not valid: %s", self._path, error)
-            raise SettingsInvalidError from error
+            return Settings.model_validate(_known_fields(defaults, stored))
+        except ValidationError as error:
+            raise self._invalid(error) from error
+
+    def tool_paths(self) -> ToolPaths:
+        """Return only the ffmpeg/ffprobe override; other fields are not checked.
+
+        Raises:
+            SettingsInvalidError: If the file cannot be read or a path field is not valid.
+        """
+        stored = self._read_object()
+        if stored is None:
+            return ToolPaths()
+        try:
+            return ToolPaths.model_validate(stored)
+        except ValidationError as error:
+            raise self._invalid(error) from error
 
     def save(self, settings: Settings) -> None:
         """Replace the file with these settings; readers see either the old or the new file.
@@ -155,29 +117,44 @@ class SettingsStore:
             logger.exception("Cannot write the settings file %s", self._path)
             raise SettingsUnwritableError from error
 
-    def _parse(self, raw: bytes) -> Settings:
-        stored = json.loads(raw)
+    def _read_object(self) -> JsonObject | None:
+        """Return the file's JSON object, or None when there is no file.
+
+        Raises:
+            SettingsInvalidError: If the file cannot be read or holds no JSON object.
+        """
+        try:
+            raw = with_sharing_retries(self._path.read_bytes)
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            logger.exception("Cannot read the settings file %s", self._path)
+            raise SettingsInvalidError from error
+        try:
+            stored = json.loads(raw)
+        except ValueError as error:
+            raise self._invalid(error) from error
         if not isinstance(stored, dict):
-            msg = "the settings file does not hold a JSON object"
-            raise TypeError(msg)
-        defaults = default_settings().model_dump(mode="json")
-        return Settings.model_validate(_known_fields(defaults, stored))
+            raise self._invalid(TypeError("the settings file does not hold a JSON object"))
+        return stored
+
+    def _invalid(self, error: Exception) -> SettingsInvalidError:
+        if not self._warned:
+            self._warned = True
+            logger.warning("The settings file %s is not valid: %s", self._path, error)
+        return SettingsInvalidError()
 
     def _write(self, document: bytes) -> None:
         folder = self._path.parent
-        with _temp_file(folder) as (descriptor, temp_path):
+        with temp_file(folder) as (descriptor, temp_path):
             with os.fdopen(descriptor, "wb") as stream:
                 stream.write(document)
                 stream.flush()
                 os.fsync(stream.fileno())
-            self._replace(temp_path)
-        _sync_folder(folder)
-        _remove_stale_temp_files(folder)
-
-    def _replace(self, temp_path: Path) -> None:
-        # Backs off for about 2 s in all while Windows reports a sharing violation.
-        for delay_s in SETTINGS_REPLACE_DELAYS_S:
-            if _try_replace(temp_path, self._path):
-                return
-            time.sleep(delay_s)
-        temp_path.replace(self._path)
+            with_sharing_retries(partial(temp_path.replace, self._path))
+        try:
+            sync_folder(folder)
+        except OSError:
+            # The new file is in place; only its durability after a power loss is uncertain.
+            logger.warning("Cannot flush the settings folder %s", folder, exc_info=True)
+        remove_stale_temp_files(folder)

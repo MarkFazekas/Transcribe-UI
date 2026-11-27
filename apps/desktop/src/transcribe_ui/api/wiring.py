@@ -27,21 +27,22 @@ def build_backend(paths: AppPaths | None = None) -> Backend:
 def media_tools(settings: SettingsStore) -> FfmpegMediaTools:
     """Return the real media tools, with the ffmpeg/ffprobe override read from the settings.
 
-    The override is read at every tool lookup, so a changed setting applies to the next call
-    and a broken settings file gives `settings_invalid` only to requests that run a tool.
+    The override is read at every tool lookup, so a changed setting applies to the next call;
+    only its two path fields are read, and a broken one gives `settings_invalid` only to
+    requests that run a tool.
     """
     locator = ToolLocator(load_overrides=partial(settings_overrides, settings), bundle_dir=bundle_dir())
     return FfmpegMediaTools(locator)
 
 
 def settings_overrides(settings: SettingsStore) -> ToolOverrides:
-    """Return the ffmpeg/ffprobe paths set in the settings.
+    """Return the ffmpeg/ffprobe paths set in the settings (other fields are not checked).
 
     Raises:
-        SettingsInvalidError: If the settings file cannot be read or is not valid.
+        SettingsInvalidError: If the settings file cannot be read or a path field is not valid.
     """
-    current = settings.load()
-    return ToolOverrides(ffmpeg=_optional_path(current.ffmpeg_path), ffprobe=_optional_path(current.ffprobe_path))
+    paths = settings.tool_paths()
+    return ToolOverrides(ffmpeg=_optional_path(paths.ffmpeg_path), ffprobe=_optional_path(paths.ffprobe_path))
 
 
 def _optional_path(text: str | None) -> Path | None:

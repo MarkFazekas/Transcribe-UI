@@ -254,6 +254,13 @@ def test_locks_are_refused_inside_a_session(state: LocalState) -> None:
     assert not state.in_session()
 
 
+def test_sessions_do_not_nest(state: LocalState) -> None:
+    """A second session on a thread that has one open is a lock-order bug."""
+    with state.session(), pytest.raises(LockOrderError), state.session():
+        pytest.fail("a nested session was opened")
+    assert not state.in_session()
+
+
 def test_locked_database_gives_state_busy(tmp_path: Path) -> None:
     """A transaction that waits past the busy timeout gives `state_busy`, not `internal_error`."""
     state = LocalState(app_paths_under(tmp_path), busy_timeout_s=SHORT_HOLD_S)

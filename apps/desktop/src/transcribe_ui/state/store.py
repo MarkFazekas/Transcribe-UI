@@ -12,11 +12,10 @@ from sqlalchemy.orm import Session
 from transcribe_ui.state.constants import (
     DATABASE_BUSY_TIMEOUT_S,
     RUNS_LOCK_WAIT_S,
-    SQLITE_BUSY_CODES,
     SQLITE_PRIMARY_CODE_MASK,
 )
 from transcribe_ui.state.database import Database
-from transcribe_ui.state.errors import StateBusyError, StateUnavailableError
+from transcribe_ui.state.errors import LockOrderError, StateBusyError, StateUnavailableError
 from transcribe_ui.state.locks import LockRegistry, WriterLock
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.settings import SettingsStore
@@ -26,10 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def _is_busy(error: OperationalError) -> bool:
-    cause = error.orig
-    if not isinstance(cause, sqlite3.Error):
-        return False
-    return cause.sqlite_errorcode & SQLITE_PRIMARY_CODE_MASK in SQLITE_BUSY_CODES
+    code = getattr(error.orig, "sqlite_errorcode", None)
+    return isinstance(code, int) and code & SQLITE_PRIMARY_CODE_MASK == sqlite3.SQLITE_BUSY
 
 
 class LocalState:
@@ -82,9 +79,14 @@ class LocalState:
 
         Raises:
             StateBusyError: If another transaction kept the database locked past the busy timeout.
+            LockOrderError: If this thread already has a session open (sessions do not nest).
         """
+        if self.in_session():
+            msg = "A session was opened inside another one on the same thread; sessions do not nest."
+            raise LockOrderError(msg)
         database = self.open_database()
-        self._sessions_open.depth = self._session_depth() + 1
+        owner = threading.get_ident()
+        self._sessions_open.depth = 1
         try:
             with database.sessions.begin() as session:
                 yield session
@@ -93,7 +95,7 @@ class LocalState:
                 raise StateBusyError from error
             raise
         finally:
-            self._sessions_open.depth = self._session_depth() - 1
+            self._leave_session(owner)
 
     def in_session(self) -> bool:
         """Return whether the calling thread has a session open."""
@@ -107,6 +109,12 @@ class LocalState:
             self._database = None
             if database is not None:
                 database.close()
+
+    def _leave_session(self, owner: int) -> None:
+        assert threading.get_ident() == owner, "a session must end on the thread that opened it"
+        depth = self._session_depth() - 1
+        assert depth >= 0, "more sessions ended than were opened on this thread"
+        self._sessions_open.depth = depth
 
     def _session_depth(self) -> int:
         depth: int = getattr(self._sessions_open, "depth", 0)

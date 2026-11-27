@@ -126,7 +126,7 @@ class StateBusyError(DomainError):
 
 
 class LockOrderError(RuntimeError):
-    """A programming error: a lock was requested inside an open database transaction.
+    """A programming error: a lock or a second session was requested inside an open session.
 
     Lock order is runs → batch → database transaction; nothing may wait for a lock (or do
     network I/O) while a session is open. It becomes `internal_error`, never a domain code.

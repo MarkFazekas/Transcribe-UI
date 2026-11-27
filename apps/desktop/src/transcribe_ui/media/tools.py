@@ -90,10 +90,7 @@ class ToolLocator:
         overrides = self.overrides if self.load_overrides is None else self.load_overrides()
         override = overrides.for_tool(tool)
         if override is not None:
-            if override.is_file():
-                return override
-            message = f"The {tool} path set in the settings is not a file: {override}"
-            raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, {"tool": tool, "source": "settings"})
+            return _checked_override(tool, override)
         if self.bundle_dir is not None:
             bundled = self.bundle_dir / executable_name(tool)
             if bundled.is_file():
@@ -103,6 +100,25 @@ class ToolLocator:
             return Path(found)
         message = f"{tool} was not found: set its path in the settings or put it on PATH."
         raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, {"tool": tool, "source": "search"})
+
+
+def _checked_override(tool: Tool, override: Path) -> Path:
+    """Return the override if it is an absolute path of a file on this machine.
+
+    A relative path would be checked against the current folder but run through a `PATH`
+    lookup, so it is refused rather than guessed at.
+
+    Raises:
+        DomainError: `media_tool_not_found` (source `settings`) otherwise.
+    """
+    if not override.is_absolute():
+        problem = "is not an absolute path on this computer"
+    elif not override.is_file():
+        problem = "is not a file"
+    else:
+        return override
+    message = f"The {tool} path set in the settings {problem}: {override}"
+    raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, {"tool": tool, "source": "settings"})
 
 
 def executable_name(tool: Tool) -> str:

@@ -33,21 +33,44 @@ def _raise_handler_errors(*, enabled: bool) -> None:
     logging.raiseExceptions = enabled
 
 
+def _moved(stream: TextIOWrapper, path: Path) -> bool:
+    """Return whether the open file is no longer the one at the path (rotated away, deleted)."""
+    try:
+        opened = os.fstat(stream.fileno())
+        current = path.stat()
+    except (OSError, ValueError):
+        return True
+    return (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)
+
+
 class SharedRotatingFileHandler(RotatingFileHandler):
     """A rotating file handler that tolerates other processes writing the same file.
 
     - The log dir is created with the first record.
-    - Rotation renames the current file first and shifts the backups only once that worked. If
-      the rename fails (Windows refuses it while another process has the file open), the
-      handler keeps appending to the current file and tries again after
-      `LOG_ROLLOVER_RETRY_BYTES` more bytes, so no record is dropped.
+    - Rotation renames the current file first and shifts the backups only once that worked
+      (a `.rotating` file left by an interrupted rotation is moved to `.1` first). If the rename
+      fails (Windows refuses it while another process has the file open), the handler keeps
+      appending to the current file and tries again after `retry_bytes` more bytes, so no
+      record is dropped.
     - Before each record it checks that its open file is still the one at the path; when
       another process rotated it away (POSIX allows renaming an open file), it reopens the path
       instead of writing into the renamed backup.
+    - No error leaves `emit`: a record that cannot be written goes to `handleError` (silent
+      inside `log_to_file`), and the next record tries to open the file again. After `close`,
+      records are dropped.
     """
 
-    def __init__(self, path: Path, max_bytes: int = LOG_MAX_BYTES, backup_count: int = LOG_BACKUP_COUNT) -> None:
-        """Write to `path`, rotating at `max_bytes` and keeping `backup_count` older files."""
+    def __init__(
+        self,
+        path: Path,
+        max_bytes: int = LOG_MAX_BYTES,
+        backup_count: int = LOG_BACKUP_COUNT,
+        retry_bytes: int = LOG_ROLLOVER_RETRY_BYTES,
+    ) -> None:
+        """Write to `path`, rotating at `max_bytes`, keeping `backup_count` older files.
+
+        After a failed rotation, the next one is tried once `retry_bytes` more were appended.
+        """
         super().__init__(
             path,
             maxBytes=max_bytes,
@@ -55,14 +78,31 @@ class SharedRotatingFileHandler(RotatingFileHandler):
             encoding=LOG_ENCODING,
             delay=True,
         )
+        self._retry_bytes = retry_bytes
         # The size from which a rotation is tried again after a failed one.
         self._retry_from_size = 0
+        self._shut = False
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
         """Reopen the file if another process rotated it away, then write the record."""
-        self._reopen_if_moved()
+        if self._shut:
+            return
+        stream = self.stream
+        try:
+            if stream is not None and _moved(stream, Path(self.baseFilename)):
+                self._reopen()
+        except Exception:  # noqa: BLE001 -- a logging handler must never raise; handleError reports it
+            self.handleError(record)
+            return
+        # Rotation and the write itself report their errors through `handleError` (base class).
         super().emit(record)
+
+    @override
+    def close(self) -> None:
+        """Close the file; records arriving later are dropped instead of reopening it."""
+        self._shut = True
+        super().close()
 
     @override
     def shouldRollover(self, record: logging.LogRecord) -> int:
@@ -74,29 +114,44 @@ class SharedRotatingFileHandler(RotatingFileHandler):
     @override
     def doRollover(self) -> None:
         """Rename the current file away first; shift the backups only once that worked."""
-        if self.stream is not None:
-            self.stream.close()
+        self._close_stream()
         base = Path(self.baseFilename)
         staged = base.with_name(f"{base.name}{LOG_ROTATING_SUFFIX}")
+        if staged.exists():
+            # Left by an interrupted rotation: keep it as the newest backup.
+            self._shift_backups(staged)
         try:
             base.replace(staged)
         except FileNotFoundError:
             # Another process rotated it a moment ago; start a new file.
-            self._retry_from_size = 0
+            self._reopen()
+            return
         except OSError:
             # Another process has it open (Windows): keep appending, try again later.
-            self.stream = self._open()
-            self._retry_from_size = self.stream.tell() + LOG_ROLLOVER_RETRY_BYTES
+            stream = self._reopen()
+            self._retry_from_size = stream.tell() + self._retry_bytes
             return
-        else:
-            self._retry_from_size = 0
-            self._shift_backups(staged)
-        self.stream = self._open()
+        self._shift_backups(staged)
+        self._reopen()
 
     @override
     def _open(self) -> TextIOWrapper:
         Path(self.baseFilename).parent.mkdir(parents=True, exist_ok=True)
         return super()._open()
+
+    def _close_stream(self) -> None:
+        stream = self.stream
+        self.stream = None
+        if stream is not None:
+            stream.close()
+
+    def _reopen(self) -> TextIOWrapper:
+        """Open the path again (the stream stays None if that fails; the next record retries)."""
+        self._close_stream()
+        self._retry_from_size = 0
+        stream = self._open()
+        self.stream = stream
+        return stream
 
     def _shift_backups(self, staged: Path) -> None:
         # A failed shift loses at most an old backup, never the current records.
@@ -108,20 +163,6 @@ class SharedRotatingFileHandler(RotatingFileHandler):
 
     def _backup(self, index: int) -> Path:
         return Path(self.rotation_filename(f"{self.baseFilename}.{index}"))
-
-    def _reopen_if_moved(self) -> None:
-        if self.stream is None:
-            return
-        try:
-            opened = os.fstat(self.stream.fileno())
-            current = Path(self.baseFilename).stat()
-        except OSError:
-            moved = True
-        else:
-            moved = (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)
-        if moved:
-            self.stream.close()
-            self.stream = self._open()
 
 
 def _file_handler(log_file: Path | None) -> logging.Handler:

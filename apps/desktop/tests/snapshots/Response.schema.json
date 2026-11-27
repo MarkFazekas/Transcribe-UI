@@ -695,7 +695,7 @@
         "ffmpeg_path": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SetPath"
+              "$ref": "#/$defs/ToolPath"
             },
             {
               "type": "null"
@@ -705,7 +705,7 @@
         "ffprobe_path": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SetPath"
+              "$ref": "#/$defs/ToolPath"
             },
             {
               "type": "null"
@@ -813,6 +813,9 @@
           "$ref": "#/$defs/UpdateSettingsResponse"
         }
       ]
+    },
+    "ToolPath": {
+      "$ref": "#/$defs/SetPath"
     },
     "Ulid": {
       "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",

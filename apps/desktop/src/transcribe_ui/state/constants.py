@@ -2,7 +2,6 @@
 
 import errno
 import logging
-import sqlite3
 from types import MappingProxyType
 from typing import Final
 
@@ -47,8 +46,6 @@ LANGUAGE_CODE_LENGTH: Final = 3
 STATUS_LENGTH: Final = 32
 # Seconds a database transaction waits for another thread's write transaction (SQLite busy timeout).
 DATABASE_BUSY_TIMEOUT_S: Final = 30.0
-# SQLite primary result codes of a lock that stayed held past the busy timeout.
-SQLITE_BUSY_CODES: Final = frozenset((sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED))
 # Mask turning an extended SQLite result code into its primary code.
 SQLITE_PRIMARY_CODE_MASK: Final = 0xFF
 # Package holding the Alembic environment (`env.py`, `script.py.mako`, `versions/`).
@@ -73,9 +70,9 @@ SETTINGS_TEMP_PREFIX: Final = ".settings-"
 SETTINGS_TEMP_SUFFIX: Final = ".json"
 # Age in seconds after which a leftover settings temp file (from a crashed write) is removed.
 SETTINGS_STALE_TEMP_S: Final = 60.0
-# Pauses between attempts of the `os.replace` of a settings write while Windows reports a
-# sharing violation (another process has the file open); about 2 s in all.
-SETTINGS_REPLACE_DELAYS_S: Final = (0.05, 0.1, 0.2, 0.4, 0.6, 0.65)
+# Pauses between attempts of a settings read or replace while Windows reports a sharing
+# violation (another process has the file open); about 2 s in all.
+SETTINGS_SHARING_RETRY_DELAYS_S: Final = (0.05, 0.1, 0.2, 0.4, 0.6, 0.65)
 
 # Suffix the log file gets while it is being rotated (renamed first, then moved to `.1`).
 LOG_ROTATING_SUFFIX: Final = ".rotating"
