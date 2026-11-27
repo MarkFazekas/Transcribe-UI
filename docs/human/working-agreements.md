@@ -1,6 +1,7 @@
 # Working agreements (human input)
 
-Source: the architect's initial brief (2026-11-26), translated to English.
+Source: the architect's initial brief (2026-11-26) and later chat input (2026-11-27),
+translated to English.
 
 ## Roles and communication
 
@@ -27,6 +28,11 @@ Source: the architect's initial brief (2026-11-26), translated to English.
 - When the answer is "default", apply the proposed default and record it.
 - Answered questions are taken out of the question files; the answers and what follows from
   them are put in their place in the docs.
+
+## Session continuity
+
+- The repo tracks the state of the work, so the architect does not have to copy handoff notes
+  between sessions: telling a new session to continue is enough for it to pick up the work.
 
 ## Quality first
 

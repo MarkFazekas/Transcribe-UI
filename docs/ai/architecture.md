@@ -557,3 +557,26 @@ Few unit tests; mostly regression and flow tests:
   (estimated a few seconds per file and about 100 MB larger download).
 - **Presigned R2 URLs** in a per-run job object instead of a bucket-scoped key, so the pod
   holds no long-lived R2 credential.
+
+## 10. Delivery plan (milestones)
+
+Each milestone ends in a mergeable, verified state. The PR that completes a milestone (or a
+part of one) marks it **(built)** and updates `docs/ai/status.md`. A milestone that needs more
+than a few PRs is planned part by part in `docs/ai/plans/mN.md` before its first PR. The current position and the
+next step are in `docs/ai/status.md`.
+
+- **M1** (built): Foundation: repo, uv workspace, lint/type/test tooling, CI, `contracts`
+  (§2, §4, §8).
+- **M2** (built): Worker: pipeline, subtitles, entry/watchdog self-termination, image with
+  smoke test and Docker Hub release (§5).
+- **M3**: Cloud safety net: the external reaper (§5.2 layer 4, §8).
+- **M4**: First approved Runpod run, worker only, with the architect present: the checks of
+  §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
+  separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
+  `research/runpod.md` "Items to test with a real key").
+- **M5**: Desktop backend: façade, discovery and selection, batches, conversion and resumable
+  R2 upload, credentials, worker launch and monitoring, download and placement (§3.1-3.7).
+- **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
+- **M7**: End-to-end run from the desktop app, with the architect present.
+- **M8**: Desktop release: `release-desktop.yml` one-file builds for the four platforms (§8).
+- **Later**: MCP frontend over the same requests.
