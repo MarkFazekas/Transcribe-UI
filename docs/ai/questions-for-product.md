@@ -37,8 +37,10 @@ until a later run finishes it, even the files that are already done.
 
 Proposed default: subtitles that are finished can be downloaded at any time, also while the job
 is waiting or being transcribed. The download plan lists the files still without a subtitle as
-"not finished yet" and skips them. The job counts as downloaded only after a download made once
-all its files are finished. The next start of transcription does the missing files.
+"not finished yet" and skips them. The job counts as downloaded once it is fully transcribed and
+every file has been through a download (placed, or skipped as an existing file, a missing
+folder or an empty result), whether in one download or several. The next start of
+transcription does the missing files.
 
 ### Q25. Downloading a job's subtitles again
 
@@ -46,9 +48,9 @@ After a download, the subtitles stay in the cloud until the user cleans up.
 
 Proposed default: a downloaded job can be downloaded again any number of times, with any
 placement option, as long as its subtitles are still in the cloud (not after "delete
-everything"; subtitles taken from inside the video files are kept on the computer and are
-always available). Files already in place are listed as existing and skipped unless overwrite
-is chosen. This is also how the files skipped under Q23 are placed later.
+everything"; subtitles taken from inside the video files are kept on the computer and can be
+placed again even after that). Files already in place are listed as existing and skipped
+unless overwrite is chosen. This is also how the files skipped under Q23 are placed later.
 
 ### Q26. Abandoning a job before it is uploaded
 

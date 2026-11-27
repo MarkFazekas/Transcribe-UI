@@ -131,26 +131,31 @@ docs/human/, docs/ai/     see CLAUDE.md
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
   The phases are not a strict line (planned on the proposed defaults of Q24-Q27,
   `plans/m5.md` §1): a batch in `composing` or `reviewing` can be deleted; finished subtitles
-  can already be downloaded in `ready` (the phase stays) and again in `downloaded`; a batch
-  whose upload completes while a run is launching, queued or running keeps its manifest back
-  and stays `uploading` until the run ends, so a worker never gets work its deadline and
-  estimate did not include; cloud cleanup is possible from `uploading` on (below). `audio`
-  cleanup sets an "audio deleted" flag without changing the phase; `everything` ends in
-  `cleaned`.
+  can already be downloaded in `ready` and again in `downloaded` (extracted ones even in
+  `cleaned`); a batch reaches `downloaded` once it has `_done.json` (or is extract-only) and
+  every job has a placement outcome (placed, or skipped as an existing file, a missing folder
+  or an empty result), in one download or several; an item whose source changed during
+  `uploading` goes back to review on its own (or is excluded) while the batch stays
+  `uploading`; a batch whose upload completes while a run is active keeps its manifest back and
+  stays `uploading` until the run ends, so a worker never gets work its deadline and estimate
+  did not include; cloud cleanup is possible from `uploading` on (below). `audio` cleanup sets
+  an "audio deleted" flag without changing the phase; `everything` ends in `cleaned`.
 
   Items that failed or produced no speech are flagged in `transcribed`/`downloaded` and can be
   sent to a new retry batch whose jobs use mode `careful` and the same language. The retry
   batch copies the existing audio objects server-side (S3 `CopyObject`) instead of
-  re-uploading. Their (empty) subtitles are not placed unless the download request asks for
-  empty files.
+  re-uploading; it is created in `uploading`, idempotent by source batch and job set, and
+  finished through the resumable upload path. Their (empty) subtitles are not placed unless
+  the download request asks for empty files.
 - **Existing languages**: a job for a language the file already has a subtitle in is allowed;
   `create_batch` returns a warning listing such files. Folder selection with the filter
   "missing <language>" does not select them in the first place.
 - **Cloud cleanup**: `cleanup_cloud` with scope `audio` or `everything` and an explicit
   confirmation flag; a maintenance action on the batch page, available at any time (offered
   after download). Deleting what is already gone is not an error.
-  - Both scopes are refused while a worker run is active (a pod exists, or a `status.json`
-    younger than its heartbeat timeout names the batch), so no worker writes after a cleanup.
+  - Both scopes are refused while a worker run is active (a local run launching, queued or
+    running; a live `transcribe-ui-*` pod or queued pod; or a `status.json` younger than its
+    heartbeat timeout; `plans/m5.md` §1), so no worker writes after a cleanup.
     A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
     (`everything` only, Q26) is allowed during a run and also aborts open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
@@ -229,28 +234,33 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
 
 - Runpod **REST API v2** (`https://api.runpod.io/v2`; v1 was retired on 2026-11-15) through a
   thin typed `httpx` client.
-- `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}`
-  (excludes A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer
-  exists), `disk: 60`, the Global Volume mount, pinned image tag, non-secret env, and
-  `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the wait at
-  every start, 5 min to 24 h (open A19), default 1 hour. A 202 response means "queued"; the
-  app shows the queued state and can cancel it. Before starting, the app shows the total audio
-  duration and an estimated cost range for confirmation; there is no in-app spending limit (the
-  account's own limit applies). SSH uses Runpod's proxied basic SSH, so no port or sshd is
-  configured.
-- Single worker at a time: `launch_worker` refuses while a pod or queued pod named
-  `transcribe-ui-*` exists, so two workers never process the same batch (result writes are
-  also conditional, see §4).
-- Creating calls are never retried blindly: the run is recorded locally (run id, pod name,
-  status `launching`) before the `POST /v2/pods`; after a timeout or 5xx the app looks the
-  name up in `GET /v2/pods` and `GET /v2/queued-pods` and adopts what it finds, and sends the
-  POST again only if nothing carries the name. The same holds for the template, secret and
-  Global Volume creates of the cloud setup, by their fixed names.
+- `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}` (excludes
+  A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer exists),
+  `disk: 60`, the Global Volume mount, the template (which alone pins the image tag), non-secret
+  env, and
+  `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the wait at every
+  start, 5 min to 24 h (open A19), default 1 hour. A 202 response means "queued"; the app shows the
+  queued state and can cancel it (a queued pod that deploys during the cancel is terminated).
+  Before starting, the app shows the total audio duration and an estimated cost range for
+  confirmation; there is no in-app spending limit (the account's own limit applies). SSH uses
+  Runpod's proxied basic SSH, so no port or sshd is configured.
+- Single worker at a time: `launch_worker` refuses while a live pod (any status but
+  `TERMINATED`) or a `QUEUED` queued pod named `transcribe-ui-*` exists, so two workers never
+  process the same batch (result writes are also conditional, see §4).
+- Creating calls are never re-sent after an ambiguous failure (timeout, 5xx, connection drop
+  after sending), since a lookup can miss a pod still being created. The run is recorded
+  locally (run id, pod name, status `launching`) before the `POST /v2/pods`; after such a
+  failure the app looks the name up in `GET /v2/pods` and `GET /v2/queued-pods` and adopts
+  what it finds, otherwise the run stays `launching` and later status checks resolve it; it
+  counts as failed only after a settling delay and two empty lookups. The cloud setup's
+  template, secret and Global Volume creates stop the same way; a re-run looks them up by their
+  fixed names and removes duplicates.
 - The template carries no mounts (template mounts can only be persistent volumes); the Global
   Volume (`transcribe-ui-backups`) is looked up by name and mounted through `mounts.global`
   in the create body.
 - The desktop app is a further line of defence against a forgotten pod: it stores the pod /
-  queued-pod id, polls status and the worker's `status.json`, terminates at a deadline, and on
+  queued-pod id, polls status and the worker's `status.json`, terminates at a deadline (first
+  seen running + `MAX_RUNTIME_S` + a margin, capped by the pod name deadline), and on
   startup reconciles `GET /v2/pods` and `GET /v2/queued-pods` and offers to terminate or cancel
   stragglers. This layer only works while the app is running; a queued pod may start while it
   is closed, which is why the pod-side layers (§5.2) must be sufficient on their own.
