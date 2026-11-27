@@ -26,7 +26,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- None.
+- M5.8 (batches and review) on its own branch (see "Next").
 
 ## Waiting on humans
 

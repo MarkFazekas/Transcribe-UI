@@ -454,8 +454,9 @@ requests wire it in M5.13):
   shows the pod-scoped key cannot delete its own pod.
 - Requests (all DB-free):
   - `store_credentials`: any subset of the five, keys and secrets as `SecretStr`, at least
-    one. Endpoint: an `https` URL with only a host (and port), stored without a trailing
-    slash; bucket: R2's naming rule; keys: no white space or control characters, at most 1024
+    one. Endpoint: an ASCII `https` URL with only a host (and port), stored without a trailing
+    slash; bucket: R2's naming rule; keys: ASCII without white space or control characters
+    (they go into HTTP headers; a stored non-ASCII value is `credentials_invalid`), at most 1024
     characters (fits the Windows Credential Manager limit). The response names what was
     stored. No keyring → `keyring_unavailable`, whose message names the environment variables
     to set instead; a backend failure → `keyring_failed`; both list what was written before.
@@ -467,9 +468,10 @@ requests wire it in M5.13):
     `r2_failed`); Runpod reads one entry of the pod list (`runpod_key_rejected`,
     `runpod_key_missing_scope`, `cloud_unreachable`; `credentials_missing` /
     `credentials_invalid` from the store). Each check's client makes 2 attempts with a 5 s
-    connect and a 10 s read timeout, so a hanging service is reported within about 30 s (an
-    unreachable host within about 10 s); the transfer clients keep the worker's limits (§6),
-    the Runpod client its own (§3.7).
+    connect and a 10 s read timeout (the Runpod check waits at most 1 s between them, even for
+    a 429 asking for more, and stops on the request's cancel token), so a hanging service is
+    reported within about 30 s (an unreachable host within about 10 s); the transfer clients
+    keep the worker's limits (§6), the Runpod client its own (§3.7).
   - Operations that need credentials get `credentials_missing` (names the credentials and
     their variables) or `credentials_invalid` (names the credentials and their sources) from
     the store.
