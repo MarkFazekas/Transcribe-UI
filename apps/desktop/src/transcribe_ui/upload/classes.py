@@ -1,12 +1,20 @@
-"""Outcomes of the manifest step and of `publish_held_manifests` (architecture §3.3)."""
+"""The `run_upload` request, and the outcomes of the manifest step and of `publish_held_manifests` (§3.3)."""
 
 from typing import Literal
 
+from transcribe_contracts.classes import BatchId
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.runs.classes import ActivitySource
 
 # What the manifest step did: uploaded the manifest (batch `ready`), or kept it back during a run.
 type ManifestOutcome = Literal["published", "held"]
+
+
+class RunUploadRequest(FrozenModel):
+    """Start or resume a batch's upload: extract, convert, upload and verify, then publish its manifest."""
+
+    action: Literal["run_upload"]
+    batch_id: BatchId
 
 
 class ManifestStep(FrozenModel):

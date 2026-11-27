@@ -147,11 +147,16 @@ def _abort_quietly(target: UploadTarget, upload_id: str) -> None:
         logger.warning("Aborting the multipart upload of %s failed (%s)", target.key, type(error).__name__)
 
 
-def abort_all(client: "S3Client", bucket: str, prefix: str) -> int:
-    """Abort every unfinished multipart upload under the prefix; return how many were aborted."""
+def open_uploads(client: "S3Client", bucket: str, prefix: str) -> list["MultipartUploadTypeDef"]:
+    """Return every unfinished multipart upload under the prefix (all pages)."""
     paginator = client.get_paginator("list_multipart_uploads")
     pages = list(paginator.paginate(Bucket=bucket, Prefix=prefix))
-    uploads = [upload for page in pages for upload in page.get("Uploads", [])]
+    return [upload for page in pages for upload in page.get("Uploads", [])]
+
+
+def abort_all(client: "S3Client", bucket: str, prefix: str) -> int:
+    """Abort every unfinished multipart upload under the prefix; return how many were aborted."""
+    uploads = open_uploads(client, bucket, prefix)
     outcomes = [_abort_one(client, bucket, upload) for upload in uploads]
     return outcomes.count(True)
 

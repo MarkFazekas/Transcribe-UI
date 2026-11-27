@@ -589,6 +589,26 @@
       "title": "ReviewFilter",
       "type": "object"
     },
+    "RunUploadRequest": {
+      "additionalProperties": false,
+      "description": "Start or resume a batch's upload: extract, convert, upload and verify, then publish its manifest.",
+      "properties": {
+        "action": {
+          "const": "run_upload",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "RunUploadRequest",
+      "type": "object"
+    },
     "ScanSpec": {
       "additionalProperties": false,
       "description": "What to scan and how to classify it; the GUI fills the defaults from the settings.",
@@ -1143,6 +1163,7 @@
       "preview_selection": "#/$defs/PreviewSelectionRequest",
       "resolve_review": "#/$defs/ResolveReviewRequest",
       "review_batch": "#/$defs/ReviewBatchRequest",
+      "run_upload": "#/$defs/RunUploadRequest",
       "scan_tree": "#/$defs/ScanTreeRequest",
       "set_batch_hidden": "#/$defs/SetBatchHiddenRequest",
       "setup_cloud": "#/$defs/SetupCloudRequest",
@@ -1212,6 +1233,9 @@
     },
     {
       "$ref": "#/$defs/SetBatchHiddenRequest"
+    },
+    {
+      "$ref": "#/$defs/RunUploadRequest"
     }
   ]
 }

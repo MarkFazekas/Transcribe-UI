@@ -7,6 +7,7 @@ from pydantic import NonNegativeInt
 from transcribe_contracts.classes import MediaKind, TranscriptionMode
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.media.classes import ProbeResult
+from transcribe_ui.upload.payloads import CopySource
 
 # Phase of an item: `composing` and `reviewing` follow the batch; `reviewed` is probed with every
 # job resolved; `uploaded` has its audio verified and its extractions stored (written by the upload).
@@ -59,6 +60,9 @@ class ItemPayload(FrozenModel):
     subtitle_languages: tuple[str, ...]
     probe: ProbeResult | None = None
     problem: ItemProblem | None = None
+    # A retry item's audio, copied server side from the source batch instead of read from the file
+    # (empty for every other item; such items skip the source-unchanged check, plan m5 §1 "Retry").
+    copy_sources: tuple[CopySource, ...] = ()
 
 
 class JobPayload(FrozenModel):

@@ -1,0 +1,20 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "run_upload",
+    "error": {
+      "code": "wrong_phase",
+      "message": "This is not possible in the batch's current phase.",
+      "details": {
+        "batch_id": "batch_20261127_130000",
+        "phase": "composing",
+        "allowed": [
+          "reviewing",
+          "uploading"
+        ]
+      }
+    }
+  },
+  "events": []
+}

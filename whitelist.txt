@@ -28,6 +28,7 @@ codecs
 codeload
 coeng
 copyfile
+copytree
 creat
 creationflags
 crockford

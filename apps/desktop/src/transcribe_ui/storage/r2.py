@@ -21,6 +21,7 @@ from transcribe_ui.storage.multipart import (
     UploadProgress,
     UploadTarget,
     abort_all,
+    open_uploads,
     put_in_parts,
     put_whole,
 )
@@ -41,7 +42,7 @@ class ObjectInfo:
     modified: datetime | None = field(default=None, compare=False)
 
 
-class ObjectStore(Protocol):
+class ObjectStore(Protocol):  # noqa: WPS214 -- one method per object operation of the app.
     """The object operations of the desktop app on one bucket; missing objects are not errors."""
 
     def check_access(self) -> None:
@@ -82,6 +83,10 @@ class ObjectStore(Protocol):
 
     def abort_uploads(self, prefix: str) -> int:
         """Abort every unfinished multipart upload under the prefix; return how many."""
+        ...
+
+    def count_uploads(self, prefix: str) -> int:
+        """Return how many unfinished multipart uploads exist under the prefix."""
         ...
 
     def upload_file(
@@ -221,6 +226,11 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
         """Abort every unfinished multipart upload under the prefix; return how many were aborted."""
         with translated("abort uploads"):
             return abort_all(self._client, self._bucket, prefix)
+
+    def count_uploads(self, prefix: str) -> int:
+        """Return how many unfinished multipart uploads exist under the prefix."""
+        with translated("list uploads"):
+            return len(open_uploads(self._client, self._bucket, prefix))
 
     def upload_file(
         self,

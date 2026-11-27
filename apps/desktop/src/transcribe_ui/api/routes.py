@@ -13,6 +13,7 @@ from transcribe_ui.credentials.services import check_credentials, credentials_st
 from transcribe_ui.discovery.services import preview_selection, scan_tree
 from transcribe_ui.runpod.setup import cloud_setup_status, setup_cloud
 from transcribe_ui.state.requests import get_settings, update_settings
+from transcribe_ui.upload.services import run_upload
 
 
 @dataclass(frozen=True)
@@ -53,5 +54,6 @@ def default_routes() -> Routes:
             "list_batches": Route(run=listing.list_batches, needs_database=True),
             "get_batch": Route(run=listing.get_batch, needs_database=True),
             "set_batch_hidden": Route(run=listing.set_batch_hidden, needs_database=True),
+            "run_upload": Route(run=run_upload, needs_database=True),
         },
     )
