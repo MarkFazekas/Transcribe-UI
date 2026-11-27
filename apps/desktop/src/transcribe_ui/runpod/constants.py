@@ -10,8 +10,8 @@ from transcribe_contracts.constants import SCHEMA_MAJOR
 API_BASE_URL: Final = "https://api.runpod.io/v2"
 # The only URL scheme the API key is sent over.
 API_SCHEME: Final = "https"
-# Host suffix the API key may be sent to (`api.runpod.io` and other Runpod hosts).
-API_HOST_SUFFIX: Final = ".runpod.io"
+# The only host the API key is sent to (exact match, no port; REST v2 lives on it alone).
+API_HOST: Final = "api.runpod.io"
 
 # Seconds to wait for a connection to the API.
 CONNECT_TIMEOUT_S: Final = 10.0
@@ -25,6 +25,8 @@ RETRY_INITIAL_DELAY_S: Final = 1.0
 RETRY_MAX_DELAY_S: Final = 30.0
 # Upper bound of a 429 `Retry-After` the client honours (a longer one is cut to this).
 RETRY_AFTER_MAX_S: Final = 60.0
+# Longest single sleep while waiting to retry, so a cancel is noticed within this time.
+WAIT_SLICE_S: Final = 0.5
 # Transport failures raised before anything was sent: a create may be retried after them.
 NOT_SENT_ERRORS: Final = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
 # Pages followed per list call at most (1000 entries per page).
@@ -110,8 +112,9 @@ QUEUED_POD_EXPIRED: Final = "EXPIRED"
 
 # Wire name of the id field of every Runpod object.
 ID_FIELD: Final = "id"
-# Name of the worker template the cloud setup maintains (the only place naming the image).
-TEMPLATE_NAME: Final = "transcribe-ui-worker"
+# Name of the worker template the cloud setup maintains (the only place naming the image); it
+# carries the contracts major, so app versions of different majors keep their own templates.
+TEMPLATE_NAME: Final = f"transcribe-ui-worker-schema-{SCHEMA_MAJOR}"
 # Worker image repository on Docker Hub (architecture §5.1).
 WORKER_IMAGE_REPOSITORY: Final = "markfazekasgh/transcribe-ui-worker"
 # Worker image the template pins: the tag of the contracts major the app was built with.
@@ -141,6 +144,8 @@ ERROR_RUNPOD_KEY_SCOPE: Final = "runpod_key_missing_scope"
 ERROR_CLOUD_UNREACHABLE: Final = "cloud_unreachable"
 # Error code: a create may or may not have taken effect; running `setup_cloud` again adopts it.
 ERROR_CLOUD_SETUP_INTERRUPTED: Final = "cloud_setup_interrupted"
+# Error code: several Global Volumes carry the app's name; they hold backups, so the user picks.
+ERROR_CLOUD_VOLUME_DUPLICATED: Final = "cloud_volume_duplicated"
 # Error code: a duplicate cloud object could not be removed because it is in use.
 ERROR_CLOUD_OBJECT_IN_USE: Final = "cloud_object_in_use"
 # Error code: a cloud object `launch_worker` needs does not exist (run `setup_cloud`).

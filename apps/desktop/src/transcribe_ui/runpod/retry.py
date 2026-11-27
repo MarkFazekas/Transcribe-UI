@@ -6,9 +6,15 @@
   created) and a failure to connect (nothing sent) are retried. A timeout, a server error, a
   redirect or a connection drop after sending raises `AmbiguousCreateError`, since the object
   may exist without being listed yet.
+
+Errors are raised outside any `except` block, so neither `__cause__` nor `__context__` keeps
+the transport exception (which holds the request, headers included).
 """
 
+import math
 from dataclasses import dataclass
+from datetime import UTC
+from email.utils import parsedate_to_datetime
 
 import httpx
 
@@ -25,6 +31,7 @@ from transcribe_ui.runpod.constants import (
     RETRY_MAX_DELAY_S,
 )
 from transcribe_ui.runpod.errors import AmbiguousCreateError, RunpodApiError
+from transcribe_ui.runpod.timing import Clock
 
 
 @dataclass(frozen=True)
@@ -41,18 +48,34 @@ def backoff(attempt: int) -> float:
     return float(min(delay, RETRY_MAX_DELAY_S))
 
 
-def retry_after(response: httpx.Response, attempt: int) -> float:
-    """Return the delay a 429 asks for: delta seconds, capped; otherwise the backoff delay."""
+def _date_delay(text: str, now: Clock) -> float:
+    # An HTTP date (`Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`); NaN when unreadable.
+    try:
+        moment = parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return math.nan
+    if moment.tzinfo is None:  # "-0000": UTC by RFC 5322
+        moment = moment.replace(tzinfo=UTC)
+    return (moment - now()).total_seconds()
+
+
+def retry_after(response: httpx.Response, attempt: int, now: Clock) -> float:
+    """Return the delay a 429 asks for (delta seconds or an HTTP date), between 0 and the cap.
+
+    A missing, unreadable or non-finite value gives the backoff delay instead.
+    """
     text = response.headers.get("Retry-After", "").strip()
     try:
         seconds = float(text)
-    except ValueError:  # an HTTP date or nothing
+    except ValueError:
+        seconds = _date_delay(text, now)
+    if not math.isfinite(seconds):
         return backoff(attempt)
     return float(min(max(seconds, 0), RETRY_AFTER_MAX_S))
 
 
 def judge_failure(call: Call, error: httpx.RequestError, *, last: bool, attempt: int) -> Retry:
-    """Return when to retry after a transport failure.
+    """Return when to retry after a transport failure (call it outside the `except` block).
 
     Raises:
         AmbiguousCreateError: A create failed after it may have been sent.
@@ -62,10 +85,10 @@ def judge_failure(call: Call, error: httpx.RequestError, *, last: bool, attempt:
     reason = type(error).__name__
     if call.creates and not isinstance(error, NOT_SENT_ERRORS):
         msg = f"{call.label}: {reason} after the request was sent; it may have taken effect"
-        raise AmbiguousCreateError(msg, scope=call.scope) from None
+        raise AmbiguousCreateError(msg, scope=call.scope)
     if last:
         msg = f"{call.label}: {reason}"
-        raise RunpodApiError(msg, scope=call.scope) from None
+        raise RunpodApiError(msg, scope=call.scope)
     return Retry(backoff(attempt), reason)
 
 
@@ -75,6 +98,7 @@ def judge_response(
     *,
     last: bool,
     attempt: int,
+    now: Clock,
 ) -> httpx.Response | Retry | None:
     """Return the response if it succeeded, None for an allowed 404, or when to retry.
 
@@ -89,7 +113,7 @@ def judge_response(
         return None
     reason = f"HTTP {status}"
     if status == HTTP_TOO_MANY_REQUESTS and not last:
-        return Retry(retry_after(response, attempt), reason)
+        return Retry(retry_after(response, attempt, now), reason)
     server_error = status >= HTTP_SERVER_ERROR
     if call.creates and (server_error or status < HTTP_CLIENT_ERROR):
         msg = f"{call.label}: {reason}; it may have taken effect"

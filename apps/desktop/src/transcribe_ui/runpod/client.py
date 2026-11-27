@@ -5,7 +5,6 @@ Pods, queued pods, templates, secrets, Global Volumes and the GPU catalog. Every
 in `runpod/retry.py`).
 """
 
-import time
 from types import TracebackType
 from typing import Self
 
@@ -15,7 +14,8 @@ from pydantic import SecretStr
 from transcribe_ui.runpod.account import CatalogApi, SecretsApi, TemplatesApi, VolumesApi
 from transcribe_ui.runpod.constants import API_BASE_URL
 from transcribe_ui.runpod.pods import PodsApi
-from transcribe_ui.runpod.session import RunpodHttp, Sleep
+from transcribe_ui.runpod.session import RunpodHttp
+from transcribe_ui.runpod.timing import Timing
 
 
 class RunpodClient:
@@ -26,11 +26,11 @@ class RunpodClient:
         api_key: SecretStr,
         *,
         transport: httpx.BaseTransport | None = None,
-        sleep: Sleep = time.sleep,
+        timing: Timing | None = None,
         base_url: str = API_BASE_URL,
     ) -> None:
         """Create the client (see `RunpodHttp` for the arguments)."""
-        self._http = RunpodHttp(api_key, base_url=base_url, transport=transport, sleep=sleep)
+        self._http = RunpodHttp(api_key, base_url=base_url, transport=transport, timing=timing)
         self.pods = PodsApi(self._http)
         self.templates = TemplatesApi(self._http)
         self.secrets = SecretsApi(self._http)

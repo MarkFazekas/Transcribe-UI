@@ -6,7 +6,7 @@ response, a log line or an error message. Template env values are kept as `Secre
 template someone edited by hand to hold a plaintext value cannot leak either.
 """
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, SecretStr, alias_generators
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue, SecretStr, alias_generators
 
 from transcribe_ui.runpod.constants import ID_FIELD
 
@@ -124,9 +124,13 @@ class QueuedPodPage(Paged):
 
 
 class TemplatePage(Paged):
-    """One page of `GET /templates`."""
+    """One page of `GET /templates`; entries stay raw until filtered by name.
 
-    templates: tuple[Template, ...]
+    The account may hold any template, so only the app's own are validated strictly
+    (`TemplatesApi.named`): an unrelated template of an unexpected shape cannot fail the list.
+    """
+
+    templates: tuple[JsonValue, ...]
 
 
 class SecretPage(Paged):

@@ -43,7 +43,7 @@
       },
       {
         "kind": "template",
-        "name": "transcribe-ui-worker",
+        "name": "transcribe-ui-worker-schema-1",
         "state": "missing",
         "object_id": null,
         "outdated_fields": []

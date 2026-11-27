@@ -5,7 +5,6 @@ The credentials lookup is the small interface this sub-package needs from the cr
 every Runpod request answers `credentials_missing`.
 """
 
-import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -25,7 +24,7 @@ from transcribe_ui.runpod.constants import (
     HTTP_UNAUTHORIZED,
 )
 from transcribe_ui.runpod.errors import RunpodApiError
-from transcribe_ui.runpod.session import Sleep
+from transcribe_ui.runpod.timing import Clock, Stopped, Timing, Wait, never_stopped, utc_now, wait_unless_stopped
 
 
 class CloudCredentials(Protocol):
@@ -58,15 +57,22 @@ class StaticCredentials:
 
 @dataclass(frozen=True)
 class RunpodAccess:
-    """Port of the Runpod API: credentials lookup, transport and the wait between retries."""
+    """Port of the Runpod API: credentials lookup, transport, retry waits and clock."""
 
     credentials: CloudCredentials = field(default_factory=StaticCredentials)
     # None: the network. Tests: an `httpx.MockTransport` over the fake API.
     transport: httpx.BaseTransport | None = None
-    sleep: Sleep = time.sleep
+    # Waits between attempts (tests record them instead of sleeping).
+    wait: Wait = wait_unless_stopped
+    # Clock that `Retry-After` dates are measured against.
+    now: Clock = utc_now
 
-    def client(self) -> RunpodClient:
+    def client(self, stopped: Stopped = never_stopped) -> RunpodClient:
         """Return a client with the stored key (close it after use).
+
+        Args:
+            stopped: The request's cancel check; retry waits end early and no further
+                attempt starts once it returns True.
 
         Raises:
             DomainError: `credentials_missing` when no Runpod API key is stored.
@@ -74,7 +80,11 @@ class RunpodAccess:
         api_key = self.credentials.runpod_api_key()
         if api_key is None:
             raise missing_credentials([CREDENTIAL_RUNPOD_API_KEY])
-        return RunpodClient(api_key, transport=self.transport, sleep=self.sleep)
+        return RunpodClient(api_key, transport=self.transport, timing=self.timing(stopped))
+
+    def timing(self, stopped: Stopped = never_stopped) -> Timing:
+        """Return the waits, clock and cancel check of a client."""
+        return Timing(wait=self.wait, now=self.now, stopped=stopped)
 
 
 def missing_credentials(names: list[str]) -> DomainError:

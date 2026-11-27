@@ -1,10 +1,45 @@
-"""Descriptions of Runpod API calls: method, path, the key scope and how failures are treated."""
+"""Runpod API calls: method, path, key scope, how failures are treated, and where they may go."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
+
+from transcribe_ui.runpod.constants import API_HOST, API_SCHEME
+from transcribe_ui.runpod.errors import RunpodApiError
+
+
+def _allowed(scheme: str, host: str, port: int | None) -> bool:
+    return scheme == API_SCHEME and host.lower() == API_HOST and port is None
+
+
+def check_base_url(base_url: str) -> None:
+    """Refuse a base URL the API key must not be sent to.
+
+    Raises:
+        ValueError: Unless the URL is https on `api.runpod.io` without port or user info.
+    """
+    parts = urlsplit(base_url)
+    host = parts.hostname or ""
+    with_user = parts.username is not None or parts.password is not None
+    if with_user or not _allowed(parts.scheme, host, parts.port):
+        msg = f"the Runpod API base URL must be https on {API_HOST}"
+        raise ValueError(msg)
+
+
+def check_request(request: httpx.Request) -> None:
+    """Refuse to send a request (and the key in it) anywhere but the API host.
+
+    Checked for every request, not only the base URL: nothing may route the key elsewhere.
+
+    Raises:
+        RunpodApiError: The request is not https on `api.runpod.io` with the default port.
+    """
+    url = request.url
+    if not _allowed(url.scheme, url.host, url.port):
+        msg = f"refused to send the Runpod API key outside {API_HOST}"
+        raise RunpodApiError(msg)
 
 
 def item_path(path: str, item_id: str) -> str:

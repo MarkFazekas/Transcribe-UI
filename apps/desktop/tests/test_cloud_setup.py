@@ -7,6 +7,7 @@ talks to the real Runpod API.
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -17,24 +18,28 @@ from pydantic import SecretStr
 from support.golden import assert_golden
 from support.parity import Exchange, run_one, run_parity
 from support.runpod import FULL_CREDENTIALS, R2_BUCKET, R2_PRIVATE, SECRET_VALUES, Cloud, CloudLegs
-from support.runpod_api import Failure, FakeRunpodApi, FakeSettings
+from support.runpod_api import FAKE_API_KEY, Failure, FakeRunpodApi
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.errors import DomainError
-from transcribe_ui.api.ports import CancelFlag
+from transcribe_ui.api.ports import CancelFlag, DiscardProgress, RequestContext
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_OK
 from transcribe_ui.runpod.access import StaticCredentials
+from transcribe_ui.runpod.check import check_runpod_key
 from transcribe_ui.runpod.classes import SetupCloudRequest, SetupCloudResponse
 from transcribe_ui.runpod.constants import (
     ERROR_CLOUD_OBJECT_IN_USE,
     ERROR_CLOUD_SETUP_INTERRUPTED,
+    ERROR_CLOUD_VOLUME_DUPLICATED,
     ERROR_CREDENTIALS_MISSING,
     ERROR_RUNPOD_KEY_REJECTED,
     GLOBAL_VOLUME_NAME,
+    MAX_ATTEMPTS,
     SECRET_FOR_ENV,
     TEMPLATE_NAME,
     WORKER_IMAGE,
 )
-from transcribe_ui.runpod.inventory import require_cloud_setup
+from transcribe_ui.runpod.inventory import desired_template, require_cloud_setup
+from transcribe_ui.runpod.setup import setup_cloud
 
 SETUP = '{"action": "setup_cloud"}'
 STATUS = '{"action": "cloud_setup_status"}'
@@ -50,6 +55,10 @@ LIST_LAG = timedelta(minutes=0.5)
 SETTLE = timedelta(minutes=1)
 # Worker env variable of the R2 secret access key (the last of the secrets).
 SECRET_KEY_ENV = SECRET_FOR_ENV[-1][0]
+# Ids the fake gives the first, second and third object of a collection (not monotonic).
+FIRST_ID, SECOND_ID, THIRD_ID, FOURTH_ID = "7919", "5838", "3757", "1676"
+# Id of the first secret the setup creates.
+FIRST_SECRET = f"sec{FIRST_ID}"
 # A create whose response was lost and the re-run during list lag.
 TWO_OBJECTS = 2
 
@@ -96,16 +105,23 @@ def _seed_outdated(api: FakeRunpodApi) -> None:
     api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {"R2_BUCKET": "{{ RUNPOD_SECRET_old }}"})
 
 
-def _seed_duplicates(api: FakeRunpodApi) -> None:
-    for _ in range(3):
-        api.volumes.add(GLOBAL_VOLUME_NAME)
-        api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {})
+def _seed_duplicate_templates(api: FakeRunpodApi) -> None:
+    api.volumes.add(GLOBAL_VOLUME_NAME)
     api.volumes.add("someone-elses-volume")
+    for _ in range(3):
+        api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {})
+    # Another account template of an unexpected shape: never validated, so it cannot fail setup.
+    api.templates.insert({"name": "someone-elses-template", "env": "not an object"})
+
+
+def _seed_duplicate_volumes(api: FakeRunpodApi) -> None:
+    api.volumes.add(GLOBAL_VOLUME_NAME)
+    api.volumes.add(GLOBAL_VOLUME_NAME)
 
 
 def _seed_leaky_pod(api: FakeRunpodApi) -> None:
     api.pods.add("transcribe-ui-other", env={SECRET_KEY_ENV: R2_PRIVATE, "RUNPOD_API_KEY": SECRET_VALUES[-1]})
-    api.fail("PATCH", f"{SECRETS}/sec0001", Failure(status=SERVICE_UNAVAILABLE))
+    api.fail("PATCH", f"{SECRETS}/{FIRST_SECRET}", Failure(status=SERVICE_UNAVAILABLE))
 
 
 def test_setup_creates_everything_once(tmp_path: Path) -> None:
@@ -159,81 +175,139 @@ def test_outdated_template_is_reported_then_updated(tmp_path: Path) -> None:
     assert_golden("setup_cloud_outdated.json", setup.golden())
 
 
-def test_duplicates_are_reduced_to_the_oldest(tmp_path: Path) -> None:
-    """Several objects with one fixed name: reported as duplicated, then all but the oldest deleted."""
-    legs = CloudLegs(seed=_seed_duplicates)
+def test_duplicate_templates_are_reduced(tmp_path: Path) -> None:
+    """Several templates with the app's name: reported, then all but a stable pick deleted."""
+    legs = CloudLegs(seed=_seed_duplicate_templates)
     before, setup = run_parity(tmp_path, [STATUS, SETUP], ports=legs)
-    states = _states(before)
-    assert (states[GLOBAL_VOLUME_NAME], states[TEMPLATE_NAME]) == ("duplicated", "duplicated")
-    kept = _ids(setup)
-    assert (kept["global_volume"], kept["template"]) == ("gsb_0001", "tpl0001")
+    assert _states(before)[TEMPLATE_NAME] == "duplicated"
+    # All three are outdated alike, so the lowest id is kept: the third created, not the first.
+    assert _ids(setup)["template"] == f"tpl{THIRD_ID}"
     api = legs.clouds[-1].api
-    assert (sorted(api.volumes.records), list(api.templates.records)) == (["gsb_0001", "gsb_0004"], ["tpl0001"])
+    # The kept template and the unrelated one.
+    assert sorted(api.templates.records) == [f"tpl{FOURTH_ID}", f"tpl{THIRD_ID}"]
     assert_golden("setup_cloud_duplicates.json", setup.golden())
 
 
-def test_lost_create_is_adopted_by_the_next_run(tmp_path: Path) -> None:
+def test_up_to_date_template_is_kept(cloud: Cloud) -> None:
+    """Of duplicate templates, one already up to date is kept, whatever its id."""
+    cloud.api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {})
+    current = cloud.api.templates.insert(desired_template().body())
+    cloud.api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {})
+    response = cloud.set_up()
+    assert isinstance(response, SetupCloudResponse)
+    template = response.cloud_objects[-1]
+    assert (template.object_id, template.outcome, template.duplicates_removed) == (current["id"], "unchanged", 2)
+
+
+def test_duplicate_volumes_are_never_deleted(tmp_path: Path) -> None:
+    """Several Global Volumes may hold backups: setup and the launch check stop and list them."""
+    legs = CloudLegs(seed=_seed_duplicate_volumes)
+    before, setup = run_parity(tmp_path, [STATUS, SETUP], ports=legs)
+    assert (_states(before)[GLOBAL_VOLUME_NAME], _response(before)["ready"]) == ("duplicated", False)
+    assert _error(setup)["code"] == ERROR_CLOUD_VOLUME_DUPLICATED
+    assert _error(setup)["details"] == {"volume_ids": [f"gsb_{SECOND_ID}", f"gsb_{FIRST_ID}"]}
+    api = legs.clouds[-1].api
+    assert (len(api.volumes.records), api.count("DELETE", f"{VOLUMES}/gsb_{FIRST_ID}")) == (TWO_OBJECTS, 0)
+    with legs.clouds[-1].client() as client, pytest.raises(DomainError, match="Global Volumes"):
+        require_cloud_setup(client)
+    assert_golden("setup_cloud_volume_duplicated.json", setup.golden())
+
+
+def test_lost_create_is_adopted_by_the_next_run(cloud: Cloud) -> None:
     """A create whose response is lost is not sent again; a later run adopts the object."""
-    cloud = Cloud(settings=FakeSettings(list_lag=LIST_LAG))
+    cloud.settings.list_lag = LIST_LAG
     cloud.api.fail(POST, TEMPLATES, Failure(lost_response=True))
-    backend = cloud.backend(tmp_path)
-    response = backend.execute(SETUP_REQUEST)
+    response = cloud.set_up()
     assert isinstance(response, ErrorResponse)
     assert (response.error.code, response.error.details) == (
         ERROR_CLOUD_SETUP_INTERRUPTED,
         {"kind": "template", "name": TEMPLATE_NAME},
     )
     cloud.clock.advance(SETTLE)
-    again = backend.execute(SETUP_REQUEST)
+    again = cloud.set_up()
     assert isinstance(again, SetupCloudResponse)
     assert again.cloud_objects[-1].outcome == "unchanged"
     assert (cloud.api.count(POST, TEMPLATES), len(cloud.api.templates.records)) == (1, 1)
 
 
-def test_rerun_during_list_lag_is_cleaned_up_later(tmp_path: Path) -> None:
-    """Re-run before the lost object is listed: a second one is created, and removed later."""
-    cloud = Cloud(settings=FakeSettings(list_lag=LIST_LAG))
-    cloud.api.fail(POST, VOLUMES, Failure(lost_response=True))
-    backend = cloud.backend(tmp_path)
-    assert _error_code(backend.execute(SETUP_REQUEST)) == ERROR_CLOUD_SETUP_INTERRUPTED
-    assert isinstance(backend.execute(SETUP_REQUEST), SetupCloudResponse)
-    assert len(cloud.api.volumes.records) == TWO_OBJECTS
+def test_rerun_during_list_lag_is_cleaned_up_later(cloud: Cloud) -> None:
+    """Re-run before the lost template is listed: a second one is created, and removed later."""
+    cloud.api.fail(POST, TEMPLATES, Failure(status=SERVICE_UNAVAILABLE))
+    # The first run sets up everything but the template (a 503 on a create: never re-sent).
+    first = _error_code(cloud.set_up())
+    cloud.settings.list_lag = LIST_LAG
+    cloud.api.fail(POST, TEMPLATES, Failure(lost_response=True))
+    lost = _error_code(cloud.set_up())
+    during_lag = cloud.set_up()
+    created = len(cloud.api.templates.records)
     cloud.clock.advance(SETTLE)
-    final = backend.execute(SETUP_REQUEST)
-    assert isinstance(final, SetupCloudResponse)
-    volume = final.cloud_objects[0]
-    assert (volume.object_id, volume.duplicates_removed, list(cloud.api.volumes.records)) == (
-        "gsb_0001",
-        1,
-        ["gsb_0001"],
+    final = cloud.set_up()
+    assert (first, lost, isinstance(during_lag, SetupCloudResponse), created) == (
+        ERROR_CLOUD_SETUP_INTERRUPTED,
+        ERROR_CLOUD_SETUP_INTERRUPTED,
+        True,
+        TWO_OBJECTS,
     )
+    assert isinstance(final, SetupCloudResponse)
+    template = final.cloud_objects[-1]
+    assert (template.object_id, template.duplicates_removed) == (f"tpl{SECOND_ID}", 1)
+    assert list(cloud.api.templates.records) == [f"tpl{SECOND_ID}"]
 
 
-def test_create_that_never_reached_runpod_is_retried(tmp_path: Path) -> None:
+def test_lost_volume_create_in_list_lag_is_kept(cloud: Cloud) -> None:
+    """The volume case of the same race ends with two volumes the user resolves (never deleted)."""
+    cloud.settings.list_lag = LIST_LAG
+    cloud.api.fail(POST, VOLUMES, Failure(lost_response=True))
+    cloud.set_up()
+    cloud.set_up()
+    cloud.clock.advance(SETTLE)
+    assert _error_code(cloud.set_up()) == ERROR_CLOUD_VOLUME_DUPLICATED
+    assert len(cloud.api.volumes.records) == TWO_OBJECTS
+
+
+def test_create_with_unreadable_answer_is_adopted(cloud: Cloud) -> None:
+    """A 201 whose body does not parse still created the object: not sent again, adopted later."""
+    cloud.api.fail(POST, TEMPLATES, Failure(garbled_body=True))
+    assert _error_code(cloud.set_up()) == ERROR_CLOUD_SETUP_INTERRUPTED
+    again = cloud.set_up()
+    assert isinstance(again, SetupCloudResponse)
+    assert (again.cloud_objects[-1].outcome, cloud.api.count(POST, TEMPLATES)) == ("unchanged", 1)
+
+
+def test_create_that_never_reached_runpod_is_retried(cloud: Cloud) -> None:
     """A failed connection sent nothing, so the create is sent again within the same request."""
-    cloud = Cloud()
     cloud.api.fail(POST, VOLUMES, Failure(connect_error=True))
-    assert isinstance(cloud.backend(tmp_path).execute(SETUP_REQUEST), SetupCloudResponse)
+    assert isinstance(cloud.set_up(), SetupCloudResponse)
     assert (cloud.api.count(POST, VOLUMES), len(cloud.api.volumes.records)) == (TWO_OBJECTS, 1)
 
 
-def test_secret_taken_but_not_listed_yet(tmp_path: Path) -> None:
+def test_secret_taken_but_not_listed_yet(cloud: Cloud) -> None:
     """A 409 on a secret create (it exists but the list lags) asks for a re-run."""
-    cloud = Cloud()
     cloud.api.fail(POST, SECRETS, Failure(status=CONFLICT))
-    assert _error_code(cloud.backend(tmp_path).execute(SETUP_REQUEST)) == ERROR_CLOUD_SETUP_INTERRUPTED
+    assert _error_code(cloud.set_up()) == ERROR_CLOUD_SETUP_INTERRUPTED
 
 
-def test_duplicate_in_use_is_not_removed(tmp_path: Path) -> None:
-    """A duplicate volume a live pod mounts stays; the request explains what to do."""
-    cloud = Cloud()
+def test_duplicate_in_use_is_not_removed(cloud: Cloud) -> None:
+    """A duplicate template a live pod was created from stays; the request explains what to do."""
     cloud.api.volumes.add(GLOBAL_VOLUME_NAME)
-    in_use = cloud.api.volumes.add(GLOBAL_VOLUME_NAME)
+    in_use = cloud.api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {})
+    cloud.api.templates.add(TEMPLATE_NAME, OLD_IMAGE, {})
     pod = cloud.api.pods.add("someone-elses-pod")
-    pod["mounts"] = {"global": [{"volumeId": in_use["id"]}]}
-    response = cloud.backend(tmp_path).execute(SETUP_REQUEST)
+    pod["template"] = in_use["id"]
+    response = cloud.set_up()
     assert isinstance(response, ErrorResponse)
     assert (response.error.code, response.error.details["object_id"]) == (ERROR_CLOUD_OBJECT_IN_USE, in_use["id"])
+
+
+def test_exact_secret_name_wins_over_a_case_variant(cloud: Cloud) -> None:
+    """Runpod matches secret names case-insensitively; the exact name is kept, the variant removed."""
+    name = SECRET_FOR_ENV[1][1]
+    variant = cloud.api.secrets.add(name.upper(), "old")
+    exact = cloud.api.secrets.add(name, "old")
+    response = cloud.set_up()
+    assert isinstance(response, SetupCloudResponse)
+    assert (response.cloud_objects[2].object_id, response.cloud_objects[2].duplicates_removed) == (exact["id"], 1)
+    assert variant["id"] not in cloud.api.secrets.records
 
 
 def test_missing_credentials_are_named(tmp_path: Path) -> None:
@@ -264,24 +338,31 @@ def test_rejected_key(tmp_path: Path) -> None:
     assert_golden("setup_cloud_key_rejected.json", exchange.golden())
 
 
-def test_cancel_stops_before_creating(tmp_path: Path) -> None:
+def test_cancel_stops_before_creating(cloud: Cloud) -> None:
     """A cancelled setup stops between steps; running it again resumes."""
-    cloud = Cloud()
     cancel = CancelFlag()
     cancel.cancel()
-    assert _error_code(cloud.backend(tmp_path).execute(SETUP_REQUEST, cancel=cancel)) == "cancelled"
+    assert _error_code(cloud.set_up(cancel)) == "cancelled"
     assert not cloud.api.volumes.records
 
 
-def test_launch_check(tmp_path: Path) -> None:
+def test_cancel_ends_a_retry_wait(cloud: Cloud) -> None:
+    """A cancel during a wait between attempts stops the request without another attempt."""
+    cancel = CancelFlag()
+    cloud.sleeps.on_wait = cancel.cancel
+    cloud.api.fail("GET", VOLUMES, Failure(status=SERVICE_UNAVAILABLE))
+    assert _error_code(cloud.set_up(cancel)) == "cancelled"
+    assert (cloud.api.count("GET", VOLUMES), cloud.sleeps.delays) == (1, [1.0])
+
+
+def test_launch_check(cloud: Cloud) -> None:
     """`launch_worker`'s check: not set up, outdated or duplicated refused; ready gives the ids."""
-    cloud = Cloud()
     with cloud.client() as client, pytest.raises(DomainError, match="incomplete"):
         require_cloud_setup(client)
-    cloud.backend(tmp_path).execute(SETUP_REQUEST)
+    cloud.set_up()
     with cloud.client() as client:
         ready = require_cloud_setup(client)
-    assert (ready.template_id, ready.global_volume_id) == ("tpl0001", "gsb_0001")
+    assert (ready.template_id, ready.global_volume_id) == (f"tpl{FIRST_ID}", f"gsb_{FIRST_ID}")
     cloud.api.templates.add(TEMPLATE_NAME, WORKER_IMAGE, {})
     with cloud.client() as client, pytest.raises(DomainError, match="outdated"):
         require_cloud_setup(client)
@@ -292,5 +373,46 @@ def test_secrets_never_leave(tmp_path: Path, caplog: pytest.LogCaptureFixture) -
     caplog.set_level(logging.DEBUG)
     legs = CloudLegs(seed=_seed_leaky_pod)
     exchanges = run_parity(tmp_path, [STATUS, SETUP, SETUP, STATUS], ports=legs)
-    shown = " ".join(exchange.response for exchange in exchanges) + caplog.text
-    assert [secret for secret in SECRET_VALUES if secret in shown] == []
+    shown = [exchange.response for exchange in exchanges]
+    for leg in legs.clouds:
+        checked = check_runpod_key(leg.access())
+        with leg.client() as client:
+            shown.append(f"{checked!r} {client.pods.list_pods()!r}")
+    shown.append(caplog.text)
+    assert legs.clouds[0].api.count("GET", "/v2/pods") == TWO_OBJECTS
+    joined = " ".join(shown)
+    assert not any(secret in joined for secret in SECRET_VALUES)
+
+
+@pytest.fixture
+def cloud(tmp_path: Path) -> Cloud:
+    """Return a fake Runpod account whose `set_up()` runs `setup_cloud` (local state under `tmp_path`)."""
+    return Cloud(root=tmp_path)
+
+
+def _domain_error(call: Callable[[], object]) -> DomainError:
+    try:
+        call()
+    except DomainError as error:
+        return error
+    raise AssertionError
+
+
+@pytest.mark.parametrize(
+    ("path", "failure"),
+    [
+        (VOLUMES, Failure(status=SERVICE_UNAVAILABLE)),
+        (TEMPLATES, Failure(lost_response=True)),
+        (SECRETS, Failure(status=CONFLICT)),
+    ],
+    ids=["list-failed", "ambiguous-create", "secret-conflict"],
+)
+def test_domain_errors_chain_nothing(tmp_path: Path, path: str, failure: Failure) -> None:
+    """The errors of the setup are raised outside `except` blocks: no Runpod error is chained."""
+    account = Cloud()
+    method = "GET" if path == VOLUMES else POST
+    account.api.fail(method, path, *(failure,) * MAX_ATTEMPTS)
+    context = RequestContext(account.ports(tmp_path), DiscardProgress(), CancelFlag())
+    error = _domain_error(lambda: setup_cloud(SETUP_REQUEST, context))
+    assert (error.__cause__, error.__context__) == (None, None)
+    assert FAKE_API_KEY not in f"{error!r} {error.details!r}"

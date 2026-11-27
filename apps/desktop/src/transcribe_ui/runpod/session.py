@@ -1,25 +1,24 @@
 """HTTP session of the Runpod client: where the key goes, timeouts, the retry loop and parsing.
 
-The key is sent only over https to a `*.runpod.io` host, redirects are never followed, and
-error messages carry no request or response data. The retry policy is in `runpod/retry.py`.
+The key is sent only over https to `api.runpod.io` (exact host, default port), redirects are
+never followed, and error messages carry no request or response data. Errors are raised
+outside `except` blocks, so no exception chain keeps a request or a response. The retry
+policy is in `runpod/retry.py`.
 """
 
 import logging
-import time
 from collections.abc import Callable
 from dataclasses import replace
 from types import TracebackType
 from typing import Self
-from urllib.parse import urlsplit
 
 import httpx
-from pydantic import BaseModel, SecretStr, ValidationError
+from pydantic import BaseModel, SecretStr
 
-from transcribe_ui.runpod.calls import Call
+from transcribe_ui.api.errors import CancelledError
+from transcribe_ui.runpod.calls import Call, check_base_url, check_request
 from transcribe_ui.runpod.constants import (
     API_BASE_URL,
-    API_HOST_SUFFIX,
-    API_SCHEME,
     CONNECT_TIMEOUT_S,
     CURSOR_PARAMETER,
     HTTP_NOT_FOUND,
@@ -28,50 +27,12 @@ from transcribe_ui.runpod.constants import (
     READ_TIMEOUT_S,
 )
 from transcribe_ui.runpod.errors import RunpodApiError
+from transcribe_ui.runpod.parsing import parse_body
 from transcribe_ui.runpod.retry import Retry, judge_failure, judge_response
+from transcribe_ui.runpod.timing import Timing
 from transcribe_ui.runpod.wire import Paged
 
 logger = logging.getLogger(__name__)
-
-# Waits that many seconds (`time.sleep`; tests record the delays instead).
-type Sleep = Callable[[float], None]
-
-
-def _allowed_host(scheme: str, host: str) -> bool:
-    return scheme == API_SCHEME and host.lower().endswith(API_HOST_SUFFIX)
-
-
-def check_base_url(base_url: str) -> None:
-    """Refuse a base URL the API key must not be sent to.
-
-    Raises:
-        ValueError: Unless the URL is https on a `*.runpod.io` host without user info.
-    """
-    parts = urlsplit(base_url)
-    with_user = parts.username is not None or parts.password is not None
-    if with_user or not _allowed_host(parts.scheme, parts.hostname or ""):
-        msg = "the Runpod API base URL must be https on a runpod.io host"
-        raise ValueError(msg)
-
-
-def _check_request(request: httpx.Request) -> None:
-    # Every request, not only the base URL: nothing may route the key elsewhere.
-    if not _allowed_host(request.url.scheme, request.url.host):
-        msg = "refused to send the Runpod API key outside runpod.io"
-        raise RunpodApiError(msg)
-
-
-def parse_body[ModelT: BaseModel](call: Call, response: httpx.Response, model: type[ModelT]) -> ModelT:
-    """Return the response body as the model.
-
-    Raises:
-        RunpodApiError: The body does not match (the validation message is dropped: it echoes data).
-    """
-    try:
-        return model.model_validate_json(response.content)
-    except ValidationError:
-        msg = f"{call.label}: unexpected response shape"
-        raise RunpodApiError(msg, status=response.status_code, scope=call.scope) from None
 
 
 class RunpodHttp:
@@ -83,22 +44,22 @@ class RunpodHttp:
         *,
         base_url: str = API_BASE_URL,
         transport: httpx.BaseTransport | None = None,
-        sleep: Sleep = time.sleep,
+        timing: Timing | None = None,
     ) -> None:
         """Create the session.
 
         Args:
             api_key: Bearer token.
-            base_url: API base URL: https on a runpod.io host.
+            base_url: API base URL: https on `api.runpod.io`.
             transport: Replaces the network (tests: `httpx.MockTransport`); proxies from the
                 environment are then ignored too, so a test never reaches the network.
-            sleep: Waits between attempts.
+            timing: Waits, clock and cancel check (default: real time, never cancelled).
 
         Raises:
             ValueError: If the base URL is not allowed.
         """
         check_base_url(base_url)
-        self._sleep = sleep
+        self._timing = timing or Timing()
         self._client = httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Bearer {api_key.get_secret_value()}"},
@@ -106,7 +67,7 @@ class RunpodHttp:
             follow_redirects=False,
             transport=transport,
             trust_env=transport is None,
-            event_hooks={"request": [_check_request]},
+            event_hooks={"request": [check_request]},
         )
 
     def __enter__(self) -> Self:
@@ -132,9 +93,12 @@ class RunpodHttp:
         Raises:
             AmbiguousCreateError: A create may have taken effect.
             RunpodApiError: The call failed (after the retries it allows).
+            CancelledError: The request was cancelled before an attempt.
         """
         attempt = 1
         while True:
+            if self._timing.stopped():
+                raise CancelledError
             outcome = self._attempt(call, attempt)
             if not isinstance(outcome, Retry):
                 return outcome
@@ -146,7 +110,7 @@ class RunpodHttp:
                 MAX_ATTEMPTS,
                 outcome.delay_s,
             )
-            self._sleep(outcome.delay_s)
+            self._timing.wait(outcome.delay_s, self._timing.stopped)
             attempt += 1
 
     def require(self, call: Call) -> httpx.Response:
@@ -198,5 +162,8 @@ class RunpodHttp:
         try:
             response = self._client.send(request)
         except httpx.RequestError as error:
-            return judge_failure(call, error, last=last, attempt=attempt)
-        return judge_response(call, response, last=last, attempt=attempt)
+            failure = error
+        else:
+            return judge_response(call, response, last=last, attempt=attempt, now=self._timing.now)
+        # Judged outside the `except` block, so a raised error does not chain the transport error.
+        return judge_failure(call, failure, last=last, attempt=attempt)

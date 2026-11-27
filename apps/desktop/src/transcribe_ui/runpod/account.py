@@ -3,7 +3,7 @@
 Templates, secrets and Global Volumes (kept by the cloud setup), and the GPU catalog (prices).
 """
 
-from pydantic import SecretStr
+from pydantic import JsonValue, SecretStr
 
 from transcribe_ui.runpod.bodies import SecretCreate, TemplateSpec
 from transcribe_ui.runpod.calls import Endpoint
@@ -20,6 +20,7 @@ from transcribe_ui.runpod.constants import (
     SECRETS_PATH,
     TEMPLATES_PATH,
 )
+from transcribe_ui.runpod.parsing import validate_entry
 from transcribe_ui.runpod.session import RunpodHttp
 from transcribe_ui.runpod.wire import (
     GlobalVolume,
@@ -32,6 +33,10 @@ from transcribe_ui.runpod.wire import (
 )
 
 
+def _named(entry: JsonValue, name: str) -> bool:
+    return isinstance(entry, dict) and entry.get("name") == name
+
+
 class TemplatesApi:
     """The account's templates."""
 
@@ -40,10 +45,16 @@ class TemplatesApi:
         self._http = http
         self._endpoint = Endpoint(TEMPLATES_PATH, "template", "templates", SCOPE_TEMPLATES_READ, SCOPE_TEMPLATES_WRITE)
 
-    def list_all(self) -> tuple[Template, ...]:
-        """Return every template of the account."""
+    def named(self, name: str) -> tuple[Template, ...]:
+        """Return the account's templates with exactly this name (others are never validated).
+
+        Raises:
+            RunpodApiError: A list failed, or a template of that name has an unexpected shape.
+        """
         call = self._endpoint.listing()
-        return self._http.collect(call, TemplatePage, lambda page: page.templates)
+        entries = self._http.collect(call, TemplatePage, lambda page: page.templates)
+        found = [entry for entry in entries if _named(entry, name)]
+        return tuple(validate_entry(call, entry, Template) for entry in found)
 
     def create(self, spec: TemplateSpec) -> Template:
         """Create a template.

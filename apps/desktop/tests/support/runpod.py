@@ -10,10 +10,12 @@ from pydantic import SecretStr
 from support.fakes import FIXED_NOW, seeded_ports
 from support.runpod_api import FAKE_API_KEY, FakeRunpodApi, FakeSettings
 from transcribe_ui.api.backend import Backend
-from transcribe_ui.api.ports import Ports
+from transcribe_ui.api.classes import Response
+from transcribe_ui.api.ports import CancelFlag, Ports
 from transcribe_ui.runpod.access import RunpodAccess, StaticCredentials
-from transcribe_ui.runpod.classes import R2Credentials
+from transcribe_ui.runpod.classes import R2Credentials, SetupCloudRequest
 from transcribe_ui.runpod.client import RunpodClient
+from transcribe_ui.runpod.timing import Stopped, never_stopped
 
 # Distinctive secret values: no response, log line or error may contain any of them.
 R2_PRIVATE = "r2-secret-access-key-MUST-NOT-LEAK"
@@ -49,14 +51,17 @@ class ManualClock:
 
 
 @dataclass
-class SleepRecorder:
-    """Records the waits instead of sleeping."""
+class WaitRecorder:
+    """Records the waits between attempts instead of sleeping; may run a hook at each wait."""
 
     delays: list[float] = field(default_factory=list)
+    on_wait: Callable[[], None] | None = None
 
-    def __call__(self, seconds: float) -> None:
+    def __call__(self, seconds: float, _stopped: Stopped) -> None:
         """Record the wait."""
         self.delays.append(seconds)
+        if self.on_wait is not None:
+            self.on_wait()
 
 
 @dataclass
@@ -66,7 +71,9 @@ class Cloud:
     clock: ManualClock = field(default_factory=ManualClock)
     credentials: StaticCredentials = FULL_CREDENTIALS
     settings: FakeSettings = field(default_factory=FakeSettings)
-    sleeps: SleepRecorder = field(default_factory=SleepRecorder)
+    sleeps: WaitRecorder = field(default_factory=WaitRecorder)
+    # Folder of the local state of `set_up()`'s backend.
+    root: Path | None = None
     api: FakeRunpodApi = field(init=False)
 
     def __post_init__(self) -> None:
@@ -75,7 +82,8 @@ class Cloud:
 
     def access(self) -> RunpodAccess:
         """Return the Runpod port over the fake."""
-        return RunpodAccess(credentials=self.credentials, transport=self.api.transport(), sleep=self.sleeps)
+        transport = self.api.transport()
+        return RunpodAccess(credentials=self.credentials, transport=transport, wait=self.sleeps, now=self.clock.now)
 
     def ports(self, root: Path) -> Ports:
         """Return seeded ports (local state under `root`) whose Runpod port is the fake."""
@@ -85,9 +93,15 @@ class Cloud:
         """Return a backend over the fake (its requests here never open the database)."""
         return Backend(self.ports(root))
 
-    def client(self) -> RunpodClient:
+    def set_up(self, cancel: CancelFlag | None = None) -> Response:
+        """Run `setup_cloud` through a backend over the fake (it never opens the database)."""
+        assert self.root is not None, "set_up() needs a Cloud with a root"
+        return self.backend(self.root).execute(SetupCloudRequest(action="setup_cloud"), cancel=cancel)
+
+    def client(self, stopped: Stopped = never_stopped) -> RunpodClient:
         """Return a client over the fake with the test key."""
-        return RunpodClient(SecretStr(FAKE_API_KEY), transport=self.api.transport(), sleep=self.sleeps)
+        timing = self.access().timing(stopped)
+        return RunpodClient(SecretStr(FAKE_API_KEY), transport=self.api.transport(), timing=timing)
 
 
 @dataclass

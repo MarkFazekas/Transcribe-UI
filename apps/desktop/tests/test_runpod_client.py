@@ -7,14 +7,19 @@ No test talks to the real Runpod API: every request goes to `support.runpod_api`
 import logging
 from collections.abc import Callable
 from datetime import timedelta
+from email.utils import format_datetime
 
 import pytest
 from pydantic import SecretStr
 
-from support.runpod import R2_PRIVATE, Cloud
+from support.fakes import FIXED_NOW
+from support.runpod import R2_PRIVATE, Cloud, WaitRecorder
 from support.runpod_api import FAKE_API_KEY, FAKE_GPU_ID, Failure, FakeSettings
+from transcribe_ui.api.errors import CancelledError
+from transcribe_ui.api.ports import CancelFlag
 from transcribe_ui.runpod.access import StaticCredentials
-from transcribe_ui.runpod.bodies import CreatePod, GlobalMount, GpuRequest, Mounts, QueueRequest
+from transcribe_ui.runpod.bodies import CreatePod, GlobalMount, GpuRequest, Mounts, QueueRequest, SecretCreate
+from transcribe_ui.runpod.calls import Call
 from transcribe_ui.runpod.check import check_runpod_key
 from transcribe_ui.runpod.classes import RunpodKeyState
 from transcribe_ui.runpod.client import RunpodClient
@@ -27,6 +32,7 @@ from transcribe_ui.runpod.constants import (
     SCOPE_PODS_READ,
 )
 from transcribe_ui.runpod.errors import AmbiguousCreateError, RunpodApiError
+from transcribe_ui.runpod.session import RunpodHttp
 from transcribe_ui.runpod.wire import Pod, QueuedPod
 
 GET = "GET"
@@ -47,8 +53,18 @@ PAGE_REQUESTS = 3
 # A failed attempt and its successful retry.
 TWO_ATTEMPTS = 2
 GPU_PRICE = 0.31
+# How far ahead the `Retry-After` date lies.
+DATE_OFFSET_S = 20
+# The same as a time span.
+DATE_OFFSET = timedelta(seconds=DATE_OFFSET_S)
+# The delay of a `Retry-After` in the past or negative.
+NO_WAIT = float(0)
 POD_NAME = "transcribe-ui-01KAZ0000000000000000000000-until-20261127T1500Z"
 FOREIGN_HOST = "https://attacker.example/v2/pods"
+
+
+def _http_date(offset: timedelta) -> str:
+    return format_datetime(FIXED_NOW + offset, usegmt=True)
 
 
 def _failing(status: int) -> tuple[Failure, ...]:
@@ -132,6 +148,28 @@ def test_client_errors_are_final(status: int) -> None:
     assert not cloud.sleeps.delays
 
 
+@pytest.mark.parametrize(
+    ("header", "delay"),
+    [
+        (_http_date(DATE_OFFSET), DATE_OFFSET.total_seconds()),
+        (_http_date(-DATE_OFFSET), NO_WAIT),
+        ("-5", NO_WAIT),
+        ("nan", 1.0),
+        ("inf", 1.0),
+        ("1e308", RETRY_AFTER_MAX_S),
+        ("soon", 1.0),
+    ],
+    ids=["date", "past-date", "negative", "nan", "infinite", "huge", "unreadable"],
+)
+def test_retry_after_values(header: str, delay: float) -> None:
+    """Delta seconds or an HTTP date (against the injected clock), clamped; nonsense backs off."""
+    cloud = Cloud()
+    cloud.api.fail(GET, PODS, Failure(status=TOO_MANY, retry_after=header))
+    with cloud.client() as client:
+        client.pods.list_pods()
+    assert cloud.sleeps.delays == [delay]
+
+
 def test_rate_limits_are_waited_out_even_on_creates() -> None:
     """A 429 refused the request, so even a create is sent again after `Retry-After` (capped)."""
     cloud = Cloud()
@@ -169,6 +207,64 @@ def test_ambiguous_create_is_never_resent(failure: Failure) -> None:
     assert len(cloud.api.volumes.records) == int(failure.lost_response)
 
 
+def test_unreadable_create_answer_is_ambiguous() -> None:
+    """A 2xx whose body does not parse created the object: `AmbiguousCreateError`, not resent."""
+    cloud = Cloud()
+    cloud.api.fail(POST, VOLUMES, Failure(garbled_body=True))
+    with cloud.client() as client, pytest.raises(AmbiguousCreateError, match="unexpected response shape"):
+        client.volumes.create(VOLUME_NAME)
+    assert (cloud.api.count(POST, VOLUMES), len(cloud.api.volumes.records)) == (1, 1)
+
+
+def _chain(error: BaseException) -> list[BaseException]:
+    found: list[BaseException] = []
+    pending: list[BaseException | None] = [error]
+    while pending:
+        current = pending.pop()
+        if current is not None and current not in found:
+            found.append(current)
+            pending.extend((current.__cause__, current.__context__))
+    return found
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [Failure(lost_response=True), Failure(connect_error=True)],
+    ids=["lost-response", "connection-failure"],
+)
+def test_errors_chain_nothing_of_the_request(failure: Failure) -> None:
+    """The transport errors carry the request (the fake puts the key in their message); none is chained."""
+    cloud = Cloud()
+    failures = (failure,) * MAX_ATTEMPTS
+    cloud.api.fail(GET, PODS, *failures)
+    cloud.api.fail(POST, VOLUMES, *failures)
+    with cloud.client() as client:
+        errors = [_raised(client.pods.list_pods), _raised(lambda: client.volumes.create(VOLUME_NAME))]
+    chained = [entry for error in errors for entry in _chain(error)]
+    assert chained == errors
+    rendered = [f"{entry!r} {entry.args!r}" for entry in chained]
+    assert not any(FAKE_API_KEY in text for text in rendered)
+
+
+def test_cancel_during_a_wait_stops_the_retries() -> None:
+    """Once the cancel token is set while waiting, no further attempt is made."""
+    cancel = CancelFlag()
+    cloud = Cloud(sleeps=WaitRecorder(on_wait=cancel.cancel))
+    cloud.api.fail(GET, PODS, *_failing(SERVICE_UNAVAILABLE))
+    with cloud.client(cancel.is_cancelled) as client, pytest.raises(CancelledError):
+        client.pods.list_pods()
+    assert (cloud.api.count(GET, PODS), cloud.sleeps.delays) == (1, [1.0])
+
+
+@pytest.mark.parametrize("name", ["RUNPOD_TOKEN", "runpod_x", "1starts_with_a_digit", "has space"])
+def test_fake_refuses_secret_names_runpod_refuses(name: str) -> None:
+    """The fake checks secret names as documented (pattern, reserved prefix): 422."""
+    cloud = Cloud()
+    with cloud.client() as client:
+        error = _raised(lambda: client.secrets.create(SecretCreate(name=name, secret_value=SecretStr("x"))))
+    assert error.status == INVALID_BODY
+
+
 def test_redirects_are_not_followed() -> None:
     """A redirect is an error; the key never travels to the redirect target."""
     cloud = Cloud()
@@ -185,22 +281,44 @@ def test_redirects_are_not_followed() -> None:
         "http://api.runpod.io/v2",
         "https://api.runpod.io.attacker.example/v2",
         "https://notrunpod.io/v2",
+        "https://rest.runpod.io/v2",
+        "https://api.runpod.io./v2",
+        "https://api.runpod.io:443/v2",
+        "https://api.runpod.io:8443/v2",
         "https://user:password@api.runpod.io/v2",
     ],
 )
-def test_the_key_goes_only_to_runpod(base_url: str) -> None:
-    """A base URL other than https on a `*.runpod.io` host is refused before any request."""
-    with pytest.raises(ValueError, match=r"runpod\.io"):
+def test_the_key_goes_only_to_the_api_host(base_url: str) -> None:
+    """Only https on exactly `api.runpod.io` (no port, no trailing dot) is accepted."""
+    with pytest.raises(ValueError, match=r"api\.runpod\.io"):
         RunpodClient(SecretStr(FAKE_API_KEY), base_url=base_url, transport=Cloud().api.transport())
+
+
+def test_host_names_are_case_insensitive() -> None:
+    """An upper-case host name is the same host."""
+    cloud = Cloud()
+    client = RunpodClient(SecretStr(FAKE_API_KEY), base_url="https://API.RUNPOD.IO/v2", transport=cloud.api.transport())
+    with client:
+        assert client.pods.list_pods() == ()
+
+
+def test_every_request_is_checked() -> None:
+    """An absolute foreign URL in a call is refused before it leaves (the per-request check)."""
+    cloud = Cloud()
+    foreign = Call(GET, FOREIGN_HOST, "pods", SCOPE_PODS_READ)
+    http = RunpodHttp(SecretStr(FAKE_API_KEY), transport=cloud.api.transport())
+    with http, pytest.raises(RunpodApiError, match="outside"):
+        http.send(foreign)
+    assert not cloud.api.seen()
 
 
 def test_error_messages_hold_no_request_data() -> None:
     """Failures name the call and the status only: no URL, id, key or body."""
     cloud = Cloud()
-    cloud.api.fail("PATCH", "/v2/account/secrets/sec0001", Failure(status=INVALID_BODY))
-    cloud.api.secrets.add("transcribe_ui_r2_bucket", "old")
+    secret_id = cloud.api.secrets.add("transcribe_ui_r2_bucket", "old")["id"]
+    cloud.api.fail("PATCH", f"/v2/account/secrets/{secret_id}", Failure(status=INVALID_BODY))
     with cloud.client() as client, pytest.raises(RunpodApiError, match=r"^PATCH secret: HTTP 422$"):
-        client.secrets.set_value("sec0001", SecretStr(R2_PRIVATE))
+        client.secrets.set_value(secret_id, SecretStr(R2_PRIVATE))
 
 
 def test_environment_proxies_never_bypass_the_fake(monkeypatch: pytest.MonkeyPatch) -> None:

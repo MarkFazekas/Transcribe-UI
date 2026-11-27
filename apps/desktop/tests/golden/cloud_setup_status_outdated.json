@@ -10,42 +10,42 @@
         "kind": "global_volume",
         "name": "transcribe-ui-backups",
         "state": "ok",
-        "object_id": "gsb_0001",
+        "object_id": "gsb_7919",
         "outdated_fields": []
       },
       {
         "kind": "secret",
         "name": "transcribe_ui_r2_endpoint_url",
         "state": "ok",
-        "object_id": "sec0001",
+        "object_id": "sec7919",
         "outdated_fields": []
       },
       {
         "kind": "secret",
         "name": "transcribe_ui_r2_bucket",
         "state": "ok",
-        "object_id": "sec0002",
+        "object_id": "sec5838",
         "outdated_fields": []
       },
       {
         "kind": "secret",
         "name": "transcribe_ui_r2_access_key_id",
         "state": "ok",
-        "object_id": "sec0003",
+        "object_id": "sec3757",
         "outdated_fields": []
       },
       {
         "kind": "secret",
         "name": "transcribe_ui_r2_secret_access_key",
         "state": "ok",
-        "object_id": "sec0004",
+        "object_id": "sec1676",
         "outdated_fields": []
       },
       {
         "kind": "template",
-        "name": "transcribe-ui-worker",
+        "name": "transcribe-ui-worker-schema-1",
         "state": "outdated",
-        "object_id": "tpl0001",
+        "object_id": "tpl7919",
         "outdated_fields": [
           "image",
           "env",

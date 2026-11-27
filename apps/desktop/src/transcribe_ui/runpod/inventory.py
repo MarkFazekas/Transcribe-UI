@@ -1,12 +1,13 @@
 """The cloud setup's objects as found on Runpod, and how they compare with what the app needs.
 
-Objects are found by their fixed names. Several objects with one name are ordered oldest first
-(`createdAt`, then id); templates carry no creation time, so for them the lowest id stands in.
-`launch_worker` uses the first of each and refuses while any object is missing, outdated or
-duplicated (`require_cloud_setup`).
+Objects are found by their fixed names. Several objects with one name are ordered with the one
+the app uses first: volumes and secrets oldest first (`createdAt`, then id); templates carry no
+creation time, so for them a stable pick that prefers one already up to date. `launch_worker`
+refuses while any object is missing, outdated or duplicated (`require_cloud_setup`).
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
 from itertools import starmap
 from typing import Self
@@ -20,6 +21,7 @@ from transcribe_ui.runpod.constants import (
     ENV_REFERENCE_FORMAT,
     ERROR_CLOUD_NOT_SET_UP,
     ERROR_CLOUD_SETUP_OUTDATED,
+    ERROR_CLOUD_VOLUME_DUPLICATED,
     GLOBAL_VOLUME_NAME,
     SECRET_FOR_ENV,
     TEMPLATE_NAME,
@@ -82,22 +84,35 @@ def _volume_ids(volumes: tuple[GlobalVolume, ...]) -> tuple[str, ...]:
     return tuple(volume.volume_id for volume in named)
 
 
+def _secret_order(secret: Secret, name: str) -> tuple[bool, datetime, str]:
+    return secret.name != name, secret.created_at, secret.secret_id
+
+
 def _secret_ids(secrets: tuple[Secret, ...], name: str) -> tuple[str, ...]:
+    # Exact-name matches first, then the oldest.
     named = [secret for secret in secrets if _same_secret_name(secret.name, name)]
-    named.sort(key=lambda secret: (secret.created_at, secret.secret_id))
+    named.sort(key=partial(_secret_order, name=name))
     return tuple(secret.secret_id for secret in named)
 
 
+def _template_order(template: Template) -> tuple[bool, str]:
+    stale = bool(outdated_fields(template, desired_template()))
+    return stale, template.template_id
+
+
 def _templates(templates: tuple[Template, ...]) -> tuple[Template, ...]:
-    # Templates carry no creation time: the lowest id stands in for the oldest.
-    named = [template for template in templates if template.name == TEMPLATE_NAME]
-    named.sort(key=lambda template: template.template_id)
-    return tuple(named)
+    # Templates carry no creation time: a stable pick, preferring one already up to date,
+    # then the lowest id.
+    return tuple(sorted(templates, key=_template_order))
 
 
 @dataclass(frozen=True)
 class Inventory:
-    """Ids of the setup's objects, oldest first per name."""
+    """Ids of the setup's objects per name, the one the app uses first.
+
+    Volumes and secrets: oldest first (secrets with the exact name before case variants);
+    templates: up to date first, then the lowest id.
+    """
 
     volume_ids: tuple[str, ...]
     secret_ids: dict[str, tuple[str, ...]]
@@ -113,7 +128,7 @@ class Inventory:
         listed = client.secrets.list_all()
         secret_ids = {name: _secret_ids(listed, name) for _, name in SECRET_FOR_ENV}
         volume_ids = _volume_ids(client.volumes.list_all())
-        return cls(volume_ids, secret_ids, _templates(client.templates.list_all()))
+        return cls(volume_ids, secret_ids, _templates(client.templates.named(TEMPLATE_NAME)))
 
     def statuses(self) -> tuple[CloudObjectStatus, ...]:
         """Return every object's state, in setup order (volume, secrets, template)."""
@@ -135,26 +150,55 @@ def _status(kind: CloudObjectKind, name: str, ids: tuple[str, ...]) -> CloudObje
     return CloudObjectStatus(kind=kind, name=name, state=state, object_id=ids[0])
 
 
+def read_inventory(client: RunpodClient) -> Inventory:
+    """List the setup's objects.
+
+    Raises:
+        DomainError: The error of a failed Runpod call (raised outside the `except` block, so
+            nothing of the call is chained).
+    """
+    try:
+        return Inventory.read(client)
+    except RunpodApiError as error:
+        failure = api_failure(error)
+    raise failure
+
+
 def read_statuses(client: RunpodClient) -> tuple[CloudObjectStatus, ...]:
     """Return every object's state.
 
     Raises:
         DomainError: The error of a failed Runpod call.
     """
-    try:
-        return Inventory.read(client).statuses()
-    except RunpodApiError as error:
-        raise api_failure(error) from None
+    return read_inventory(client).statuses()
+
+
+def volume_duplicated(volume_ids: tuple[str, ...]) -> DomainError:
+    """Return the error for several Global Volumes with the app's name.
+
+    They may hold worker backups, so none is deleted automatically: the user removes the
+    unwanted ones in the Runpod console (open Q29).
+    """
+    message = (
+        f"Runpod holds {len(volume_ids)} Global Volumes named {GLOBAL_VOLUME_NAME!r}. They may hold result "
+        "backups, so the app deletes none of them: delete the unwanted ones in the Runpod console, then "
+        "run the cloud setup again."
+    )
+    return DomainError(ERROR_CLOUD_VOLUME_DUPLICATED, message, {"volume_ids": list(volume_ids)})
 
 
 def require_cloud_setup(client: RunpodClient) -> CloudSetup:
     """Return the template and Global Volume `launch_worker` uses.
 
     Raises:
-        DomainError: `cloud_not_set_up` if an object is missing, `cloud_setup_outdated` if one
-            is outdated or duplicated, or the error of a failed Runpod call.
+        DomainError: `cloud_volume_duplicated` for several volumes, `cloud_not_set_up` if an
+            object is missing, `cloud_setup_outdated` if one is outdated or duplicated, or the
+            error of a failed Runpod call.
     """
-    statuses = read_statuses(client)
+    inventory = read_inventory(client)
+    if len(inventory.volume_ids) > 1:
+        raise volume_duplicated(inventory.volume_ids)
+    statuses = inventory.statuses()
     missing = [status.name for status in statuses if status.state == "missing"]
     if missing:
         message = "The Runpod cloud setup is incomplete. Run the cloud setup first."

@@ -17,7 +17,7 @@ def check_runpod_key(access: RunpodAccess) -> RunpodKeyCheck:
     if api_key is None:
         return RunpodKeyCheck(state="missing", message="No Runpod API key is stored.")
     try:
-        with RunpodClient(api_key, transport=access.transport, sleep=access.sleep) as client:
+        with RunpodClient(api_key, transport=access.transport, timing=access.timing()) as client:
             client.pods.probe()
     except RunpodApiError as error:
         return _failed(error)

@@ -18,7 +18,7 @@ class SendModel(BaseModel):
 
 
 class TemplateSpec(SendModel):
-    """The worker template as the cloud setup wants it (create body; update body without name)."""
+    """The worker template as the cloud setup wants it (the body of both create and update)."""
 
     name: str
     image: str

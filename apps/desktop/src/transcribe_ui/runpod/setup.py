@@ -2,7 +2,9 @@
 
 Stateless: nothing about the setup is stored locally; every request looks the objects up by
 their fixed names (`runpod/inventory.py`). `setup_cloud` creates what is missing, rewrites the
-secret values, updates an outdated template and removes duplicates (keeping the oldest). A
+secret values, updates an outdated template and removes duplicate secrets and templates. It
+never deletes a Global Volume (it may hold backups): duplicates stop it with
+`cloud_volume_duplicated`. A
 create whose outcome is unknown stops the request; running it again adopts what was created.
 Both requests are DB-free.
 """
@@ -39,27 +41,37 @@ from transcribe_ui.runpod.constants import (
     WORKER_IMAGE,
 )
 from transcribe_ui.runpod.errors import AmbiguousCreateError, RunpodApiError
-from transcribe_ui.runpod.inventory import Inventory, desired_template, outdated_fields, read_statuses
+from transcribe_ui.runpod.inventory import (
+    Inventory,
+    desired_template,
+    outdated_fields,
+    read_statuses,
+    volume_duplicated,
+)
 from transcribe_ui.runpod.wire import Template
 
 
 def cloud_setup_status(_request: CloudSetupStatusRequest, context: RequestContext) -> CloudSetupStatusResponse:
     """Report the state of every object of the setup."""
-    with context.ports.runpod.client() as client:
+    with context.ports.runpod.client(context.cancel.is_cancelled) as client:
         statuses = read_statuses(client)
     ready = all(status.state == "ok" for status in statuses)
     return CloudSetupStatusResponse(ready=ready, worker_image=WORKER_IMAGE, cloud_objects=statuses)
 
 
 def setup_cloud(_request: SetupCloudRequest, context: RequestContext) -> SetupCloudResponse:
-    """Create or update the setup's objects; duplicates by name are reduced to the oldest."""
+    """Create or update the setup's objects; duplicate secrets and templates are removed."""
     access = context.ports.runpod
     r2 = _require_credentials(access)
-    with access.client() as client:
+    with access.client(context.cancel.is_cancelled) as client:
         try:
-            return SetupCloudResponse(cloud_objects=_set_up(client, r2, context))
+            cloud_objects = _set_up(client, r2, context)
         except RunpodApiError as error:
-            raise api_failure(error) from None
+            failure = api_failure(error)
+        else:
+            return SetupCloudResponse(cloud_objects=cloud_objects)
+    # Raised outside the `except` block, so the Runpod error is not chained.
+    raise failure
 
 
 def _require_credentials(access: RunpodAccess) -> R2Credentials:
@@ -85,17 +97,13 @@ def _set_up(client: RunpodClient, r2: R2Credentials, context: RequestContext) ->
 
 def _set_up_volume(client: RunpodClient, found: tuple[str, ...]) -> CloudObjectOutcome:
     kind: CloudObjectKind = "global_volume"
-    if not found:
-        created = _create(kind, GLOBAL_VOLUME_NAME, partial(client.volumes.create, GLOBAL_VOLUME_NAME))
-        return CloudObjectOutcome(kind=kind, name=GLOBAL_VOLUME_NAME, object_id=created.volume_id, outcome="created")
-    keep, removed = _keep_oldest(kind, GLOBAL_VOLUME_NAME, found, client.volumes.delete)
-    return CloudObjectOutcome(
-        kind=kind,
-        name=GLOBAL_VOLUME_NAME,
-        object_id=keep,
-        outcome="unchanged",
-        duplicates_removed=removed,
-    )
+    if len(found) > 1:
+        # Volumes may hold result backups: never deleted automatically (open Q29).
+        raise volume_duplicated(found)
+    if found:
+        return CloudObjectOutcome(kind=kind, name=GLOBAL_VOLUME_NAME, object_id=found[0], outcome="unchanged")
+    created = _create(kind, GLOBAL_VOLUME_NAME, partial(client.volumes.create, GLOBAL_VOLUME_NAME))
+    return CloudObjectOutcome(kind=kind, name=GLOBAL_VOLUME_NAME, object_id=created.volume_id, outcome="created")
 
 
 def _secret_values(r2: R2Credentials) -> dict[str, SecretStr]:
@@ -113,7 +121,7 @@ def _set_up_secrets(
     for name, secret_value in _secret_values(r2).items():
         existing = found.get(name, ())
         if existing:
-            keep, removed = _keep_oldest("secret", name, existing, client.secrets.delete)
+            keep, removed = _keep_first(existing, client.secrets.delete)
             # Values are write-only, so whether one changed is unknown: always rewrite it.
             client.secrets.set_value(keep, secret_value)
             outcome = CloudObjectOutcome(
@@ -138,7 +146,7 @@ def _set_up_template(client: RunpodClient, found: tuple[Template, ...]) -> Cloud
         created = _create(kind, TEMPLATE_NAME, partial(client.templates.create, wanted))
         return CloudObjectOutcome(kind=kind, name=TEMPLATE_NAME, object_id=created.template_id, outcome="created")
     ids = tuple(template.template_id for template in found)
-    keep, removed = _keep_oldest(kind, TEMPLATE_NAME, ids, client.templates.delete)
+    keep, removed = _keep_first(ids, partial(_remove_template, client))
     stale = bool(outdated_fields(found[0], wanted))
     if stale:
         client.templates.update(keep, wanted)
@@ -156,7 +164,6 @@ def _label(kind: CloudObjectKind, name: str) -> str:
 
 
 def _create[CreatedT](kind: CloudObjectKind, name: str, create: Callable[[], CreatedT]) -> CreatedT:
-    details = {"kind": kind, "name": name}
     try:
         return create()
     except AmbiguousCreateError:
@@ -164,7 +171,6 @@ def _create[CreatedT](kind: CloudObjectKind, name: str, create: Callable[[], Cre
             f"Creating the {_label(kind, name)} on Runpod failed after the request was sent, so it may exist "
             "already. Run the cloud setup again in a minute; it adopts what was created."
         )
-        raise DomainError(ERROR_CLOUD_SETUP_INTERRUPTED, message, details) from None
     except RunpodApiError as error:
         if error.status != HTTP_CONFLICT:
             raise
@@ -173,36 +179,30 @@ def _create[CreatedT](kind: CloudObjectKind, name: str, create: Callable[[], Cre
             f"Runpod reports the {_label(kind, name)} exists but does not list it yet. "
             "Run the cloud setup again in a minute."
         )
-        raise DomainError(ERROR_CLOUD_SETUP_INTERRUPTED, message, details) from None
+    # Raised outside the `except` blocks, so the Runpod error is not chained.
+    raise DomainError(ERROR_CLOUD_SETUP_INTERRUPTED, message, {"kind": kind, "name": name})
 
 
-def _keep_oldest(
-    kind: CloudObjectKind,
-    name: str,
+def _keep_first(
     ids: tuple[str, ...],
     delete: Callable[[str], bool],
 ) -> tuple[str, int]:
     keep, *duplicates = ids
     for duplicate in duplicates:
-        _remove(kind, name, duplicate, delete)
+        delete(duplicate)
     return keep, len(duplicates)
 
 
-def _remove(
-    kind: CloudObjectKind,
-    name: str,
-    object_id: str,
-    delete: Callable[[str], bool],
-) -> None:
+def _remove_template(client: RunpodClient, template_id: str) -> bool:
     try:
-        delete(object_id)
+        return client.templates.delete(template_id)
     except RunpodApiError as error:
-        # A template in use answers 400, a mounted Global Volume 409.
-        if error.status not in {HTTP_CLIENT_ERROR, HTTP_CONFLICT}:
+        # Runpod answers 400 for a template a pod or an endpoint still uses.
+        if error.status != HTTP_CLIENT_ERROR:
             raise
-        message = (
-            f"A duplicate {_label(kind, name)} ({object_id}) is in use and cannot be removed. "
-            "Terminate the pods using it, then run the cloud setup again."
-        )
-        details = {"kind": kind, "name": name, "object_id": object_id}
-        raise DomainError(ERROR_CLOUD_OBJECT_IN_USE, message, details) from None
+    message = (
+        f"A duplicate {_label('template', TEMPLATE_NAME)} ({template_id}) is in use and cannot be removed. "
+        "Terminate the pods using it, then run the cloud setup again."
+    )
+    details = {"kind": "template", "name": TEMPLATE_NAME, "object_id": template_id}
+    raise DomainError(ERROR_CLOUD_OBJECT_IN_USE, message, details)

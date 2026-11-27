@@ -8,6 +8,7 @@ capacity. Its clock is the test's (`now`), so nothing sleeps.
 """
 
 import json
+import re
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -41,6 +42,39 @@ FAKE_GPU_ID = "NVIDIA RTX A5000"
 FAKE_GPU_PRICE = 0.27
 # Status a pod gets when the fake creates it.
 FAKE_POD_START_STATUS = "RUNNING"
+# Multiplier scrambling the fake's ids (prime, sharing no factor with `ID_SPACE`: ids stay unique).
+ID_STRIDE = 7919
+# Number of distinct ids per collection.
+ID_SPACE = 10000
+# Fields `POST /v2/templates` accepts (Runpod refuses unknown ones with 422).
+TEMPLATE_FIELDS = frozenset(
+    (
+        "name",
+        "image",
+        "args",
+        "entrypoint",
+        "cmd",
+        "disk",
+        "env",
+        "ports",
+        "registry",
+        "category",
+        "allowedCudaVersions",
+        "mounts",
+        "public",
+        "serverless",
+        "startJupyter",
+        "startSsh",
+    ),
+)
+# Fields `POST /v2/account/secrets` accepts.
+SECRET_FIELDS = frozenset(("name", "value", "description"))
+# Valid Runpod secret names (Runpod also refuses names starting with RUNPOD, in any case).
+VAULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_.\-/]{0,190}"
+# Prefix Runpod reserves for its own Runpod secret names.
+RESERVED_VAULT_PREFIX = "runpod"
+# Status of a validation failure.
+VALIDATION_FAILED = 422
 # Status field of pods and queued pods.
 STATUS = "status"
 # Name field of every object.
@@ -80,6 +114,8 @@ class Failure:
     lost_response: bool = False
     # Answer a redirect to this URL and change nothing.
     redirect_to: str | None = None
+    # Carry the request out, then answer its status with a body of an unexpected shape.
+    garbled_body: bool = False
 
 
 @dataclass
@@ -136,7 +172,8 @@ class Collection:
         """Store a new object with a fresh id and `createdAt`; return it."""
         now = self.api.now()
         self._created += 1
-        object_id = f"{self._prefix}{self._created:04d}"
+        # Not monotonic, like the real ids: the lowest id is not the oldest object.
+        object_id = f"{self._prefix}{self._created * ID_STRIDE % ID_SPACE:04d}"
         stored = {"id": object_id, **body, "createdAt": iso(now)}
         self.records[object_id] = Record(stored, now + self.api.settings.list_lag)
         return stored
@@ -284,8 +321,16 @@ class Templates(Collection):
         return self.insert({NAME: name, "image": image, ENV: dict(env), "startSsh": start_ssh, "startJupyter": True})
 
     def create(self, body: Json) -> httpx.Response:
-        """Create a template with Runpod's defaults (SSH and Jupyter on)."""
+        """Create a template with Runpod's defaults (SSH and Jupyter on); 422 for unknown fields."""
+        if not set(body) <= TEMPLATE_FIELDS or not {NAME, "image"} <= set(body):
+            return problem(VALIDATION_FAILED, "invalid template")
         return super().create({"startSsh": True, "startJupyter": True, ENV: {}, **body})
+
+    def update(self, object_id: str, body: Json) -> httpx.Response:
+        """Change the given fields; 422 for unknown fields."""
+        if not set(body) <= TEMPLATE_FIELDS:
+            return problem(VALIDATION_FAILED, "invalid template")
+        return super().update(object_id, body)
 
     def delete(self, object_id: str) -> httpx.Response:
         """Delete a template; 400 while a live pod was created from it."""
@@ -310,8 +355,11 @@ class Secrets(Collection):
         return stored
 
     def create(self, body: Json) -> httpx.Response:
-        """Create a secret; 409 if the name is taken."""
-        name = str(body[NAME])
+        """Create a secret; 422 for an invalid name or unknown fields, 409 if the name is taken."""
+        name = str(body.get(NAME, ""))
+        valid = re.fullmatch(VAULT_NAME_PATTERN, name) is not None
+        if not valid or name.casefold().startswith(RESERVED_VAULT_PREFIX) or not set(body) <= SECRET_FIELDS:
+            return problem(VALIDATION_FAILED, "invalid secret")
         if any(record.body[NAME].casefold() == name.casefold() for record in self.records.values()):
             return problem(HTTP_CONFLICT, "a secret with this name already exists")
         return httpx.Response(httpx.codes.CREATED, json=self.add(name, str(body["value"])))
@@ -400,8 +448,11 @@ class FakeRunpodApi:
         if refused is not None:
             return refused
         response = self._serve(request, path.removeprefix(FAKE_API_PREFIX))
+        if failure.garbled_body:
+            return httpx.Response(response.status_code, json={"unexpected": "shape"})
         if failure.lost_response:
-            msg = "fake: response lost"
+            # Like real transport errors, the message holds request data (here: the key).
+            msg = f"fake: response lost ({request.headers.get('Authorization')})"
             raise httpx.ReadTimeout(msg, request=request)
         return response
 
@@ -459,7 +510,7 @@ def _locate(collections: dict[str, Collection], path: str) -> tuple[Collection |
 
 def _refusal(failure: Failure, request: httpx.Request) -> httpx.Response | None:
     if failure.connect_error:
-        msg = "fake: connection refused"
+        msg = f"fake: connection refused ({request.headers.get('Authorization')})"
         raise httpx.ConnectError(msg, request=request)
     if failure.redirect_to is not None:
         return httpx.Response(httpx.codes.FOUND, headers={"Location": failure.redirect_to})
