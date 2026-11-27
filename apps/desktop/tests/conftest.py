@@ -17,6 +17,8 @@ from support.runpod import Cloud, ManualClock
 from support.runs import RunsWorld, runs_ports
 from support.storage import PART_BYTES, store_client
 from support.trees import build_tree
+from transcribe_ui.i18n import system
+from transcribe_ui.i18n.catalog import activate
 from transcribe_ui.storage.r2 import R2ObjectStore
 
 
@@ -28,6 +30,19 @@ def pytest_configure() -> None:
     """
     os.environ["MOTO_S3_CUSTOM_ENDPOINTS"] = TEST_ENDPOINT
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+@pytest.fixture(autouse=True)
+def english_texts(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Show the English texts in every test, whatever the developer's OS language; reset them afterwards.
+
+    A frontend started with the `system` setting reads no OS language here (English); a test of
+    another language activates it itself.
+    """
+    monkeypatch.setattr(system, "os_language", lambda: None)
+    activate("en")
+    yield
+    activate("en")
 
 
 @pytest.fixture

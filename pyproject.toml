@@ -37,6 +37,9 @@ dev = [
     # IANA time zones for zoneinfo in tests where the OS has none (Windows); the app itself
     # only uses the OS's local zone.
     "tzdata>=2026.6",
+    # Translation catalogs: extract, update and compile (docs/ai/tooling.md "Translations");
+    # the app reads the compiled catalogs with the standard library.
+    "babel>=2.17",
 ]
 
 [tool.uv]

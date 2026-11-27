@@ -4,6 +4,7 @@ from typing import BinaryIO
 
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, NeedsConfirmation, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
+from transcribe_ui.api.errors import Details
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import (
     EXIT_CANCELLED,
@@ -36,9 +37,11 @@ def respond(stdout: BinaryIO, response: Response) -> int:
     return exit_code(response)
 
 
-def failure(code: str, message: str) -> ErrorResponse:
+def failure(code: str, message: str, details: Details | None = None) -> ErrorResponse:
     """Return an error response raised before any request was read."""
-    return ErrorResponse(action=None, error=ErrorBody(code=code, message=message))
+    shown = dict(details or {})
+    body = ErrorBody(code=code, message=message, details=shown)
+    return ErrorResponse(action=None, error=body)
 
 
 def write_text(stdout: BinaryIO, text: str) -> int:

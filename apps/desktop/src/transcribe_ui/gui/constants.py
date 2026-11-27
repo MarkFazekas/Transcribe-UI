@@ -128,7 +128,7 @@ FORCED_PLATFORM_MESSAGE: Final = (
     "Use the `transcribe-ui` command line instead."
 )
 
-# Window title (the app version is appended once `get_app_info` answered, M6.3).
+# Window title, the app's name (the app version is appended once `get_app_info` answered, M6.3).
 WINDOW_TITLE: Final = "Transcribe-UI"
 # Key of the "New job" page.
 PAGE_NEW_JOB: Final = "new_job"
@@ -138,17 +138,13 @@ PAGE_JOBS: Final = "jobs"
 PAGE_CLOUD: Final = "cloud"
 # Key of the "Settings" page.
 PAGE_SETTINGS: Final = "settings"
-# The navigation's pages in order: key, title, whether the page needs the database (Q33).
+# The navigation's pages in order: key, whether the page needs the database (Q33); titles: `gui/texts.py`.
 PAGES: Final = (
-    (PAGE_NEW_JOB, "New job", True),
-    (PAGE_JOBS, "Jobs", True),
-    (PAGE_CLOUD, "Cloud", True),
-    (PAGE_SETTINGS, "Settings", False),
+    (PAGE_NEW_JOB, True),
+    (PAGE_JOBS, True),
+    (PAGE_CLOUD, True),
+    (PAGE_SETTINGS, False),
 )
-# Text of a page whose part is not built yet.
-PLACEHOLDER_TEXT: Final = "This page is not available yet."
-# Status bar text of an action whose handler is not connected yet.
-NOT_AVAILABLE_TEXT: Final = "Not available yet."
 # How long a status bar message stays, in milliseconds.
 STATUS_MESSAGE_MS: Final = 5000
 
@@ -167,52 +163,9 @@ ERROR_FIXES: Final[Mapping[str, FixKind]] = MappingProxyType(
         ERROR_APP_BUSY: "retry",
     },
 )
-# Label of each fix's button.
-FIX_LABELS: Final[Mapping[FixKind, str]] = MappingProxyType(
-    {
-        "accounts": "Open accounts",
-        "cloud_setup": "Open cloud setup",
-        "open_batch": "Open the job",
-        "retry": "Retry",
-    },
-)
 # Details key of `cleanup_pending` that lists the batches to clean up.
 CLEANUP_PENDING_BATCHES_KEY: Final = "batch_ids"
-# Header of the key column of an error's or a confirmation's details table.
-DETAIL_KEY_HEADER: Final = "Detail"
-# Header of the value column of an error's or a confirmation's details table.
-DETAIL_VALUE_HEADER: Final = "Value"
-# Note added to `internal_error`.
-SEE_LOG_TEXT: Final = "See the log for what went wrong."
-
-# Status text of an activity by state (a running one shows its progress, a failed one its error instead).
-ACTIVITY_STATE_TEXTS: Final[Mapping[ActivityState, str]] = MappingProxyType(
-    {
-        "queued": "Waiting to start",
-        "running": "Running",
-        # Shown neutral, never as a failure.
-        "stopped": "Stopped; continue any time.",
-        "failed": "Failed",
-        "finished": "Finished",
-    },
-)
-
-# Title of the writer-lock notice.
-APP_BUSY_TITLE: Final = "Transcribe-UI is busy in another window"
-# Text of the writer-lock notice (the message of the backend follows it).
-APP_BUSY_TEXT: Final = (
-    "Another Transcribe-UI (a second window or a command-line run) is using the job database. "
-    "Settings, accounts and the cloud setup stay usable; close the other one, then Retry."
-)
-
-# Close question when calls are queued or running or a run is not final (Q30).
-CLOSE_QUESTION: Final = "Stop and close? The work continues from where it stopped the next time you start it."
-# Note added to the close question while a run is not final (Q30).
-CLOSE_CLOUD_NOTE: Final = (
-    "The cloud machine keeps working without the app: it stops itself when the work is done or at its "
-    "time limit, and the app shows its results the next time it starts."
-)
-# Text of the dialog shown while running calls finish their current step.
-FINISHING_TEXT: Final = "Finishing the current step..."
+# Prefix of the translation files of the texts Qt itself shows (standard buttons, context menus).
+QT_TRANSLATION_PREFIX: Final = "qtbase_"
 # Exit code of "Quit now".
 QUIT_NOW_EXIT_CODE: Final = 0

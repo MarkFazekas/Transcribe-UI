@@ -21,6 +21,8 @@ from transcribe_ui.gui.dialogs import ConfirmationDialog, ErrorDialog
 from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, Fix
 from transcribe_ui.gui.pages import PageArea, placeholder
 from transcribe_ui.gui.signals import ACTION_SIGNALS, StartupSlot
+from transcribe_ui.gui.texts import page_title
+from transcribe_ui.i18n.catalog import tr
 
 
 class MainWindow(QMainWindow):
@@ -41,7 +43,8 @@ class MainWindow(QMainWindow):
         self.closing = CloseGuard(self, context.executor, context.quit_now, context.run_active)
         self.dialog: ErrorDialog | ConfirmationDialog | None = None
         self._handled: set[str] = set()
-        for key, title, needs_database in constants.PAGES:
+        for key, needs_database in constants.PAGES:
+            title = page_title(key)
             self.pages.add_page(key, title, placeholder(self), needs_database=needs_database)
 
     def connect_handler(self, signal_name: str, slot: Callable[..., object]) -> None:
@@ -85,7 +88,7 @@ class MainWindow(QMainWindow):
 
     def _unhandled(self, signal_name: str, *_arguments: object) -> None:
         if signal_name not in self._handled:
-            self.statusBar().showMessage(constants.NOT_AVAILABLE_TEXT, constants.STATUS_MESSAGE_MS)
+            self.statusBar().showMessage(tr("Not available yet."), constants.STATUS_MESSAGE_MS)
 
     def _apply_fix(self, retry: Callable[[], object] | None, fix: Fix) -> None:
         signals = self.context.signals

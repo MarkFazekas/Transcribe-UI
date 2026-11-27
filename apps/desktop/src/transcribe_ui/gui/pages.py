@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QListWidget, QPushButton, QStackedWidget, QVBoxLayout, QWidget
 
-from transcribe_ui.gui.constants import APP_BUSY_TEXT, APP_BUSY_TITLE, PLACEHOLDER_TEXT
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.writer_lock import WriterLockGate
+from transcribe_ui.i18n.catalog import tr
 
 
 class LockNotice(QWidget):
@@ -23,11 +23,15 @@ class LockNotice(QWidget):
         super().__init__(parent)
         self._lock = lock
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(APP_BUSY_TITLE, self))
-        layout.addWidget(wrapped_label(APP_BUSY_TEXT, self))
+        layout.addWidget(QLabel(tr("Transcribe-UI is busy in another window"), self))
+        busy = tr(
+            "Another Transcribe-UI (a second window or a command-line run) is using the job database. "
+            "Settings, accounts and the cloud setup stay usable; close the other one, then Retry.",
+        )
+        layout.addWidget(wrapped_label(busy, self))
         self.message = wrapped_label(lock.message, self)
         layout.addWidget(self.message)
-        self.retry_button = QPushButton("Retry", self)
+        self.retry_button = QPushButton(tr("Retry"), self)
         self.retry_button.clicked.connect(lock.retry)
         layout.addWidget(self.retry_button)
         layout.addStretch()
@@ -39,7 +43,7 @@ class LockNotice(QWidget):
 
 def placeholder(parent: QWidget) -> QWidget:
     """Return the page shown until the part that builds a page registers it."""
-    label = QLabel(PLACEHOLDER_TEXT, parent)
+    label = QLabel(tr("This page is not available yet."), parent)
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     return label
 

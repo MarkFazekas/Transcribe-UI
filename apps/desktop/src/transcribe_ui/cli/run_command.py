@@ -15,7 +15,7 @@ from transcribe_ui.cli.interrupts import interrupts_cancel
 from transcribe_ui.cli.output import failure, respond
 from transcribe_ui.cli.progress import NdjsonProgress
 
-# Builds the backend once the request file was read and validated.
+# Builds the backend (nothing is opened until a request needs it).
 type BackendFactory = Callable[[], Backend]
 
 
@@ -25,7 +25,7 @@ def read_request(path: Path) -> Request | ErrorResponse:
         raw = path.read_bytes()
     except OSError as error:
         reason = error.strerror or type(error).__name__
-        return failure(ERROR_REQUEST_UNREADABLE, f"Cannot read the request file: {reason}.")
+        return failure(ERROR_REQUEST_UNREADABLE, f"Cannot read the request file: {reason}.", {"reason": reason})
     if raw.startswith(UTF16_BOMS):
         return failure(ERROR_INVALID_REQUEST, NOT_UTF8_MESSAGE)
     return parse_request(raw.removeprefix(UTF8_BOM))
@@ -35,12 +35,11 @@ def _cancelled(request: Request) -> ErrorResponse:
     return ErrorResponse(action=request.action, error=CancelledError().body())
 
 
-def run_request(path: Path, make_backend: BackendFactory, stdout: BinaryIO, stderr: BinaryIO) -> int:
+def run_request(path: Path, backend: Backend, stdout: BinaryIO, stderr: BinaryIO) -> int:
     """Run the request in the file, print the response and return the exit code."""
     request = read_request(path)
     if isinstance(request, ErrorResponse):
         return respond(stdout, request)
-    backend = make_backend()
     flag = CancelFlag()
     try:
         with interrupts_cancel(flag):

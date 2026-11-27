@@ -1,0 +1,1155 @@
+# Hungarian texts of Transcribe-UI (docs/ai/tooling.md "Translations").
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Transcribe-UI VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-11-28 00:27+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: Transcribe-UI\n"
+"Language: hu\n"
+"Language-Team: Hungarian\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.19.0\n"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A choice does not fit its file."
+msgstr "Egy választás nem illik a fájljához."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"A cloud cleanup was interrupted; repeat the cleanup of these jobs before "
+"starting a cloud machine: {batch_ids}."
+msgstr ""
+"Egy felhőtakarítás megszakadt; felhőgép indítása előtt ismételje meg "
+"ezeknek a feladatoknak a takarítását: {batch_ids}."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A cloud run is active; nothing was changed. Try again once it has ended."
+msgstr ""
+"Egy felhős futás folyamatban van; semmi sem változott. Próbálja újra, ha "
+"véget ért."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"A duplicate of {name} ({object_id}) is in use and cannot be removed. "
+"Terminate the cloud machines using it, then run the cloud setup again."
+msgstr ""
+"{name} egyik másodpéldánya ({object_id}) használatban van, ezért nem "
+"törölhető. Szüntesse meg az ezt használó felhőgépeket, majd futtassa újra"
+" a felhőbeállítást."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"A file of the job cannot be read right now (is its drive or network share"
+" connected?); try again once it can."
+msgstr ""
+"A feladat egyik fájlja most nem olvasható (csatlakoztatva van a "
+"meghajtója vagy a hálózati megosztása?); próbálja újra, amikor már "
+"olvasható."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A file with its own languages is not in the selection."
+msgstr "Egy saját nyelvekkel megadott fájl nincs a kijelölésben."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"A job cannot lose its last file; delete the job or clean it up from the "
+"cloud instead."
+msgstr ""
+"Egy feladatból nem vehető ki az utolsó fájl; helyette törölje a "
+"feladatot, vagy takarítsa el a felhőből."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A retried file has no audio to copy for one of its transcriptions."
+msgstr "Egy újrapróbált fájl egyik átírásához nincs átmásolható hang."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"A retry of this job is still copying its audio; finish or clean up the "
+"retry job first."
+msgstr ""
+"A feladat egyik újrapróbálása még másolja a hangját; előbb fejezze be "
+"vagy takarítsa el az újrapróbáló feladatot."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A selected path is not inside the scanned folder."
+msgstr "Egy kijelölt útvonal nincs a beolvasott mappán belül."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"All of the job's data will be deleted from the cloud: audio, subtitles "
+"and its description."
+msgstr ""
+"A feladat minden adata törlődik a felhőből: a hang, a feliratok és a "
+"feladat leírása."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "An audio file is uploaded as it is; it takes no track choice."
+msgstr ""
+"A hangfájl változatlanul töltődik fel; hangsávot nem kell hozzá "
+"választani."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "An uploaded audio file could not be verified in the cloud; upload again."
+msgstr "Egy feltöltött hangfájl nem ellenőrizhető a felhőben; töltse fel újra."
+
+#: src/transcribe_ui/gui/pages.py
+msgid ""
+"Another Transcribe-UI (a second window or a command-line run) is using "
+"the job database. Settings, accounts and the cloud setup stay usable; "
+"close the other one, then Retry."
+msgstr ""
+"Egy másik Transcribe-UI (egy második ablak vagy egy parancssori futtatás)"
+" használja a feladatok adatbázisát. A beállítások, a fiókok és a "
+"felhőbeállítás továbbra is használhatók; zárja be a másikat, majd "
+"kattintson az Újra gombra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Another task is working on the cloud runs; try again to continue."
+msgstr ""
+"Egy másik művelet a felhős futásokon dolgozik; a folytatáshoz próbálja "
+"újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Another task is working on this job; try again when it has finished."
+msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha végzett."
+
+#: src/transcribe_ui/gui/activity_view.py
+msgid "Cancel"
+msgstr "Megszakítás"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Cancel the queued cloud machine {name} ({status})? Its work stops at "
+"once; finished results stay in the cloud."
+msgstr ""
+"Visszavonja ezt a sorban álló felhőgépet: {name} ({status})? A munkája "
+"azonnal leáll; a kész eredmények a felhőben maradnak."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Checking files"
+msgstr "Fájlok ellenőrzése"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Choose the audio track to transcribe."
+msgstr "Válassza ki az átírandó hangsávot."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Choose the subtitle stream to extract."
+msgstr "Válassza ki a kinyerendő feliratsávot."
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Close Transcribe-UI"
+msgstr "A Transcribe-UI bezárása"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Closing"
+msgstr "Bezárás"
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Cloud"
+msgstr "Felhő"
+
+#: src/transcribe_ui/gui/dialogs.py
+#, python-brace-format
+msgid "Code: {code}"
+msgstr "Kód: {code}"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Confirm"
+msgstr "Megerősítés"
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Creating {name} on Runpod failed after the request was sent, so it may "
+"exist already. Run the cloud setup again in a minute; it takes over what "
+"was created."
+msgstr ""
+"{name} létrehozása a Runpodon a kérés elküldése után hiúsult meg, így "
+"lehet, hogy már létezik. Egy perc múlva futtassa újra a felhőbeállítást; "
+"az átveszi, ami létrejött."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Deleting from the cloud"
+msgstr "Törlés a felhőből"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Detail"
+msgstr "Adat"
+
+#: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
+msgid "Details"
+msgstr "Részletek"
+
+#: src/transcribe_ui/gui/activity_view.py
+msgid "Dismiss"
+msgstr "Elrejtés"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Downloading subtitles"
+msgstr "Feliratok letöltése"
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Failed"
+msgstr "Sikertelen"
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Finished"
+msgstr "Kész"
+
+#: src/transcribe_ui/gui/closing.py
+msgid "Finishing the current step..."
+msgstr "Az aktuális lépés befejezése..."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Folder names were added to tell apart files of different folders."
+msgstr ""
+"A név mappanevekkel egészült ki, hogy a különböző mappák fájljai "
+"megkülönböztethetők legyenek."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Folders this deep are not scanned."
+msgstr "Az alkalmazás ilyen mélyen lévő mappákat nem olvas be."
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Jobs"
+msgstr "Feladatok"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Links are not followed."
+msgstr "Az alkalmazás a hivatkozásokat nem követi."
+
+#: src/transcribe_ui/gui/texts.py
+msgid "New job"
+msgstr "Új feladat"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"No display is available for the window. Use the transcribe-ui command "
+"line instead."
+msgstr ""
+"Nincs elérhető kijelző az ablakhoz. Használja helyette a transcribe-ui "
+"parancssort."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "No media file is at or below this path."
+msgstr "Ezen az útvonalon és alatta nincs médiafájl."
+
+#: src/transcribe_ui/gui/shell.py
+msgid "Not available yet."
+msgstr "Még nem érhető el."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Only transcriptions that failed or found no speech can be retried."
+msgstr "Csak a sikertelen és a beszédet nem találó átírások próbálhatók újra."
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Open accounts"
+msgstr "Fiókok megnyitása"
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Open cloud setup"
+msgstr "Felhőbeállítás megnyitása"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Open log folder"
+msgstr "Naplómappa megnyitása"
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Open the job"
+msgstr "A feladat megnyitása"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Picture-based subtitles cannot be extracted as text; they can only be "
+"transcribed."
+msgstr "A képalapú feliratok nem nyerhetők ki szövegként; csak átírhatók."
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Please confirm"
+msgstr "Megerősítés szükséges"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Quit now"
+msgstr "Kilépés most"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "R2 accepted the credentials and the bucket can be listed."
+msgstr "Az R2 elfogadta a hozzáférési adatokat, és a bucket tartalma listázható."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"R2 accepted the credentials, but they are not allowed to do this; check "
+"the API token's permissions and bucket."
+msgstr ""
+"Az R2 elfogadta a hozzáférési adatokat, de ehhez nincs joguk; ellenőrizze"
+" az API-token jogosultságait és bucketjét."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "R2 cannot be reached; check the network connection and the endpoint URL."
+msgstr ""
+"Az R2 nem érhető el; ellenőrizze a hálózati kapcsolatot és a végpont URL-"
+"jét."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"R2 refused the credentials: the access key ID or the secret access key is"
+" wrong."
+msgstr ""
+"Az R2 elutasította a hozzáférési adatokat: a hozzáférésikulcs-azonosító "
+"vagy a titkos hozzáférési kulcs hibás."
+
+#: src/transcribe_ui/gui/activity_view.py
+msgid "Resume"
+msgstr "Folytatás"
+
+#: src/transcribe_ui/gui/pages.py src/transcribe_ui/gui/texts.py
+msgid "Retry"
+msgstr "Újra"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "Run Transcribe-UI requests from JSON files."
+msgstr "Transcribe-UI-kérések futtatása JSON-fájlokból."
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Running"
+msgstr "Fut"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Runpod accepted the API key and the cloud machines can be listed."
+msgstr "A Runpod elfogadta az API-kulcsot, és a felhőgépek listázhatók."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Runpod cannot be reached or answered unexpectedly. Try again later."
+msgstr "A Runpod nem érhető el, vagy váratlan választ adott. Próbálja újra később."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Runpod did not create the cloud machine; nothing was started. Check the "
+"Runpod account, then try again."
+msgstr ""
+"A Runpod nem hozta létre a felhőgépet; semmi sem indult el. Ellenőrizze a"
+" Runpod-fiókot, majd próbálja újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Runpod does not know this cloud machine."
+msgstr "A Runpod nem ismeri ezt a felhőgépet."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Runpod holds {count} Global Volumes named {name}. They may hold result "
+"backups, so the app deletes none of them: delete the ones you do not need"
+" in the Runpod console (Storage page), then run the cloud setup again."
+msgstr ""
+"A Runpodon {count} darab {name} nevű Global Volume van. Ezek "
+"eredménymentéseket tárolhatnak, ezért az alkalmazás egyiket sem törli: a "
+"feleslegeseket törölje a Runpod konzolján (Storage oldal), majd futtassa "
+"újra a felhőbeállítást."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Runpod rejected the API key (expired, revoked or mistyped). Enter a valid"
+" key."
+msgstr ""
+"A Runpod elutasította az API-kulcsot (lejárt, visszavonták vagy "
+"elgépelték). Adjon meg egy érvényes kulcsot."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Runpod reports that {name} exists but does not list it yet. Run the cloud"
+" setup again in a minute."
+msgstr ""
+"A Runpod szerint {name} létezik, de még nem szerepel a listájában. Egy "
+"perc múlva futtassa újra a felhőbeállítást."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Scanning folders"
+msgstr "Mappák beolvasása"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "See the log for what went wrong."
+msgstr "A hiba oka a naplóban olvasható."
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Settings"
+msgstr "Beállítások"
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Some credentials are not set: {missing}. Enter them under Settings, "
+"Accounts."
+msgstr ""
+"Néhány hozzáférési adat nincs megadva: {missing}. Adja meg őket a "
+"Beállítások, Fiókok oldalon."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Some credentials are not set: {missing}. The keyring cannot be used; set "
+"the environment variables {variables}."
+msgstr ""
+"Néhány hozzáférési adat nincs megadva: {missing}. A kulcstartó nem "
+"használható; állítsa be ezeket a környezeti változókat: {variables}."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "Some credentials are not valid: {invalid}. Enter them again."
+msgstr "Néhány hozzáférési adat érvénytelen: {invalid}. Adja meg őket újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Some files of the job have no result yet, so their audio is still needed;"
+" wait for the transcription, or delete everything instead."
+msgstr ""
+"A feladat néhány fájljának még nincs eredménye, ezért a hangjukra még "
+"szükség van; várja meg az átírást, vagy helyette töröljön mindent."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Something unexpected went wrong; the details are in the log."
+msgstr "Váratlan hiba történt; a részletek a naplóban olvashatók."
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Something went wrong"
+msgstr "Hiba történt"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Start a cloud machine for {jobs} transcription ({audio_s:duration} of "
+"audio); estimated cost {cost_low_usd:.2f}-{cost_high_usd:.2f} USD."
+msgid_plural ""
+"Start a cloud machine for {jobs} transcriptions ({audio_s:duration} of "
+"audio); estimated cost {cost_low_usd:.2f}-{cost_high_usd:.2f} USD."
+msgstr[0] ""
+"Egy felhőgép indul {jobs} átíráshoz ({audio_s:duration} hanganyag); a "
+"becsült költség {cost_low_usd:.2f}–{cost_high_usd:.2f} USD."
+msgstr[1] ""
+"Egy felhőgép indul {jobs} átíráshoz ({audio_s:duration} hanganyag); a "
+"becsült költség {cost_low_usd:.2f}–{cost_high_usd:.2f} USD."
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Stop and close"
+msgstr "Leállítás és bezárás"
+
+#: src/transcribe_ui/gui/closing.py
+msgid ""
+"Stop and close? The work continues from where it stopped the next time "
+"you start it."
+msgstr ""
+"Leállítja és bezárja? A munka a következő indításkor onnan folytatódik, "
+"ahol abbamaradt."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Stopped. The work done so far is saved; continue any time."
+msgstr "Leállítva. Az eddig elvégzett munka mentve van; bármikor folytatható."
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Stopped; continue any time."
+msgstr "Leállítva; bármikor folytatható."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Terminate the cloud machine {name} ({status})? Its work stops at once; "
+"finished results stay in the cloud."
+msgstr ""
+"Megszünteti ezt a felhőgépet: {name} ({status})? A munkája azonnal leáll;"
+" a kész eredmények a felhőben maradnak."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The R2 bucket does not exist; check the bucket name and the endpoint URL."
+msgstr "Az R2-bucket nem létezik; ellenőrizze a bucket nevét és a végpont URL-jét."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The R2 object to copy does not exist."
+msgstr "A másolandó R2-objektum nem létezik."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The R2 request failed; the details are in the log."
+msgstr "Az R2-kérés nem sikerült; a részletek a naplóban olvashatók."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The Runpod API key lacks the permission {scope}. Create a key with the "
+"permissions the app lists."
+msgstr ""
+"A Runpod API-kulcsából hiányzik ez a jogosultság: {scope}. Hozzon létre "
+"egy kulcsot az alkalmazás által felsorolt jogosultságokkal."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The Runpod price list does not list the GPU; the estimate uses the usual "
+"price."
+msgstr "A Runpod árlistáján nem szerepel a GPU; a becslés a szokásos árral számol."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The cloud already holds data under this job's ID (another computer's job,"
+" or one of an earlier installation); delete this job and create it again,"
+" which gives it a new ID."
+msgstr ""
+"A felhőben már vannak adatok ennek a feladatnak az azonosítójával (egy "
+"másik számítógép feladata, vagy egy korábbi telepítésé); törölje ezt a "
+"feladatot, és hozza létre újra, így új azonosítót kap."
+
+#: src/transcribe_ui/gui/closing.py
+msgid ""
+"The cloud machine keeps working without the app: it stops itself when the"
+" work is done or at its time limit, and the app shows its results the "
+"next time it starts."
+msgstr ""
+"A felhőgép az alkalmazás nélkül is tovább dolgozik: magától leáll, amikor"
+" elkészül a munkával vagy lejár az ideje, és az alkalmazás a következő "
+"indításkor megmutatja az eredményeit."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The cloud machine left no result for the transcription."
+msgstr "A felhőgép nem hagyott eredményt az átíráshoz."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The cloud machine may still be running: Runpod does not show it stopped "
+"yet. Try again."
+msgstr ""
+"Lehet, hogy a felhőgép még fut: a Runpod még nem mutatja leállítottnak. "
+"Próbálja újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The cloud run has ended already; there is nothing to stop."
+msgstr "A felhős futás már véget ért; nincs mit leállítani."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The cloud run {run_id} does not exist."
+msgstr "Nincs {run_id} azonosítójú felhős futás."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The cloud setup is incomplete. Run the cloud setup first."
+msgstr "A felhőbeállítás hiányos. Először futtassa a felhőbeállítást."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The cloud setup is outdated. Run the cloud setup again."
+msgstr "A felhőbeállítás elavult. Futtassa újra a felhőbeállítást."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The cloud setup was interrupted at {name}. Run it again in a minute."
+msgstr "A felhőbeállítás megszakadt ennél: {name}. Egy perc múlva futtassa újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The command line is not valid."
+msgstr "A parancssor érvénytelen."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The converted audio cannot be written or read back; try again."
+msgstr ""
+"Az átalakított hang nem írható ki vagy nem olvasható vissza; próbálja "
+"újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The converted audio cannot be written: {reason}"
+msgstr "Az átalakított hang nem írható ki: {reason}"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "The custom plan does not match its format: {problems}"
+msgstr "Az egyéni terv nem felel meg a formátumának: {problems}"
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The custom plan file cannot be read ({reason})."
+msgstr "Az egyéni terv fájlja nem olvasható ({reason})."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The custom plan file cannot be written ({reason})."
+msgstr "Az egyéni terv fájlja nem írható ({reason})."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The file changed while it was checked; review the job again once it is "
+"complete."
+msgstr ""
+"A fájl megváltozott az ellenőrzése közben; tekintse át újra a feladatot, "
+"ha a fájl már elkészült."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The file could not be checked."
+msgstr "A fájl nem ellenőrizhető."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no audio track to transcribe."
+msgstr "A fájlnak nincs átírható hangsávja."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no audio track with this number."
+msgstr "A fájlnak nincs ilyen sorszámú hangsávja."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no subtitle stream with this number."
+msgstr "A fájlnak nincs ilyen sorszámú feliratsávja."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no transcription in this language."
+msgstr "A fájlnak nincs ilyen nyelvű átírása."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The file is gone or cannot be read; restore it, or remove it from the job."
+msgstr ""
+"A fájl eltűnt vagy nem olvasható; állítsa vissza, vagy vegye ki a "
+"feladatból."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file is not in review any more; its choices cannot change."
+msgstr "A fájl már nincs áttekintés alatt; a választásai nem módosíthatók."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file is too large for an R2 upload."
+msgstr "A fájl túl nagy az R2-feltöltéshez."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file was not checked successfully yet; review the job first."
+msgstr "A fájl ellenőrzése még nem sikerült; először tekintse át a feladatot."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The file's upload has started; its choices cannot change unless it is "
+"removed from the job."
+msgstr ""
+"A fájl feltöltése elkezdődött; a választásai csak akkor módosíthatók, ha "
+"kiveszi a feladatból."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The folder to scan cannot be read."
+msgstr "A beolvasandó mappa nem olvasható."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The folder to scan does not exist."
+msgstr "A beolvasandó mappa nem létezik."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The folder to scan must be an absolute path."
+msgstr "A beolvasandó mappát abszolút útvonallal kell megadni."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job and its {items} file will be deleted from this computer's job "
+"list."
+msgid_plural ""
+"The job and its {items} files will be deleted from this computer's job "
+"list."
+msgstr[0] "A feladat és {items} fájlja törlődik e számítógép feladatlistájáról."
+msgstr[1] "A feladat és {items} fájlja törlődik e számítógép feladatlistájáról."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job database cannot be opened; the details are in the log."
+msgstr ""
+"A feladatok adatbázisa nem nyitható meg; a részletek a naplóban "
+"olvashatók."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job database is busy with another task; try again."
+msgstr "A feladatok adatbázisát egy másik művelet foglalja; próbálja újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The job database was written by a newer version of Transcribe-UI; update "
+"the app."
+msgstr ""
+"A feladatok adatbázisát a Transcribe-UI egy újabb verziója írta; "
+"frissítse az alkalmazást."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The job has moved on in the meantime; nothing was changed. Reload it and "
+"try again."
+msgstr ""
+"A feladat közben továbblépett; semmi sem változott. Töltse be újra, és "
+"próbálja újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job has no such file."
+msgstr "A feladatban nincs ilyen fájl."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job has nothing to transcribe in the cloud."
+msgstr "A feladatban nincs semmi, amit a felhőben kellene átírni."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The job {batch_id} does not exist."
+msgstr "Nincs {batch_id} azonosítójú feladat."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"file) will be deleted from the cloud."
+msgid_plural ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"files) will be deleted from the cloud."
+msgstr[0] ""
+"Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
+"({files} fájl) törlődik a felhőből."
+msgstr[1] ""
+"Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
+"({files} fájl) törlődik a felhőből."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The job's audio was deleted from the cloud, so it cannot be retried; "
+"create a new job instead."
+msgstr ""
+"A feladat hangja törölve lett a felhőből, ezért nem próbálható újra; "
+"helyette hozzon létre új feladatot."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job's audio will be deleted from the cloud; its subtitles stay, but "
+"it can no longer be retried."
+msgstr ""
+"A feladat hangja törlődik a felhőből; a feliratai megmaradnak, de a "
+"feladat többé nem próbálható újra."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job's subtitles may not be downloaded yet; after this, only the "
+"backup on the cloud volume keeps them."
+msgstr ""
+"Lehet, hogy a feladat feliratai még nincsenek letöltve; ezután csak a "
+"felhőkötet biztonsági mentése őrzi meg őket."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job's upload is not complete yet; finish the upload first."
+msgstr "A feladat feltöltése még nem fejeződött be; előbb fejezze be a feltöltést."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The keyring refused to store the credentials ({reason}). Unlock it and "
+"try again, or use the environment variables."
+msgstr ""
+"A kulcstartó nem tárolta el a hozzáférési adatokat ({reason}). Oldja fel,"
+" és próbálja újra, vagy használja a környezeti változókat."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The media file's extension was added to tell apart files of the same "
+"folder."
+msgstr ""
+"A név a médiafájl kiterjesztésével egészült ki, hogy ugyanannak a "
+"mappának a fájljai megkülönböztethetők legyenek."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The name is not valid Unicode; rename it to include it."
+msgstr "A név nem érvényes Unicode-szöveg; nevezze át, hogy bekerülhessen."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The output folder is not an absolute path."
+msgstr "A kimeneti mappa nem abszolút útvonal."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The path to scan is not a folder."
+msgstr "A beolvasandó útvonal nem mappa."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The placement plan has errors; fix them and try again."
+msgstr "Az elhelyezési terv hibás; javítsa a hibákat, és próbálja újra."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The plan changed since it was confirmed (the work, the time limit or the "
+"test mode)."
+msgstr ""
+"A terv a megerősítése óta megváltozott (a munka, az időkorlát vagy a "
+"tesztüzemmód)."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "The plan lists {item_id} ({language}), which is not part of this download."
+msgstr ""
+"A tervben szerepel ez: {item_id} ({language}), de nem része ennek a "
+"letöltésnek."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The request file cannot be read: {reason}."
+msgstr "A kérésfájl nem olvasható: {reason}."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The request is not valid."
+msgstr "A kérés érvénytelen."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The result of the transcription cannot be read."
+msgstr "Az átírás eredménye nem olvasható."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The review is not complete: resolve or remove every file first."
+msgstr ""
+"Az áttekintés nincs kész: előbb minden fájlnál döntsön, vagy vegye ki a "
+"fájlt a feladatból."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The scanned folder is not an absolute path or contains '..'."
+msgstr "A beolvasott mappa nem abszolút útvonal, vagy '..' szerepel benne."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The selection contains no media file."
+msgstr "A kijelölésben nincs médiafájl."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The settings cannot be saved; the details are in the log."
+msgstr "A beállítások nem menthetők; a részletek a naplóban olvashatók."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The settings file cannot be read or is not valid; save the settings to "
+"replace it."
+msgstr ""
+"A beállításfájl nem olvasható vagy érvénytelen; a lecseréléséhez mentse a"
+" beállításokat."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The track or stream number must not be negative."
+msgstr "A sáv sorszáma nem lehet negatív."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The {tool} path set in the settings is not an absolute path of a file on "
+"this computer: {path}"
+msgstr ""
+"A beállításokban megadott {tool}-útvonal nem egy ezen a számítógépen lévő"
+" fájl abszolút útvonala: {path}"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "There is nothing to transcribe, so no cloud machine was started."
+msgstr "Nincs mit átírni, ezért nem indult felhőgép."
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "This could not be read."
+msgstr "Ez nem olvasható."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"This file's audio cannot be uploaded (it is empty, or its extension "
+"cannot be used); remove it from the job."
+msgstr ""
+"Ennek a fájlnak a hangja nem tölthető fel (üres, vagy a kiterjesztése nem"
+" használható); vegye ki a feladatból."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"This is not one of the app's cloud machines; manage it in the Runpod "
+"console."
+msgstr "Ez nem az alkalmazás felhőgépe; a Runpod konzolján kezelje."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "This is not possible at the job's current step."
+msgstr "Ez a feladat jelenlegi lépésénél nem lehetséges."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"This job's description in the cloud cannot be read (another app version, "
+"or damaged), so nothing was deleted."
+msgstr ""
+"A feladat felhőben tárolt leírása nem olvasható (másik alkalmazásverzió "
+"írta, vagy sérült), ezért semmi sem törlődött."
+
+#: src/transcribe_ui/gui/pages.py
+msgid "This page is not available yet."
+msgstr "Ez az oldal még nem érhető el."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"This system has no keyring to store credentials in. Set the environment "
+"variables {variables} instead."
+msgstr ""
+"Ezen a rendszeren nincs kulcstartó a hozzáférési adatok tárolásához. "
+"Helyette állítsa be ezeket a környezeti változókat: {variables}."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Transcribe-UI is already running in another window or process; close it "
+"and try again."
+msgstr ""
+"A Transcribe-UI már fut egy másik ablakban vagy folyamatban; zárja be, és"
+" próbálja újra."
+
+#: src/transcribe_ui/gui/pages.py
+msgid "Transcribe-UI is busy in another window"
+msgstr "A Transcribe-UI egy másik ablakban dolgozik"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Uploading"
+msgstr "Feltöltés"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Uploading files"
+msgstr "Fájlok feltöltése"
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Value"
+msgstr "Érték"
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Waiting to start"
+msgstr "Indításra vár"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Whether Runpod created this run's cloud machine is not known yet, so it "
+"cannot be stopped; check the cloud machines in a minute and try again."
+msgstr ""
+"Még nem tudni, hogy a Runpod létrehozta-e ennek a futásnak a felhőgépét, "
+"ezért nem állítható le; egy perc múlva ellenőrizze a felhőgépeket, és "
+"próbálja újra."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Whether a cloud run is active cannot be checked, so nothing was started "
+"or published; try again later."
+msgstr ""
+"Nem ellenőrizhető, hogy folyamatban van-e felhős futás, ezért semmi sem "
+"indult el, és semmi sem lett közzétéve; próbálja újra később."
+
+#: src/transcribe_ui/cli/parser.py
+msgid "command"
+msgstr "parancs"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "ffmpeg could not convert the audio track."
+msgstr "Az ffmpeg nem tudta átalakítani a hangsávot."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "ffmpeg could not extract the subtitle stream as SRT."
+msgstr "Az ffmpeg nem tudta SRT-ként kinyerni a feliratsávot."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "ffprobe could not read the file."
+msgstr "Az ffprobe nem tudta beolvasni a fájlt."
+
+#: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
+msgid "no"
+msgstr "nem"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "path of the request JSON file"
+msgstr "a kérést tartalmazó JSON-fájl útvonala"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "print the JSON Schema of the requests"
+msgstr "a kérések JSON-sémájának kiírása"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "print the JSON Schema of the responses instead"
+msgstr "helyette a válaszok JSON-sémájának kiírása"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "print the app version and exit"
+msgstr "az alkalmazás verziójának kiírása, majd kilépés"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "request"
+msgstr "kérés"
+
+#: src/transcribe_ui/cli/parser.py
+msgid "run the request in a JSON file and print the response as JSON"
+msgstr "egy JSON-fájlban lévő kérés futtatása, és a válasz kiírása JSON-ként"
+
+#: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
+msgid "yes"
+msgstr "igen"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{count} existing subtitle file will be replaced."
+msgid_plural "{count} existing subtitle files will be replaced."
+msgstr[0] "{count} meglévő feliratfájl lecserélődik."
+msgstr[1] "{count} meglévő feliratfájl lecserélődik."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{count} selected file already has a subtitle in a target language."
+msgid_plural "{count} selected files already have a subtitle in a target language."
+msgstr[0] "{count} kijelölt fájlnak már van felirata valamelyik célnyelven."
+msgstr[1] "{count} kijelölt fájlnak már van felirata valamelyik célnyelven."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}) is listed more than once in the plan."
+msgstr "{file} ({language}) többször szerepel a tervben."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}) is missing from the plan."
+msgstr "{file} ({language}) hiányzik a tervből."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): another subtitle has the same target."
+msgstr "{file} ({language}): egy másik feliratnak is ugyanez a célja."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): output_file_name does not end with .srt."
+msgstr "{file} ({language}): az output_file_name nem .srt végű."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): source_path or original_folder was changed in the "
+"plan."
+msgstr ""
+"{file} ({language}): a tervben módosult a source_path vagy az "
+"original_folder."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the file is not inside the scanned folder."
+msgstr "{file} ({language}): a fájl nincs a beolvasott mappán belül."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the file's path is not absolute or contains '..'."
+msgstr ""
+"{file} ({language}): a fájl útvonala nem abszolút, vagy '..' szerepel "
+"benne."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the name {name} cannot be used on the target."
+msgstr "{file} ({language}): ez a név nem használható a célhelyen: {name}"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the subtitle cannot be written; try again once the "
+"target is writable."
+msgstr ""
+"{file} ({language}): a felirat nem írható ki; próbálja újra, ha a célhely"
+" már írható."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the subtitle is not in the cloud any more."
+msgstr "{file} ({language}): a felirat már nincs a felhőben."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the subtitle name {name} is too long for the target "
+"(with the tail of its temporary file, at most {max_length} characters)."
+msgstr ""
+"{file} ({language}): a felirat neve túl hosszú a célhelyhez (az "
+"ideiglenes fájl végződésével együtt legfeljebb {max_length} karakter "
+"lehet): {name}"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target cannot be checked (no permission)."
+msgstr "{file} ({language}): a célhely nem ellenőrizhető (nincs jogosultság)."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target exists and is not a file."
+msgstr "{file} ({language}): a célhelyen már van valami, és az nem fájl."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target is outside the output folder."
+msgstr "{file} ({language}): a célhely a kimeneti mappán kívül van."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target path is longer than Windows allows."
+msgstr ""
+"{file} ({language}): a célhely útvonala hosszabb, mint amit a Windows "
+"megenged."
+
+#: src/transcribe_ui/i18n/formats.py
+#, python-brace-format
+msgid "{hours} h {minutes} min"
+msgstr "{hours} ó {minutes} p"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{items} file will be removed from the job."
+msgid_plural "{items} files will be removed from the job."
+msgstr[0] "{items} fájl kikerül a feladatból."
+msgstr[1] "{items} fájl kikerül a feladatból."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{items} file will be removed from the job. Its audio already uploaded to "
+"the cloud is deleted."
+msgid_plural ""
+"{items} files will be removed from the job. Their audio already uploaded "
+"to the cloud is deleted."
+msgstr[0] ""
+"{items} fájl kikerül a feladatból. A felhőbe már feltöltött hangja "
+"törlődik."
+msgstr[1] ""
+"{items} fájl kikerül a feladatból. A felhőbe már feltöltött hangjuk "
+"törlődik."
+
+#: src/transcribe_ui/i18n/formats.py
+#, python-brace-format
+msgid "{minutes} min {seconds} s"
+msgstr "{minutes} p {seconds} mp"
+
+#: src/transcribe_ui/i18n/formats.py
+#, python-brace-format
+msgid "{seconds} s"
+msgstr "{seconds} mp"
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} could not be started: {reason}"
+msgstr "{tool} nem indítható el: {reason}"
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} did not finish within {timeout_s:duration} and was stopped."
+msgstr "{tool} nem végzett {timeout_s:duration} alatt, ezért leállt."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} failed on the file."
+msgstr "{tool} nem tudta feldolgozni a fájlt."
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} was not found: set its path in the settings or put it on the PATH."
+msgstr ""
+"{tool} nem található: adja meg az útvonalát a beállításokban, vagy tegye "
+"elérhetővé a PATH-on."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{unknown_batches} of the jobs was uploaded from another computer."
+msgid_plural "{unknown_batches} of the jobs were uploaded from another computer."
+msgstr[0] ""
+"A feladatok közül {unknown_batches} egy másik számítógépről lett "
+"feltöltve."
+msgstr[1] ""
+"A feladatok közül {unknown_batches} egy másik számítógépről lett "
+"feltöltve."
+

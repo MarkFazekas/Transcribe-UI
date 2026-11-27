@@ -21,6 +21,10 @@ MEMBER_PARENTS = ("packages", "apps")
 TOOLING_PATHS = (".claude/hooks", "scripts")
 # Targets whose tests use Qt (pytest-qt is disabled for the others).
 QT_TARGETS = frozenset(("desktop",))
+# Targets with translation catalogs, checked by `scripts/catalogs.py check`.
+CATALOG_TARGETS = frozenset(("desktop",))
+# The catalog check (current files, complete Hungarian texts).
+CATALOG_CHECK = str(REPO_ROOT / "scripts" / "catalogs.py")
 
 
 @dataclass(frozen=True)
@@ -97,6 +101,8 @@ def build_steps(target: Target, *, fix: bool) -> list[Step]:
             _tool("mypy", "mypy", "--cache-dir", cache, *target.type_paths),
         ),
     )
+    if target.name in CATALOG_TARGETS:
+        steps.append(Step("catalogs", (sys.executable, CATALOG_CHECK, "check")))
     if target.test_path is not None:
         # pytest-qt imports QtGui/QtWidgets when pytest starts; only the GUI's target has the
         # system libraries Qt loads (CI installs them for the desktop leg only).

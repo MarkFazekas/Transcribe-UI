@@ -1,0 +1,221 @@
+{
+  "error": {
+    "request_unreadable": {
+      "reason": "No such file or directory"
+    },
+    "batch_not_found": {
+      "batch_id": "batch_20261127_120000"
+    },
+    "media_tool_not_found": {
+      "tool": "ffmpeg",
+      "source": "search"
+    },
+    "media_tool_not_found.settings": {
+      "tool": "ffmpeg",
+      "source": "settings",
+      "problem": "not_absolute",
+      "path": "ffmpeg"
+    },
+    "media_tool_not_found.start": {
+      "tool": "ffmpeg",
+      "source": "start",
+      "reason": "Permission denied"
+    },
+    "media_tool_failed": {
+      "tool": "ffprobe",
+      "operation": "probe",
+      "exit_code": 1,
+      "stderr": "bad"
+    },
+    "media_output_unwritable.convert": {
+      "operation": "convert",
+      "reason": "No space left on device"
+    },
+    "media_tool_timeout": {
+      "tool": "ffmpeg",
+      "operation": "convert",
+      "timeout_s": 600.0
+    },
+    "credentials_missing": {
+      "missing": [
+        "r2_secret_access_key"
+      ],
+      "variables": [
+        "TRANSCRIBE_UI_R2_SECRET_ACCESS_KEY"
+      ],
+      "keyring": "unavailable"
+    },
+    "credentials_missing.available": {
+      "missing": [
+        "runpod_api_key"
+      ],
+      "variables": [
+        "TRANSCRIBE_UI_RUNPOD_API_KEY"
+      ],
+      "keyring": "available"
+    },
+    "credentials_invalid": {
+      "invalid": [
+        "r2_endpoint_url"
+      ],
+      "sources": [
+        "environment"
+      ]
+    },
+    "keyring_unavailable": {
+      "stored": [],
+      "variables": [
+        "TRANSCRIBE_UI_RUNPOD_API_KEY"
+      ]
+    },
+    "keyring_failed": {
+      "stored": [
+        "runpod_api_key"
+      ],
+      "reason": "KeyringLocked"
+    },
+    "runpod_key_missing_scope": {
+      "scope": "api.pods.write"
+    },
+    "cloud_setup_interrupted": {
+      "kind": "secret",
+      "name": "transcribe-ui-r2",
+      "reason": "other"
+    },
+    "cloud_setup_interrupted.may_exist": {
+      "kind": "template",
+      "name": "transcribe-ui",
+      "reason": "may_exist"
+    },
+    "cloud_setup_interrupted.not_listed": {
+      "kind": "secret",
+      "name": "transcribe-ui-r2",
+      "reason": "not_listed"
+    },
+    "cloud_volume_duplicated": {
+      "name": "transcribe-ui",
+      "count": 2,
+      "volume_ids": [
+        "v1",
+        "v2"
+      ]
+    },
+    "cloud_object_in_use": {
+      "kind": "template",
+      "name": "transcribe-ui",
+      "object_id": "t1"
+    },
+    "run_not_found": {
+      "run_id": "01JDQ0000000000000000000R1"
+    },
+    "cleanup_pending": {
+      "batch_ids": [
+        "batch_20261127_120000",
+        "batch_20261127_130000"
+      ]
+    },
+    "custom_plan_unreadable": {
+      "reason": "FileNotFoundError"
+    },
+    "custom_plan_unwritable": {
+      "reason": "PermissionError"
+    }
+  },
+  "confirmation": {
+    "delete_batch": {
+      "batch_id": "batch_20261127_120000",
+      "phase": "composing",
+      "items": 2
+    },
+    "exclude_items": {
+      "batch_id": "batch_20261127_120000",
+      "phase": "uploading",
+      "items": 1,
+      "deletes_uploaded_audio": true
+    },
+    "existing_languages": {
+      "count": 1,
+      "files": [
+        {
+          "relative_path": "a.mkv",
+          "languages": [
+            "hu"
+          ]
+        }
+      ]
+    },
+    "launch_plan": {
+      "changed": true,
+      "jobs": 3,
+      "batches": 2,
+      "unknown_batches": 1,
+      "audio_s": 7260.0,
+      "cost_low_usd": 0.12,
+      "cost_high_usd": 0.4,
+      "plan": {}
+    },
+    "cleanup_audio": {
+      "batch_id": "batch_20261127_120000",
+      "scope": "audio",
+      "phase": "downloaded"
+    },
+    "cleanup_everything": {
+      "batch_id": "batch_20261127_120000",
+      "scope": "everything",
+      "phase": "ready"
+    },
+    "cleanup_not_downloaded": {
+      "batch_id": "batch_20261127_120000",
+      "scope": "everything",
+      "phase": "ready"
+    },
+    "cleanup_unknown_batch": {
+      "batch_id": "batch_20261127_120000",
+      "files": 4,
+      "known": false
+    },
+    "overwrite_targets": {
+      "count": 1,
+      "targets": [
+        "film.hu.srt"
+      ]
+    },
+    "terminate_pod": {
+      "kind": "pod",
+      "object_id": "p1",
+      "name": "transcribe-ui-01JDQ0000000000000000000R1",
+      "status": "RUNNING",
+      "run_id": "01JDQ0000000000000000000R1"
+    },
+    "cancel_queued_pod": {
+      "kind": "queued_pod",
+      "object_id": "q1",
+      "name": "transcribe-ui-01JDQ0000000000000000000R1",
+      "status": "PENDING",
+      "run_id": "01JDQ0000000000000000000R1"
+    }
+  },
+  "plan_error": {
+    "name_too_long": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "film.hu.srt",
+      "max_length": 255
+    },
+    "custom_plan_schema": {
+      "problems": [
+        "entries.0.output_file_name: Field required"
+      ]
+    },
+    "custom_plan_unknown_job": {
+      "item_id": "01JDQ0000000000000000000T1",
+      "language": "hu"
+    },
+    "custom_plan_invalid_name": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "a:b.srt",
+      "problem": "contains ':'"
+    }
+  }
+}

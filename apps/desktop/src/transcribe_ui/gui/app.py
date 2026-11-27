@@ -6,7 +6,7 @@ check. Messages of Qt go to the GUI log through `qInstallMessageHandler`, never 
 
 import logging
 from collections.abc import Callable
-from contextlib import closing
+from contextlib import ExitStack, closing
 
 import shiboken6
 from PySide6.QtCore import QTimer
@@ -18,6 +18,7 @@ from transcribe_ui.constants import DISTRIBUTION_NAME
 from transcribe_ui.gui.closing import QuitNow
 from transcribe_ui.gui.constants import SHUTDOWN_WAIT_MS
 from transcribe_ui.gui.context import build_context
+from transcribe_ui.gui.language import use_language
 from transcribe_ui.gui.messages import exceptions_to_log, qt_messages_to_log
 from transcribe_ui.gui.shell import MainWindow, build_shell
 
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Builds the backend of the GUI (tests: seeded ports).
 type BackendFactory = Callable[[], Backend]
+# Returns the OS user interface language (`i18n.system.SystemLanguage`; tests replace the OS's).
+type OsLanguage = Callable[[], str | None]
 # Called with the window before the event loop starts (tests close it from a timer).
 type WindowHook = Callable[[MainWindow], None]
 
@@ -65,11 +68,15 @@ def run_gui(
     *,
     quit_now: QuitNow | None = None,
     on_window: WindowHook | None = None,
+    os_language: OsLanguage | None = None,
 ) -> int:
     """Run the GUI until its window closes; return the exit code.
 
-    The start-up hooks run once the window shows. On a normal close the local state of the
-    backend is closed last.
+    The language of the texts is resolved first (the `language` setting, with `system` the OS
+    language; `os_language` replaces the OS's in tests), so every text is shown in it. The
+    start-up hooks run once the window shows. On a normal close the local state of the backend
+    is closed last.
     """
-    with qt_messages_to_log(), exceptions_to_log(), closing(make_backend()) as backend:
+    with qt_messages_to_log(), exceptions_to_log(), closing(make_backend()) as backend, ExitStack() as stack:
+        use_language(backend.language_setting(), application(), stack, os_language)
         return _run_window(backend, quit_now, on_window)

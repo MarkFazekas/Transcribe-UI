@@ -1,3 +1,4 @@
+2f
 a15
 a19
 a5000
@@ -20,7 +21,9 @@ bom
 boms
 byref
 caplog
+capsys
 casefold
+cfg
 chdir
 checkable
 chunksize
@@ -100,6 +103,7 @@ func
 gc
 geteuid
 getframerate
+getmembers
 getnchannels
 getrandbits
 getsampwidth
@@ -114,6 +118,7 @@ hashable
 hhmmss
 httpx
 hu
+i18n
 ident
 ign
 ignorecase
@@ -140,10 +145,12 @@ kernel32
 keyring
 kibibytes
 killpg
+langid
 lavfi
 levelname
 levelno
 libwayland
+lineno
 linkname
 linuxfb
 liveness
@@ -167,13 +174,19 @@ misconfigured
 mkfifo
 mktemp
 mkv
+mofile
 moto
 mov
 mp4
+msgid
+msgids
+msgstr
 msvcrt
+multiline
 multitrack
 muxer
 nblck
+ngettext
 ngram
 normaliser
 normcase
@@ -181,6 +194,7 @@ normpath
 nowait
 ntdll
 ntpath
+ntr
 nul
 nullable
 offscreen
@@ -198,6 +212,7 @@ pathsep
 pcm
 pgs
 platformdirs
+pofile
 popen
 popitem
 popleft
@@ -228,6 +243,7 @@ randbits
 rdonly
 rdwr
 readline
+readouterr
 recv
 removeprefix
 removesuffix

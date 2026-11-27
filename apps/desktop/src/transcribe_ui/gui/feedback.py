@@ -1,10 +1,11 @@
 """Display data of error responses and confirmations, for the generic dialogs (architecture §3.1 "GUI").
 
-Qt-free. Every error renders with one layout: the backend's message, then collapsed details
-(the code, the details as rows and tables, "Open log folder"). A small table (`ERROR_FIXES`)
+Qt-free. Every error renders with one layout: the catalog text of its code (formatted with its
+details; the backend's English message only for a code without an entry), then collapsed
+details (the code, the details as rows and tables, "Open log folder"). A small table (`ERROR_FIXES`)
 adds a button for codes that have a fix in the GUI; that table is presentation, the decision
 stays the backend's, and an unknown code still renders. A `needs_confirmation` response renders
-as one dialog for every action; accepting re-sends the same request with each confirmation's
+as one dialog for every action, each confirmation with the catalog text of its code; accepting re-sends the same request with each confirmation's
 field set to the value the backend names (`Confirmation.set_to`).
 """
 
@@ -14,10 +15,13 @@ from dataclasses import dataclass
 
 from pydantic import JsonValue
 
-from transcribe_ui.api.classes import Confirmation, ErrorResponse, NeedsConfirmation, Request
+from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, NeedsConfirmation, Request
 from transcribe_ui.api.constants import ERROR_INTERNAL
 from transcribe_ui.api.schema import request_adapter
-from transcribe_ui.gui.constants import CLEANUP_PENDING_BATCHES_KEY, ERROR_FIXES, FIX_LABELS, FixKind
+from transcribe_ui.gui.constants import CLEANUP_PENDING_BATCHES_KEY, ERROR_FIXES, FixKind
+from transcribe_ui.gui.texts import fix_label
+from transcribe_ui.i18n.catalog import tr
+from transcribe_ui.i18n.texts import code_text
 
 # One object of a detail that lists objects.
 type Record = Mapping[str, JsonValue]
@@ -82,7 +86,7 @@ def render_detail(detail: JsonValue) -> str:
     if detail is None:
         return ""
     if isinstance(detail, bool):
-        return "yes" if detail else "no"
+        return tr("yes") if detail else tr("no")
     if isinstance(detail, list):
         return "\n".join(render_detail(entry) for entry in detail)
     if isinstance(detail, dict):
@@ -141,16 +145,21 @@ def _fix(code: str, details: Mapping[str, JsonValue]) -> Fix | None:
     if kind is None:
         return None
     if kind != "open_batch":
-        return Fix(kind, FIX_LABELS[kind])
+        return Fix(kind, fix_label(kind))
     batch_id = _first_batch(details)
-    return None if batch_id is None else Fix(kind, FIX_LABELS[kind], batch_id)
+    return None if batch_id is None else Fix(kind, fix_label(kind), batch_id)
+
+
+def error_message(error: ErrorBody) -> str:
+    """Return the text of an error in the active language (the English message for an unknown code)."""
+    return code_text("error", error.code, error.details, error.message)
 
 
 def error_view(response: ErrorResponse) -> ErrorView:
     """Return how an error response is shown."""
     error = response.error
     return ErrorView(
-        message=error.message,
+        message=error_message(error),
         code=error.code,
         details=details_view(error.details),
         fix=_fix(error.code, error.details),
@@ -164,7 +173,8 @@ def confirmation_view(response: NeedsConfirmation) -> ConfirmationView:
 
 
 def _confirmation_item(confirmation: Confirmation) -> ConfirmationItem:
-    return ConfirmationItem(confirmation.message, details_view(confirmation.details))
+    text = code_text("confirmation", confirmation.code, confirmation.details, confirmation.message)
+    return ConfirmationItem(text, details_view(confirmation.details))
 
 
 def confirmed_request(request: Request, response: NeedsConfirmation) -> Request:
