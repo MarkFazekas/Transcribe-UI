@@ -353,7 +353,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
     `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade).
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
-  own: `run_upload`, `create_retry_batch`, `launch_worker` and `refresh_status` call it).
+  own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
+  `refresh_status` call `publish_held_manifests`).
   - **Manifest from the database.** `build_manifest` lists every item with `transcribe` jobs,
     in selection order, with the audio objects its jobs use (by key) and its jobs by language;
     `scan_root` and `path_flavor` are the batch's (the flavour of the OS that scanned it). It is
@@ -364,14 +365,15 @@ docs/human/, docs/ai/     see CLAUDE.md
     `nothing_to_transcribe` (the extract-only path). `created_at` is the batch's creation time,
     so the same database state always gives the same bytes and a manifest written again after
     an interruption is the same object.
-  - **`manifest_step`** (caller holds the batch lock; the runs lock is taken through its bounded
-    wait, so a long launch gives `runs_busy` with nothing changed): checks that the batch is
+  - **`manifest_step`** (caller holds the batch lock and not the runs lock, else
+    `LockOrderError`; the runs lock is taken through its bounded wait, so a long launch gives
+    `runs_busy` with nothing changed): checks that the batch is
     `uploading`, builds the manifest, runs the activity check (§3.7). Inactive: the manifest is
     written to `batch_metadata/<id>.json`, then the batch moves `uploading` → `ready` by
     compare-and-set, clearing `manifest_held`. Active: `manifest_held` is set (outcome `held`
-    with the activity sources). The check failing (`cloud_unreachable`) also sets
-    `manifest_held`, then the error is raised; re-sending or the next `publish_held_manifests`
-    resumes. `manifest_held` is never set without the runs lock, so a launch that holds it
+    with the activity sources). The check failing (`cloud_unreachable`) or the manifest write
+    failing (an `r2_*` error) also sets `manifest_held`, then the error is raised; re-sending or
+    the next `publish_held_manifests` resumes. `manifest_held` is never set without the runs lock, so a launch that holds it
     cannot see a batch become held (and published by its own `publish_held_manifests`) outside
     the scope it confirmed.
   - **`publish_held_manifests`** (caller holds the runs lock, checked): with no held batch it
@@ -383,9 +385,15 @@ docs/human/, docs/ai/     see CLAUDE.md
   - **Order and interruption.** The manifest object is written before the phase change. A crash
     in between leaves a complete manifest for an `uploading` batch (the worker may process it,
     which is correct); the next step writes the same bytes and moves the batch. Exclusion and
-    re-review delete such a leftover manifest (`withdraw_manifest`) after their database
-    transaction and before any audio object, so the worker never sees a manifest listing audio
-    that is gone; the cleanup of an `uploading` batch (M5.14) deletes it too.
+    re-review withdraw such a leftover manifest (`withdraw_manifest`) after their database
+    transaction and before any audio object: the manifest first (so the worker never sees one
+    listing audio that is gone), then the batch's `_done.json` and results a worker may have
+    written for it (a `_done.json` would make the worker skip the batch once published again;
+    a result of an item whose audio changed would make it skip that job and keep a subtitle of
+    the old audio). The orphan sweep of `run_upload` (M5.10) and the cleanup of an `uploading`
+    batch (M5.14) withdraw it the same way. A worker still in the middle of that manifest could
+    write a result after the withdrawal; this needs a crash in the manifest step and a run
+    started right after it, and is accepted.
 
 ### 3.4 Conversion
 
@@ -712,21 +720,29 @@ requests wire it in M5.13):
   `check_activity`): used by `launch_worker`, `cleanup_cloud`, the manifest step and
   `publish_held_manifests`, always under the runs lock (checked: `LockRegistry.holds_runs`,
   else `LockOrderError`). It returns every sign of a live run (`RunActivity.sources`: kind,
-  name, status), so a refusal can say why; none means inactive. A run is active when:
+  name, status and the run id, so a refusal can name the run); none means inactive. A run is
+  active when:
   - a local run's status is not final (final: `finished`, `failed`, `cancelled`,
     `launch_failed`; a status this version does not know counts as active);
   - the Runpod lists hold a `transcribe-ui-*` pod in any status but `TERMINATED`, or a
     `transcribe-ui-*` queued pod in any status but `FAILED`, `EXPIRED` and `CANCELLED` (an
-    unknown status counts). A `DEPLOYED` one (or one without `podId`) counts until its pod is
-    listed (the pod's own entry decides then), its pod reads `TERMINATED` by id, or the pod has
-    stayed out of the list for `DEPLOY_SETTLE_S` (10 min) after the deploy (`resolvedAt`) or
-    the name deadline has passed. Before that, a missing pod or a 404 for it may be list lag
-    and counts as active. The plan's "404 after the pod was seen" is implemented as this settle
-    time, which needs no memory of earlier sightings (a pod that ran while the app was closed
-    was never seen) and makes no lookup for the old `DEPLOYED` entries the queued-pod list
-    keeps;
-  - a `runs/*/status.json` cannot be read, or has a non-final state with `updated_at` at most
-    `HEARTBEAT_STALE_S` (10 min) before the clock (or after it; the worker writes every ~30 s).
+    unknown status counts). A `DEPLOYED` one is over once its name deadline has passed (no
+    lookup). Before that: if its pod is in the pod list under any name, that pod's status
+    decides (an app pod counts as itself); without a `podId` it counts; otherwise its pod is
+    looked up by id (`GET /pods/{id}`): live counts, `TERMINATED` does not, and a 404 counts
+    until `DEPLOY_SETTLE_S` (10 min) after the deploy (`resolvedAt`; a missing or later
+    `resolvedAt` keeps it counting), since a pod missing right after a deploy may be list lag.
+    The plan's "404 after the pod was seen" is implemented as this settle time, which needs no
+    memory of earlier sightings (a pod that ran while the app was closed was never seen). The
+    lookup is made for every such entry until its deadline, so a skewed local clock or a pod
+    the list leaves out cannot make a billing pod look gone;
+  - a `runs/*/status.json` written (R2 `LastModified`, kept in `ObjectInfo.modified`) within
+    `HEARTBEAT_STALE_S` (10 min) + `HEARTBEAT_MARGIN_S` (5 min) of the clock either cannot be
+    read (invalid or another schema major: fail closed) or has a non-final state with an
+    `updated_at` at most `HEARTBEAT_STALE_S` before the clock. An `updated_at` ahead of the
+    clock counts, but is taken as at most the run's `deadline_at` + the margin and
+    `LastModified` + `HEARTBEAT_STALE_S`. An older object never counts, readable or not, so a
+    broken or far-future heartbeat cannot block for ever.
 
   The check fails closed: a Runpod list or lookup that fails (after the client's retries)
   or an R2 list or read that fails raises `cloud_unreachable` (details `part`: `runpod` or
@@ -741,9 +757,9 @@ requests wire it in M5.13):
   one (`invalid`) is unreadable and not counted; otherwise every job whose result JSON is not
   listed under `<id>/results/` is pending (with its mode and audio duration). Batches with a
   held manifest are added from the database (`held`, every job pending) unless their manifest
-  is in R2 already. Each batch says whether this database knows it (`known`; unknown ones are
+  is in R2 already (pending, finished or unreadable). Each batch says whether this database knows it (`known`; unknown ones are
   another computer's, Q28) and its file count. The fingerprint is the SHA-256 of the sorted
-  covered batch ids, the sorted pending job keys (`<batch>/<item>/<language>`) and the total
+  covered batch ids, the sorted pending jobs (`<batch>/<item>/<language>/<mode>`) and the total
   pending duration (3 decimals): publishing a held batch keeps it, a new result or another
   batch changes it.
 - Progress and cost shown in the app come from `runs/<run_id>/status.json` and the pod's `cost`
