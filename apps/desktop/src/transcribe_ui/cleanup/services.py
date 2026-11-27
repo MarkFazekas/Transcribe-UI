@@ -17,10 +17,12 @@ retry batch that repeating the request (or `run_upload` on the retry batch) resu
 retry batch is created for the same source and job set.
 
 `cleanup_cloud` takes the runs lock (bounded wait), then the batch's lock (never waited for; lock
-order runs → batch), and holds both to the end, so no run can start and no other request can
-change the batch between the checks and the last delete. A batch this database knows is checked
-(`cleanup/targets.py`) and cleaned up (`cleanup/known.py`); another one goes to
-`cleanup/unknown.py` (Q28). No R2 or Runpod call is made inside a database transaction.
+order runs → batch). A batch this database knows is checked (`cleanup/targets.py`) and cleaned up
+(`cleanup/known.py`): the runs lock is held through the checks and the transaction that records
+the cleanup with its `cleanup_pending` marker, then released before the deletes (the marker keeps
+every launch out, the batch lock and the phase the manifest steps); the batch lock is held to the
+end. A batch it does not know goes to `cleanup/unknown.py` (Q28) and keeps both locks to the end,
+since nothing local would keep a launch out. No R2 or Runpod call is made inside a database transaction.
 """
 
 from contextlib import ExitStack

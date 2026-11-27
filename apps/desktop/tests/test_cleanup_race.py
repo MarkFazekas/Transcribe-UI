@@ -1,9 +1,10 @@
 """`cleanup_cloud` racing `launch_worker` (threads; plan m5 M5.14).
 
-Both hold the runs lock for their whole check-and-act sequence, so whichever takes it first wins:
-a cleanup that waits for a launch sees the new run and is refused, and a launch that waits for a
-cleanup plans again and finds nothing left to transcribe. A worker never gets a batch whose data
-is being deleted.
+Whichever takes the runs lock first wins. A cleanup that waits for a launch sees the new run and
+is refused. A launch during a cleanup is refused, by the runs lock (`runs_busy`) while the cleanup
+checks and records, or by the cleanup's `cleanup_pending` marker while it deletes; once the
+cleanup is done, the launch plans again and finds nothing left to transcribe. A worker never
+gets a batch whose data is being deleted.
 """
 
 import threading
