@@ -201,11 +201,12 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   is deleted by the bridge, so finished calls are freed; `run` first waits until `start` has
   returned, since PySide records the pool as parent only then, and is released even if
   `start` fails, in which case the call is forgotten and the error raised) on one of three `QThreadPool`s, by the
-  presentation table `ACTION_POOLS` in `gui/constants.py`: `long` (3 threads: `scan_tree`,
-  `review_batch`, `run_upload`, `run_download`, `import_custom_plan`, `create_retry_batch`,
-  `cleanup_cloud`, `setup_cloud`), `poll` (1 reserved thread: `refresh_status`,
-  `reconcile_cloud`) and `short` (3 threads: everything else, so Stop and lists never wait
-  behind an upload). The runnable calls `execute` with the call's `CancelFlag` and a sink;
+  presentation table `ACTION_POOLS` in `gui/constants.py`: `scan` (1 thread: `scan_tree`, sent
+  on a `latest` channel, so a new file selection never waits behind uploads or downloads),
+  `long` (3 threads: `review_batch`, `run_upload`, `run_download`, `import_custom_plan`,
+  `create_retry_batch`, `cleanup_cloud`, `setup_cloud`), `poll` (1 reserved thread:
+  `refresh_status`, `reconcile_cloud`) and `short` (3 threads: everything else, so Stop and
+  lists never wait behind an upload). The runnable calls `execute` with the call's `CancelFlag` and a sink;
   start, progress events and the response are emitted on a relay `QObject` living on the GUI
   thread through explicit queued connections, so every callback runs later on the GUI thread,
   in emission order, never inside the call that caused it. Requests, events and responses pass
@@ -257,10 +258,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   log folder"; `internal_error` adds "see the log"). `ERROR_FIXES` adds a button: credentials
   codes → Settings accounts, cloud setup codes → Settings cloud setup, `cleanup_pending` → the
   first batch in `batch_ids`, `app_busy` → Retry (re-sends the failed action, if any, and
-  probes the writer lock, so the notice clears too); unknown codes render generically. One confirmation
-  dialog for every `needs_confirmation`; Confirm re-sends the same request with each `field`
-  set to true (`feedback.confirmed_request`). A field that is not a boolean of the request
-  shows why and disables Confirm. After M6.1 the value comes from `Confirmation.set_to`.
+  probes the writer lock, so the notice clears too); unknown codes render generically. One
+  confirmation dialog for every `needs_confirmation`; Confirm re-sends the same request with
+  each `field` set to its `set_to` (`feedback.confirmed_request`, validated as a `Request`).
 - **Closing** (Q30): with calls pending or a run not final (`GuiContext.run_active`, set by the
   cloud page), the window asks "Stop and close?" (with the cloud-machine note while a run is not
   final). On Stop and close it runs `shutdown` and, while calls are still running (queued ones
