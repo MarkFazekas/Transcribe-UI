@@ -50,7 +50,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
    as botocore `max_attempts`, which counts retries, so a request makes 6 attempts while the
    comment says "Attempts per S3 request". Set `total_max_attempts` (or fix the comment); the
    desktop already uses `total_max_attempts=6`.
-4. For M5.10: before a batch's first upload, check that nothing exists under its id in R2
-   (`batch_metadata/<id>.json`, `<id>/`): batch ids are unique only in this database, and a
-   batch of another computer (Q28) created in the same second would share the prefix. Item
-   phase `uploaded` and `batches/rereview.py` `return_item_to_review` are ready for it.
+4. M5.10 builds on item phase `uploaded` and `batches/rereview.py` `return_item_to_review`;
+   its scope includes the cross-computer batch id check (`plans/m5.md`).

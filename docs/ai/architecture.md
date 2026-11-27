@@ -304,11 +304,15 @@ docs/human/, docs/ai/     see CLAUDE.md
   - **Probing.** `review_batch` stat-s and probes every item in `reviewing` (also on a later
     call, so a file that changed is caught; the probe cache makes this cheap): one transaction
     per item, ffprobe outside it, progress per item, the cancel token between items, so an
-    interrupted review continues with the rest. The probe cache keeps one row per path. The
-    item's recorded size and mtime become the probed ones (the upload's source-unchanged
-    check compares against them). A missing file (`source_missing`) or a failed or timed-out
-    probe (`probe_failed`) is an item problem, not a failed request; a missing tool, broken
-    settings or cancel fail the request.
+    interrupted review continues with the rest. The probe cache (`probe_cache.py`) keeps one
+    row per path; a row it cannot read (another payload shape) is a miss and is overwritten.
+    The file is stat-ed again after ffprobe: when its size or mtime changed meanwhile, the
+    result is neither cached nor used and the file is probed once more; changing again makes
+    it an item problem (`source_changing`). The item's recorded size and mtime become the
+    probed ones (the upload's source-unchanged check compares against them). A missing file
+    (`source_missing`), a failed or timed-out probe (`probe_failed`) or a file that keeps
+    changing is an item problem, not a failed request; a missing tool, broken settings or
+    cancel fail the request.
   - **Pre-selection** (`choices.py`): a job transcribes by default (the user asked for a
     transcription); extracting an embedded subtitle is chosen in the review. Track: the one
     tagged with the job's language (tags read like sidecar names, `hun` = `hu`), else the
@@ -321,17 +325,26 @@ docs/human/, docs/ai/     see CLAUDE.md
     problem or an unresolved job), narrowed by the request's `filters` (job languages, a folder
     compared with the path-flavour rule), plus totals over all items in review.
     `resolve_review` applies its choices all or none (`choice_invalid` with the choice's index
-    and a reason: unknown item or job, item not in review, not probed, track or stream out of
-    range, a track for an audio file, a picture subtitle to extract) and returns the
-    unfiltered views.
-  - **Leaving the upload.** `exclude_items` (batch in `reviewing` or `uploading`, never the
-    last item: `last_item`) deletes the excluded items' audio objects first (the recorded ones
-    and anything else under the item's audio prefix; only an `uploading` batch touches R2, so a
-    batch in review needs no credentials), then their rows, clearing `manifest_held` in the
-    same transaction. `batches/rereview.py` `return_item_to_review` is the upload's way to
-    send an item whose source changed back to review (caller holds the batch lock): objects
-    first, then its audio and extracted-subtitle rows, jobs pending again, item `reviewing`,
-    `manifest_held` cleared. A batch with only `extract` jobs left shows `extract_only` in its
+    and a reason: unknown item or job, item not in review, `upload_started` (in an `uploading`
+    batch, an item with `audio_objects` or `extracted_subtitles` rows: only items sent back to
+    review, whose rows are gone, or items not uploaded at all can change), not probed, track or
+    stream out of range, a track for an audio file, a picture subtitle to extract) and returns
+    the unfiltered views.
+  - **Leaving the upload.** The database forgets an item's upload before R2 does, so no
+    interruption leaves a held manifest that lists deleted audio. `exclude_items` (batch in
+    `reviewing` or `uploading`, never the last item: `last_item`) first clears `manifest_held`
+    and deletes the excluded items' `audio_objects` and `extracted_subtitles` rows in one
+    transaction, then deletes every object under each item's audio prefix (the listing also
+    finds objects that were uploaded but not recorded; only an `uploading` batch touches R2,
+    so a batch in review needs no credentials), then deletes the item rows. An interruption
+    in between leaves the items without upload rows; re-sending the request finishes it.
+    `deleted_objects` counts the objects the request found and deleted. `batches/rereview.py`
+    `return_item_to_review` is the upload's way to send an item whose source changed back to
+    review (caller holds the batch lock; the item must belong to the batch): one transaction
+    sets the item `reviewing`, deletes its audio and extracted-subtitle rows, sets its jobs
+    pending and clears `manifest_held`; then its objects are deleted. Objects an interruption
+    leaves behind stay under the item's prefix, where a later exclusion, re-upload (M5.10) or
+    cleanup removes them. A batch with only `extract` jobs left shows `extract_only` in its
     summary; the upload takes it to `transcribed` without a manifest.
   - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
     `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
@@ -677,8 +690,11 @@ directories, the settings store, the locks and the lazily opened database.
   touch payload classes, not tables. Timestamps come from the injected clock and are stored as
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
   Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
-  (developers delete their local database); from then on every change is a new revision. A
-  test asserts that the migrated schema equals the models (Alembic `compare_metadata`).
+  (developers delete their local database); from then on every change is a new revision,
+  including a change of a stored payload's shape (a field removed, renamed or retyped, a
+  literal value dropped): the revision rewrites the stored JSON, since readers do not migrate
+  it (only the probe cache treats an unreadable row as a miss). A test asserts that the
+  migrated schema equals the models (Alembic `compare_metadata`).
 - **Database**: WAL mode, `synchronous=FULL` (a commit survives a power loss), foreign keys
   enforced, the driver's legacy transaction control stated explicitly with its implicit BEGIN
   turned off, and every transaction started with `BEGIN IMMEDIATE`, so threads queue on
