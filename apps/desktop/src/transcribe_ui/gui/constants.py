@@ -26,6 +26,9 @@ CALL_RUNNING: Final[CallState] = "running"
 # State of a completed call.
 CALL_DONE: Final[CallState] = "done"
 
+# The one key of a single-flight channel (the poll has one tick at a time).
+POLL_KEY: Final = "poll"
+
 # Log file of the GUI in the user log dir; each frontend has its own, so no two frontends rotate one file.
 GUI_LOG_FILE_NAME: Final = "transcribe-ui-gui.log"
 # Module of the GUI's start (`run_gui`), imported by `gui/main.py` only after the display check.

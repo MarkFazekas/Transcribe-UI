@@ -7,8 +7,7 @@ import pytest
 from pytestqt.qtbot import QtBot
 
 from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, listing, refresh, uploads, wait_for
-from transcribe_ui.api.classes import ErrorResponse, GetAppInfoResponse, Response
-from transcribe_ui.api.constants import ERROR_CANCELLED
+from transcribe_ui.api.classes import GetAppInfoResponse, Response
 from transcribe_ui.gui.bridge import QtExecutor
 from transcribe_ui.gui.constants import LONG_POOL, POLL_POOL, SHORT_POOL, CallState
 from transcribe_ui.gui.executor import ExclusiveChannel, LatestChannel, SingleFlightChannel
@@ -123,7 +122,7 @@ def test_single_flight_shows_a_running_tick(executor: QtExecutor, gated: GatedRu
 
 
 def test_cancelled_queued_tick_frees_channel(executor: QtExecutor, gated: GatedRunner, qtbot: QtBot) -> None:
-    """A starved tick that is cancelled (taken off its pool) frees the channel for the next tick."""
+    """A starved tick that is cancelled frees the channel at once; its stale answer is dropped."""
     executor.submit(refresh(), lambda _response: None)
     wait_for(qtbot, lambda: gated.started(REFRESH) == 1)
     channel = SingleFlightChannel(executor)
@@ -133,11 +132,24 @@ def test_cancelled_queued_tick_frees_channel(executor: QtExecutor, gated: GatedR
     assert _state(channel) is None
     assert channel.send(refresh(), ticks.append) is not None
     gated.release()
-    wait_for(qtbot, lambda: len(ticks) == TWO_CALLS)
-    first = ticks[0]
-    assert isinstance(first, ErrorResponse)
-    assert first.error.code == ERROR_CANCELLED
-    assert (_kinds(ticks[1:]), gated.started(REFRESH)) == ([GetAppInfoResponse], TWO_CALLS)
+    wait_for(qtbot, lambda: executor.pending() == 0)
+    assert (_kinds(ticks), gated.started(REFRESH)) == ([GetAppInfoResponse], TWO_CALLS)
+
+
+def test_exclusive_drops_a_stale_cancelled_answer(executor: QtExecutor, gated: GatedRunner, qtbot: QtBot) -> None:
+    """A queued call cancelled and sent again at once: only the new call's answer arrives."""
+    blocker, request = uploads(TWO_CALLS)
+    executor.submit(blocker, lambda _response: None)
+    wait_for(qtbot, lambda: gated.started(UPLOAD) == 1)
+    channel = ExclusiveChannel(executor)
+    answers: list[Response] = []
+    first = channel.send("job", request, answers.append)
+    assert first is not None
+    first.cancel()
+    assert channel.send("job", request, answers.append) is not None
+    gated.release()
+    wait_for(qtbot, lambda: executor.pending() == 0)
+    assert _kinds(answers) == [GetAppInfoResponse]
 
 
 def test_channel_waits_for_delivery(executor: QtExecutor, qtbot: QtBot) -> None:
