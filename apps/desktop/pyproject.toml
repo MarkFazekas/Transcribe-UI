@@ -1,0 +1,28 @@
+[project]
+name = "transcribe-ui"
+version = "0.1.0"
+description = "Desktop app that sends local audio and video to a Runpod Whisper worker and places the subtitles."
+license = "Apache-2.0"
+requires-python = ">=3.13,<3.14"
+# Every runtime dependency of the M5 backend, added up front so parallel parts do not conflict
+# on uv.lock (docs/ai/plans/m5.md §1).
+dependencies = [
+    "alembic>=1.20",
+    "boto3>=1.44",
+    "httpx>=0.29",
+    "keyring>=25.7",
+    "platformdirs>=4.14",
+    "pydantic>=2.12",
+    "sqlalchemy>=2.1",
+    "transcribe-contracts",
+]
+
+[project.scripts]
+transcribe-ui = "transcribe_ui.cli.main:run"
+
+[tool.uv.sources]
+transcribe-contracts = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
