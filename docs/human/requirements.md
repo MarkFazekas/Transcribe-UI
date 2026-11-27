@@ -184,6 +184,10 @@ Naming and conflicts:
   finished uploading. The app then shows the state: waiting for a free cloud machine,
   starting, transcribing (which job and file, elapsed time, cost so far), finished, or failed.
   While waiting for a machine, the user can cancel *(accepted proposal)*.
+- Stopping the cloud machine *(Q34, accepted default)*: the Cloud page offers "Cancel" while
+  waiting for a machine and "Stop" while starting or transcribing, both with a confirmation.
+  Stopping keeps every subtitle already finished; the files not done yet wait for the next start
+  of transcription.
 - Run monitoring (architect): the status should be refreshed from R2 every 5 minutes, and the
   remaining time should be estimated from the files' completion. The estimated time should be a
   countdown, and maybe there should be a progress bar too.

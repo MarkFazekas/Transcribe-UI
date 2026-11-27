@@ -10,15 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q34. Stopping the cloud machine while it transcribes
-
-The requirements let the user cancel while waiting for a free cloud machine. The app can also
-stop a machine that already started or is transcribing.
-
-Proposed default: the Cloud page offers "Cancel" while waiting and "Stop" while starting or
-transcribing, both with a confirmation. Stopping keeps every subtitle already finished; the
-files not done yet wait for the next start of transcription.
-
 ### Q35. Deleting a job's subtitles from the cloud when several computers download them
 
 Since Q28, a job's subtitles can be downloaded by the computer that uploaded it and also by

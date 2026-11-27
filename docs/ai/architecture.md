@@ -1126,7 +1126,9 @@ database):
   `posted_at`, `sending_at` and the row's creation (a retry after a 429 may send late), and two
   lookups after that, at least `LAUNCH_LOOKUP_GAP_S` (60 s) apart, found nothing (the first one
   is recorded as `first_empty_lookup_at`). A pod that appears after that is a straggler.
-- **Cancel** (`runs/cancel.py`, `stopping.py`; request `cancel_worker` with `run_id`; runs
+- **Cancel** (`runs/cancel.py`, `stopping.py`; request `cancel_worker` with `run_id` and, from
+  M6.1, `confirm` (Q34: without it the answer is `needs_confirmation` with the run, its stage,
+  and that finished subtitles are kept and unfinished files wait for the next start); runs
   lock): a `launching` run is resolved first (one lookup); still unresolved gives
   `launch_unresolved`. A run with a pod id: `DELETE` the pod, then `GET` it: `TERMINATED`
   verifies it, and so does a 404 for a seen pod (a pod read showed it). A pod known only from
