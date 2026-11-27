@@ -26,7 +26,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M5.8 (batches and review) on its own branch (see "Next").
+- None.
 
 ## Waiting on humans
 
@@ -44,10 +44,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. M5 wave 3 per `docs/ai/plans/m5.md` §4 (M5.1-M5.7 are built): M5.8 (batches and review)
-   is in progress on its own branch, then M5.9 (manifests and run activity); M4 runs whenever
-   the architect is available.
+2. M5 wave 3 per `docs/ai/plans/m5.md` §4 (M5.1-M5.8 are built): M5.9 (manifests and run
+   activity) next; M4 runs whenever the architect is available.
 3. Small follow-up: the worker's `S3_MAX_ATTEMPTS = 5` (`pipeline/constants.py`) is passed
    as botocore `max_attempts`, which counts retries, so a request makes 6 attempts while the
    comment says "Attempts per S3 request". Set `total_max_attempts` (or fix the comment); the
    desktop already uses `total_max_attempts=6`.
+4. M5.10 builds on item phase `uploaded` and `batches/rereview.py` `return_item_to_review`;
+   its scope includes the cross-computer batch id check (`plans/m5.md`).

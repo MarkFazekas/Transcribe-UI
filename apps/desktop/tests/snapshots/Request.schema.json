@@ -1,5 +1,9 @@
 {
   "$defs": {
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
     "BucketName": {
       "type": "string"
     },
@@ -35,6 +39,67 @@
       "title": "CloudSetupStatusRequest",
       "type": "object"
     },
+    "CreateBatchRequest": {
+      "additionalProperties": false,
+      "description": "Store a new batch in `composing` from a selection.",
+      "properties": {
+        "action": {
+          "const": "create_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "confirm_existing_languages": {
+          "default": false,
+          "description": "Create jobs also for languages a file already has a subtitle in.",
+          "title": "Confirm Existing Languages",
+          "type": "boolean"
+        },
+        "item_languages": {
+          "default": [],
+          "description": "Other target languages for single files.",
+          "items": {
+            "$ref": "#/$defs/ItemLanguages"
+          },
+          "title": "Item Languages",
+          "type": "array"
+        },
+        "languages": {
+          "$ref": "#/$defs/TargetLanguages",
+          "description": "Target languages of every selected file."
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/SelectionOperation"
+          },
+          "minItems": 1,
+          "title": "Operations",
+          "type": "array"
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanSpec"
+        },
+        "scan_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reuse this scan of the same options if this process still keeps it; else scan again."
+        }
+      },
+      "required": [
+        "scan",
+        "operations",
+        "languages",
+        "action"
+      ],
+      "title": "CreateBatchRequest",
+      "type": "object"
+    },
     "CredentialsStatusRequest": {
       "additionalProperties": false,
       "description": "Report which credentials are set and where from; never their values.",
@@ -51,8 +116,152 @@
       "title": "CredentialsStatusRequest",
       "type": "object"
     },
+    "DeleteBatchRequest": {
+      "additionalProperties": false,
+      "description": "Delete a batch in `composing` or `reviewing` (nothing of it is in the cloud yet).",
+      "properties": {
+        "action": {
+          "const": "delete_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "DeleteBatchRequest",
+      "type": "object"
+    },
+    "EditBatchRequest": {
+      "additionalProperties": false,
+      "description": "Replace the items of a batch in `composing` with a new selection.",
+      "properties": {
+        "action": {
+          "const": "edit_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "confirm_existing_languages": {
+          "default": false,
+          "description": "Create jobs also for languages a file already has a subtitle in.",
+          "title": "Confirm Existing Languages",
+          "type": "boolean"
+        },
+        "item_languages": {
+          "default": [],
+          "description": "Other target languages for single files.",
+          "items": {
+            "$ref": "#/$defs/ItemLanguages"
+          },
+          "title": "Item Languages",
+          "type": "array"
+        },
+        "languages": {
+          "$ref": "#/$defs/TargetLanguages",
+          "description": "Target languages of every selected file."
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/SelectionOperation"
+          },
+          "minItems": 1,
+          "title": "Operations",
+          "type": "array"
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanSpec"
+        },
+        "scan_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reuse this scan of the same options if this process still keeps it; else scan again."
+        }
+      },
+      "required": [
+        "scan",
+        "operations",
+        "languages",
+        "action",
+        "batch_id"
+      ],
+      "title": "EditBatchRequest",
+      "type": "object"
+    },
     "EndpointUrl": {
       "type": "string"
+    },
+    "ExcludeItemsRequest": {
+      "additionalProperties": false,
+      "description": "Remove items from a batch in `reviewing` or `uploading`, deleting their uploaded audio.",
+      "properties": {
+        "action": {
+          "const": "exclude_items",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "item_ids": {
+          "items": {
+            "$ref": "#/$defs/Ulid"
+          },
+          "minItems": 1,
+          "title": "Item Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id",
+        "item_ids"
+      ],
+      "title": "ExcludeItemsRequest",
+      "type": "object"
+    },
+    "ExtractChoice": {
+      "additionalProperties": false,
+      "description": "Extract an embedded text subtitle stream as the job's subtitle.",
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "const": "extract",
+          "title": "Kind",
+          "type": "string"
+        },
+        "language": {
+          "$ref": "#/$defs/WhisperLanguage"
+        },
+        "stream_index": {
+          "minimum": 0,
+          "title": "Stream Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "item_id",
+        "language",
+        "stream_index"
+      ],
+      "title": "ExtractChoice",
+      "type": "object"
     },
     "FileExtension": {
       "pattern": "^[a-z0-9]{1,16}$",
@@ -74,6 +283,26 @@
       "title": "GetAppInfoRequest",
       "type": "object"
     },
+    "GetBatchRequest": {
+      "additionalProperties": false,
+      "description": "Return one batch with its items and jobs.",
+      "properties": {
+        "action": {
+          "const": "get_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "GetBatchRequest",
+      "type": "object"
+    },
     "GetSettingsRequest": {
       "additionalProperties": false,
       "description": "Ask for the stored settings and every Whisper language (needs no database).",
@@ -90,9 +319,49 @@
       "title": "GetSettingsRequest",
       "type": "object"
     },
+    "ItemLanguages": {
+      "additionalProperties": false,
+      "description": "Target languages of one selected file, instead of the batch's languages.",
+      "properties": {
+        "languages": {
+          "$ref": "#/$defs/TargetLanguages"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "The file's path exactly as the scan reported it."
+        }
+      },
+      "required": [
+        "path",
+        "languages"
+      ],
+      "title": "ItemLanguages",
+      "type": "object"
+    },
     "LanguageCode": {
       "pattern": "^[a-z]{2,3}$",
       "type": "string"
+    },
+    "ListBatchesRequest": {
+      "additionalProperties": false,
+      "description": "List the batches, newest first.",
+      "properties": {
+        "action": {
+          "const": "list_batches",
+          "title": "Action",
+          "type": "string"
+        },
+        "include_hidden": {
+          "default": false,
+          "title": "Include Hidden",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ListBatchesRequest",
+      "type": "object"
     },
     "LocalPath": {
       "type": "string"
@@ -216,6 +485,108 @@
         "scan"
       ],
       "title": "PreviewSelectionRequest",
+      "type": "object"
+    },
+    "ResolveReviewRequest": {
+      "additionalProperties": false,
+      "description": "Set the choice of jobs in review; all choices are applied, or none.",
+      "properties": {
+        "action": {
+          "const": "resolve_review",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/ReviewChoice"
+          },
+          "minItems": 1,
+          "title": "Choices",
+          "type": "array"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id",
+        "choices"
+      ],
+      "title": "ResolveReviewRequest",
+      "type": "object"
+    },
+    "ReviewBatchRequest": {
+      "additionalProperties": false,
+      "description": "Probe the files waiting for review, then return the review views.",
+      "properties": {
+        "action": {
+          "const": "review_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "filters": {
+          "$ref": "#/$defs/ReviewFilter",
+          "default": {
+            "folder": null,
+            "languages": []
+          }
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "ReviewBatchRequest",
+      "type": "object"
+    },
+    "ReviewChoice": {
+      "discriminator": {
+        "mapping": {
+          "extract": "#/$defs/ExtractChoice",
+          "transcribe": "#/$defs/TranscribeChoice"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TranscribeChoice"
+        },
+        {
+          "$ref": "#/$defs/ExtractChoice"
+        }
+      ]
+    },
+    "ReviewFilter": {
+      "additionalProperties": false,
+      "description": "The main view's filters applied to the review views.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only files at or below this folder."
+        },
+        "languages": {
+          "default": [],
+          "description": "Only jobs of these languages (all when empty).",
+          "items": {
+            "$ref": "#/$defs/WhisperLanguage"
+          },
+          "title": "Languages",
+          "type": "array"
+        }
+      },
+      "title": "ReviewFilter",
       "type": "object"
     },
     "ScanSpec": {
@@ -445,6 +816,31 @@
       "title": "SelectionOperation",
       "type": "object"
     },
+    "SetBatchHiddenRequest": {
+      "additionalProperties": false,
+      "description": "Hide a finished batch from the default list, or show it again.",
+      "properties": {
+        "action": {
+          "const": "set_batch_hidden",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "hidden": {
+          "title": "Hidden",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id",
+        "hidden"
+      ],
+      "title": "SetBatchHiddenRequest",
+      "type": "object"
+    },
     "SetPath": {
       "minLength": 1,
       "type": "string"
@@ -521,6 +917,26 @@
         "action"
       ],
       "title": "SetupCloudRequest",
+      "type": "object"
+    },
+    "StartReviewRequest": {
+      "additionalProperties": false,
+      "description": "Move a batch from `composing` to `reviewing`.",
+      "properties": {
+        "action": {
+          "const": "start_review",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "StartReviewRequest",
       "type": "object"
     },
     "StoreCredentialsRequest": {
@@ -630,6 +1046,13 @@
       ],
       "type": "string"
     },
+    "TargetLanguages": {
+      "items": {
+        "$ref": "#/$defs/WhisperLanguage"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
     "Token": {
       "format": "password",
       "type": "string",
@@ -637,6 +1060,44 @@
     },
     "ToolPath": {
       "$ref": "#/$defs/SetPath"
+    },
+    "TranscribeChoice": {
+      "additionalProperties": false,
+      "description": "Transcribe the file into the job's language from one audio track.",
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "const": "transcribe",
+          "title": "Kind",
+          "type": "string"
+        },
+        "language": {
+          "$ref": "#/$defs/WhisperLanguage"
+        },
+        "track_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Audio track of a video file; none for an audio file (uploaded as it is).",
+          "title": "Track Index"
+        }
+      },
+      "required": [
+        "kind",
+        "item_id",
+        "language"
+      ],
+      "title": "TranscribeChoice",
+      "type": "object"
     },
     "Ulid": {
       "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
@@ -670,12 +1131,22 @@
     "mapping": {
       "check_credentials": "#/$defs/CheckCredentialsRequest",
       "cloud_setup_status": "#/$defs/CloudSetupStatusRequest",
+      "create_batch": "#/$defs/CreateBatchRequest",
       "credentials_status": "#/$defs/CredentialsStatusRequest",
+      "delete_batch": "#/$defs/DeleteBatchRequest",
+      "edit_batch": "#/$defs/EditBatchRequest",
+      "exclude_items": "#/$defs/ExcludeItemsRequest",
       "get_app_info": "#/$defs/GetAppInfoRequest",
+      "get_batch": "#/$defs/GetBatchRequest",
       "get_settings": "#/$defs/GetSettingsRequest",
+      "list_batches": "#/$defs/ListBatchesRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
+      "resolve_review": "#/$defs/ResolveReviewRequest",
+      "review_batch": "#/$defs/ReviewBatchRequest",
       "scan_tree": "#/$defs/ScanTreeRequest",
+      "set_batch_hidden": "#/$defs/SetBatchHiddenRequest",
       "setup_cloud": "#/$defs/SetupCloudRequest",
+      "start_review": "#/$defs/StartReviewRequest",
       "store_credentials": "#/$defs/StoreCredentialsRequest",
       "update_settings": "#/$defs/UpdateSettingsRequest"
     },
@@ -711,6 +1182,36 @@
     },
     {
       "$ref": "#/$defs/CloudSetupStatusRequest"
+    },
+    {
+      "$ref": "#/$defs/CreateBatchRequest"
+    },
+    {
+      "$ref": "#/$defs/EditBatchRequest"
+    },
+    {
+      "$ref": "#/$defs/DeleteBatchRequest"
+    },
+    {
+      "$ref": "#/$defs/StartReviewRequest"
+    },
+    {
+      "$ref": "#/$defs/ReviewBatchRequest"
+    },
+    {
+      "$ref": "#/$defs/ResolveReviewRequest"
+    },
+    {
+      "$ref": "#/$defs/ExcludeItemsRequest"
+    },
+    {
+      "$ref": "#/$defs/ListBatchesRequest"
+    },
+    {
+      "$ref": "#/$defs/GetBatchRequest"
+    },
+    {
+      "$ref": "#/$defs/SetBatchHiddenRequest"
     }
   ]
 }

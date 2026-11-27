@@ -12,11 +12,12 @@ import pytest
 
 from support.fakes import seeded_ports
 from support.golden import SNAPSHOT_DIR
-from transcribe_ui.api.backend import Backend, Route
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, GetAppInfoRequest, GetAppInfoResponse, Response
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.api.info import app_version, get_app_info
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.api.routes import Route
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import (
     EXIT_CANCELLED,

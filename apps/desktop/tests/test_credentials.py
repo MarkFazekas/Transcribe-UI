@@ -26,9 +26,9 @@ from support.credentials import (
 from support.fakes import seeded_ports
 from support.golden import assert_golden
 from support.parity import Exchange, run_one, run_parity
-from transcribe_ui.api.backend import Route, Routes
 from transcribe_ui.api.classes import Response
 from transcribe_ui.api.ports import CancelFlag, DiscardProgress, RequestContext
+from transcribe_ui.api.routes import Route, Routes
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_INVALID_REQUEST, EXIT_OK
 from transcribe_ui.credentials.classes import CheckCredentialsRequest, R2Credentials
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials

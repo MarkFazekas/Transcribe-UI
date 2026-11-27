@@ -16,9 +16,10 @@ from typing import Self
 
 from support.fakes import seeded_ports
 from support.normalise import ROOT_PLACEHOLDER, PathNormaliser
-from transcribe_ui.api.backend import Backend, Routes
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ProgressEvent, Response
 from transcribe_ui.api.ports import Ports
+from transcribe_ui.api.routes import Routes
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.main import main
 from transcribe_ui.cli.output import exit_code
@@ -47,6 +48,10 @@ class Exchange:
             "events": [json.loads(event) for event in self.events],
         }
         return f"{json.dumps(document, indent=2, ensure_ascii=False)}\n"
+
+
+# A request document, or a function building it from the outcomes of the requests before it.
+type Template = str | Callable[[list[Exchange]], str]
 
 
 @dataclass
@@ -121,7 +126,7 @@ def _via_cli(leg: Leg, template: str, request_file: Path) -> Exchange:
 
 def run_parity(
     tmp_path: Path,
-    templates: Sequence[str],
+    templates: Sequence[Template],
     routes: RoutesFactory | None = None,
     prepare: Prepare | None = None,
     ports: PortsFactory | None = None,
@@ -129,16 +134,19 @@ def run_parity(
     """Run the request documents through both legs, assert they agree, return the CLI leg's outcomes.
 
     A document may contain `<root>`, which each leg replaces with its own root; `prepare` fills
-    each leg's root first, and `ports` (if given) builds each leg's ports.
+    each leg's root first, and `ports` (if given) builds each leg's ports. A template may also be
+    a function of the outcomes so far (for ids a previous response returned; both legs return
+    the same ones).
     """
     direct = Leg.create(tmp_path / "backend", routes, prepare, ports)
     via_cli = Leg.create(tmp_path / "cli", routes, prepare, ports)
     # Request files live outside the leg's root, so they never show up in what a request sees there.
     requests_dir = tmp_path / "requests-cli"
     requests_dir.mkdir()
-    exchanges = []
+    exchanges: list[Exchange] = []
     with closing(direct), closing(via_cli):
-        for index, template in enumerate(templates):
+        for index, step in enumerate(templates):
+            template = step if isinstance(step, str) else step(exchanges)
             expected = _via_backend(direct, template)
             actual = _via_cli(via_cli, template, requests_dir / f"request-{index}.json")
             assert actual == expected, f"request {index}: the CLI and the backend disagree"

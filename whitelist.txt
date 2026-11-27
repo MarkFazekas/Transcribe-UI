@@ -7,6 +7,7 @@ argtypes
 asr
 astimezone
 attrgetter
+autoescape
 autogenerate
 autoincrement
 autouse
@@ -36,8 +37,10 @@ cuda
 dbapi
 defs
 delenv
+deletable
 demuxes
 deque
+desc
 dest
 devnull
 dfl
@@ -81,6 +84,7 @@ fstat
 fsync
 fullmatch
 fullwidth
+func
 gc
 geteuid
 getframerate
@@ -91,8 +95,10 @@ getsid
 getsignal
 gettempdir
 gitignore
+goldens
 gpus
 groupby
+hashable
 hhmmss
 httpx
 hu
@@ -180,12 +186,14 @@ posix
 prefetch
 prefetcher
 preprocess
+preselected
 prog
 pyannote
 pydantic
 pysqlite
 pytestmark
 q10
+q26
 q27
 q29
 qs
@@ -197,6 +205,7 @@ recv
 removeprefix
 removesuffix
 repo
+rereview
 restype
 retryable
 rfile
@@ -240,11 +249,13 @@ ui
 ulid
 ulonglong
 und
+unhiding
 unicodedata
 unittest
 unlck
 unlink
 unspaced
+untagged
 untimed
 untracked
 untrusted
@@ -271,3 +282,4 @@ wintypes
 writeframes
 yue
 yyyymmdd
+zoneinfo

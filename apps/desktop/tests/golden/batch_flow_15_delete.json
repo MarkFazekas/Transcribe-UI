@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "delete_batch",
+    "batch_id": "batch_20261127_130000"
+  },
+  "events": []
+}

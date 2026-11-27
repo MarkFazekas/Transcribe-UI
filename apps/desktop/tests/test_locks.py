@@ -8,11 +8,12 @@ from pathlib import Path
 import pytest
 
 from support.fakes import TEST_RUNS_LOCK_WAIT_S, seeded_ports
-from transcribe_ui.api.backend import Backend, Route
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorResponse, GetAppInfoRequest, GetAppInfoResponse, Response
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.api.info import get_app_info
 from transcribe_ui.api.ports import CancelFlag, RequestContext
+from transcribe_ui.api.routes import Route
 from transcribe_ui.state.errors import RunsBusyError
 from transcribe_ui.state.locks import LockRegistry
 

@@ -1,0 +1,16 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "resolve_review",
+    "error": {
+      "code": "choice_invalid",
+      "message": "Picture-based subtitles cannot be extracted as text; they can only be transcribed.",
+      "details": {
+        "choice": 1,
+        "reason": "stream_not_text"
+      }
+    }
+  },
+  "events": []
+}

@@ -10,7 +10,7 @@
         "problems": [
           {
             "location": [],
-            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info', 'scan_tree', 'preview_selection', 'get_settings', 'update_settings', 'store_credentials', 'credentials_status', 'check_credentials', 'setup_cloud', 'cloud_setup_status'",
+            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info', 'scan_tree', 'preview_selection', 'get_settings', 'update_settings', 'store_credentials', 'credentials_status', 'check_credentials', 'setup_cloud', 'cloud_setup_status', 'create_batch', 'edit_batch', 'delete_batch', 'start_review', 'review_batch', 'resolve_review', 'exclude_items', 'list_batches', 'get_batch', 'set_batch_hidden'",
             "type": "union_tag_invalid"
           }
         ]

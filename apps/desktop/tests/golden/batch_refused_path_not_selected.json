@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "create_batch",
+    "error": {
+      "code": "path_not_selected",
+      "message": "item_languages names a file that is not in the selection.",
+      "details": {
+        "index": 0
+      }
+    }
+  },
+  "events": []
+}

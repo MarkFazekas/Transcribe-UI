@@ -66,11 +66,12 @@ docs/human/, docs/ai/     see CLAUDE.md
     `internal_error` with a generic message (the traceback goes to the log only).
 - Models live in the desktop app (not in contracts: they are not shared with the worker): the
   unions in `transcribe_ui/api/classes.py`, each sub-package's request and response models in
-  its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`), so
+  its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`,
+  `WhisperLanguage`), so
   `api/classes.py` can import them without a cycle. A path on the user's computer is typed
   `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
   fields (§7).
-- The dispatch table (`api/backend.py`) maps each action to its handler and marks whether it
+- The dispatch table (`api/routes.py`) maps each action to its handler and marks whether it
   needs the database; request types that do not (app info, settings, credentials, scans) never
   open it, so the CLI can run them while the GUI holds the writer lock.
 - Cancellation: long requests check the `CancelToken` between items and stop with the error
@@ -93,8 +94,8 @@ docs/human/, docs/ai/     see CLAUDE.md
   - **GUI**: view-models translate widget state into the same request models.
   - **MCP (later)**: one FastMCP tool per request type; the tool signature is the request
     model, so no new business logic is needed.
-- Determinism: clock, ULID generator, filesystem root and external clients (R2, Runpod,
-  ffmpeg) are injected ports. Given the same request and the same port fakes, the backend
+- Determinism: clock, local time zone, ULID generator, filesystem root and external clients
+  (R2, Runpod, ffmpeg) are injected ports. Given the same request and the same port fakes, the backend
   returns byte-identical JSON regardless of frontend. Flow tests assert this directly
   (section 7).
 - Requests are validated only against machine-independent rules (for example the full Whisper
@@ -273,6 +274,84 @@ docs/human/, docs/ai/     see CLAUDE.md
   ORM, one writer process at a time; rows store Pydantic models as JSON plus indexed status
   columns. Temp audio goes to `user_cache_dir`, one file at a time. History is kept; finished
   batches can be hidden. Details: §3.8.
+- **Implementation** (`transcribe_ui/batches/`; requests `create_batch`, `edit_batch`,
+  `delete_batch`, `start_review`, `review_batch`, `resolve_review`, `exclude_items`,
+  `list_batches`, `get_batch`, `set_batch_hidden`; all open the database). Models: `classes.py`
+  (requests), `responses.py`, `payloads.py` (the JSON payloads of the `batches`, `items` and
+  `jobs` rows; the M5.2 tables are used as they are).
+  - **Composition.** `create_batch` and `edit_batch` carry the scan options, an optional
+    `scan_id` (the kept scan is reused as in `preview_selection`), the selection operations
+    and the batch's target languages, plus optional `item_languages` (other languages for
+    single files, matched with the path-flavour rule; an entry naming a file outside the
+    selection is `path_not_selected`). The backend resolves the selection itself, so the
+    request alone decides (§3.1); an empty selection is `nothing_selected`. A job for a
+    language the file already has a sidecar subtitle in (forced ones do not count) needs
+    `confirm_existing_languages`; the confirmation lists the files by their `/`-separated path
+    below the scan root (details are not path-normalised). Items are listed in scan order.
+  - **Ids and locks.** The batch id comes from the injected clock in `Ports.local_zone` (None:
+    this computer's zone, read at each use, so DST applies); the free id is picked inside the
+    transaction that inserts the batch (`BEGIN IMMEDIATE` serialises two creations in one
+    second), so `create_batch` takes no batch lock: nobody can know the id before it commits.
+    Every other changing request holds the batch lock and changes the batch conditionally:
+    phase moves by compare-and-set, other changes by `touch_batch` (`UPDATE ... WHERE phase
+    IN (...)`). A request in the wrong phase gets `wrong_phase` (details: phase, allowed);
+    `phase_conflict` stays the error of a lost race. `start_review` on a batch already in
+    `reviewing` is a no-op.
+  - **Item phases**: `composing`, `reviewing`, `reviewed` (probed, every job resolved),
+    `uploaded` (written by the upload, M5.10). An item in `reviewing` or `reviewed` is "in
+    review": its choices can change. The review is complete when no item in review is
+    unresolved; the upload moves the batch on from there.
+  - **Probing.** `review_batch` stat-s and probes every item in `reviewing` (also on a later
+    call, so a file that changed is caught; the probe cache makes this cheap): one transaction
+    per item, ffprobe outside it, progress per item, the cancel token between items, so an
+    interrupted review continues with the rest. The probe cache (`probe_cache.py`) keeps one
+    row per path; a row it cannot read (another payload shape) is a miss and is overwritten.
+    The file is stat-ed again after ffprobe: when its size or mtime changed meanwhile, the
+    result is neither cached nor used and the file is probed once more; changing again makes
+    it an item problem (`source_changing`). The item's recorded size and mtime become the
+    probed ones (the upload's source-unchanged check compares against them). A missing file
+    (`source_missing`), a failed or timed-out probe (`probe_failed`) or a file that keeps
+    changing is an item problem, not a failed request; a missing tool, broken settings or
+    cancel fail the request.
+  - **Pre-selection** (`choices.py`): a job transcribes by default (the user asked for a
+    transcription); extracting an embedded subtitle is chosen in the review. Track: the one
+    tagged with the job's language (tags read like sidecar names, `hun` = `hu`), else the
+    default-flagged one, else the first. An audio file has no track choice (uploaded as it is,
+    the manifest's audio item has no track); it is not in the track view. A file without audio
+    extracts a text subtitle tagged with the job's language when it has one, else the job stays
+    unresolved. Choices made earlier are kept when a file probes the same as before.
+  - **Views.** `review_batch` returns `subtitle_view` (files with embedded subtitles),
+    `track_view` (video files with more than one audio track) and `unresolved` (files with a
+    problem or an unresolved job), narrowed by the request's `filters` (job languages, a folder
+    compared with the path-flavour rule), plus totals over all items in review.
+    `resolve_review` applies its choices all or none (`choice_invalid` with the choice's index
+    and a reason: unknown item or job, item not in review, `upload_started` (in an `uploading`
+    batch, an item with `audio_objects` or `extracted_subtitles` rows: only items sent back to
+    review, whose rows are gone, or items not uploaded at all can change), not probed, track or
+    stream out of range, a track for an audio file, a picture subtitle to extract) and returns
+    the unfiltered views.
+  - **Leaving the upload.** The database forgets an item's upload before R2 does, so no
+    interruption leaves a held manifest that lists deleted audio. `exclude_items` (batch in
+    `reviewing` or `uploading`, never the last item: `last_item`) opens the object store first
+    when the batch is `uploading` (a credentials error changes nothing; a batch in review needs
+    no credentials), then in one transaction clears `manifest_held` and deletes the excluded
+    items with their `audio_objects` and `extracted_subtitles` rows, so the exclusion itself
+    cannot be lost. Then, per item, it aborts the open multipart uploads under the item's
+    audio prefix and deletes every object there (the listing also finds objects that were
+    uploaded but not recorded). Objects an interruption leaves behind belong to no item: the
+    batch's cloud cleanup, or the orphan sweep at the start of the next `run_upload` (M5.10),
+    removes them. `deleted_objects` counts the objects the request found and deleted.
+    `batches/rereview.py` `return_item_to_review` is the upload's way to send an item whose
+    source changed back to review (caller holds the batch lock; the item must belong to the
+    batch): one transaction sets the item `reviewing`, deletes its audio and
+    extracted-subtitle rows, sets its jobs pending and clears `manifest_held`; then its open
+    multipart uploads are aborted and its objects deleted. Objects an interruption leaves
+    behind stay under the item's prefix, where a later exclusion, re-upload (M5.10) or
+    cleanup removes them. A batch with only `extract` jobs left shows `extract_only` in its
+    summary; the upload takes it to `transcribed` without a manifest.
+  - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
+    `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
+    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade).
 
 ### 3.4 Conversion
 
@@ -614,8 +693,11 @@ directories, the settings store, the locks and the lazily opened database.
   touch payload classes, not tables. Timestamps come from the injected clock and are stored as
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
   Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
-  (developers delete their local database); from then on every change is a new revision. A
-  test asserts that the migrated schema equals the models (Alembic `compare_metadata`).
+  (developers delete their local database); from then on every change is a new revision,
+  including a change of a stored payload's shape (a field removed, renamed or retyped, a
+  literal value dropped): the revision rewrites the stored JSON, since readers do not migrate
+  it (only the probe cache treats an unreadable row as a miss). A test asserts that the
+  migrated schema equals the models (Alembic `compare_metadata`).
 - **Database**: WAL mode, `synchronous=FULL` (a commit survives a power loss), foreign keys
   enforced, the driver's legacy transaction control stated explicitly with its implicit BEGIN
   turned off, and every transaction started with `BEGIN IMMEDIATE`, so threads queue on
@@ -1114,7 +1196,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.7 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.8 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

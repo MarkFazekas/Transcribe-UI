@@ -16,10 +16,10 @@ import pytest
 from support.golden import SNAPSHOT_DIR, assert_golden, assert_matches_file
 from support.normalise import PathNormaliser
 from support.parity import RoutesFactory, run_one
-from transcribe_ui.api.backend import Route, Routes, default_routes
 from transcribe_ui.api.classes import Confirmation, GetAppInfoRequest, NeedsConfirmation, ProgressEvent, Response
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.api.routes import Route, Routes, default_routes
 from transcribe_ui.api.schema import render_schema
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_INVALID_REQUEST, EXIT_NEEDS_CONFIRMATION, EXIT_OK
 

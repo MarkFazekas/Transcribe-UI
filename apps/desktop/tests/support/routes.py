@@ -2,8 +2,8 @@
 
 from types import MappingProxyType
 
-from transcribe_ui.api.backend import Route, Routes, default_routes
 from transcribe_ui.api.info import get_app_info
+from transcribe_ui.api.routes import Route, Routes, default_routes
 
 
 def database_routes() -> Routes:
