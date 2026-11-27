@@ -1,0 +1,103 @@
+name: release-worker
+
+# Builds the worker image and smoke-tests it (fake engine, fake Runpod API, moto S3) on every
+# relevant pull request and push to main. Only a push to main publishes it to Docker Hub, from a
+# separate job in the `dockerhub` environment that never runs the image: the build job hands the
+# image over as an artifact.
+on:
+  pull_request:
+    paths: &paths
+      - apps/worker/**
+      - packages/contracts/**
+      - uv.lock
+      - pyproject.toml
+      - .dockerignore
+      - scripts/smoke_*.py
+      - .github/workflows/release-worker.yml
+  push:
+    branches: [main]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-worker-${{ github.ref }}
+  # Superseded PR runs are cancelled; a publish on main always finishes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  LOCAL_IMAGE: transcribe-ui-worker:ci
+  IMAGE_ARCHIVE: image.tar.zst
+  PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      short-sha: ${{ steps.meta.outputs.short-sha }}
+      schema-major: ${{ steps.meta.outputs.schema-major }}
+    steps:
+      - name: Free disk space (the image is roughly 10 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune --all --force
+          df -h /
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-packages
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - name: Build the image
+        run: docker buildx build --load -f apps/worker/Dockerfile -t "$LOCAL_IMAGE" .
+      - name: Smoke test (entry, worker with the fake engine, self-termination)
+        run: uv run scripts/smoke_worker_image.py "$LOCAL_IMAGE"
+      - id: meta
+        name: Tag values
+        run: |
+          echo "short-sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "schema-major=$(uv run python -c 'from transcribe_contracts.constants import SCHEMA_MAJOR; print(SCHEMA_MAJOR)')" >> "$GITHUB_OUTPUT"
+      - name: Save the image for the publish job
+        if: env.PUBLISH == 'true'
+        run: docker save "$LOCAL_IMAGE" | zstd -T0 -3 > "$IMAGE_ARCHIVE"
+      - if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: worker-image
+          path: ${{ env.IMAGE_ARCHIVE }}
+          retention-days: 1
+          compression-level: 0
+
+  push:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: dockerhub
+    env:
+      REPOSITORY: markfazekasgh/transcribe-ui-worker
+      SHORT_SHA: ${{ needs.build.outputs.short-sha }}
+      SCHEMA_MAJOR: ${{ needs.build.outputs.schema-major }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune --all --force
+      - uses: actions/download-artifact@v8
+        with:
+          name: worker-image
+      - name: Load the image
+        run: zstd -dc "$IMAGE_ARCHIVE" | docker load && rm "$IMAGE_ARCHIVE"
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Tag and push
+        run: |
+          for tag in "sha-$SHORT_SHA" "schema-$SCHEMA_MAJOR" latest; do
+            docker tag "$LOCAL_IMAGE" "$REPOSITORY:$tag"
+            docker push "$REPOSITORY:$tag"
+          done

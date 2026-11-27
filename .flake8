@@ -36,6 +36,8 @@ per-file-ignores =
     */tests/*: S101,WPS235,WPS201,WPS202,WPS221,N802
     # Claude Code hooks talk to the harness through stdout (`T201`) and are standalone scripts (`WPS421` print).
     .claude/hooks/*: T201,WPS421
+    # The smoke test's fake Runpod API overrides http.server handler names (`N802`, as in tests).
+    scripts/smoke_fixtures.py: N802
 max_complexity = 8
 max_line_length = 120
 statistics = True

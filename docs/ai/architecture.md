@@ -302,6 +302,13 @@ Comparisons for sidecar matching use NFC on macOS and case-insensitive matching 
   the container disk.
 - The `engine` extra pins `torch~=2.8.0` (WhisperX's pin) from the PyTorch cu128 index with a
   `sys_platform == 'linux'` marker, so the universal `uv.lock` still resolves on Windows/macOS.
+- `apps/worker/Dockerfile` (built from the repository root; `.dockerignore` keeps tests, docs
+  and secrets out of the context): uv (pinned by digest) installs Python 3.13 and the locked
+  environment into `/opt/venv` (`--frozen --no-dev --package transcribe-worker --extra engine`,
+  dependencies before the workspace code so they are cached), `LD_LIBRARY_PATH` points at the
+  cuBLAS/cuDNN libraries of the torch wheels, `python -m transcribe_worker.engine.bake`
+  downloads the models into `HF_HOME=/opt/models/huggingface` and `TORCH_HOME=/opt/models/torch`,
+  and the entry runs as `tini -- transcribe-worker-entry`. Both base images are pinned by digest.
 - The CI image build frees runner disk space first (the image is roughly 10 GB).
 - Published to public Docker Hub as `markfazekasgh/transcribe-ui-worker` by CI with tags
   `sha-<short>`, `latest` and `schema-<contracts major>`. The desktop app uses the
@@ -401,7 +408,7 @@ pods-only key is passed as a Runpod secret.
   share the word's time, or the segment's when untimed, in proportion to length, so the
   line and cue limits hold; lines and cues may break between units. Thai and similar
   scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
-  width; the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  width (open product question Q22); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
   text (the compression and segment checks still do).
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
@@ -522,12 +529,15 @@ Few unit tests; mostly regression and flow tests:
   `--version`, upload only the executable (`actions/upload-artifact` with `archive: false`)
   and attach the four executables to a GitHub Release. Builds are unsigned for now (macOS
   users clear the quarantine flag; Windows SmartScreen may warn).
-- `release-worker.yml` on push to `main` when worker/contracts code changes: build the Docker
-  image, run the entry/termination smoke test inside it, push to Docker Hub from the `dockerhub`
-  environment (deployment branch policy: `main` only, so no other branch gets the token).
+- `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
+  changes: build the Docker image and smoke-test it (a full pod run with the fake engine, a fake
+  Runpod API and moto S3, then the GPU-stack import and the baked models). Only on `main` a
+  separate job in the `dockerhub` environment (deployment branch policy: `main` only, so no
+  other branch gets the token) loads the image from an artifact and pushes it; it never runs
+  the image.
 - `reaper.yml` on a schedule: terminate overdue `transcribe-ui-*` pods, with the pods-only key
   in a `runpod-reaper` environment restricted to `main` the same way.
-- No release workflow runs on pull requests.
+- Nothing is published from a pull request.
 
 ## 9. Ideas for later (not planned)
 

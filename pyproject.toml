@@ -59,7 +59,7 @@ plugins = ["pydantic.mypy"]
 # The worker's GPU stack (`engine` extra) is not installed in the dev env or CI; only
 # `transcribe_worker.engine.whisperx_engine` imports it.
 [[tool.mypy.overrides]]
-module = ["whisperx", "whisperx.*", "torch", "torch.*", "torchaudio", "torchaudio.*", "ctranslate2", "ctranslate2.*"]
+module = ["whisperx", "whisperx.*", "torch", "torch.*", "torchaudio", "torchaudio.*", "ctranslate2", "ctranslate2.*", "faster_whisper", "faster_whisper.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

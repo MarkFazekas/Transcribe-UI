@@ -69,3 +69,8 @@ CAREFUL_VAD_SPEECH_PAD_MS: Final = 400
 
 # Start of the ValueError message WhisperX raises when a language has no default alignment model.
 NO_ALIGN_MODEL_MESSAGE: Final = "No default align-model for language"
+
+# Torch hub repository WhisperX loads its Silero VAD from (baked into the image's hub cache).
+SILERO_HUB_REPO: Final = "snakers4/silero-vad"
+# Torch hub entry point of the Silero VAD.
+SILERO_HUB_MODEL: Final = "silero_vad"

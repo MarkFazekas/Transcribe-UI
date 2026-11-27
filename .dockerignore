@@ -1,0 +1,15 @@
+# Only the workspace files the worker image needs are copied (see apps/worker/Dockerfile);
+# this keeps the build context small and secrets out of it.
+**/.venv
+**/__pycache__
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+.git
+.claude
+.env
+.env.*
+docs
+scripts
+apps/*/tests
+packages/*/tests

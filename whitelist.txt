@@ -47,6 +47,7 @@ misconfigured
 moto
 ngram
 nowait
+onnx
 openai
 ord
 paginator
@@ -90,6 +91,7 @@ unspaced
 untimed
 untracked
 untrusted
+utils
 v2
 v3
 vad
