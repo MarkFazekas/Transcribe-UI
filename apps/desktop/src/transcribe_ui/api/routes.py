@@ -12,7 +12,7 @@ from transcribe_ui.batches import exclusion, listing, review, services
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.discovery.services import preview_selection, scan_tree
 from transcribe_ui.runpod.setup import cloud_setup_status, setup_cloud
-from transcribe_ui.runs import cancel, launch, planning, reconcile, stragglers
+from transcribe_ui.runs import cancel, launch, monitor, planning, reconcile, stragglers
 from transcribe_ui.state.requests import get_settings, update_settings
 from transcribe_ui.upload.services import run_upload
 
@@ -59,6 +59,7 @@ def default_routes() -> Routes:
             "plan_launch": Route(run=planning.plan_launch, needs_database=True),
             "launch_worker": Route(run=launch.launch_worker, needs_database=True),
             "cancel_worker": Route(run=cancel.cancel_worker, needs_database=True),
+            "refresh_status": Route(run=monitor.refresh_status, needs_database=True),
             "reconcile_cloud": Route(run=reconcile.reconcile_cloud, needs_database=True),
             "terminate_pod": Route(run=stragglers.terminate_pod, needs_database=True),
             "cancel_queued_pod": Route(run=stragglers.cancel_queued_pod, needs_database=True),

@@ -172,6 +172,7 @@ type Request = Annotated[
     | run_requests.PlanLaunchRequest
     | run_requests.LaunchWorkerRequest
     | run_requests.CancelWorkerRequest
+    | run_requests.RefreshStatusRequest
     | run_requests.ReconcileCloudRequest
     | run_requests.TerminatePodRequest
     | run_requests.CancelQueuedPodRequest,
@@ -269,6 +270,7 @@ type SuccessResponse = Annotated[
     | run_responses.PlanLaunchResponse
     | run_responses.LaunchWorkerResponse
     | run_responses.CancelWorkerResponse
+    | run_responses.RefreshStatusResponse
     | run_responses.ReconcileCloudResponse
     | run_responses.TerminatePodResponse
     | run_responses.CancelQueuedPodResponse,

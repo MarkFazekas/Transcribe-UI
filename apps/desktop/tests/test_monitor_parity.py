@@ -1,0 +1,107 @@
+"""CLI/backend parity and golden files of `refresh_status` (plan m5 M5.12).
+
+Each leg has its own moto bucket and fake Runpod API, seeded alike; between requests both legs'
+clocks move and their worker objects are written the same way, so the normalised responses are
+byte-identical. Regenerate the golden files with `UPDATE_SNAPSHOTS=1`.
+"""
+
+import json
+from collections.abc import Callable
+from datetime import timedelta
+from functools import partial
+from pathlib import Path
+
+from support.batches import FIRST_BATCH_ID, build_batch_tree
+from support.credentials import moto_bucket
+from support.golden import assert_golden
+from support.launch import LAUNCH, PLAN, document
+from support.launch_legs import LaunchLegs, seed_held_leg
+from support.monitor import REFRESH, write_done, write_log, write_result, write_status
+from support.parity import Exchange, Template, run_parity
+from support.runpod import Cloud
+from transcribe_contracts.classes import JobRef
+from transcribe_ui.api.ports import Ports
+from transcribe_ui.storage.r2 import R2ObjectStore
+
+# Two hours of waiting for a machine.
+TWO_HOURS_S = 7200
+# How long the simulated worker transcribes before the next refresh.
+TRANSCRIBING_S = 1200
+# Item ids of the seeded batch.
+FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
+PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
+# Changes one leg's cloud and bucket before a request (the run id given).
+type LegChange = Callable[[Cloud, R2ObjectStore, str], None]
+
+
+def _seed_queued(ports: Ports, root: Path, store: R2ObjectStore, cloud: Cloud) -> None:
+    """The held batch and another computer's manifest; no capacity, so the launch queues."""
+    seed_held_leg(ports, root, store, cloud)
+    cloud.settings.capacity = False
+
+
+def _run_id(exchanges: list[Exchange]) -> str:
+    run_id = json.loads(exchanges[1].response)["run"]["run_id"]
+    assert isinstance(run_id, str)
+    return run_id
+
+
+def _launch(exchanges: list[Exchange]) -> str:
+    fingerprint = json.loads(exchanges[0].response)["plan"]["fingerprint"]
+    return document(LAUNCH, wait_s=TWO_HOURS_S, confirm_fingerprint=fingerprint)
+
+
+def _refresh_after(legs: LaunchLegs, change: LegChange) -> Template:
+    """Return a template that applies `change` to both legs, then refreshes."""
+    return partial(_changed_refresh, legs, change)
+
+
+def _changed_refresh(legs: LaunchLegs, change: LegChange, exchanges: list[Exchange]) -> str:
+    for cloud, store in zip(legs.clouds, legs.stores, strict=True):
+        change(cloud, store, _run_id(exchanges))
+    return document(REFRESH)
+
+
+def _deploy(cloud: Cloud, _store: R2ObjectStore, _run: str) -> None:
+    queued = cloud.api.queued_pods.listed()[0]["id"]
+    cloud.api.queued_pods.schedule_deploy(str(queued), cloud.clock.now())
+    cloud.clock.advance(timedelta(minutes=1))
+
+
+def _transcribe(cloud: Cloud, store: R2ObjectStore, run_id: str) -> None:
+    current = JobRef(batch_id=FIRST_BATCH_ID, item_id=FILM_ID, language="en")
+    write_status(store, run_id, "transcribing", cloud.clock.now(), current=current)
+    cloud.clock.advance(timedelta(seconds=TRANSCRIBING_S))
+
+
+def _finish(cloud: Cloud, store: R2ObjectStore, run_id: str) -> None:
+    now = cloud.clock.now()
+    write_result(store, FIRST_BATCH_ID, FILM_ID, run_id, now)
+    write_result(store, FIRST_BATCH_ID, PODCAST_ID, run_id, now, status="failed")
+    write_done(store, FIRST_BATCH_ID, run_id, now)
+    write_status(store, run_id, "finished", now, done_jobs=2)
+    write_log(store, run_id)
+    pod_id = str(cloud.api.pods.listed()[0]["id"])
+    cloud.api.pods.records.pop(pod_id)
+    cloud.clock.advance(timedelta(minutes=1))
+
+
+def test_monitor_flow(tmp_path: Path) -> None:
+    """Plan, launch (queued), then refreshes: waiting, starting, transcribing, finished, nothing open."""
+    legs = LaunchLegs(seed=_seed_queued)
+    templates: list[Template] = [
+        document(PLAN),
+        _launch,
+        document(REFRESH),
+        _refresh_after(legs, _deploy),
+        _refresh_after(legs, _transcribe),
+        _refresh_after(legs, _finish),
+        document(REFRESH),
+    ]
+    with moto_bucket():
+        exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=legs)
+    statuses = [json.loads(exchange.response)["status"] for exchange in exchanges]
+    assert set(statuses) == {"ok"}
+    names = ["plan", "launched", "waiting", "starting", "transcribing", "finished", "nothing_open"]
+    for index, (name, exchange) in enumerate(zip(names, exchanges, strict=True), start=1):
+        assert_golden(f"monitor_flow_{index:02d}_{name}.json", exchange.golden())

@@ -219,6 +219,49 @@
       ],
       "type": "string"
     },
+    "BatchResults": {
+      "additionalProperties": false,
+      "description": "A `ready` batch's transcribe jobs by result, and its phase now (`transcribed` once `_done.json` is there).",
+      "properties": {
+        "batch_id": {
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "no_speech": {
+          "minimum": 0,
+          "title": "No Speech",
+          "type": "integer"
+        },
+        "ok": {
+          "minimum": 0,
+          "title": "Ok",
+          "type": "integer"
+        },
+        "pending": {
+          "minimum": 0,
+          "title": "Pending",
+          "type": "integer"
+        },
+        "phase": {
+          "$ref": "#/$defs/BatchPhase"
+        }
+      },
+      "required": [
+        "batch_id",
+        "phase",
+        "ok",
+        "no_speech",
+        "failed",
+        "pending"
+      ],
+      "title": "BatchResults",
+      "type": "object"
+    },
     "BatchReview": {
       "additionalProperties": false,
       "description": "The review views of a batch, narrowed by the request's filters.",
@@ -922,6 +965,31 @@
       "title": "CredentialsStatusResponse",
       "type": "object"
     },
+    "CurrentJob": {
+      "additionalProperties": false,
+      "description": "The job the worker reports working on.",
+      "properties": {
+        "batch_id": {
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "batch_id",
+        "item_id",
+        "language"
+      ],
+      "title": "CurrentJob",
+      "type": "object"
+    },
     "DeleteBatchResponse": {
       "additionalProperties": false,
       "description": "The batch is gone.",
@@ -985,6 +1053,16 @@
       ],
       "title": "EditBatchResponse",
       "type": "object"
+    },
+    "EndReason": {
+      "enum": [
+        "worker_finished",
+        "worker_failed",
+        "pod_gone",
+        "deadline",
+        "queue_ended"
+      ],
+      "type": "string"
     },
     "EntryRole": {
       "enum": [
@@ -1813,6 +1891,73 @@
       "title": "ReconcileCloudResponse",
       "type": "object"
     },
+    "RefreshStatusResponse": {
+      "additionalProperties": false,
+      "description": "The runs that were not final, the `ready` batches' results, and the held manifests published.",
+      "properties": {
+        "action": {
+          "const": "refresh_status",
+          "default": "refresh_status",
+          "title": "Action",
+          "type": "string"
+        },
+        "batches": {
+          "items": {
+            "$ref": "#/$defs/BatchResults"
+          },
+          "title": "Batches",
+          "type": "array"
+        },
+        "busy": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Busy",
+          "type": "array"
+        },
+        "held": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Held",
+          "type": "array"
+        },
+        "published": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Published",
+          "type": "array"
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/RunProgress"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "runs",
+        "batches",
+        "busy",
+        "published",
+        "held"
+      ],
+      "title": "RefreshStatusResponse",
+      "type": "object"
+    },
     "ResolveReviewResponse": {
       "additionalProperties": false,
       "description": "The review views (unfiltered) after the choices.",
@@ -2019,6 +2164,168 @@
       ],
       "title": "RunInfo",
       "type": "object"
+    },
+    "RunProgress": {
+      "additionalProperties": false,
+      "description": "A run as `refresh_status` left it, with what the app shows while it runs.",
+      "properties": {
+        "cost_so_far_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cost So Far Usd"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "elapsed_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Elapsed S"
+        },
+        "end_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ended At"
+        },
+        "first_running_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Running At"
+        },
+        "pod_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pod Status"
+        },
+        "price_per_hour_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Price Per Hour Usd"
+        },
+        "run": {
+          "$ref": "#/$defs/RunInfo"
+        },
+        "stage": {
+          "$ref": "#/$defs/RunStage"
+        },
+        "stop_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Error"
+        },
+        "worker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkerProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "worker_log": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "run",
+        "stage",
+        "pod_status",
+        "worker",
+        "first_running_at",
+        "deadline",
+        "elapsed_s",
+        "price_per_hour_usd",
+        "cost_so_far_usd",
+        "ended_at",
+        "end_reason",
+        "stop_error",
+        "worker_log"
+      ],
+      "title": "RunProgress",
+      "type": "object"
+    },
+    "RunStage": {
+      "enum": [
+        "launching",
+        "waiting",
+        "starting",
+        "transcribing",
+        "stopping",
+        "finished",
+        "failed",
+        "cancelled",
+        "launch_failed"
+      ],
+      "type": "string"
     },
     "RunStatus": {
       "enum": [
@@ -2814,6 +3121,7 @@
           "plan_launch": "#/$defs/PlanLaunchResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
           "reconcile_cloud": "#/$defs/ReconcileCloudResponse",
+          "refresh_status": "#/$defs/RefreshStatusResponse",
           "resolve_review": "#/$defs/ResolveReviewResponse",
           "review_batch": "#/$defs/ReviewBatchResponse",
           "run_upload": "#/$defs/RunUploadResponse",
@@ -2899,6 +3207,9 @@
         },
         {
           "$ref": "#/$defs/CancelWorkerResponse"
+        },
+        {
+          "$ref": "#/$defs/RefreshStatusResponse"
         },
         {
           "$ref": "#/$defs/ReconcileCloudResponse"
@@ -3087,6 +3398,74 @@
     },
     "WhisperLanguage": {
       "type": "string"
+    },
+    "WorkerProgress": {
+      "additionalProperties": false,
+      "description": "The worker's own report (`runs/<run_id>/status.json`).",
+      "properties": {
+        "current": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CurrentJob"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "done_jobs": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Done Jobs",
+          "type": "integer"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "total_jobs": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Jobs",
+          "type": "integer"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        }
+      },
+      "required": [
+        "state",
+        "updated_at",
+        "current",
+        "done_jobs",
+        "total_jobs",
+        "error"
+      ],
+      "title": "WorkerProgress",
+      "type": "object"
     }
   },
   "discriminator": {

@@ -20,6 +20,10 @@ type UnreadableReason = Literal["not_a_manifest", "unsupported_schema", "invalid
 type PriceSource = Literal["catalog", "fallback"]
 # Id of a Runpod pod or queued pod as the requests accept it.
 type RunpodId = Annotated[str, StringConstraints(pattern=RUNPOD_ID_PATTERN)]
+# Why a run ended (`refresh_status`): its pod went away after the worker reported `finished` or
+# `failed`, or without a final report; the desktop stopped it at its deadline; or its queued pod
+# ended (expired, failed, cancelled or vanished) without a pod.
+type EndReason = Literal["worker_finished", "worker_failed", "pod_gone", "deadline", "queue_ended"]
 
 
 class ActivitySource(FrozenModel):
@@ -150,6 +154,16 @@ class LaunchWorkerRequest(FrozenModel):
     test_mode: bool = False
     # The `fingerprint` of the plan the user confirmed (`plan_launch` with the same `test_mode`).
     confirm_fingerprint: str | None = None
+
+
+class RefreshStatusRequest(FrozenModel):
+    """Follow the runs that are not final, look for results of `ready` batches, publish held manifests.
+
+    Past its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is
+    ended, its `runs/<run_id>/` objects kept locally and deleted.
+    """
+
+    action: Literal["refresh_status"]
 
 
 class CancelWorkerRequest(FrozenModel):

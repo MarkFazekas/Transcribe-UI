@@ -57,9 +57,9 @@ ENV_TRUE: Final = "true"
 # Env value of a false flag.
 ENV_FALSE: Final = "false"
 
-# Shortest wait for a machine (queue `expiresAt` after the launch), in seconds (open A19).
+# Shortest wait for a machine (queue `expiresAt` after the launch), in seconds (A19).
 WAIT_MIN_S: Final = 300
-# Longest wait for a machine (24 h; open A19).
+# Longest wait for a machine (24 h; A19).
 WAIT_MAX_S: Final = 86400
 # Default wait for a machine (1 h, requirements "Runpod control").
 WAIT_DEFAULT_S: Final = 3600
@@ -121,5 +121,26 @@ ERROR_LAUNCH_UNRESOLVED: Final = "launch_unresolved"
 ERROR_STOP_UNVERIFIED: Final = "stop_unverified"
 # Error code: Runpod does not know the pod or queued pod.
 ERROR_POD_NOT_FOUND: Final = "pod_not_found"
+# Monitoring (`refresh_status`, plan m5 §1 "Run deadline and wait", "Run objects").
+
+# Seconds added to `MAX_RUNTIME_S` after the first `RUNNING` sighting for the desktop deadline.
+DESKTOP_DEADLINE_MARGIN_S: Final = 600
+# Worker state while the worker transcribes (the stage the app shows).
+WORKER_TRANSCRIBING: Final = "transcribing"
+# Worker state of a worker that is starting up (image pulled, model loading).
+WORKER_STARTING: Final = "starting"
+# Worker state of a worker that finished every job it could.
+WORKER_FINISHED: Final = "finished"
+# Worker state of a worker that failed.
+WORKER_FAILED: Final = "failed"
+# Batch phase whose `_done.json` and job results `refresh_status` looks for.
+READY_PHASE: Final = "ready"
+# Batch phase a `ready` batch moves to once its `_done.json` is there.
+TRANSCRIBED_PHASE: Final = "transcribed"
+# Name of a run's worker log in the user log dir, kept after `runs/<run_id>/` is deleted.
+WORKER_LOG_NAME: Final = "worker-{run_id}.log"
+# Decimals of the cost so far (dollars).
+COST_SO_FAR_DECIMALS: Final = 2
+
 # Error code: the pod or queued pod is not one of the app's (`transcribe-ui-*`).
 ERROR_NOT_APP_POD: Final = "not_an_app_pod"

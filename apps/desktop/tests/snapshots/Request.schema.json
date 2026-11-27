@@ -609,6 +609,22 @@
       "title": "ReconcileCloudRequest",
       "type": "object"
     },
+    "RefreshStatusRequest": {
+      "additionalProperties": false,
+      "description": "Follow the runs that are not final, look for results of `ready` batches, publish held manifests.\n\nPast its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is\nended, its `runs/<run_id>/` objects kept locally and deleted.",
+      "properties": {
+        "action": {
+          "const": "refresh_status",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "RefreshStatusRequest",
+      "type": "object"
+    },
     "ResolveReviewRequest": {
       "additionalProperties": false,
       "description": "Set the choice of jobs in review; all choices are applied, or none.",
@@ -1317,6 +1333,7 @@
       "plan_launch": "#/$defs/PlanLaunchRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
       "reconcile_cloud": "#/$defs/ReconcileCloudRequest",
+      "refresh_status": "#/$defs/RefreshStatusRequest",
       "resolve_review": "#/$defs/ResolveReviewRequest",
       "review_batch": "#/$defs/ReviewBatchRequest",
       "run_upload": "#/$defs/RunUploadRequest",
@@ -1402,6 +1419,9 @@
     },
     {
       "$ref": "#/$defs/CancelWorkerRequest"
+    },
+    {
+      "$ref": "#/$defs/RefreshStatusRequest"
     },
     {
       "$ref": "#/$defs/ReconcileCloudRequest"

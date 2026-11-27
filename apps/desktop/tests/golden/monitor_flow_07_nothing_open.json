@@ -1,0 +1,13 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "refresh_status",
+    "runs": [],
+    "batches": [],
+    "busy": [],
+    "published": [],
+    "held": []
+  },
+  "events": []
+}
