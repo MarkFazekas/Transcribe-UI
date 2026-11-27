@@ -6,6 +6,7 @@ import weakref
 from collections.abc import Iterator
 
 import pytest
+from PySide6.QtCore import QThreadPool
 from pytestqt.qtbot import QtBot
 
 from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, listing, refresh, stop, upload, uploads, wait_for
@@ -172,7 +173,8 @@ def test_completed_calls_are_freed(gated: GatedRunner, qtbot: QtBot) -> None:
     gated.requests.clear()
     gc.collect()
     assert [ref() for ref in sent] == [None for _ in sent]
-    assert _runnables() == before
+    # An earlier test may still free a runnable late, never add one.
+    assert _runnables() <= before
 
 
 def test_thread_wait_shares_one_deadline(qtbot: QtBot) -> None:
@@ -202,4 +204,24 @@ def test_many_instant_calls_free_their_runnables(qtbot: QtBot) -> None:
     wait_for(qtbot, lambda: len(answers) == STRESS_CALLS)
     assert executor.wait_for_threads(DRAIN_MS)
     gc.collect()
-    assert _runnables() == before
+    # An earlier test may still free a runnable late, never add one.
+    assert _runnables() <= before
+
+
+def _refuse_start(_pool: QThreadPool, _runnable: object) -> None:
+    message = "the pool refused the runnable"
+    raise RuntimeError(message)
+
+
+def test_a_failed_start_leaves_no_call_behind(qtbot: QtBot, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`start` raising: the error reaches the sender, the call is forgotten, the executor goes on."""
+    executor = QtExecutor(GatedRunner())
+    monkeypatch.setattr(QThreadPool, "start", _refuse_start)
+    with pytest.raises(RuntimeError, match="refused"):
+        executor.submit(listing(), _ignore)
+    monkeypatch.undo()
+    assert executor.pending() == 0
+    answers: list[Response] = []
+    executor.submit(listing(), answers.append)
+    wait_for(qtbot, lambda: bool(answers))
+    assert executor.wait_for_threads(DRAIN_MS)

@@ -167,6 +167,19 @@ class _Dispatcher:
             listener()
 
 
+def _start(pool: QThreadPool, runnable: _CallRunnable, call: PooledCall, live: dict[PooledCall, _Callbacks]) -> None:
+    """Queue the runnable; if that fails, forget its call (nobody will answer it) and re-raise."""
+    try:
+        pool.start(runnable)
+    except BaseException:
+        # Never queued: it must not keep the window from closing.
+        live.pop(call, None)
+        raise
+    finally:
+        # Whatever happened, a pool thread that got the runnable must not wait for ever.
+        runnable.handed_over.set()
+
+
 class QtExecutor:
     """Sends requests on the `long`, `short` and `poll` pools; create and use it on the GUI thread."""
 
@@ -206,8 +219,7 @@ class QtExecutor:
         if self._shut:
             call.abandon()
         else:
-            pool.start(runnable)
-            runnable.handed_over.set()
+            _start(pool, runnable, call, self._dispatcher.live)
         return call
 
     def pending(self) -> int:
