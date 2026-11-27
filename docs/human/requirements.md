@@ -129,6 +129,14 @@ Naming and conflicts:
   lists the file with the reason "original folder not found" and skips it; every other subtitle
   is placed. The user can download the skipped ones again with another option (for example into
   a chosen folder).
+- Download before the whole job is done *(Q24, accepted default)*: finished subtitles can be
+  downloaded at any time, also while the job is waiting or being transcribed. The download plan
+  lists the files still without a subtitle as "not finished yet" and skips them. The job counts
+  as downloaded once it is fully transcribed and every file has been through a download (placed,
+  or skipped as an existing file, a missing folder or an empty result), whether in one download
+  or several. The next start of transcription does the missing files. A failed file (no subtitle
+  could be made) does not keep the job from counting as downloaded; retry batches handle failed
+  jobs.
 - Two subtitles that would get the same name in one folder are shown; by default each gets its
   folder name as prefix: `A_movie.hu.srt`, `B_movie.hu.srt`. No numbering.
 

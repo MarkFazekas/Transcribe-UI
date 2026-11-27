@@ -10,25 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q24. Downloading finished subtitles before the whole job is done
-
-The cloud machine finishes a job's files one by one. The phases in the requirements allow the
-download only once the whole job is transcribed. If a run stops before the end (the machine
-fails, the time limit is reached, the user cancels), nothing of that job could be downloaded
-until a later run finishes it, even the files that are already done.
-
-Proposed default: subtitles that are finished can be downloaded at any time, also while the job
-is waiting or being transcribed. The download plan lists the files still without a subtitle as
-"not finished yet" and skips them. The job counts as downloaded once it is fully transcribed and
-every file has been through a download (placed, or skipped as an existing file, a missing
-folder or an empty result), whether in one download or several. The next start of
-transcription does the missing files.
-
-Built so far on this default plus one addition: a failed file (no subtitle could be made) does not
-keep the job from counting as downloaded; failed files are sent to a retry job instead. Proposed
-default for this addition: a failed job does not block "downloaded" (retry batches handle failed
-jobs).
-
 ### Q25. Downloading a job's subtitles again
 
 After a download, the subtitles stay in the cloud until the user cleans up.

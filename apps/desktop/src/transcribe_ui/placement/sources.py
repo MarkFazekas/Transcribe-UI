@@ -2,7 +2,7 @@
 
 Each job's subtitle state comes from the database: a transcribe job's status as `refresh_status`
 recorded it from its result (`ok`, `no_speech`, `failed`; `pending` until then), an extract job's
-stored SRT. A `ready` batch therefore offers the jobs whose results the last refresh saw (Q24). A
+stored SRT. A `ready` batch therefore offers the jobs whose results the last refresh saw (requirements "Subtitle download options"). A
 `cleaned` batch has no results in R2 any more: only its extract jobs are planned.
 """
 

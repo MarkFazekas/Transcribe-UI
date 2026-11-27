@@ -95,7 +95,7 @@ def test_folder_in_the_way() -> None:
 
 
 def test_name_errors_apply_to_unfinished_jobs() -> None:
-    """Names are fixed per job (Q24), so a name that cannot be written is an error before the result exists."""
+    """Names are fixed per job (requirements "Subtitle download options"), so a name that cannot be written is an error before the result exists."""
     jobs = jobs_of([f"{POSIX_ROOT}/{'x' * LONG_STEM_LENGTH}.mkv"], subtitle="pending")
     plan = plan_placement(jobs, POSIX_ROOT, PlacementOptions(), posix_rules(), FakeProbe())
     assert only_error(plan) == "name_too_long"

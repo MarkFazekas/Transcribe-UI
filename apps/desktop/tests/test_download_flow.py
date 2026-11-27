@@ -120,7 +120,7 @@ def ready_world(runs_world: RunsWorld) -> RunsWorld:
 
 
 def test_partial_download_then_the_rest(ready_world: RunsWorld) -> None:
-    """On `ready` only finished jobs are placed (Q24); after `_done.json` a second download reaches `downloaded`."""
+    """On `ready` only finished jobs are placed (requirements "Subtitle download options"); after `_done.json` a second download reaches `downloaded`."""
     world = ready_world
     leg = world.leg
     write_result(world.store, FIRST_BATCH_ID, FILM_ID, RUN_ID, world.now())

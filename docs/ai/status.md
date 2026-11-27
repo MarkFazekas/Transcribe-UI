@@ -31,7 +31,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Waiting on humans
 
 - Architect: schedule the M4 approved Runpod run.
-- Product: Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
+- Product: Q25 (download again), Q26 (abandoning a job
   before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud), Q29
   (duplicate backup volumes), Q30 (closing the app with work in progress), Q31 (steps the app
   starts on its own), Q32 (language of the app's texts), Q33 (main window layout), Q34 (stopping

@@ -88,7 +88,7 @@ def target_outcome(
 def name_errors(target: str | None, job: PlacementJob, names: TargetNames) -> list[PlanError]:
     """Return the problems of a target's name and path (its temp file's included), whatever the job's outcome.
 
-    Names are fixed per job (Q24), so a name that cannot be written now cannot be written later either.
+    Names are fixed per job (requirements "Subtitle download options"), so a name that cannot be written now cannot be written later either.
     """
     if target is None:
         return []
@@ -121,7 +121,7 @@ def duplicate_errors(
 ) -> list[PlanError]:
     """Return an error for each entry whose target key another entry shares, whatever its outcome.
 
-    Names are fixed per job (Q24), so two jobs on one target collide even before both have a subtitle.
+    Names are fixed per job (requirements "Subtitle download options"), so two jobs on one target collide even before both have a subtitle.
     """
     counts = Counter(key for key in keys if key is not None)
     errors: list[PlanError] = []

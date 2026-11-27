@@ -215,7 +215,7 @@ def test_other_strategies_ignore_the_original_folder() -> None:
     ],
 )
 def test_outcome_by_subtitle_state(subtitle: SubtitleState, options: dict[str, object], outcome: str) -> None:
-    """Q24: jobs without a result are "not finished yet"; failed and empty ones are skipped."""
+    """Requirements "Subtitle download options": jobs without a result are "not finished yet"; failed and empty ones are skipped."""
     jobs = jobs_of(below(POSIX_ROOT, MOVIE), subtitle=subtitle)
     plan = plan_placement(jobs, POSIX_ROOT, PlacementOptions.model_validate(options), posix_rules(), FakeProbe())
     assert outcomes(plan) == [outcome]

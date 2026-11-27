@@ -233,7 +233,7 @@ docs/human/, docs/ai/     see CLAUDE.md
 
   Extracted subtitles are placed together with the transcribed ones. A batch with only
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
-  The phases are not a strict line (planned on the proposed defaults of Q24-Q27, `plans/m5.md` §1):
+  The phases are not a strict line (planned on the proposed defaults of Q25-Q27 and the requirements "Subtitle download options", `plans/m5.md` §1):
   a batch in `composing` or `reviewing` can be deleted; finished subtitles can already be
   downloaded in `ready` and again in `downloaded` (extracted ones even in `cleaned`); a batch
   reaches `downloaded` once it has `_done.json` (or is extract-only) and every job has a placement
@@ -702,7 +702,7 @@ download requests below wire it to the batches):
   parts (`scan_root_invalid`, `source_path_invalid`), so no target leaves its folder. A
   source outside the scan root is `outside_scan_root` for `mirror` and `flat_with_folders`
   (`flat` places it without folder names).
-- Names are worked out for every job, whatever its subtitle state, so a partial download (Q24)
+- Names are worked out for every job, whatever its subtitle state, so a partial download (requirements "Subtitle download options")
   names files as a later one does. Collisions compare under the path-flavour rule
   (case-insensitive on Windows and macOS). In both flat strategies the colliding files get the
   names of their closest folders added (on top of the strategy's chosen ones), one level at a
@@ -727,7 +727,7 @@ download requests below wire it to the batches):
   UTF-16 units (MAX_PATH) or a target folder path over 247 (the 248 that folder creation
   allows, minus the NUL) is `path_too_long`, since long paths may fail on a system without
   long-path support. These name errors are reported for every job, whatever its outcome.
-- Outcomes: `pending` → `not_finished` (Q24), `failed` → `skip_failed`, `empty` →
+- Outcomes: `pending` → `not_finished` (requirements "Subtitle download options"), `failed` → `skip_failed`, `empty` →
   `skip_empty` unless `include_empty`; next to the media a missing original folder gives
   `skip_folder_missing` for that file while the others are placed (requirements "Subtitle download options"); an
   existing file → `skip_existing`, or `overwrite` when asked; a folder in the way is skipped,
@@ -756,7 +756,7 @@ requests `plan_download`, `run_download`, `export_custom_plan`, `import_custom_p
 database):
 
 - **Phases.** Allowed in `ready` (the jobs whose results the last `refresh_status` recorded; the
-  others are `not_finished`, Q24), `transcribed`, `downloaded` (again, any number of times, with
+  others are `not_finished`, requirements "Subtitle download options"), `transcribed`, `downloaded` (again, any number of times, with
   any strategy, Q25) and `cleaned` (only the extract jobs are planned: their SRT is in SQLite, the
   transcribed results are gone); any other phase is `wrong_phase`. A job's subtitle state comes
   from the database: a transcribe job's status (`ok` → `available`, `no_speech` → `empty`,
@@ -819,7 +819,7 @@ database):
   and set) when every job has a recorded outcome (placed, overwritten, or skipped as an existing
   file, a missing folder, an empty or a failed result) or its result failed. A failed job never
   blocks the batch: it can fail at `_done.json` after the last download (missing or unreadable
-  result), and retry batches take failed jobs (beyond Q24's default; noted there). A batch whose
+  result), and retry batches take failed jobs (requirements "Subtitle download options"). A batch whose
   every job failed therefore goes straight on to `downloaded`. `run_download` and
   `import_custom_plan` apply the rule after each download; `refresh_status` applies it in the
   transaction that moves a `ready` batch to `transcribed` (a batch downloaded in full while
