@@ -49,6 +49,19 @@ class Adoption:
     status: RunStatus
     pod_id: str | None
     queued_pod_id: str | None
+    # Whether the pod list showed the pod (False: known only from the queued pod's `podId`).
+    pod_seen: bool = False
+    # The queued pod's deploy time, for a pod that was not seen.
+    pod_deployed_at: datetime | None = None
+
+    def changes(self) -> PayloadChanges:
+        """Return the payload fields the adoption sets."""
+        return {
+            "pod_id": self.pod_id,
+            "queued_pod_id": self.queued_pod_id,
+            "pod_seen": self.pod_seen,
+            "pod_deployed_at": self.pod_deployed_at,
+        }
 
 
 def find_by_name(name: str, listed: Listed) -> Adoption | None:
@@ -57,15 +70,14 @@ def find_by_name(name: str, listed: Listed) -> Adoption | None:
     pods = sorted(named, key=_terminated_last)
     queued_named = [entry for entry in listed.queued if entry.name == name]
     queued = queued_named[0] if queued_named else None
-    pod_id = pods[0].pod_id if pods else None
     queued_pod_id = None if queued is None else queued.queued_pod_id
-    if pod_id is None and queued is not None:
-        pod_id = queued.pod_id
-    if pod_id is not None:
+    if pods:
         # A pod exists (maybe ended already): the run follows it (`refresh_status` reads its end).
-        return Adoption("running", pod_id, queued_pod_id)
+        return Adoption("running", pods[0].pod_id, queued_pod_id, pod_seen=True)
     if queued is None:
         return None
+    if queued.pod_id is not None:
+        return Adoption("running", queued.pod_id, queued_pod_id, pod_deployed_at=queued.resolved_at)
     return Adoption(_queued_run_status(queued.status), None, queued_pod_id)
 
 
@@ -90,11 +102,12 @@ def resolve_launching(state: LocalState, run_id: str, listed: Listed, now: datet
         row = load_run(session, run_id)
         name = row.pod_name
         payload = payload_of(row)
-        settle_from = payload.posted_at or row.created_at
+        sent = (payload.posted_at, payload.sending_at, row.created_at)
+        # The latest moment the request may have been sent (a retry after a 429 waits).
+        settle_from = max(moment for moment in sent if moment is not None)
     found = find_by_name(name, listed)
     if found is not None:
-        changes: PayloadChanges = {"pod_id": found.pod_id, "queued_pod_id": found.queued_pod_id}
-        return update_run(state, run_id, now, found.status, changes)
+        return update_run(state, run_id, now, found.status, found.changes())
     first = payload.first_empty_lookup_at
     if now - settle_from < SETTLE:
         return read_run(state, run_id)  # too early: the pod may not be listed yet

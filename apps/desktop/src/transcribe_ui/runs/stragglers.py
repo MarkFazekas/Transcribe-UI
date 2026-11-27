@@ -18,7 +18,7 @@ from transcribe_ui.runs.constants import POD_KIND, QUEUED_POD_KIND
 from transcribe_ui.runs.errors import NotAppPodError, PodNotFoundError, runpod_call
 from transcribe_ui.runs.records import cancel_local_run
 from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
-from transcribe_ui.runs.stopping import CloudObject, cancel_queued_verified, terminate_verified
+from transcribe_ui.runs.stopping import CloudObject, KnownPod, cancel_queued_verified, terminate_verified
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -48,9 +48,9 @@ def terminate_pod(request: TerminatePodRequest, context: RequestContext) -> Term
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
         if pod.status != POD_TERMINATED:
-            terminate_verified(pods, pod_id)
+            terminate_verified(pods, KnownPod(pod_id, seen=True), ports.clock)
         now = ports.clock.now()
-        local = cancel_local_run(ports.state, run_id, now, {"pod_id": pod_id})
+        local = cancel_local_run(ports.state, run_id, now, {"pod_id": pod_id, "pod_seen": True})
     return TerminatePodResponse(pod_id=pod_id, name=pod.name, run_id=run_id, local_status=local)
 
 
@@ -77,7 +77,7 @@ def cancel_queued_pod(
         run_id = _app_run_id(found)
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
-        stopped = cancel_queued_verified(pods, queued_id, lambda _pod_id: None)
+        stopped = cancel_queued_verified(pods, queued_id, _ignore_pod, ports.clock)
         changes = {"queued_pod_id": queued_id, "pod_id": stopped.pod_id}
         local = cancel_local_run(ports.state, run_id, ports.clock.now(), changes)
     return CancelQueuedPodResponse(
@@ -88,6 +88,10 @@ def cancel_queued_pod(
         run_id=run_id,
         local_status=local,
     )
+
+
+def _ignore_pod(_pod: KnownPod) -> None:
+    """Keep nothing about the deployed pod: the local run, if any, is updated after the stop."""
 
 
 def _app_run_id(found: CloudObject) -> str | None:

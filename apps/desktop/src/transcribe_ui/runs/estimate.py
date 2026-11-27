@@ -4,6 +4,8 @@ Both are sized on the pending transcribe jobs of the launch scope, `careful` job
 counted twice. The factors are placeholders recalibrated at M7.
 """
 
+import hashlib
+import json
 import math
 from collections.abc import Iterable
 
@@ -100,10 +102,19 @@ def launch_plan(scope: LaunchScope, catalog: CatalogApi, *, test_mode: bool) -> 
     jobs = [job for batch in scope.batches for job in batch.pending_jobs]
     weighted_s = weighted_duration(jobs)
     price, note = catalog_price(catalog)
+    runtime_s = max_runtime_s(jobs, test_mode=test_mode)
     return LaunchPlan(
         scope=scope,
         test_mode=test_mode,
         weighted_duration_s=weighted_s,
-        max_runtime_s=max_runtime_s(jobs, test_mode=test_mode),
+        max_runtime_s=runtime_s,
         cost=cost_estimate(weighted_s, price, note, test_mode=test_mode),
+        fingerprint=plan_fingerprint(scope.fingerprint, runtime_s, test_mode=test_mode),
     )
+
+
+def plan_fingerprint(scope_fingerprint: str, runtime_s: int, *, test_mode: bool) -> str:
+    """Return the SHA-256 (hex) of the scope's fingerprint, `MAX_RUNTIME_S` and the test mode."""
+    document = {"scope": scope_fingerprint, "max_runtime_s": runtime_s, "test_mode": test_mode}
+    canonical = json.dumps(document, sort_keys=True).encode()
+    return hashlib.sha256(canonical).hexdigest()

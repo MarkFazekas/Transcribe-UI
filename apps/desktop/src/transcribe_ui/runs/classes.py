@@ -120,6 +120,9 @@ class LaunchPlan(FrozenModel):
     # `MAX_RUNTIME_S` the worker would get.
     max_runtime_s: PositiveInt
     cost: CostEstimate
+    # Hash of the scope's fingerprint, the test mode and `MAX_RUNTIME_S`: what `launch_worker`
+    # takes as `confirm_fingerprint`, so a plan confirmed without test mode cannot start one with it.
+    fingerprint: str
     wait: WaitBounds = Field(default_factory=WaitBounds)
 
 
@@ -145,7 +148,7 @@ class LaunchWorkerRequest(FrozenModel):
     # How long Runpod may wait for a free machine (queue `expiresAt`), in seconds.
     wait_s: Annotated[int, Field(ge=WAIT_MIN_S, le=WAIT_MAX_S)] = WAIT_DEFAULT_S
     test_mode: bool = False
-    # The `scope.fingerprint` of the plan the user confirmed.
+    # The `fingerprint` of the plan the user confirmed (`plan_launch` with the same `test_mode`).
     confirm_fingerprint: str | None = None
 
 

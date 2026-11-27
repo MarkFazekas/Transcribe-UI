@@ -31,6 +31,12 @@ class RunPayload(FrozenModel):
     # Runpod ids once known.
     pod_id: str | None = None
     queued_pod_id: str | None = None
+    # Whether a pod read (create answer, pod list or lookup) showed the pod; False for a pod id
+    # known only from the queued pod, whose deploy time (`resolvedAt`) is then kept.
+    pod_seen: bool = False
+    pod_deployed_at: AwareDatetime | None = None
+    # When the latest attempt of the pod request was about to be sent (written before each one).
+    sending_at: AwareDatetime | None = None
     # When the pod request had been sent at the latest (its answer or failure arrived).
     posted_at: AwareDatetime | None = None
     # First lookup after the settle time that found the pod name in neither list.

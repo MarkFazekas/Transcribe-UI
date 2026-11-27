@@ -38,7 +38,7 @@ def pod_sources(pods: PodsApi, now: datetime) -> list[ActivitySource]:
     app_pods = [pod for pod in every_pod if is_app_pod_name(pod.name)]
     live = [pod for pod in app_pods if _is_live(pod)]
     queued = [entry for entry in pods.list_queued_pods() if is_app_pod_name(entry.name)]
-    still_active = partial(_queued_active, listed=by_id, pods=pods, now=now)
+    still_active = partial(queued_pod_active, listed=by_id, pods=pods, now=now)
     waiting = [entry for entry in queued if still_active(entry)]
     sources = [_source("pod", pod.name, pod.status) for pod in live]
     sources.extend(_queued_source(entry) for entry in waiting)
@@ -63,7 +63,14 @@ def _order(source: ActivitySource) -> tuple[str, str]:
     return source.kind, source.name
 
 
-def _queued_active(entry: QueuedPod, listed: PodsById, pods: PodsApi, now: datetime) -> bool:
+def queued_pod_active(entry: QueuedPod, listed: PodsById, pods: PodsApi, now: datetime) -> bool:
+    """Return whether a queued pod may still lead to a live pod the pod list does not show as itself.
+
+    `listed` holds every listed pod by id. A deployed one's pod may be looked up by id.
+
+    Raises:
+        RunpodApiError: The lookup failed.
+    """
     if entry.status in IGNORED_QUEUED_POD_STATUSES:
         return False
     if entry.status != QUEUED_POD_DEPLOYED:

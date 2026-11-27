@@ -2,7 +2,8 @@
 
 The plan is the launch scope (every pending manifest in R2 plus the held ones), the runtime
 limit and the cost estimate. `launch_worker` launches only on the scope the user confirmed: it
-carries the plan's fingerprint, and a different scope gives `needs_confirmation` again.
+carries the plan's fingerprint (the scope, the runtime limit and the test mode), and a different
+one gives `needs_confirmation` again.
 """
 
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
@@ -56,7 +57,7 @@ def confirmation(plan: LaunchPlan, *, changed: bool) -> NeedsConfirmation:
     if unknown:
         parts.append(f"{unknown} of the batches were uploaded from another computer.")
     if changed:
-        parts.insert(0, "What the worker would process changed since it was confirmed.")
+        parts.insert(0, "The plan changed since it was confirmed (the work, the runtime limit or the test mode).")
     details = {"plan": plan.model_dump(mode="json")}
     found = Confirmation(field=CONFIRM_FIELD, message=" ".join(parts), details=details)
     return NeedsConfirmation(action="launch_worker", confirmations=(found,))

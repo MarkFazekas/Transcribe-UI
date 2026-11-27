@@ -26,7 +26,7 @@ from transcribe_ui.runpod.constants import (
 from transcribe_ui.runpod.errors import RunpodApiError
 from transcribe_ui.runpod.parsing import parse_body
 from transcribe_ui.runpod.retry import Retry, judge_failure, judge_response
-from transcribe_ui.runpod.timing import Timing
+from transcribe_ui.runpod.timing import BeforeAttempt, Timing
 from transcribe_ui.runpod.wire import Paged
 
 logger = logging.getLogger(__name__)
@@ -88,8 +88,10 @@ class RunpodHttp:
         """Close the connections."""
         self._client.close()
 
-    def send(self, call: Call) -> httpx.Response | None:
+    def send(self, call: Call, before_attempt: BeforeAttempt | None = None) -> httpx.Response | None:
         """Carry out a call with the retry policy; return the response, or None on an allowed 404.
+
+        `before_attempt`, if given, runs right before each attempt is sent (after the cancel check).
 
         Raises:
             AmbiguousCreateError: A create may have taken effect.
@@ -100,6 +102,8 @@ class RunpodHttp:
         while True:
             if self._timing.stopped():
                 raise CancelledError
+            if before_attempt is not None:
+                before_attempt()
             outcome = self._attempt(call, attempt)
             if not isinstance(outcome, Retry):
                 return outcome
@@ -115,9 +119,9 @@ class RunpodHttp:
             self._timing.wait(delay_s, self._timing.stopped)
             attempt += 1
 
-    def require(self, call: Call) -> httpx.Response:
+    def require(self, call: Call, before_attempt: BeforeAttempt | None = None) -> httpx.Response:
         """Like `send`, but a 404 is an error too."""
-        response = self.send(replace(call, missing_ok=False))
+        response = self.send(replace(call, missing_ok=False), before_attempt)
         if response is None:  # `send` returns None only for `missing_ok`; kept for the type.
             msg = f"{call.label}: HTTP {HTTP_NOT_FOUND}"
             raise RunpodApiError(msg, status=HTTP_NOT_FOUND, scope=call.scope)

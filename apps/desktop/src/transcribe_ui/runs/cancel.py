@@ -15,10 +15,10 @@ from transcribe_ui.runs.classes import CancelWorkerRequest
 from transcribe_ui.runs.cloud import open_runpod
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.errors import LaunchUnresolvedError, RunNotActiveError, runpod_call
-from transcribe_ui.runs.records import read_run, update_run
+from transcribe_ui.runs.records import read_payload, read_run, update_run
 from transcribe_ui.runs.responses import CancelWorkerResponse, RunInfo
 from transcribe_ui.runs.settling import Listed, resolve_launching
-from transcribe_ui.runs.stopping import cancel_queued_verified, terminate_verified
+from transcribe_ui.runs.stopping import KnownPod, cancel_queued_verified, terminate_verified
 from transcribe_ui.state.store import LocalState
 
 
@@ -42,7 +42,7 @@ def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> Canc
             return CancelWorkerResponse(run=run)
         if run.status in FINAL_RUN_STATUSES:
             raise RunNotActiveError(run.run_id, run.status)
-        terminated = _stop(state, client.pods, run, ports.clock)
+        terminated = _stop(state, client.pods, run.run_id, ports.clock)
         cancelled = update_run(state, run.run_id, ports.clock.now(), "cancelled")
     return CancelWorkerResponse(run=cancelled, terminated_pod_id=terminated)
 
@@ -55,19 +55,20 @@ def _resolve(state: LocalState, pods: PodsApi, run_id: str, now: datetime) -> Ru
     return run
 
 
-def _stop(state: LocalState, pods: PodsApi, run: RunInfo, clock: Clock) -> str | None:
+def _stop(state: LocalState, pods: PodsApi, run_id: str, clock: Clock) -> str | None:
     """Stop the run's pod (or queued pod); return the id of the pod terminated, if any."""
-    run_id = run.run_id
-    if run.pod_id is not None:
-        terminate_verified(pods, run.pod_id)
-        return run.pod_id
-    if run.queued_pod_id is None:
+    payload = read_payload(state, run_id)
+    if payload.pod_id is not None:
+        pod = KnownPod(payload.pod_id, seen=payload.pod_seen, deployed_at=payload.pod_deployed_at)
+        terminate_verified(pods, pod, clock)
+        return pod.pod_id
+    if payload.queued_pod_id is None:
         raise LaunchUnresolvedError(run_id)  # not final, yet neither id is known
-
     follow = partial(_follow_pod, state, run_id, clock)
-    return cancel_queued_verified(pods, run.queued_pod_id, follow).pod_id
+    return cancel_queued_verified(pods, payload.queued_pod_id, follow, clock).pod_id
 
 
-def _follow_pod(state: LocalState, run_id: str, clock: Clock, pod_id: str) -> None:
+def _follow_pod(state: LocalState, run_id: str, clock: Clock, pod: KnownPod) -> None:
     """Record the pod a queued pod deployed during the cancel; the run follows it until it is terminated."""
-    update_run(state, run_id, clock.now(), "running", {"pod_id": pod_id})
+    changes = {"pod_id": pod.pod_id, "pod_seen": pod.seen, "pod_deployed_at": pod.deployed_at}
+    update_run(state, run_id, clock.now(), "running", changes)

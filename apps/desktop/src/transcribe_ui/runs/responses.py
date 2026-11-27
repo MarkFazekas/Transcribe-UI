@@ -8,9 +8,10 @@ from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.runs.classes import LaunchPlan, RunpodKind
 from transcribe_ui.state.models import RunStatus
 
-# How `launch_worker` ended: a pod (direct start), a queued pod, or an unknown outcome (the
-# run stays `launching`; `refresh_status` or `reconcile_cloud` resolves it by its name).
-type LaunchOutcome = Literal["pod", "queued", "unconfirmed"]
+# How `launch_worker` ended: a pod (direct start), a queued pod, an unknown outcome (the run
+# stays `launching`; `refresh_status` or `reconcile_cloud` resolves it by its name), or, after a
+# lost answer, a queued pod found already ended (the run is `cancelled` or `failed`).
+type LaunchOutcome = Literal["pod", "queued", "unconfirmed", "ended"]
 # How a live app pod or queued pod relates to the local runs: it belongs to a run that is not
 # final, or it is a straggler (no local run, a final one, or a name that does not parse).
 type EntryRole = Literal["current", "straggler"]

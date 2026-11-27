@@ -19,6 +19,8 @@ type Clock = Callable[[], datetime]
 type Stopped = Callable[[], bool]
 # Waits that many seconds, returning early once `Stopped` says so (tests record the waits).
 type Wait = Callable[[float, Stopped], None]
+# Runs right before each attempt of a call is sent (a caller records the time).
+type BeforeAttempt = Callable[[], None]
 
 
 def utc_now() -> datetime:

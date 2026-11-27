@@ -1358,7 +1358,8 @@
       "enum": [
         "pod",
         "queued",
-        "unconfirmed"
+        "unconfirmed",
+        "ended"
       ],
       "type": "string"
     },
@@ -1368,6 +1369,10 @@
       "properties": {
         "cost": {
           "$ref": "#/$defs/CostEstimate"
+        },
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
         },
         "max_runtime_s": {
           "exclusiveMinimum": 0,
@@ -1396,6 +1401,7 @@
         "weighted_duration_s",
         "max_runtime_s",
         "cost",
+        "fingerprint",
         "wait"
       ],
       "title": "LaunchPlan",

@@ -58,6 +58,12 @@ def load_run(session: Session, run_id: str) -> RunRow:
     return row
 
 
+def read_payload(state: LocalState, run_id: str) -> RunPayload:
+    """Return the run's payload (its own transaction)."""
+    with state.session() as session:
+        return payload_of(load_run(session, run_id))
+
+
 def read_run(state: LocalState, run_id: str) -> RunInfo:
     """Return the run (its own transaction)."""
     with state.session() as session:
@@ -108,6 +114,13 @@ def run_statuses(state: LocalState) -> dict[str, str]:
     return dict(rows)
 
 
+def _stopped_is_recorded(payload: RunPayload, changes: PayloadChanges) -> bool:
+    recorded = {payload.pod_id, payload.queued_pod_id} - {None}
+    stopped_ids = (changes.get("pod_id"), changes.get("queued_pod_id"))
+    stopped = set(stopped_ids) - {None}
+    return not recorded or bool(recorded & stopped)
+
+
 def open_runs(state: LocalState) -> list[RunInfo]:
     """Return every local run that is not final, oldest first."""
     not_final = RunRow.status.not_in(FINAL_RUN_STATUSES)
@@ -119,6 +132,8 @@ def open_runs(state: LocalState) -> list[RunInfo]:
 def cancel_local_run(state: LocalState, run_id: str | None, now: datetime, changes: PayloadChanges) -> RunStatus | None:
     """Mark the local run of that id `cancelled` (with the payload fields that are set) if it is not final.
 
+    Only when what was stopped (the `pod_id` and `queued_pod_id` of `changes`) is what the run
+    recorded, or the run recorded neither: a stray pod carrying the run's name does not end it.
     Return its status now; None when the id is None or this database does not know the run.
     """
     if run_id is None:
@@ -126,7 +141,7 @@ def cancel_local_run(state: LocalState, run_id: str | None, now: datetime, chang
     status = run_statuses(state).get(run_id)
     if status is None:
         return None
-    if status in FINAL_RUN_STATUSES:
+    if status in FINAL_RUN_STATUSES or not _stopped_is_recorded(read_payload(state, run_id), changes):
         return read_run(state, run_id).status
     known = {field: change for field, change in changes.items() if change}
     cancelled = update_run(state, run_id, now, "cancelled", known)
