@@ -287,35 +287,51 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Audio track choice for multi-track videos comes from the review step. Distinct tracks
   become distinct audio objects.
 - Embedded subtitle extraction:
-  `ffmpeg -nostdin -copyts -i <in> -map 0:s:<n> -c:s srt -f srt pipe:1` for text codecs
+  `ffmpeg -nostdin [-copyts] -i <in> -map 0:s:<n> -c:s srt -f srt pipe:1` for text codecs
   (`subrip`, `ass`, `ssa`, `mov_text`, `webvtt`, `text`); the SRT is read from stdout (no temp
-  file). `-copyts` keeps the cue times as the container stores them; without it ffmpeg shifts
-  them by the file's start time (tens of milliseconds from audio priming, more in some
-  containers). Bitmap codecs (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`, `xsub`) and
-  unknown ones are transcribe-only.
+  file). The file is probed first for its container start time. Up to 0.5 s (audio priming
+  gives tens of milliseconds) `-copyts` keeps the cue times as stored, which without it would
+  run late by that start; a later start (MPEG-TS and M2TS often begin at a second or more) is
+  subtracted (ffmpeg's default without `-copyts`), since players count from the start of the
+  file. Bitmap codecs (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`, `xsub`) and unknown
+  ones are transcribe-only.
 - ffmpeg/ffprobe: bundled static LGPL builds inside the executable. Resolution order: the
   path set in the settings, then the bundled build (`sys._MEIPASS` of a PyInstaller build),
   then `PATH` (development runs without a bundle), so a `PATH` ffmpeg of unknown version never
   silently replaces the tested one. A settings path that is not a file is an error
-  (`media_tool_not_found`), never skipped. The tools are resolved when first used, so requests
-  that need no media work without them.
+  (`media_tool_not_found`), never skipped. The `PATH` search is the app's own: only absolute
+  entries, never the current folder (Windows' `shutil.which` searches it first), `PATHEXT` on
+  Windows. The tools are resolved when first used, so requests that need no media work without
+  them.
 - Media adapter (`transcribe_ui/media/`): the `MediaTools` port (`probe`, `convert`,
   `extract`), its ffmpeg adapter and a deterministic fake for golden flows. Processes run
   through an injectable `ProcessRunner`:
-  - every ffmpeg/ffprobe process starts in its own process group (`start_new_session` on
-    POSIX; `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` on Windows), so the terminal's Ctrl+C
+  - every ffmpeg/ffprobe process starts in its own process group, so the terminal's Ctrl+C
     reaches only the app; the runner polls the cancel token and the timeout every 0.1 s and
-    kills the process itself (the whole group on POSIX), also when anything else interrupts
-    the wait (a second Ctrl+C);
-  - timeouts: probe 2 min, each conversion attempt and an extraction 1 h (hang guards, not
-    performance limits);
-  - a conversion writes `<name>.<ext>.part` and renames it into place on success; the partial
-    file is removed on failure, timeout and cancel, so a finished name always means a complete
-    file. The FLAC fallback runs whenever the stream copy exits non-zero (not after a timeout
-    or cancel), since ffmpeg's wording of a muxer refusal is not stable across versions;
+    kills the process itself, also when anything else interrupts the wait (a second Ctrl+C),
+    together with everything it started (a package-manager shim such as Chocolatey's
+    `ffmpeg.exe` runs the real ffmpeg as its own child):
+    - POSIX: a new session (`start_new_session`; no `preexec_fn`, which is not thread-safe);
+      the kill is `killpg(SIGKILL)`. If the app itself dies, a running ffmpeg is orphaned and
+      runs to its end; this is accepted, since it writes only its own uniquely named partial
+      file, which the start-up cleanup of the temp folder (M5.10) removes;
+    - Windows: `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, created suspended, put into a
+      job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, then resumed (ctypes, no
+      dependency); the kill is `TerminateJobObject`, and when the app dies the OS closes the
+      job and kills the tree;
+  - timeouts (hang guards, not performance limits): probe 2 min; each conversion attempt and
+    an extraction 1 h or, for a large file, as long as reading it at 2 MB/s takes;
+  - a conversion writes `<name>.<ext>.<random>.part` (unique per attempt, so an orphaned ffmpeg
+    can never write into a file a later attempt renames) and renames it into place on success
+    (retried for up to 2 s on a Windows sharing violation); the partial file is removed on
+    failure, timeout and cancel, so a finished name always means a complete file. The FLAC
+    fallback runs whenever the stream copy exits non-zero (not after a timeout or cancel),
+    since ffmpeg's wording of a muxer refusal is not stable across versions;
   - errors: `media_tool_not_found` (details `source`: `settings`, `search` or `start`),
     `media_tool_failed` (details: tool, operation, exit code and the last 500 characters of
-    stderr), `media_tool_timeout`, `cancelled`.
+    stderr), `media_tool_timeout`, `media_output_unwritable` (the output folder or file cannot
+    be written), `media_index_invalid` (a negative track or stream index; nothing runs),
+    `cancelled`.
 
 ### 3.5 Download and placement
 

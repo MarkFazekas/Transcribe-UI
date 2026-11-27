@@ -75,9 +75,10 @@ runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`)
 - CI installs the system `ffmpeg` for the worker and desktop targets (apt on Ubuntu,
   Chocolatey on Windows; the worker's decode tests and the desktop's media tests run the real
   binary, the desktop's generating tiny media with `lavfi` sources in
-  `apps/desktop/tests/support/media.py`); locally it must be on `PATH`. The desktop's
-  kill-on-cancel and timeout tests on real ffmpeg read a named pipe and run on POSIX only; on
-  Windows the same kill paths are covered by the runner tests with Python children.
+  `apps/desktop/tests/support/media.py`); locally it must be on `PATH`. Kill-on-cancel and
+  timeout through the media adapter are tested on every OS with a Python child standing in for
+  ffmpeg (directly and behind a shim-like parent, `test_media_kill.py`); the same tests on the
+  real ffmpeg read a named pipe and run on POSIX only.
 - The desktop's runtime dependencies for all of M5 (pydantic, sqlalchemy, alembic,
   platformdirs, keyring, httpx, boto3) were added at once by M5.1, so parallel parts do not
   conflict on `uv.lock`. `keyring` and `platformdirs` ship their own types.
