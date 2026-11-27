@@ -12,6 +12,7 @@ from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.info import get_app_info
 from transcribe_ui.api.ports import CancelFlag, CancelToken, DiscardProgress, Ports, ProgressSink, RequestContext
 from transcribe_ui.api.schema import parse_request
+from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.discovery.services import preview_selection, scan_tree
 from transcribe_ui.state.requests import get_settings, update_settings
 
@@ -41,6 +42,9 @@ def default_routes() -> Routes:
             "preview_selection": Route(run=preview_selection, needs_database=False),
             "get_settings": Route(run=get_settings, needs_database=False),
             "update_settings": Route(run=update_settings, needs_database=False),
+            "store_credentials": Route(run=store_credentials, needs_database=False),
+            "credentials_status": Route(run=credentials_status, needs_database=False),
+            "check_credentials": Route(run=check_credentials, needs_database=False),
         },
     )
 

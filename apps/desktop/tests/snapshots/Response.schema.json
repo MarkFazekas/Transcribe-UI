@@ -1,5 +1,49 @@
 {
   "$defs": {
+    "CheckCredentialsResponse": {
+      "additionalProperties": false,
+      "description": "Outcome per service; a failed check is reported here, not as an error response.",
+      "properties": {
+        "action": {
+          "const": "check_credentials",
+          "default": "check_credentials",
+          "title": "Action",
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/ServiceCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "checks"
+      ],
+      "title": "CheckCredentialsResponse",
+      "type": "object"
+    },
+    "CheckOutcome": {
+      "enum": [
+        "ok",
+        "missing",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "CheckedService": {
+      "const": "r2",
+      "type": "string"
+    },
     "Confirmation": {
       "additionalProperties": false,
       "description": "One thing the user has to confirm before the request is carried out.",
@@ -26,6 +70,83 @@
         "details"
       ],
       "title": "Confirmation",
+      "type": "object"
+    },
+    "CredentialName": {
+      "enum": [
+        "r2_endpoint_url",
+        "r2_bucket",
+        "r2_access_key_id",
+        "r2_secret_access_key",
+        "runpod_api_key"
+      ],
+      "type": "string"
+    },
+    "CredentialSource": {
+      "enum": [
+        "keyring",
+        "environment",
+        "missing"
+      ],
+      "type": "string"
+    },
+    "CredentialStatus": {
+      "additionalProperties": false,
+      "description": "Whether one credential is set, and where from.",
+      "properties": {
+        "environment_variable": {
+          "title": "Environment Variable",
+          "type": "string"
+        },
+        "name": {
+          "$ref": "#/$defs/CredentialName"
+        },
+        "source": {
+          "$ref": "#/$defs/CredentialSource"
+        }
+      },
+      "required": [
+        "name",
+        "environment_variable",
+        "source"
+      ],
+      "title": "CredentialStatus",
+      "type": "object"
+    },
+    "CredentialsStatusResponse": {
+      "additionalProperties": false,
+      "description": "Which credentials are set and where from (keyring first, then the environment).",
+      "properties": {
+        "action": {
+          "const": "credentials_status",
+          "default": "credentials_status",
+          "title": "Action",
+          "type": "string"
+        },
+        "credentials": {
+          "items": {
+            "$ref": "#/$defs/CredentialStatus"
+          },
+          "title": "Credentials",
+          "type": "array"
+        },
+        "keyring": {
+          "$ref": "#/$defs/KeyringState"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "keyring",
+        "credentials"
+      ],
+      "title": "CredentialsStatusResponse",
       "type": "object"
     },
     "ErrorBody": {
@@ -189,6 +310,14 @@
       "type": "object"
     },
     "JsonValue": {},
+    "KeyringState": {
+      "enum": [
+        "available",
+        "unavailable",
+        "failed"
+      ],
+      "type": "string"
+    },
     "LanguageOption": {
       "additionalProperties": false,
       "description": "A Whisper language as the settings page shows it.",
@@ -674,6 +803,42 @@
       "title": "SelectionCounts",
       "type": "object"
     },
+    "ServiceCheck": {
+      "additionalProperties": false,
+      "description": "Outcome of trying one service's credentials.",
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/CheckOutcome"
+        },
+        "service": {
+          "$ref": "#/$defs/CheckedService"
+        }
+      },
+      "required": [
+        "service",
+        "outcome",
+        "code",
+        "message"
+      ],
+      "title": "ServiceCheck",
+      "type": "object"
+    },
     "SetPath": {
       "type": "string"
     },
@@ -775,6 +940,38 @@
       "title": "Sidecar",
       "type": "object"
     },
+    "StoreCredentialsResponse": {
+      "additionalProperties": false,
+      "description": "The credentials were stored in the keyring.",
+      "properties": {
+        "action": {
+          "const": "store_credentials",
+          "default": "store_credentials",
+          "title": "Action",
+          "type": "string"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "stored": {
+          "items": {
+            "$ref": "#/$defs/CredentialName"
+          },
+          "title": "Stored",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "stored"
+      ],
+      "title": "StoreCredentialsResponse",
+      "type": "object"
+    },
     "SubtitleFormat": {
       "enum": [
         "ass",
@@ -788,10 +985,13 @@
     "SuccessResponse": {
       "discriminator": {
         "mapping": {
+          "check_credentials": "#/$defs/CheckCredentialsResponse",
+          "credentials_status": "#/$defs/CredentialsStatusResponse",
           "get_app_info": "#/$defs/GetAppInfoResponse",
           "get_settings": "#/$defs/GetSettingsResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
           "scan_tree": "#/$defs/ScanTreeResponse",
+          "store_credentials": "#/$defs/StoreCredentialsResponse",
           "update_settings": "#/$defs/UpdateSettingsResponse"
         },
         "propertyName": "action"
@@ -811,6 +1011,15 @@
         },
         {
           "$ref": "#/$defs/UpdateSettingsResponse"
+        },
+        {
+          "$ref": "#/$defs/StoreCredentialsResponse"
+        },
+        {
+          "$ref": "#/$defs/CredentialsStatusResponse"
+        },
+        {
+          "$ref": "#/$defs/CheckCredentialsResponse"
         }
       ]
     },

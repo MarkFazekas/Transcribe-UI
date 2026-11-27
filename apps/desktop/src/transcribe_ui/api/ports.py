@@ -19,8 +19,11 @@ from transcribe_ui.discovery.rules import PathRules, host_rules
 from transcribe_ui.state.store import LocalState
 
 if TYPE_CHECKING:
-    # `media.ports` uses `CancelToken` from here, so the import is for type checking only.
+    # For type checking only: `media.ports` uses `CancelToken` from here, and importing the
+    # ports must not load keyring and boto3.
+    from transcribe_ui.credentials.store import CredentialStore
     from transcribe_ui.media.ports import MediaTools
+    from transcribe_ui.storage.client import R2ClientFactory
 
 # Returns that many random bits (`random.Random.getrandbits` signature).
 type RandomBits = Callable[[int], int]
@@ -112,6 +115,10 @@ class Ports:
     media: "MediaTools"
     # Settings, locks and the lazily opened database, under injectable directories.
     state: LocalState
+    # Keyring entries with the environment as fallback (tests: in-memory keyring, empty environment).
+    credentials: "CredentialStore"
+    # Builds the S3 client for R2 from the credentials (tests: the same settings, served by moto).
+    r2_clients: "R2ClientFactory"
     # How the host's file system compares names; tests inject the Windows or macOS rule.
     path_rules: PathRules = field(default_factory=host_rules)
     # The latest scans, reused by `preview_selection` (process-local).

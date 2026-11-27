@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from support.credentials import memory_store
 from transcribe_ui.api.ports import Ports, UlidSource
 from transcribe_ui.media.fake import FakeMediaTools
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.store import LocalState
+from transcribe_ui.storage.client import r2_client
 
 # The fixed "now" of every test backend.
 FIXED_NOW = datetime.fromisoformat("2026-11-27T12:00:00+00:00")
@@ -37,11 +39,20 @@ def app_paths_under(root: Path) -> AppPaths:
 
 
 def seeded_ports(root: Path, seed: int = ID_SEED) -> Ports:
-    """Return seeded test ports: fixed clock, seeded ULIDs, fake media tools, local state under `root`.
+    """Return seeded test ports: fixed clock, seeded ULIDs, fake media tools, empty in-memory keyring.
+
+    The local state lives under `root`.
 
     Close `ports.state` when done (it may hold the database and its writer lock).
     """
     clock = FixedClock()
     generator = random.Random(seed)  # noqa: S311 -- reproducible test ids, not cryptography.
     state = LocalState(app_paths_under(root), runs_lock_wait_s=TEST_RUNS_LOCK_WAIT_S)
-    return Ports(clock=clock, ids=UlidSource(clock, generator.getrandbits), media=FakeMediaTools(), state=state)
+    return Ports(
+        clock=clock,
+        ids=UlidSource(clock, generator.getrandbits),
+        media=FakeMediaTools(),
+        state=state,
+        credentials=memory_store(),
+        r2_clients=r2_client,
+    )
