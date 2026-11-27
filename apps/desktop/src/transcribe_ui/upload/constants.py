@@ -47,3 +47,7 @@ ERROR_REVIEW_INCOMPLETE: Final = "review_incomplete"
 ERROR_UPLOAD_UNVERIFIED: Final = "upload_unverified"
 # Error code: a file's audio cannot be uploaded as it is (an empty file, or an extension R2 keys do not allow).
 ERROR_AUDIO_UNUSABLE: Final = "audio_unusable"
+# Error code: an item's file cannot be read right now (an unreachable network share, say); re-sending resumes.
+ERROR_SOURCE_UNREADABLE: Final = "source_unreadable"
+# Error code: a retry item has no copy source for an audio track its jobs use.
+ERROR_COPY_SOURCE_MISSING: Final = "copy_source_missing"

@@ -64,8 +64,8 @@ def has_transcribe_jobs(context: RequestContext, batch_id: str) -> bool:
 def item_progress(context: RequestContext, item_id: str) -> ItemProgress:
     """Return what of the item is already recorded."""
     with context.ports.state.session() as session:
-        of_item = AudioObjectRow.item_id == item_id
-        rows = session.scalars(select(AudioObjectRow).where(of_item))
+        verified = (AudioObjectRow.item_id == item_id, AudioObjectRow.status == AUDIO_VERIFIED)
+        rows = session.scalars(select(AudioObjectRow).where(*verified))
         payloads = [AudioObjectPayload.model_validate(row.payload) for row in rows]
         tracks = frozenset(payload.track_index for payload in payloads)
         extracted_query = (

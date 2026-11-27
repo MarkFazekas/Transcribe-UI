@@ -2,8 +2,9 @@
 
 Batch ids are unique only in this database: a batch of another computer created in the same
 second, or a batch of an earlier (deleted) database, has the same id and so the same R2 prefix.
-Before the first object is uploaded, `batch_metadata/<id>.json` and everything under `<id>/`
-must therefore be absent; otherwise the batch keeps `reviewing` and the user creates it again
+Before the first object is uploaded, `batch_metadata/<id>.json`, every object under `<id>/` and
+every open multipart upload there (another computer's upload in progress) must therefore be
+absent; otherwise the batch keeps `reviewing` and the user creates it again
 (a new id). Once the batch is `uploading`, objects under its prefix are taken as its own.
 """
 
@@ -42,11 +43,13 @@ def start_upload(context: RequestContext, store: ObjectStore, batch_id: str) -> 
     The caller holds the batch's lock (so the review cannot change meanwhile).
 
     Raises:
-        BatchIdTakenError: R2 holds the batch's manifest or objects under its prefix; nothing was changed.
+        BatchIdTakenError: R2 holds the batch's manifest, objects or open multipart uploads under its
+            prefix; nothing was changed.
         StorageError: R2 could not be read; nothing was changed.
     """
+    prefix = batch_prefix(batch_id)
     manifest = store.head(manifest_key(batch_id))
-    if manifest is not None or store.list_objects(batch_prefix(batch_id)):
+    if manifest is not None or store.list_objects(prefix) or store.count_uploads(prefix):
         raise BatchIdTakenError(batch_id)
     with context.ports.state.session() as session:
         now = context.ports.clock.now()

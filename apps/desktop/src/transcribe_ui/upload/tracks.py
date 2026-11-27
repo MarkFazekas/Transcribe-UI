@@ -7,7 +7,6 @@ runs again before the object is recorded.
 """
 
 import re
-from collections.abc import Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,10 +15,14 @@ from transcribe_contracts.layout import audio_key
 from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.batches.records import StoredItem
 from transcribe_ui.upload.constants import AUDIO_EXTENSION_RULE, FLAC_CODEC_NAME, UPLOAD_BYTES_STAGE
-from transcribe_ui.upload.errors import AudioUnusableError
+from transcribe_ui.upload.errors import (
+    AudioUnusableError,
+    CopySourceMissingError,
+    UploadUnverifiedError,
+)
 from transcribe_ui.upload.payloads import AudioObjectPayload, CopySource
 from transcribe_ui.upload.rows import record_audio
-from transcribe_ui.upload.sources import SourceChangedError, UploadRun, probe_of, require_unchanged
+from transcribe_ui.upload.sources import UploadRun, media_call, probe_of, require_unchanged, unreadable_error
 from transcribe_ui.upload.temp import remove_temp
 from transcribe_ui.upload.transfer import LocalFile, copy_object, upload_object
 
@@ -53,7 +56,7 @@ def put_track(run: UploadRun, member: StoredItem, track: int | None) -> None:
 
 
 def _copy_track(run: UploadRun, member: StoredItem, track: int | None) -> None:
-    source = _copy_source(member.payload.copy_sources, track)
+    source = _copy_source(member, track)
     audio = source.audio
     key = audio_key(member.row.batch_id, member.item_id, audio.extension, track)
     copy_object(run.store, source.source_key, key, audio.size_bytes)
@@ -74,7 +77,8 @@ def _upload_converted(run: UploadRun, member: StoredItem, track: int) -> None:
     base = run.temp_folder / f"{member.item_id}.a{track}"
     media = run.context.ports.media
     source = Path(member.payload.path)
-    converted = media.convert(source, track, base, run.context.cancel)
+    cancel = run.context.cancel
+    converted = media_call(member, lambda: media.convert(source, track, base, cancel))
     codec = FLAC_CODEC_NAME if converted.fell_back else probe_of(member).audio_tracks[track].codec
     with ExitStack() as cleanup:
         cleanup.callback(remove_temp, converted.path)
@@ -83,16 +87,22 @@ def _upload_converted(run: UploadRun, member: StoredItem, track: int) -> None:
 
 
 def _send(run: UploadRun, member: StoredItem, local: _LocalTrack, encoding: _Encoding) -> None:
-    """Upload a local file as the track's object, verify it, check the source again, record it."""
+    """Upload a local file as the track's object, verify it, check the source again, record it.
+
+    A file that cannot be read, or an object that does not verify, is first checked against the
+    source: a changed source sends the item back to review (the failure was its consequence);
+    otherwise the error stands and re-sending resumes.
+    """
     path, track = local
-    size = _size_of(member, path)
     key = audio_key(member.row.batch_id, member.item_id, encoding.extension, track)
-    reporter = _BytesReporter(run, member.payload.path, size)
-    cancel = run.context.cancel
     try:
-        upload_object(run.store, key, LocalFile(path, size), reporter, cancel)
+        size = _upload(run, member, key, path)
     except OSError as error:
-        raise SourceChangedError from error
+        require_unchanged(member)
+        raise unreadable_error(member, path) from error
+    except UploadUnverifiedError:
+        require_unchanged(member)
+        raise
     require_unchanged(member)
     audio = AudioObjectPayload(
         track_index=track,
@@ -122,25 +132,30 @@ def _bytes_event(action: str, sent: int, size: int, path: str) -> ProgressEvent:
     return ProgressEvent(action=action, stage=UPLOAD_BYTES_STAGE, completed=sent, total=size, path=path)
 
 
-def _size_of(member: StoredItem, path: Path) -> int:
-    """Return the local file's size; an empty file cannot be uploaded.
+def _upload(run: UploadRun, member: StoredItem, key: str, path: Path) -> int:
+    """Upload the local file to `key` and verify it; return its size.
 
     Raises:
-        SourceChangedError: The file cannot be read (it vanished).
+        OSError: The file cannot be read.
         AudioUnusableError: The file is empty.
+        UploadUnverifiedError: The object could not be verified.
     """
-    try:
-        size = path.stat().st_size
-    except OSError as error:
-        raise SourceChangedError from error
+    size = path.stat().st_size
     if not size:
         raise AudioUnusableError(member.item_id)
+    reporter = _BytesReporter(run, member.payload.path, size)
+    local = LocalFile(path, size)
+    upload_object(run.store, key, local, reporter, run.context.cancel)
     return size
 
 
-def _copy_source(sources: Sequence[CopySource], track: int | None) -> CopySource:
-    for source in sources:
+def _copy_source(member: StoredItem, track: int | None) -> CopySource:
+    """Return the item's copy source of the track.
+
+    Raises:
+        CopySourceMissingError: The item has none for this track.
+    """
+    for source in member.payload.copy_sources:
         if source.audio.track_index == track:
             return source
-    msg = "a retry item has a copy source for every track its jobs use"
-    raise LookupError(msg)
+    raise CopySourceMissingError(member.item_id, track)

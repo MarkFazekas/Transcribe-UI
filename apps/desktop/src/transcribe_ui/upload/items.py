@@ -20,7 +20,7 @@ from transcribe_ui.batches.records import StoredItem, StoredJob
 from transcribe_ui.batches.rereview import return_item_to_review
 from transcribe_ui.upload.constants import UPLOAD_ITEM_STAGE
 from transcribe_ui.upload.rows import Extracted, item_progress, items_to_upload, mark_uploaded, record_extraction
-from transcribe_ui.upload.sources import SourceChangedError, UploadRun, require_unchanged
+from transcribe_ui.upload.sources import SourceChangedError, UploadRun, media_call, require_unchanged
 from transcribe_ui.upload.tracks import put_track
 
 
@@ -96,7 +96,8 @@ def _extract(run: UploadRun, member: StoredItem, job: StoredJob) -> None:
     stream = job.payload.stream_index
     assert stream is not None, "a resolved extract job has a stream"
     media = context.ports.media
-    srt_text = media.extract(Path(member.payload.path), stream, context.cancel)
+    source = Path(member.payload.path)
+    srt_text = media_call(member, lambda: media.extract(source, stream, context.cancel))
     require_unchanged(member)
     record_extraction(context, member, job.row.job_id, Extracted(stream, srt_text))
 

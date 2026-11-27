@@ -8,8 +8,10 @@ from transcribe_ui.api.errors import DomainError
 from transcribe_ui.upload.constants import (
     ERROR_AUDIO_UNUSABLE,
     ERROR_BATCH_ID_TAKEN,
+    ERROR_COPY_SOURCE_MISSING,
     ERROR_NOTHING_TO_TRANSCRIBE,
     ERROR_REVIEW_INCOMPLETE,
+    ERROR_SOURCE_UNREADABLE,
     ERROR_UPLOAD_INCOMPLETE,
     ERROR_UPLOAD_UNVERIFIED,
 )
@@ -91,4 +93,29 @@ class AudioUnusableError(DomainError):
             ERROR_AUDIO_UNUSABLE,
             "This file's audio cannot be uploaded (it is empty, or its extension is not usable); exclude it.",
             {"item_id": item_id},
+        )
+
+
+class SourceUnreadableError(DomainError):
+    """An item's file cannot be read right now, though nothing shows it changed; re-sending resumes."""
+
+    def __init__(self, item_id: str) -> None:
+        """Name the item."""
+        super().__init__(
+            ERROR_SOURCE_UNREADABLE,
+            "A file of the batch cannot be read right now (is its drive or network share connected?); "
+            "send the request again once it can.",
+            {"item_id": item_id},
+        )
+
+
+class CopySourceMissingError(DomainError):
+    """A retry item has no copy source for an audio track its jobs use."""
+
+    def __init__(self, item_id: str, track_index: int | None) -> None:
+        """Name the item and the track (None: an audio file uploaded as it is)."""
+        super().__init__(
+            ERROR_COPY_SOURCE_MISSING,
+            "A retried file has no audio to copy for one of its jobs.",
+            {"item_id": item_id, "track_index": track_index},
         )

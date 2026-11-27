@@ -6,9 +6,11 @@ objects whose row was never written (or another extension of the same track). Th
 the batch's audio folder and deletes every object that is not a verified `audio_objects` row of
 the batch. Such objects are never in a manifest this database builds now, but a leftover manifest
 whose withdrawal is pending (`upload/withdraw.py`) may list them, and a running worker may read
-it: the withdrawal is therefore finished first, under the runs lock with no run active. While a
-run is active (or the cloud cannot be checked, or a launch holds the runs lock past the bounded
-wait) the sweep is put off to the next `run_upload`; the objects are harmless meanwhile.
+it: a pending withdrawal is therefore finished first (whether or not there are orphans, so no
+leftover outlives the upload's start), under the runs lock with no run active. While a run is
+active (or the cloud cannot be checked, or a launch holds the runs lock past the bounded wait)
+the withdrawal and the sweep are put off to the next `run_upload`, or to the manifest step,
+which finishes the withdrawal before it writes; the objects are harmless meanwhile.
 """
 
 import logging
@@ -31,7 +33,10 @@ logger = logging.getLogger(__name__)
 
 
 def sweep_orphans(context: RequestContext, cloud: CloudAccess, batch_id: str) -> int | None:
-    """Delete the batch's audio objects that no item records; return how many, or None when put off.
+    """Finish a pending withdrawal, then delete the batch's audio objects that no item records.
+
+    Returns how many objects were deleted, or None when a pending withdrawal could not be
+    finished (a run is active, the cloud cannot be checked, or the runs lock stays busy).
 
     The caller holds the batch's lock and not the runs lock.
 
@@ -39,17 +44,16 @@ def sweep_orphans(context: RequestContext, cloud: CloudAccess, batch_id: str) ->
         CancelledError: Cancelled between two deletes or while waiting for the runs lock.
         StorageError: R2 failed (what was deleted stays deleted; the next sweep resumes).
     """
+    with context.ports.state.session() as session:
+        pending = load_batch(session, batch_id).pending_withdrawal is not None
+    if pending and not _withdrawn(context, cloud, batch_id):
+        return None
     verified = (AudioObjectRow.batch_id == batch_id, AudioObjectRow.status == AUDIO_VERIFIED)
     query = select(AudioObjectRow.object_key).where(*verified)
     with context.ports.state.session() as session:
-        pending = load_batch(session, batch_id).pending_withdrawal is not None
         recorded = frozenset(session.scalars(query))
     listed = cloud.store.list_objects(f"{batch_prefix(batch_id)}{AUDIO_FOLDER}/")
     orphans = [found.key for found in listed if found.key not in recorded]
-    if not orphans:
-        return 0
-    if pending and not _withdrawn(context, cloud, batch_id):
-        return None
     for key in orphans:
         context.check_cancelled()
         cloud.store.delete(key)

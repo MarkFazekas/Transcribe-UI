@@ -23,8 +23,8 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
     `extracted_subtitles` rows, sets its jobs back to pending, clears the batch's
     `manifest_held` (the held manifest would list the old audio) and records the pending
     withdrawal; then the withdrawal is carried out and the item's objects are deleted. Objects
-    an interruption leaves behind stay under the item's audio prefix, where a later exclusion
-    or upload of the item (or the batch's cleanup) removes them. Returns whether a withdrawal
+    an interruption leaves behind stay under the item's audio prefix, unrecorded, where the
+    orphan sweep of the next `run_upload` (or the batch's cleanup) removes them. Returns whether a withdrawal
     stays pending (R2 failed after the change was saved; logged, not an error).
 
     Raises:
