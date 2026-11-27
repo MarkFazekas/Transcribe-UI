@@ -1,7 +1,6 @@
 """Sources that change during the upload, and a manifest held back during a run (plan m5 M5.10)."""
 
 from collections.abc import Iterator
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -9,7 +8,7 @@ import pytest
 from support.batch_backend import item_phase, run_ok
 from support.batches import FILM, FIRST_BATCH_ID, PODCAST, batch_request
 from support.credentials import moto_bucket
-from support.interrupt import TripMedia, trip_media
+from support.interrupt import EditDuringConversion, TripMedia, trip_media
 from support.runs import RUN_ID, RunsWorld, seed_run, set_run_status
 from support.upload import (
     audio_keys,
@@ -23,9 +22,6 @@ from support.upload import (
 )
 from transcribe_contracts.layout import audio_prefix, manifest_key
 from transcribe_contracts.reading import read_manifest
-from transcribe_ui.api.ports import CancelToken
-from transcribe_ui.media.classes import ConvertedAudio, ProbeResult
-from transcribe_ui.media.ports import MediaTools
 
 
 @pytest.fixture
@@ -82,35 +78,12 @@ def test_changed_source_excluded_then_published(world: RunsWorld) -> None:
     assert (film in listed, ids[PODCAST] in listed, _under(world, film)) == (False, True, [])
 
 
-@dataclass(frozen=True)
-class _EditDuringConversion:
-    """Media tools that edit the film while its English track (1) is converted."""
-
-    inner: MediaTools
-    root: Path
-
-    def probe(self, source: Path, cancel: CancelToken) -> ProbeResult:
-        """Pass on."""
-        return self.inner.probe(source, cancel)
-
-    def extract(self, source: Path, stream_index: int, cancel: CancelToken) -> str:
-        """Pass on."""
-        return self.inner.extract(source, stream_index, cancel)
-
-    def convert(self, source: Path, track_index: int, output_base: Path, cancel: CancelToken) -> ConvertedAudio:
-        """Convert, editing the film during its second track."""
-        converted = self.inner.convert(source, track_index, output_base, cancel)
-        if source.name == FILM and track_index == 1:
-            change_source(self.root, FILM)
-        return converted
-
-
 def test_source_changing_during_upload_back_to_review(world: RunsWorld) -> None:
     """The check runs again after each read: a file edited mid-item loses its objects and goes back to review."""
     film = review(world)[FILM]
     media = world.ports.media
     assert isinstance(media, TripMedia)
-    media.inner = _EditDuringConversion(media.inner, world.leg.root)
+    media.inner = EditDuringConversion(media.inner, world.leg.root)
     response = upload(world)
     assert (outcome_of(response), response.model_dump(mode="json")["items_in_review"]) == ("items_in_review", [film])
     assert (_under(world, film), [key for key in recorded_keys(world) if film in key]) == ([], [])

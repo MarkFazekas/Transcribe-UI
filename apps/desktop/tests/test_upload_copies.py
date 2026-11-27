@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import override
 
 import pytest
+from pydantic import ValidationError
 
-from support.batch_backend import error_code
+from support.batch_backend import error_code, error_of
 from support.batches import FILM, FIRST_BATCH_ID, SECOND_BATCH_ID, batch_request, seeded_keys
 from support.buckets import create_bucket
 from support.credentials import TEST_BUCKET, moto_bucket
@@ -49,8 +50,11 @@ def world(tmp_path: Path) -> Iterator[RunsWorld]:
         yield created
 
 
-def _seed_retry(world: RunsWorld) -> str:
-    """Seed the uploaded source batch and a retry batch copying its film audio; return the source key."""
+def _seed_retry(world: RunsWorld, job_track: int = FILM_TRACK) -> str:
+    """Seed the uploaded source batch and a retry batch copying its film audio; return the source key.
+
+    The retry job uses `job_track` (the copy source is of `FILM_TRACK`).
+    """
     ids = seed_uploaded(world)
     source_key = next(key for key in seeded_keys(world.ports.state) if ids[FILM] in key)
     with world.ports.state.session() as session:
@@ -93,7 +97,7 @@ def _seed_retry(world: RunsWorld) -> str:
                 language="en",
                 kind="transcribe",
                 status="pending",
-                payload=JobPayload(mode="careful", track_index=FILM_TRACK).model_dump(mode="json"),
+                payload=JobPayload(mode="careful", track_index=job_track).model_dump(mode="json"),
             ),
         )
     return source_key
@@ -212,3 +216,30 @@ def test_object_of_another_size_is_not_recorded(world: RunsWorld, monkeypatch: p
     patch_upload_store(monkeypatch, lambda _store: _WrongSize())
     assert error_code(upload(world)) == "upload_unverified"
     assert recorded_keys(world) == []
+
+
+def test_retry_without_copy_source_of_its_track(world: RunsWorld) -> None:
+    """A job whose track has no copy source: `copy_source_missing`, naming the item and the track."""
+    _seed_retry(world, job_track=0)
+    assert error_of(_retry(world)) == ("copy_source_missing", {"item_id": RETRY_ITEM, "track_index": 0})
+
+
+@pytest.mark.parametrize(
+    "source_key",
+    [
+        f"{FIRST_BATCH_ID}/audio/{RETRY_ITEM}.a0.mka",
+        f"{FIRST_BATCH_ID}/audio/{RETRY_ITEM}.a1.flac",
+        f"{FIRST_BATCH_ID}/results/{RETRY_ITEM}.a1.mka",
+        f"batch_1/audio/{RETRY_ITEM}.a1.mka",
+        f"{FIRST_BATCH_ID}/audio/not-an-item.a1.mka",
+    ],
+)
+def test_copy_source_key_follows_the_layout(source_key: str) -> None:
+    """A copy source must be the layout's audio key of its own track and extension."""
+    audio = AudioObjectPayload(
+        track_index=FILM_TRACK, extension="mka", codec="opus", duration_s=FILM_SECONDS_SEEDED, size_bytes=SEEDED_BYTES
+    )
+    valid = f"{FIRST_BATCH_ID}/audio/{RETRY_ITEM}.a1.mka"
+    assert CopySource(source_key=valid, audio=audio).source_key == valid
+    with pytest.raises(ValidationError):
+        CopySource(source_key=source_key, audio=audio)

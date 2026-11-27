@@ -11,15 +11,23 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
+from support.batches import FILM
+from support.upload import change_source
 from transcribe_ui.api.ports import CancelFlag, CancelToken, Ports, RequestContext
+from transcribe_ui.credentials.classes import R2Credentials
 from transcribe_ui.media.classes import ConvertedAudio, ProbeResult
 from transcribe_ui.media.ports import MediaTools
 from transcribe_ui.runs.cloud import CloudAccess, open_cloud
+from transcribe_ui.storage.client import ClientLimits, r2_client
 from transcribe_ui.storage.multipart import UploadProgress
 from transcribe_ui.storage.r2 import ObjectInfo, ObjectStore
+
+if TYPE_CHECKING:
+    from types_boto3_s3.client import S3Client
 
 
 class Crash(BaseException):  # noqa: WPS418 -- like a real kill, it must pass the backend's `except Exception`
@@ -98,6 +106,10 @@ class TripStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
         """Pass on."""
         return self.wire.around(lambda: self.inner.abort_uploads(prefix))
 
+    def count_uploads(self, prefix: str) -> int:
+        """Pass on."""
+        return self.wire.around(lambda: self.inner.count_uploads(prefix))
+
     def upload_file(
         self,
         key: str,
@@ -131,8 +143,30 @@ class TripMedia:
 
 
 def trip_media(ports: Ports) -> Ports:
-    """Wrap the ports' media tools in `TripMedia` (its wire is replaced per attempt)."""
-    return replace(ports, media=TripMedia(ports.media))
+    """Wrap the ports' media tools in `TripMedia` (its wire is replaced per attempt), with shared R2 clients.
+
+    Building a boto3 client loads the S3 service model (the app builds one per request); the
+    interruption tests send hundreds of requests, so they reuse one client per bucket.
+    """
+    return replace(ports, media=TripMedia(ports.media), r2_clients=_shared_client)
+
+
+class _ClientCache:
+    """R2 clients of the interruption tests, by bucket (single-threaded tests only)."""
+
+    def __init__(self) -> None:
+        """Start empty."""
+        self.clients: dict[str, S3Client] = {}
+
+    def __call__(self, credentials: R2Credentials, limits: ClientLimits) -> "S3Client":
+        """Return the bucket's client, built on first use."""
+        if credentials.bucket not in self.clients:
+            self.clients[credentials.bucket] = r2_client(credentials, limits)
+        return self.clients[credentials.bucket]
+
+
+# The shared clients.
+_shared_client = _ClientCache()
 
 
 # Builds the object store `run_upload` uses from the one `open_cloud` opened.
@@ -148,3 +182,26 @@ def patch_upload_store(monkeypatch: pytest.MonkeyPatch, wrap: StoreWrap) -> None
 def _wrapped_cloud(wrap: StoreWrap, context: RequestContext) -> Iterator[CloudAccess]:
     with open_cloud(context) as cloud:
         yield CloudAccess(wrap(cloud.store), cloud.pods)
+
+
+@dataclass(frozen=True)
+class EditDuringConversion:
+    """Media tools that edit the film (as a user would) while its English track (1) is converted."""
+
+    inner: MediaTools
+    root: Path
+
+    def probe(self, source: Path, cancel: CancelToken) -> ProbeResult:
+        """Pass on."""
+        return self.inner.probe(source, cancel)
+
+    def extract(self, source: Path, stream_index: int, cancel: CancelToken) -> str:
+        """Pass on."""
+        return self.inner.extract(source, stream_index, cancel)
+
+    def convert(self, source: Path, track_index: int, output_base: Path, cancel: CancelToken) -> ConvertedAudio:
+        """Convert, editing the film during its second track."""
+        converted = self.inner.convert(source, track_index, output_base, cancel)
+        if source.name == FILM and track_index == 1:
+            change_source(self.root, FILM)
+        return converted

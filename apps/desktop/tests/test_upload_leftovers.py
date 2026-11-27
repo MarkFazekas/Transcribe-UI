@@ -125,3 +125,13 @@ def test_sweep_put_off_during_a_run(world: RunsWorld) -> None:
     done = upload(world)
     assert (outcome_of(done), done.model_dump(mode="json")["deleted_objects"]) == ("ready", 2)
     assert none_present(world, *orphans, *seeded[1:])
+
+
+def test_start_finishes_withdrawal_without_orphans(world: RunsWorld) -> None:
+    """A pending withdrawal is finished at the start even when nothing is left to sweep."""
+    review(world)
+    seeded = _seed_leftover(world, GONE_ITEM)
+    response = upload(world)
+    document = response.model_dump(mode="json")
+    assert (outcome_of(response), document["deleted_objects"], document["sweep_skipped"]) == ("ready", 0, False)
+    assert (none_present(world, *seeded[1:]), pending_of(world)) == (True, None)

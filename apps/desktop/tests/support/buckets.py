@@ -41,9 +41,15 @@ def _setup_client() -> "S3Client":
     )
 
 
+@cache
+def shared_client() -> "S3Client":
+    """Return one client of the app's settings for the tests' own reads (moto serves it in every mock)."""
+    return store_client()
+
+
 def bucket_store(bucket: str) -> R2ObjectStore:
     """Return a store on a moto bucket."""
-    return R2ObjectStore(store_client(), bucket)
+    return R2ObjectStore(shared_client(), bucket)
 
 
 @dataclass

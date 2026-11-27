@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
@@ -21,14 +22,16 @@ from support.batches import (
     build_batch_tree,
     create_request,
 )
-from support.buckets import bucket_store
+from support.buckets import bucket_store, shared_client
 from support.credentials import TEST_BUCKET, store_request
+from support.fakes import APP_STATE_FOLDER
+from support.normalise import PathNormaliser
 from support.parity import Leg
 from support.runpod import Cloud
 from support.runs import RunsWorld, runs_ports
-from support.storage import store_client
 from support.trees import FIXED_MTIME_NS
 from transcribe_contracts.layout import batch_prefix, manifest_key
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Response
 from transcribe_ui.api.ports import CancelFlag, Ports, ProgressSink
 from transcribe_ui.state.models import AudioObjectRow, BatchRow, ExtractedSubtitleRow
@@ -87,13 +90,40 @@ def upload_world(
     The clock is fixed (the first batch gets `FIRST_BATCH_ID`); `wrap` may replace ports (media tools).
     """
     cloud = Cloud()
-    ports = runs_ports(cloud)
-    factory = ports if wrap is None else _wrapped(ports, wrap)
+    factory = _factory(cloud, wrap)
     leg = Leg.create(root, None, build_upload_tree, factory)
     with closing(leg):
-        stored = leg.backend.execute_json(store_request(r2_bucket=bucket))
-        assert stored.status == "ok", stored
-        yield RunsWorld(leg, cloud, bucket_store(bucket))
+        yield _stored(leg, cloud, bucket)
+
+
+@contextmanager
+def copied_world(
+    template: Path,
+    root: Path,
+    bucket: str,
+    wrap: Callable[[Ports], Ports] | None = None,
+) -> Iterator[RunsWorld]:
+    """Return a backend on a copy of a closed world's local state (its database), on its own bucket.
+
+    The copy's items still point at the template's media tree, which must stay unchanged.
+    """
+    shutil.copytree(template / APP_STATE_FOLDER, root / APP_STATE_FOLDER)
+    cloud = Cloud()
+    ports = _factory(cloud, wrap)(root)
+    leg = Leg(root, ports, Backend(ports), PathNormaliser([root]))
+    with closing(leg):
+        yield _stored(leg, cloud, bucket)
+
+
+def _factory(cloud: Cloud, wrap: Callable[[Ports], Ports] | None) -> Callable[[Path], Ports]:
+    ports = runs_ports(cloud)
+    return ports if wrap is None else _wrapped(ports, wrap)
+
+
+def _stored(leg: Leg, cloud: Cloud, bucket: str) -> RunsWorld:
+    stored = leg.backend.execute_json(store_request(r2_bucket=bucket))
+    assert stored.status == "ok", stored
+    return RunsWorld(leg, cloud, bucket_store(bucket))
 
 
 def _wrapped(factory: Callable[[Path], Ports], wrap: Callable[[Ports], Ports]) -> Callable[[Path], Ports]:
@@ -167,7 +197,7 @@ def temp_files(world: RunsWorld, batch_id: str = FIRST_BATCH_ID) -> list[str]:
 
 def open_uploads(bucket: str = TEST_BUCKET) -> int:
     """Return how many multipart uploads are open in the bucket."""
-    listed = store_client().list_multipart_uploads(Bucket=bucket)
+    listed = shared_client().list_multipart_uploads(Bucket=bucket)
     return len(listed.get("Uploads", []))
 
 
