@@ -30,7 +30,6 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## Waiting on humans
 
-- Architect: schedule the M4 approved Runpod run.
 - Questions: none open (product and architect). M5 is built and M6 is planned.
 
 ## Next
@@ -43,8 +42,9 @@ the status change on the current branch. On a merge conflict in this file, re-de
    additions, high effort; includes a new Alembic revision) and M6.2 (GUI foundation, high
    effort) in parallel, M6.1 merged first. Then wave 2: M6.14 (texts in English and Hungarian, Q32) first, then M6.5 (it changes the
    shared goldens once) before M6.4 and M6.6 start, then M6.4, M6.6 and M6.12 (the
-   remaining-time estimate, backend), followed by M6.3 and M6.7; wave 3 M6.8, M6.9, M6.10; wave 4 M6.11. M6.13 (several installations on one bucket, Q28, with its GUI) after M6.6, M6.8 and M6.9; the later of M6.11 and M6.13 marks M6 built. M4 runs whenever the
-   architect is available.
+   remaining-time estimate, backend), followed by M6.3 and M6.7; wave 3 M6.8, M6.9, M6.10; wave 4 M6.11. M6.13 (several installations on one bucket, Q28, with its GUI) after M6.6 and M6.9; the later of M6.11 and M6.13 marks M6 built. The M4 Runpod
+   trial run is deferred until everything else works (architect); nothing waits on it, and it
+   still needs the architect present and their go.
 3. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial revision is no longer edited.
 4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5) and the cleanup repeated

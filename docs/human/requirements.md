@@ -231,6 +231,7 @@ Naming and conflicts:
   problem is exactly that it holds back the job's 'ready for processing' signal (the manifest)
   and publishes it only after the run. Whatever is not in the run's JSON must not be
   processed."
+- Trial run on Runpod (architect): "We'll leave the trial run until everything else works."
 
 ## Deployed app (worker)
 

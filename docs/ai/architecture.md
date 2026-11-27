@@ -724,7 +724,8 @@ into place, so an interrupted download never leaves a partial file.
 Planner (`placement/`: `planner.py`, `custom.py`, `drafts.py`, `naming.py`, `probe.py`; the
 download requests below wire it to the batches):
 
-- Pure: `plan_placement(jobs, scan_root, options, rules, probe)` and
+- Pure: `plan_placement(jobs, scan_root, options, rules, probe)` (from M6.13 also the batch's
+  `path_flavor`, for splitting sources and the scan root, §3.9) and
   `import_custom_plan(document, jobs, options, rules, probe)` return a `PlacementPlan` (one
   entry per job: source, target, outcome, rename reasons; and plan errors). The input is the
   planner's own models (item id, language, source path, subtitle state `available`, `empty`,
@@ -1469,11 +1470,14 @@ there). The answers it rests on are Q28, Q35, A21 and A22.
     manifest's `path_flavor`; adoption refuses the manifest (`manifest_path_invalid`) when a
     part is empty, `.` or `..`, contains `/`, `\` or NUL, or reads as a drive or an anchor in
     either the manifest's flavour or this computer's (a POSIX part `..\..\x` or `C:evil` is
-    refused). The placement planner, for any batch, refuses a source whose relative part
-    below the scan root is empty, `.` or `..`, or holds a separator, drive or anchor of the
-    batch's own path flavour (`source_path_invalid`); every other character of a folder or
-    file name it copies into a target (`mirror`, `flat_with_folders`) goes through §3.5's name
-    rules, which make it valid on the target OS. The contract's own check
+    refused). From M6.13 the placement planner splits sources and the scan root with the
+    batch's own `path_flavor` (a new planner input) and only targets with the target rules;
+    today it parses both with the target rules (`TargetNames.pure`) and checks only that a
+    source is absolute and has no `..`. For any batch it then refuses a source whose relative
+    part below the scan root is empty, `.` or `..`, or holds a separator, drive or anchor of
+    that flavour (`source_path_invalid`); every other character of a folder or file name it
+    copies into a target (`mirror`, `flat_with_folders`) goes through §3.5's name rules, which
+    make it valid on the target OS. The contract's own check
     (`classes.py` `Manifest._check_paths`, a lexical `is_relative_to`, which lets `..` through)
     also refuses `.` and `..` parts in `scan_root` and `original_path` (an M6.13 code item;
     the desktop never writes such paths, so no schema version changes).
@@ -1495,15 +1499,22 @@ there). The answers it rests on are Q28, Q35, A21 and A22.
   batch's `everything` asks once, with no download check). Nothing deletes results on its own,
   so both installations can download in any order and as often as they like. The remaining
   risk is a manual "everything" on one computer before the other one downloaded (Q35):
-  - Installation id: each installation generates a random id (a ULID from the injected id
-    source, not hardware-based) at its first start and keeps it in the data dir (file
-    `installation_id`, written atomically); it never changes for that data dir.
-  - Every upload writes it into the manifest as the optional field `uploaded_by` (contracts
-    minor version 1.1; the worker ignores it, and older readers ignore unknown fields).
-  - The "delete everything" confirmation (its own confirmation code) is the plain one when the
-    manifest's `uploaded_by` equals this installation's id. Otherwise (another computer, or a
-    manifest without the field) it adds: "Another computer uploaded this job; it may still need
-    to download the subtitles." It is a warning, never a refusal.
+  - Installation id: a random id (a ULID from the injected id source, not hardware-based),
+    created on first use under the writer lock with an exclusive create of the file
+    `installation_id` in the data dir, and never changed for that data dir. The architect
+    asked for a machine ID; an id per installation identifies the uploader without hardware
+    access, and two installations on one machine are distinct uploaders.
+  - Every upload writes it into the manifest as the optional field `uploaded_by` (the worker
+    ignores it, and older readers ignore unknown fields). M6.13's two contract additions, the
+    run lease and `uploaded_by`, share one bump to 1.1; `SCHEMA_VERSION` is one constant, so the
+    worker's results are written as 1.1 too.
+  - The "delete everything" confirmation (its own confirmation code) is the plain one when this
+    installation uploaded the job: a known batch that was not adopted (the database proves it,
+    also for a repeated cleanup after the manifest is gone), or an adopted batch whose
+    `uploaded_by`, stored at adoption, equals this installation's id. Otherwise (an adopted
+    batch of another computer or without the field, or an unknown batch, whose manifest
+    `cleanup/unknown.py` already reads) it adds: "Another computer uploaded this job; it may
+    still need to download the subtitles." It is a warning, never a refusal.
 - **Batch ids.** Ids are unique only per database; an upload already checks that nothing exists
   under its id in R2 before its first object (§3.3 upload), so two computers creating a batch in
   the same second do not mix.
@@ -1955,7 +1966,8 @@ next step are in `docs/ai/status.md`.
 - **M4**: First approved Runpod run, worker only, with the architect present: the checks of
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
-  `research/runpod.md` "Items to test with a real key").
+  `research/runpod.md` "Items to test with a real key"). Deferred until everything else works
+  (architect); it still needs the architect present and their go.
 - **M5** (built; planned in `plans/m5.md`): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement, retry and cloud cleanup (§3.1-3.7).
