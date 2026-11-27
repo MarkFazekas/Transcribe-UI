@@ -56,6 +56,7 @@ P_BROKEN = "p_broken"
 Q_OVERDUE_PATH = f"{QUEUED_PODS}/{Q_OVERDUE}"
 P_OVERDUE_PATH = f"{PODS}/{P_OVERDUE}"
 TICK = timedelta(seconds=1)
+POD_ACTION_TAKES = QUEUED_PHASE_BUDGET + TICK
 ID_MAX_LENGTH = 64
 AUDIT_LINE = f"pod={P_OVERDUE} run={RUN_ID} deadline=2026-11-27T11:49:00+00:00 action=terminate outcome=done"
 
@@ -306,32 +307,30 @@ def test_unexpected_list_shape_fails(fake_runpod: FakeRunpod, caplog: pytest.Log
 
 
 @pytest.mark.parametrize(
-    ("advance", "expected_deletes", "pods_listed"),
+    ("cancel_takes", "expected_deletes"),
     [
-        # The queued phase stops after its own budget; the pod phase still runs to PASS_BUDGET.
-        (QUEUED_PHASE_BUDGET + TICK, ["q1", "p1", "p2", "p3"], True),
-        (PASS_BUDGET / 2 + TICK, ["q1", "p1"], True),
-        # A pass used up during the queued phase does not even list pods.
-        (PASS_BUDGET + TICK, ["q1"], False),
+        # The queued phase stops after its own budget; the pod phase runs to PASS_BUDGET.
+        (QUEUED_PHASE_BUDGET + TICK, ["q1", "p1", "p2", "p3"]),
+        # A slow cancel: the pod phase still lists and gets POD_PHASE_MIN_WINDOW from its start.
+        (PASS_BUDGET - QUEUED_PHASE_BUDGET + TICK, ["q1", "p1", "p2"]),
+        (PASS_BUDGET + TICK, ["q1", "p1", "p2"]),
     ],
 )
 def test_pass_stops_when_its_budget_is_used(
     fake_runpod: FakeRunpod,
-    advance: timedelta,
+    cancel_takes: timedelta,
     expected_deletes: list[str],
-    pods_listed: bool,  # noqa: FBT001 - pytest parameter
 ) -> None:
-    """Past a phase's budget no new action starts; the rest is left for the next run."""
+    """Past a phase's budget no new action starts; the pod phase always lists and gets its window."""
     state = fake_runpod
     clock = FakeClock()
-    state.on_delete = lambda _item_id: clock.advance(advance)
+    state.on_delete = lambda item_id: clock.advance(cancel_takes if item_id.startswith("q") else POD_ACTION_TAKES)
     for index in (1, 2):
         state.add_queued(f"q{index}", OVERDUE)
-    for index in (1, 2, 3):
+    for index in (1, 2, 3, 4):
         state.add_pod(f"p{index}", OVERDUE)
     assert not state.reap(clock)
     assert [path.rsplit("/", 1)[-1] for path in state.deletes()] == expected_deletes
-    assert (PODS in state.paths(GET)) == pods_listed
 
 
 def test_command_line_without_key_fails(fake_runpod: FakeRunpod, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -476,8 +475,8 @@ LONG_AGO = (NOW - MAX_DEADLINE_SPAN).isoformat()
         (FAR_DEADLINE, CREATED_AT, False),
         (IN_TIME, LONG_AGO, False),
         (IN_TIME, YEAR_ONE, False),
-        # Without createdAt, or with one in the future, the check measures from the pass start.
-        (EDGE_DEADLINE, None, True),
+        (EDGE_DEADLINE, NOW.isoformat(), True),
+        # A createdAt in the future is replaced by the pass start.
         (IN_TIME, "9999-12-31T23:59:59+00:00", True),
         # An overdue pod is terminated whatever its creation time.
         (OVERDUE, YEAR_ONE, True),
@@ -499,15 +498,41 @@ def test_implausible_deadline_is_left_alone(
     assert ("implausibly far after creation" in caplog.text) != plausible
 
 
-@pytest.mark.parametrize("item_id", ["../escape", "id with space", "p" * (ID_MAX_LENGTH + 1), ""])
-def test_unexpected_id_fails_the_page(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture, item_id: str) -> None:
-    """An id outside the strict pattern fails its list; nothing of that page is acted on or echoed."""
+@pytest.mark.parametrize("item_id", ["../escape", "id with space", "p" * (ID_MAX_LENGTH + 1), "", "p_bad\n"])
+def test_invalid_app_id_is_left_alone(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture, item_id: str) -> None:
+    """An app entry with an id outside the strict pattern is left alone and logged escaped; the rest is handled."""
     state = fake_runpod
     state.add_pod(item_id, OVERDUE)
     state.add_overdue_pod()
-    assert not state.reap()
-    assert not state.deletes()
-    assert "GET pods: unexpected response shape" in caplog.text
+    assert (state.reap(), state.deletes()) == (False, [P_OVERDUE_PATH])
+    assert f"id={item_id!r} has the app prefix but an invalid id" in caplog.text
+
+
+@pytest.mark.parametrize("created_at", [None, "not-a-date", "2026-11-27T11:00:00"])
+def test_invalid_created_at_fails_but_is_handled(
+    fake_runpod: FakeRunpod,
+    caplog: pytest.LogCaptureFixture,
+    created_at: str | None,
+) -> None:
+    """A missing, unparseable or naive createdAt fails the pass; overdue pods are still terminated."""
+    state = fake_runpod
+    checked = {P_OVERDUE: OVERDUE, "p_in_time": IN_TIME}
+    for pod_id, name in checked.items():
+        state.add_pod(pod_id, name, created_at=created_at)
+    assert (state.reap(), state.deletes(), set(state.pods)) == (False, [P_OVERDUE_PATH], {"p_in_time"})
+    assert caplog.text.count("createdAt missing or not a date-time with offset") == len(checked)
+    assert "not-a-date" not in caplog.text
+
+
+def test_foreign_entries_are_not_validated(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) -> None:
+    """A foreign pod with an odd id and createdAt neither fails the list nor shows up in the log."""
+    state = fake_runpod
+    state.add_pod("foreign id\n", FOREIGN, created_at="foreign-garbage")
+    state.add_overdue_pod()
+    with caplog.at_level(logging.INFO):
+        assert state.reap()
+    assert state.deletes() == [P_OVERDUE_PATH]
+    assert ("foreign" in caplog.text, "garbage" in caplog.text) == (False, False)
 
 
 def test_names_cannot_inject_workflow_commands(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) -> None:

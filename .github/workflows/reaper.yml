@@ -25,9 +25,10 @@ concurrency:
 jobs:
   reap:
     runs-on: ubuntu-24.04
-    # The pass stops starting new actions after 4 minutes (PASS_BUDGET); one in-flight action
-    # with its retries and confirmation checks needs at most about 4 more.
-    timeout-minutes: 12
+    # A pass ends by about 10.7 minutes in the worst case (arithmetic in reaper/constants.py:
+    # queued phase, then a pod phase that always gets its own window); 15 leaves room for
+    # checkout and install.
+    timeout-minutes: 15
     environment: runpod-reaper
     steps:
       - id: key

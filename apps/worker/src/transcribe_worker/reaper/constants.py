@@ -18,10 +18,17 @@ RUNPOD_MAX_QUEUE_WAIT_DAYS: Final = 30
 RUNPOD_MAX_QUEUE_WAIT: Final = timedelta(days=RUNPOD_MAX_QUEUE_WAIT_DAYS)
 # Longest plausible span from creation to deadline (queue wait + runtime ceiling + a day of margins).
 MAX_DEADLINE_SPAN: Final = RUNPOD_MAX_QUEUE_WAIT + timedelta(seconds=MAX_RUNTIME_CEILING_S) + timedelta(days=1)
-# The queued phase starts no new cancel after this long, so the pod phase always gets time.
+# Time budgets. Worst case with one-page lists and the 30 s HTTP timeout: a list takes
+# 3 x 30 + 2 + 4 = 96 s; an action takes 96 s (DELETE with retries) + 4 x 30 + 3 x 5 = 135 s
+# (confirmation) = 231 s. The last cancel starts by 60 s and ends by 291 s; the pod phase then
+# starts no terminate after max(240 s, 291 + 120 s) = 411 s, and the last ends by 642 s
+# (10.7 min), inside the workflow's 15-minute timeout together with checkout and install.
+# The queued phase starts no new cancel after this long (measured from the pass start).
 QUEUED_PHASE_BUDGET: Final = timedelta(minutes=1)
-# The pass starts no new action after this long (the next scheduled run continues).
+# The pod phase starts no new terminate after this long from the pass start ...
 PASS_BUDGET: Final = timedelta(minutes=4)
+# ... or after this long from its own start (list included), whichever is later.
+POD_PHASE_MIN_WINDOW: Final = timedelta(minutes=2)
 
 # Attempts of one API call within a pass (the next scheduled run retries anyway).
 CALL_ATTEMPTS: Final = 3
@@ -42,10 +49,10 @@ QUEUED_PODS_PATH: Final = "/queued-pods"
 CURSOR_PARAMETER: Final = "cursor"
 # Status of a queued pod that still waits for capacity (every other status is final).
 QUEUED_STATUS: Final = "QUEUED"
-# Accepted pod / queued-pod ids; anything else fails the list page (ids go into paths and logs).
-ITEM_ID_PATTERN: Final = r"^[A-Za-z0-9_-]{1,64}$"
-# Longest part of a malformed pod name written to the (public) Actions log.
-LOGGED_NAME_MAX_LENGTH: Final = 100
+# Accepted ids of app pods / queued pods (full match); others are left alone (ids go into paths).
+ITEM_ID_PATTERN: Final = r"[A-Za-z0-9_-]{1,64}"
+# Longest part of an untrusted value (malformed name or id) written, escaped, to the Actions log.
+LOGGED_VALUE_MAX_LENGTH: Final = 100
 
 # Exit code of a pass that found nothing wrong.
 EXIT_OK: Final = 0

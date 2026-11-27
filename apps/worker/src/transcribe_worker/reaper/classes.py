@@ -4,9 +4,7 @@ Only the fields the reaper needs are declared; everything else (including pod `e
 can hold secrets) is ignored and never logged.
 """
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
-
-from transcribe_worker.reaper.constants import ITEM_ID_PATTERN
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApiModel(BaseModel):
@@ -25,16 +23,14 @@ class Pagination(ApiModel):
 class ListedPod(ApiModel):
     """A pod or a queued pod as the list endpoints return it (id, name, status, createdAt).
 
-    An id outside `ITEM_ID_PATTERN` or an unparseable `createdAt` fails the whole page: the id
-    goes into request paths and logs, so it must be harmless. A missing `createdAt` (the spec
-    requires it on both kinds) is tolerated: the deadline check then measures from the pass
-    start, which is later than any creation and so never flags a plausible deadline.
+    Parsed leniently: the list also holds foreign pods, and one odd entry must not fail the
+    whole list. Id and `createdAt` of app entries are validated per entry (`reap`).
     """
 
-    pod_id: str = Field(alias="id", pattern=ITEM_ID_PATTERN)
+    pod_id: str = Field(alias="id")
     name: str
     status: str
-    created_at: AwareDatetime | None = Field(default=None, alias="createdAt")
+    created_at: str | None = Field(default=None, alias="createdAt")
 
 
 class Page(ApiModel):
