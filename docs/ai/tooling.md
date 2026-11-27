@@ -63,7 +63,8 @@ golden file, regenerate it; never merge it by hand.
 The desktop's R2 tests use moto behind the app's own client settings: `conftest.py` sets
 `MOTO_S3_CUSTOM_ENDPOINTS` to the test endpoint `https://r2.example.invalid` before moto loads
 its S3 routes, so a test without the mock fails on DNS instead of reaching a network. Error
-mapping uses botocore's `Stubber`. Golden files of the credential requests are named after the
+mapping uses botocore's `Stubber`. The credential and storage tests use the `conftest.py`
+fixture `no_credential_logs`, which captures DEBUG records and fails on any test credential. Golden files of the credential requests are named after the
 action first (`store_credentials_*.json`): `.gitignore` drops `credentials*.json`.
 
 Desktop tests import their helpers as `support.*` from `apps/desktop/tests/support/` (pytest

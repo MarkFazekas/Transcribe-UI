@@ -464,13 +464,16 @@ requests wire it in M5.13):
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
-    `r2_failed`); M5.6 adds the Runpod check.
+    `r2_failed`); M5.6 adds the Runpod check. The check's client makes 2 attempts with a 5 s
+    connect and a 10 s read timeout, so a hanging R2 is reported within about 30 s (an
+    unreachable host within about 10 s); the transfer clients keep the worker's limits (§6).
   - Operations that need credentials get `credentials_missing` (names the credentials and
     their variables) or `credentials_invalid` (names the credentials and their sources) from
     the store.
 - Values never leave the store except to the client that uses them: no response, error
-  message, error detail, exception message or log record contains one (the endpoint and
-  bucket included). Validator messages are fixed texts; the request union and the credential
+  message, error detail, exception message, traceback or log record contains one (the
+  endpoint and bucket included). A key that is only `*` characters (a masked value pasted
+  back) is refused. Validator messages are fixed texts; the request union and the credential
   models set `hide_input_in_errors`, so even `str(ValidationError)` omits the input; SDK error
   texts are never passed on (§6). Regression tests feed sentinel values through every
   validator and every flow and search responses and DEBUG-level logs for them.
@@ -896,24 +899,35 @@ the image and the pod-create request never contain credentials.
   never logs its environment (it contains `RUNPOD_API_KEY` and the R2 secrets).
 - R2 client: boto3 with `request_checksum_calculation="when_required"` and
   `response_checksum_validation="when_required"` (botocore ≥ 1.36 default checksums are not
-  reliably supported by R2), region `auto`, multipart ≥ 64 MiB parts; 5 attempts (botocore
-  `standard` retries), 10 s connect and 30 s read timeouts. The worker and the desktop each
+  reliably supported by R2), region `auto`, multipart ≥ 64 MiB parts; 6 attempts per request
+  (botocore `standard` mode, `max_attempts=5` retries in the worker, `total_max_attempts=6`
+  in the desktop), 10 s connect and 30 s read timeouts. The worker and the desktop each
   have their own adapter (apps share only contracts) with the same settings.
   - Desktop (`storage/`): `ObjectStore` protocol with `check_access`, `head`, `list_objects`,
     `read`, `write`, `write_new` (`If-None-Match: *`), `copy` (server side; multipart copy
     from 64 MiB), `delete` (missing = success), `abort_uploads` (every unfinished multipart
-    upload under a prefix) and `upload_file`. The client factory is injected; each client
-    gets its own boto3 session (the default session is not thread-safe).
-  - `upload_file`: below 64 MiB one PUT, else a multipart upload whose parts are sent one
-    after the other, with progress after each part and the cancel token checked before each.
-    A cancelled or failed multipart upload is aborted (a failed abort is only logged; the next
-    `run_upload` aborts stale uploads); parts are never resumed across requests, an
-    interrupted object is uploaded again from its start.
-  - SDK failures become `StorageError` (a `DomainError`) with a fixed message per code and
-    only the operation and the S3 error code or exception type as details; the SDK's own
-    texts (URLs, bucket, parameters) are never passed on. The SDK's loggers (`boto3`,
-    `botocore`, `s3transfer`, `urllib3`) are held at WARNING: their debug records carry
-    request headers with the access key id.
+    upload under a prefix) and `upload_file`. The client factory is injected with the
+    client's limits; each client gets its own boto3 session (the default session is not
+    thread-safe), built inside the error translation, so a broken AWS profile is an `r2_*`
+    error too.
+  - A HEAD response has no body, so `head` returns None for a missing bucket as for a missing
+    object; `check_access` or `read` tells them apart, and `copy` (whose managed transfer
+    starts with a HEAD) lists the bucket on that error path to report `r2_bucket_not_found`.
+  - Retries after a lost response make two outcomes ambiguous: `write_new` returns False
+    when its own retried PUT gets 412, and a retried `CompleteMultipartUpload` can fail with
+    `NoSuchUpload` although the object was written. Callers verify with `head` (size) or by
+    comparing the stored content.
+  - `upload_file`: below 64 MiB one PUT, else a multipart upload (refused before it starts
+    with `r2_object_too_large` beyond 10 000 parts, 625 GiB) whose parts are sent one after
+    the other, with progress after each part and the cancel token checked before each.
+    A cancelled or failed multipart upload (a failing progress callback included) is aborted
+    (a failed abort is only logged; the next `run_upload` aborts stale uploads); parts are
+    never resumed across requests, an interrupted object is uploaded again from its start.
+  - SDK failures become `StorageError` (a `DomainError`, raised `from None`) with a fixed
+    message per code and only the operation and the S3 error code or exception type as
+    details; the SDK's own texts (URLs, bucket, parameters) are never passed on. The SDK's
+    loggers (`boto3`, `botocore`, `s3transfer`, `urllib3`) are held at WARNING: their debug
+    records carry request headers with the access key id.
 
 ## 7. Testing strategy
 
