@@ -55,6 +55,24 @@ def live_pod_named(listed: Listed, name: str, excluding: frozenset[str]) -> Pod 
     return live[0] if live else None
 
 
+def queue_pod(listed: Listed, queued_pod_id: str | None, excluding: frozenset[str]) -> QueuedPod | None:
+    """Return the listed queued pod of the id when it names a pod not excluded and not listed `TERMINATED`.
+
+    Such a pod may still bill even when the pod list does not show it yet (lag after a deploy).
+    """
+    entries = [entry for entry in listed.queued if entry.queued_pod_id == queued_pod_id]
+    deployed = [entry for entry in entries if entry.pod_id is not None]
+    named = [entry for entry in deployed if entry.pod_id not in excluding]
+    terminated = {pod.pod_id for pod in listed.pods if pod.status == POD_TERMINATED}
+    found = [entry for entry in named if entry.pod_id not in terminated]
+    return found[0] if found else None
+
+
+def deployed_pod_changes(entry: QueuedPod) -> dict[str, object]:
+    """Return the payload fields that make a run follow the pod its queued pod names (not seen yet)."""
+    return {"pod_id": entry.pod_id, "pod_seen": False, "pod_deployed_at": entry.resolved_at}
+
+
 def queue_waiting(listed: Listed, queued_pod_id: str | None) -> bool:
     """Return whether the queued pod is listed and still waits (`QUEUED`): it may still deploy."""
     waiting = [entry for entry in listed.queued if entry.queued_pod_id == queued_pod_id]

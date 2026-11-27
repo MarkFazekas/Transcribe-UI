@@ -16,7 +16,7 @@ from typing import Literal, NamedTuple
 
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import Clock
-from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_QUEUED
+from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import QueuedPod
 from transcribe_ui.runs.classes import RunpodKind
@@ -248,17 +248,13 @@ def cancel_queued_verified(
     """
     told = hooks or QueuedHooks()
     queued_pod_id = target.queued_pod_id
-    acknowledged = runpod_call(lambda: pods.cancel_queued(queued_pod_id))
-    acknowledged_at = clock.now() if acknowledged else None
-    if acknowledged_at is not None and told.on_acknowledged is not None:
-        told.on_acknowledged(acknowledged_at)
-    entry = _read_after_cancel(pods, queued_pod_id, told)
+    entry, acknowledged_at = cancel_and_read(pods, queued_pod_id, clock, told)
     deployed = _deployed_pods(pods, target, entry)
     if deployed:
         return _stop_deployed(pods, deployed, clock, told)
     cancelled = QueuedStopped("cancelled", stopped_live=not target.ended)
     if entry is None:
-        if _vanished(target, acknowledged_at, clock.now(), told):
+        if vanished(target, acknowledged_at, clock.now(), told):
             return cancelled
     elif entry.status in IGNORED_QUEUED_POD_STATUSES:
         return cancelled
@@ -267,19 +263,31 @@ def cancel_queued_verified(
     raise StopUnverifiedError(QUEUED_POD_KIND, queued_pod_id)
 
 
-def _read_after_cancel(pods: PodsApi, queued_pod_id: str, told: QueuedHooks) -> QueuedPod | None:
-    """Read the queued pod after its cancel; a read that shows it is told (`on_queue_seen`).
+def cancel_and_read(
+    pods: PodsApi,
+    queued_pod_id: str,
+    clock: Clock,
+    told: QueuedHooks,
+) -> tuple[QueuedPod | None, datetime | None]:
+    """Cancel the queued pod and read it again; return the read (None: 404) and when the cancel was acknowledged.
+
+    The acknowledgement (a success answer to the DELETE) is told (`on_acknowledged`), and a read
+    that shows the queued pod too (`on_queue_seen`).
 
     Raises:
-        DomainError: The read failed.
+        DomainError: A Runpod call failed.
     """
+    acknowledged = runpod_call(lambda: pods.cancel_queued(queued_pod_id))
+    acknowledged_at = clock.now() if acknowledged else None
+    if acknowledged_at is not None and told.on_acknowledged is not None:
+        told.on_acknowledged(acknowledged_at)
     entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
     if entry is not None and told.on_queue_seen is not None:
         told.on_queue_seen(entry.status)
-    return entry
+    return entry, acknowledged_at
 
 
-def _vanished(target: QueuedTarget, acknowledged_at: datetime | None, now: datetime, told: QueuedHooks) -> bool:
+def vanished(target: QueuedTarget, acknowledged_at: datetime | None, now: datetime, told: QueuedHooks) -> bool:
     """Return whether a queued pod gone after the cancel counts as cancelled; record a first empty lookup."""
     verdict = target.vanish(acknowledged_at, now)
     if verdict == "record" and told.on_empty_lookup is not None:
@@ -318,13 +326,13 @@ def _first_failure(deployed: list[KnownPod], outcomes: list[StopOutcome]) -> Fai
 
 
 def _try_stop(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None) -> StopOutcome:
-    """Stop the pod (`_stop_pod`); return whether it was live, or the error that kept the stop from showing.
+    """Stop the pod (`stop_pod`); return whether it was live, or the error that kept the stop from showing.
 
     Raises:
         CancelledError: The request was cancelled.
     """
     try:
-        return _stop_pod(pods, pod, clock, on_seen)
+        return stop_pod(pods, pod, clock, on_seen)
     except CancelledError:
         raise
     except DomainError as error:
@@ -346,7 +354,7 @@ def _deployed_pods(pods: PodsApi, target: QueuedTarget, entry: QueuedPod | None)
     return []
 
 
-def _stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None) -> bool:
+def stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None) -> bool:
     """Terminate the pod (verified) unless it reads `TERMINATED`; return whether it was live.
 
     A read that returns the pod is a sighting (`on_seen` is told). A pod that reads `TERMINATED`
@@ -370,31 +378,6 @@ def _stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None
         return False
     terminate_verified(pods, KnownPod(pod_id, seen=True), clock, on_seen)
     return True
-
-
-def cancel_waiting_queue(pods: PodsApi, queued_pod_id: str, skip: frozenset[str], clock: Clock) -> PodIds:
-    """Cancel a queued pod that may still be waiting, after the run's pod was stopped; return the pods terminated.
-
-    Done once a read shows it is not `QUEUED` (or Runpod no longer knows it); a pod it names that
-    was not stopped already (`skip`) is terminated and verified. The DELETE is harmless when the
-    queued pod deployed or ended.
-
-    Raises:
-        StopUnverifiedError: It still reads `QUEUED`.
-        DomainError: A Runpod call failed, or the stop of its pod does not show.
-    """
-    runpod_call(lambda: pods.cancel_queued(queued_pod_id))
-    entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
-    if entry is None:
-        return ()
-    if entry.status == QUEUED_POD_QUEUED:
-        raise StopUnverifiedError(QUEUED_POD_KIND, queued_pod_id)
-    pod_id = entry.pod_id
-    if pod_id is None or pod_id in skip:
-        return ()
-    deployed = KnownPod(pod_id, seen=False, deployed_at=entry.resolved_at)
-    _stop_pod(pods, deployed, clock, None)
-    return (pod_id,)
 
 
 def stop_named_pods(

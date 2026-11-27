@@ -12,7 +12,7 @@ from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import Pod, QueuedPod
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.records import open_run_id, read_run, update_run
-from transcribe_ui.runs.settling import Listed, live_pod_named, queue_waiting
+from transcribe_ui.runs.settling import Listed, deployed_pod_changes, live_pod_named, queue_pod, queue_waiting
 from transcribe_ui.runs.stop_records import adopt_deployed, queued_stop
 from transcribe_ui.runs.stopped import end_stopped_run, last_report
 from transcribe_ui.runs.stopping import KnownPod, QueuedStopped, cancel_queued_verified, terminate_verified
@@ -96,12 +96,19 @@ def _follow_other_named(context: RequestContext, pods: PodsApi, run_id: str | No
     listed = Listed(runpod_call(pods.list_pods), runpod_call(pods.list_queued_pods))
     followed = run.pod_id
     if followed is not None and followed not in stopped:
+        # Not stopped and not listed `TERMINATED` (live, or not listed yet): kept; whether it is
+        # gone is `refresh_status`'s to decide by the `KnownPod` rules.
         named = [pod for pod in listed.pods if pod.pod_id == followed]
-        if any(pod.status != POD_TERMINATED for pod in named):
+        if all(pod.status != POD_TERMINATED for pod in named):
             return True
+    now = context.ports.clock.now()
     other = live_pod_named(listed, run.pod_name, stopped)
-    if other is None:
-        return queue_waiting(listed, run.queued_pod_id)
-    changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
-    update_run(state, open_id, context.ports.clock.now(), "running", changes)
-    return True
+    if other is not None:
+        changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
+        update_run(state, open_id, now, "running", changes)
+        return True
+    deployed = queue_pod(listed, run.queued_pod_id, stopped)
+    if deployed is not None:
+        update_run(state, open_id, now, "running", deployed_pod_changes(deployed))
+        return True
+    return queue_waiting(listed, run.queued_pod_id)

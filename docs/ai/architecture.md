@@ -1166,14 +1166,20 @@ database):
   a cancel between two pods) may leave pods the run does not record, and a run that adopted a
   pod by its name may still have a waiting queued pod. So `cancel_worker` and the deadline stop
   (`halting.stop_run`) stop the run's own pod and then cancel its queued pod
-  (`stopping.cancel_waiting_queue`: done once a read shows it is not `QUEUED`, a pod it names
-  terminated too), or stop its queued pod and what it deployed, and then every other live pod
-  listed under the run's name (`stopping.stop_named_pods`, tried even when the run's own stop
-  failed; one whose stop does not show is recorded, unless the run follows its own failed pod,
-  and the first error is raised once all were tried). `refresh_status` makes a run whose pod is
-  gone follow another live pod listed under its name, or keeps it open while its queued pod is
-  listed `QUEUED`, instead of ending it; the straggler stops leave such a run open, keeping the
-  pod it follows when that pod was not stopped and is still listed live. A pod that appears
+  (`halting.cancel_waiting_queue`, read as the queued stop below: done once a read shows it
+  ended, or the pod it names is stopped, or it is gone by the settle rule; still `QUEUED` or
+  deployed without its pod's id is not verified; a pod it names is recorded on the run, which
+  follows it, and then terminated, since the run's own pod is verified stopped by then), or
+  stop its queued pod and what it deployed, and then every other live pod listed under the
+  run's name (`stopping.stop_named_pods`, tried even when the run's own stop failed; one whose
+  stop does not show is recorded, unless the run follows its own failed pod, and the first
+  error is raised once all were tried). `refresh_status` makes a run whose pod is gone follow
+  another live pod listed under its name, else the pod its listed queued pod names (not seen,
+  unless that pod is listed `TERMINATED`; `KnownPod` then settles it), or keeps it open while
+  its queued pod is listed `QUEUED`, instead of ending it; such a run is still stopped at its
+  deadline, which also cancels the queued pod again. The straggler stops leave such a run open,
+  keeping the pod it follows when that pod was not stopped and is not listed `TERMINATED`
+  (live, or not listed yet: `refresh_status` decides when it is gone). A pod that appears
   under the name only after the last list (list lag) is caught by the next refresh while the
   run is open; if the run became final meanwhile, `reconcile_cloud` reports the pod as a
   straggler, collection waits for it (`lingering`), and the worker's own exit and the reaper

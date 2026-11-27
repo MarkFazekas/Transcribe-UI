@@ -14,10 +14,13 @@ from support.runs import RunsWorld
 type Delete = Callable[[str], httpx.Response]
 
 
-def queued_run(world: RunsWorld, *, deploy: bool = True) -> tuple[str, str]:
-    """Launch with no capacity; let the queued pod deploy at the next request; return the run and queued-pod ids."""
+def queued_run(world: RunsWorld, *, deploy: bool = True, **fields: object) -> tuple[str, str]:
+    """Launch with no capacity (with these request fields); let the queued pod deploy at the next request.
+
+    Return the run and queued-pod ids.
+    """
     world.cloud.settings.capacity = False
-    run = launch_run(world)
+    run = launch_run(world, **fields)
     assert run.queued_pod_id is not None
     if deploy:
         world.cloud.api.queued_pods.schedule_deploy(run.queued_pod_id, world.now())

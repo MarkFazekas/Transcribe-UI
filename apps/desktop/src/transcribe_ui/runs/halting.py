@@ -16,18 +16,23 @@ from functools import partial
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import Clock
 from transcribe_ui.runpod.pods import PodsApi
-from transcribe_ui.runs.errors import LaunchUnresolvedError
+from transcribe_ui.runpod.wire import QueuedPod
+from transcribe_ui.runs.constants import IGNORED_QUEUED_POD_STATUSES, QUEUED_POD_KIND
+from transcribe_ui.runs.errors import LaunchUnresolvedError, StopUnverifiedError
 from transcribe_ui.runs.records import read_payload, read_run, update_run
 from transcribe_ui.runs.stopping import (
     KnownPod,
     OnDeployed,
     OnStillLive,
+    PodIds,
     QueuedHooks,
     QueuedTarget,
+    cancel_and_read,
     cancel_queued_verified,
-    cancel_waiting_queue,
     stop_named_pods,
+    stop_pod,
     terminate_verified,
+    vanished,
 )
 from transcribe_ui.state.store import LocalState
 
@@ -87,28 +92,35 @@ def _stop_recorded(state: LocalState, pods: PodsApi, run_id: str, clock: Clock) 
     payload = read_payload(state, run_id)
     seen = partial(mark_seen, state, run_id, clock)
     pod = payload.known_pod()
+    queued_pod_id = payload.queued_pod_id
+    if pod is None and queued_pod_id is None:
+        raise LaunchUnresolvedError(run_id)  # not final, yet neither id is known
+    hooks = run_hooks(state, run_id, clock, partial(_follow_pod, state, run_id, clock))
     if pod is not None:
         terminate_verified(pods, pod, clock, seen)
-        queued_pod_id = payload.queued_pod_id
         if queued_pod_id is None:
             return (pod.pod_id,)
-        # The run's queued pod may still be waiting (the run adopted a pod by name): it must not deploy.
-        extra = cancel_waiting_queue(pods, queued_pod_id, frozenset((pod.pod_id,)), clock)
+        # The run's queued pod may still be waiting (the run adopted a pod by name): it must not
+        # deploy, and a pod it deployed meanwhile is recorded (the run follows it) and stopped.
+        target = _queued_target(state, run_id)
+        extra = cancel_waiting_queue(pods, target, frozenset((pod.pod_id,)), clock, hooks)
         return (pod.pod_id, *extra)
-    if payload.queued_pod_id is None:
-        raise LaunchUnresolvedError(run_id)  # not final, yet neither id is known
-    # A pod the queued pod deployed carries the run's pod name: found by it if the queued pod is gone.
-    name = read_run(state, run_id).pod_name
-    target = QueuedTarget(
-        payload.queued_pod_id,
-        name=name,
+    return cancel_queued_verified(pods, _queued_target(state, run_id), clock, hooks).pod_ids
+
+
+def _queued_target(state: LocalState, run_id: str) -> QueuedTarget:
+    """Return the run's queued pod as its payload records it (a pod it deploys carries the run's name)."""
+    payload = read_payload(state, run_id)
+    queued_pod_id = payload.queued_pod_id
+    assert queued_pod_id is not None, "the caller checked that the run has a queued pod"
+    return QueuedTarget(
+        queued_pod_id,
+        name=read_run(state, run_id).pod_name,
         expires_at=payload.queue_expires_at,
         acknowledged_at=payload.cancel_acknowledged_at,
         first_empty_lookup_at=payload.first_empty_lookup_at,
         tracked=True,
     )
-    hooks = run_hooks(state, run_id, clock, partial(_follow_pod, state, run_id, clock))
-    return cancel_queued_verified(pods, target, clock, hooks).pod_ids
 
 
 def run_hooks(state: LocalState, run_id: str, clock: Clock, on_deployed: OnDeployed) -> QueuedHooks:
@@ -136,7 +148,8 @@ def _record_empty_lookup(state: LocalState, run_id: str, now: datetime) -> None:
 def _follow_pod(state: LocalState, run_id: str, clock: Clock, pod: KnownPod, _handled: frozenset[str]) -> None:
     """Record the pod a queued pod deployed during the stop; the run follows it until it is terminated.
 
-    The run recorded no pod (else its pod was stopped instead), so any pod of its queued pod is its own.
+    The run recorded no pod, or its pod is verified stopped already, so a pod of its queued pod is
+    the one to follow.
     """
     changes = {"pod_id": pod.pod_id, "pod_seen": pod.seen, "pod_deployed_at": pod.deployed_at}
     update_run(state, run_id, clock.now(), "running", changes)
@@ -165,3 +178,47 @@ def mark_seen(state: LocalState, run_id: str, clock: Clock, pod_id: str) -> None
     """
     if read_payload(state, run_id).pod_id == pod_id:
         update_run(state, run_id, clock.now(), changes={"pod_seen": True})
+
+
+def cancel_waiting_queue(
+    pods: PodsApi,
+    target: QueuedTarget,
+    skip: frozenset[str],
+    clock: Clock,
+    hooks: QueuedHooks,
+) -> PodIds:
+    """Cancel a queued pod that may still be waiting, after the run's pod was stopped; return the pods terminated.
+
+    The same reading as `cancel_queued_verified`: done once a read shows it ended (`CANCELLED`,
+    `EXPIRED`, `FAILED`), or it deployed a pod that is stopped (`skip`, or terminated and
+    verified here, recorded on the run first through `on_deployed`), or it is gone (404) by the
+    settle rule. Still `QUEUED`, deployed without its pod's id, or gone too early: not verified.
+    Pods listed under the run's name are the caller's (`stop_named_pods`). The DELETE is harmless
+    when it deployed or ended.
+
+    Raises:
+        StopUnverifiedError: The cancel or the stop of its pod does not show yet.
+        DomainError: A Runpod call failed.
+    """
+    entry, acknowledged_at = cancel_and_read(pods, target.queued_pod_id, clock, hooks)
+    if entry is None:
+        if vanished(target, acknowledged_at, clock.now(), hooks):
+            return ()
+        raise StopUnverifiedError(QUEUED_POD_KIND, target.queued_pod_id)
+    if entry.pod_id is None:
+        if entry.status in IGNORED_QUEUED_POD_STATUSES:
+            return ()
+        raise StopUnverifiedError(QUEUED_POD_KIND, target.queued_pod_id)  # QUEUED, or DEPLOYED without its pod
+    return _stop_queued_pod(pods, entry, skip, clock, hooks)
+
+
+def _stop_queued_pod(pods: PodsApi, entry: QueuedPod, skip: frozenset[str], clock: Clock, hooks: QueuedHooks) -> PodIds:
+    """Stop the pod the queued pod names unless it was stopped already; the run follows it first."""
+    pod_id = entry.pod_id
+    if pod_id is None or pod_id in skip:
+        return ()
+    deployed = KnownPod(pod_id, seen=False, deployed_at=entry.resolved_at)
+    if hooks.on_deployed is not None:
+        hooks.on_deployed(deployed, frozenset((pod_id,)))
+    stop_pod(pods, deployed, clock, hooks.on_seen)
+    return (pod_id,)

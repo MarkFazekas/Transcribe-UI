@@ -25,9 +25,9 @@ from support.launch import (
     set_up_cloud,
 )
 from support.monitor import refreshed_run
-from support.runpod_api import Failure
+from support.runpod_api import Failure, FakeRunpodApi, Json
 from support.runs import RunsWorld, seed_uploaded
-from support.stops import forget_queued_on_cancel, queued_run
+from support.stops import queued_run
 from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.api.ports import CancelFlag
 from transcribe_ui.runs.constants import ERROR_STOP_UNVERIFIED
@@ -37,6 +37,8 @@ from transcribe_ui.state.models import RunRow
 # Run status of a run that is followed, and of a run the user stopped.
 RUNNING = "running"
 CANCELLED = "cancelled"
+# The longest wait for a machine: the queued pod still waits at the run's deadline.
+DAY_S = 86400
 # A Runpod answer that refuses a request without retries.
 BAD_REQUEST = 400
 # Path of one pod in the fake API.
@@ -73,10 +75,9 @@ def _live(world: RunsWorld) -> list[str]:
     return [pod_id for pod_id, _status in pods_of(world)]
 
 
-def test_two_failed_stops_keep_the_run_open(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_two_failed_stops_keep_the_run_open(world: RunsWorld) -> None:
     """Neither pod's stop shows: the run follows one; a retry stops it and follows the other, refused."""
     run_id, _queued_id = queued_run(world, deploy=False)
-    forget_queued_on_cancel(world, monkeypatch)
     both = _two_pods(world, run_id)
     world.cloud.settings.terminate_effective = False
     assert send(world, CANCEL, run_id=run_id).status == "error"
@@ -93,10 +94,9 @@ def test_two_failed_stops_keep_the_run_open(world: RunsWorld, monkeypatch: pytes
     assert (retried.run.status, _live(world)) == (CANCELLED, [])
 
 
-def test_cancel_between_two_stops(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cancel_between_two_stops(world: RunsWorld) -> None:
     """Cancelled after one pod's DELETE: the other is not tried; the refresh follows it, a retry stops it."""
     run_id, _queued_id = queued_run(world, deploy=False)
-    forget_queued_on_cancel(world, monkeypatch)
     both = _two_pods(world, run_id)
     untried = _cancel_during_the_stops(world, run_id, both)
     followed = refreshed_run(world, run_id)
@@ -137,16 +137,15 @@ def test_stop_never_replaces_the_runs_pod(world: RunsWorld) -> None:
 
 
 def _adopted_with_waiting_queue(world: RunsWorld) -> tuple[str, str, str]:
-    """A queued run that adopted a pod listed under its name while its queued pod still waits."""
-    run_id, queued_id = queued_run(world, deploy=False)
+    """A queued run that adopted a pod listed under its name while its queued pod still waits (up to 24 h)."""
+    run_id, queued_id = queued_run(world, deploy=False, wait_s=DAY_S)
     adopted = _add_pod(world, _run_pod_name(world, run_id))
     assert refreshed_run(world, run_id).run.pod_id == adopted
     return run_id, queued_id, adopted
 
 
 def _queued_status(world: RunsWorld, queued_id: str) -> str:
-    queued = world.cloud.api.queued_pods
-    return str(queued.records[queued_id].body["status"])
+    return str(_queued_body(world, queued_id)["status"])
 
 
 def test_cancel_also_stops_the_waiting_queue(world: RunsWorld) -> None:
@@ -212,3 +211,58 @@ def _add_pod(world: RunsWorld, name: str) -> str:
     """Add a live pod with this name to the fake Runpod; return its id."""
     pods = world.cloud.api.pods
     return str(pods.add(name)["id"])
+
+
+def _hide_other_pods(api: FakeRunpodApi, keep: str, request: httpx.Request) -> None:
+    """Make every pod but `keep` unknown to a read by id (list and lookup lag after a deploy)."""
+    path = request.url.path
+    if request.method == "GET" and path.startswith(POD_PATH):
+        pod_id = path.removeprefix(POD_PATH)
+        if pod_id != keep:
+            api.pods.records.pop(pod_id, None)
+
+
+def test_pod_deployed_during_the_cancel_is_followed(world: RunsWorld) -> None:
+    """The waiting queued pod deploys during the cancel and its pod reads 404: the run stays open, following it."""
+    run_id, queued_id, adopted = _adopted_with_waiting_queue(world)
+    world.cloud.api.queued_pods.schedule_deploy(queued_id, world.now())
+    world.cloud.settings.on_request = partial(_hide_other_pods, world.cloud.api, adopted)
+    refused = send(world, CANCEL, run_id=run_id)
+    world.cloud.settings.on_request = None
+    status, payload = run_row(world, run_id)
+    deployed = _queued_body(world, queued_id)["podId"]
+    assert (error_code(refused), status, payload.pod_id, payload.pod_seen) == (
+        ERROR_STOP_UNVERIFIED,
+        RUNNING,
+        deployed,
+        False,
+    )
+    followed = refreshed_run(world, run_id)
+    assert (followed.run.status, followed.run.pod_id) == (RUNNING, deployed)
+
+
+def test_deadline_stops_a_run_kept_open_by_its_queue(world: RunsWorld) -> None:
+    """The adopted pod is gone and the queued pod waits at the deadline: the refresh stops the queue and fails the run."""
+    run_id, queued_id, adopted = _adopted_with_waiting_queue(world)
+    deadline = refreshed_run(world, run_id).deadline
+    pods = world.cloud.api.pods
+    pods.records.pop(adopted)
+    world.cloud.clock.moment = deadline
+    ended = refreshed_run(world, run_id)
+    assert (ended.run.status, ended.end_reason, _queued_status(world, queued_id)) == ("failed", "deadline", "CANCELLED")
+
+
+def test_unlisted_followed_pod_is_kept(world: RunsWorld) -> None:
+    """The run's pod is not listed yet: stopping another pod under its name keeps the run on its own pod."""
+    world.cloud.settings.list_lag = timedelta(hours=1)
+    run = launch_run(world)
+    world.cloud.settings.list_lag = timedelta(0)
+    _add_pod(world, run.pod_name)
+    stray = _add_pod(world, run.pod_name)
+    ok_as(send(world, TERMINATE, pod_id=stray, confirm=True), TerminatePodResponse)
+    assert run_row(world, run.run_id)[1].pod_id == run.pod_id
+
+
+def _queued_body(world: RunsWorld, queued_id: str) -> Json:
+    queued = world.cloud.api.queued_pods
+    return queued.records[queued_id].body

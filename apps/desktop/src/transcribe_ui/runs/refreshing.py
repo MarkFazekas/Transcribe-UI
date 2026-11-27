@@ -23,7 +23,7 @@ from transcribe_ui.runs.ending import desktop_deadline, end_run, stop_at_deadlin
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.following import Followed, follow_run
 from transcribe_ui.runs.records import open_runs, read_payload, update_run
-from transcribe_ui.runs.settling import Listed, live_pod_named, queue_waiting
+from transcribe_ui.runs.settling import Listed, deployed_pod_changes, live_pod_named, queue_pod, queue_waiting
 from transcribe_ui.runs.worker import WorkerReport, read_worker, stored_report
 from transcribe_ui.state.store import LocalState
 
@@ -103,10 +103,12 @@ def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_i
     past_deadline = clock.now() >= desktop_deadline(read_payload(state, run_id))
     worker, failure = _read_report(store, run_id)
     read = failure is None
-    if followed.gone:
-        if not _follow_other_pod(state, followed, listed, clock.now()) and read:
+    if followed.gone and not _follow_other_pod(state, followed, listed, clock.now()):
+        if read:
             end_run(state, run_id, worker, clock.now())
         return Refreshed(run_id, worker, failure=failure, read=read)
+    # Kept open (another pod under its name, or its queued pod) or still running: stopped at the
+    # deadline all the same, which also cancels its queued pod again.
     if not past_deadline:
         return Refreshed(run_id, worker, failure=failure, read=read)
     try:
@@ -125,17 +127,23 @@ def _follow_other_pod(state: LocalState, followed: Followed, listed: Listed, now
 
     A run never becomes final while a pod carrying its name may still bill (a queued pod that
     deployed more than one, a stop cut short between pods): it follows such a pod until it too
-    is gone, or stopped at the deadline. Nor while its queued pod still waits (`QUEUED`, it may
-    still deploy): the run stays as it is, and a pod it deploys is adopted by its name.
+    is gone, or stopped at the deadline. Nor while its queued pod names a pod that may still
+    bill (one the pod list does not show yet: followed as not seen, so `KnownPod` settles it), or
+    still waits (`QUEUED`, it may still deploy): the run then stays as it is, and a pod it
+    deploys is adopted by its name.
     """
     run = followed.run
     gone = frozenset(() if run.pod_id is None else (run.pod_id,))
     other = live_pod_named(listed, run.pod_name, gone)
-    if other is None:
-        return queue_waiting(listed, run.queued_pod_id)
-    changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
-    update_run(state, run.run_id, now, "running", changes)
-    return True
+    if other is not None:
+        changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
+        update_run(state, run.run_id, now, "running", changes)
+        return True
+    deployed = queue_pod(listed, run.queued_pod_id, gone)
+    if deployed is not None:
+        update_run(state, run.run_id, now, "running", deployed_pod_changes(deployed))
+        return True
+    return queue_waiting(listed, run.queued_pod_id)
 
 
 def _read_report(store: LazyStore, run_id: str) -> tuple[WorkerReport | None, DomainError | None]:

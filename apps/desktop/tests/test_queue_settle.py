@@ -208,7 +208,10 @@ def test_every_listed_pod_is_stopped(
     monkeypatch: pytest.MonkeyPatch,
     failing: int,
 ) -> None:
-    """Two live pods under the run's name and one stop fails: the other is stopped, the run follows the failed one."""
+    """Two live pods under the run's name and one stop fails: the other is stopped, the run follows the failed one.
+
+    The queued pod is gone after the cancel, so a retry that stops the failed pod still waits for the settle rule.
+    """
     run_id, _queued_id = waiting
     forget_queued_on_cancel(world, monkeypatch)
     run_name = _run_pod_name(world, run_id)
@@ -222,8 +225,9 @@ def test_every_listed_pod_is_stopped(
         failed_id,
         [failed_id],
     )
-    retried = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
-    assert (retried.run.status, pods_of(world)) == (CANCELLED, [])
+    # The retry stops the failed pod; the vanished queued pod still waits for its settle time.
+    retried = send(world, CANCEL, run_id=run_id)
+    assert (error_code(retried), pods_of(world), run_row(world, run_id)[0]) == (ERROR_STOP_UNVERIFIED, [], "running")
 
 
 def test_delete_answer_is_no_sighting(world: RunsWorld) -> None:
