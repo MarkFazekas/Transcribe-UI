@@ -118,24 +118,30 @@ docs/human/, docs/ai/     see CLAUDE.md
     which the linters reserve for unused names.
   - Language choice: the setting `language` (§3.8): `system` (default), `en` or `hu`. With
     `system` the OS user interface language decides, read through an injected port
-    (`i18n/system.py`): Windows `GetUserDefaultUILanguage`, macOS the first `AppleLanguages`
-    entry, Linux and other POSIX the first of `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG` that
-    is set; Hungarian when that language is `hu`, otherwise English. Each frontend resolves it
+    (`i18n/system.py`): Windows `GetUserDefaultUILanguage`; macOS the first entry of
+    `defaults read -g AppleLanguages`; Linux and other POSIX the first set variable of
+    `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`, taking the first entry of `LANGUAGE`'s
+    `:`-separated list and cutting the value at `_`, `.` or `@` (`C` and `POSIX` mean English).
+    Hungarian when that language is `hu`, otherwise English. An unreadable or invalid settings
+    file counts as `system` for the language. Each frontend resolves it
     once at start-up (the CLI too; it has no `--lang` flag, since its JSON is not translated).
     A change in Settings applies after a restart: the GUI asks "Restart now to change the
     language?" (Restart now / Later; a restart goes through the close handling of Q30).
     Switching live would need every page to re-render its texts on a signal, which costs
     every GUI part extra work and tests for a rare action.
-  - The backend stays language-neutral: responses, error codes, `details`, progress stages and
-    the stored data do not depend on the language, so the same request gives the same response
-    everywhere (parity unchanged). An error's `message` stays English: it is the text of the
-    log, the CLI JSON and an LLM reading it.
-  - The frontends translate what they present: every GUI text; an error is shown from the
-    catalog entry of its code, formatted with its `details` (each value a message shows is
-    therefore also in `details`), with the English `message` only as the fallback for a code
-    without an entry (a test keeps every code covered). The CLI's JSON (requests, responses,
+  - The backend stays language-neutral: responses, codes, `details`, progress stages and the
+    stored data do not depend on the language, so the same request gives the same response
+    everywhere (parity unchanged). Every text the backend returns has a stable code and its
+    values in `details`, next to an English `message` (the text of the log, the CLI JSON and an
+    LLM reading it): errors, each confirmation kind (a `code` per `Confirmation`), plan errors
+    (`PlanError`), download failures, placement plan reasons and `check_credentials` results.
+  - The frontends translate what they present: every GUI text; each of those backend texts is
+    shown from the catalog entry of its code, formatted with its `details` (each value a
+    message shows is therefore also in `details`), with the English `message` only as the
+    fallback for a code without an entry (a test keeps every code covered). The CLI's JSON (requests, responses,
     progress NDJSON) is a machine contract and is not translated; its human texts (`--help`,
-    `--progress text`, the `credentials` prompts) are. Numbers, dates and durations are
+    including argparse's own strings, which argparse takes through `gettext`; `--progress
+    text`; the `credentials` prompts) are. Numbers, dates and durations are
     formatted by one `i18n` helper per language (Hungarian: decimal comma, `2026. 11. 27.`,
     24-hour time).
   - Not translated: subtitle content and its language codes, Whisper language names in
@@ -1916,6 +1922,7 @@ next step are in `docs/ai/status.md`.
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
-  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit) and bundle
-  the `.mo` catalogs (§3.1 "Language of the texts").
+  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
+  the CLI's `--help` with `LANGUAGE=hu` showing a Hungarian line) and bundle the `.mo`
+  catalogs (§3.1 "Language of the texts").
 - **Later**: MCP frontend over the same requests.
