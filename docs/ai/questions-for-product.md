@@ -3,22 +3,12 @@
 Answer each with "default" to accept the proposed default, or with a different decision.
 Answered questions are removed from this file; the answer goes to
 `docs/human/requirements.md` and its consequences to the affected docs. IDs are never reused
-(next: Q35).
+(next: Q36).
 
 Terms used below: a **job** is one run of transcriptions that the user starts; the **cloud
 machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
-
-### Q28. Jobs in the cloud that this computer does not know
-
-The cloud machine transcribes every job it finds in the cloud storage, including jobs uploaded
-from another computer or by an earlier installation whose local history is gone. This computer
-has no history for them, so it cannot place their subtitles.
-
-Proposed default: the start confirmation lists these jobs (job id, number of files, audio
-length) and includes them in the audio length and cost estimate. The user can delete such a job
-from the cloud from that list (with one confirmation) before starting.
 
 ### Q29. Several cloud backup volumes with the app's name
 
@@ -83,3 +73,18 @@ stop a machine that already started or is transcribing.
 Proposed default: the Cloud page offers "Cancel" while waiting and "Stop" while starting or
 transcribing, both with a confirmation. Stopping keeps every subtitle already finished; the
 files not done yet wait for the next start of transcription.
+
+### Q35. Deleting a job's subtitles from the cloud when several computers download them
+
+Since Q28, a job's subtitles can be downloaded by the computer that uploaded it and also by
+another one (for example the cloud supervisor's), each keeping its own history. Deleting
+everything from the cloud on one computer takes the subtitles away from the other, and today a
+computer only knows whether it downloaded them itself.
+
+Proposed default: subtitles are never deleted from the cloud automatically. Each computer that
+downloads a job notes this in the cloud storage. A computer is shown by the name set in its
+Settings (default: the computer's network name). "Delete everything" lists which computers
+have downloaded the job; if the computer that uploaded the job has not downloaded it yet, the
+confirmation says so and asks a second time (as it already does when this computer has not
+downloaded it). The uploading computer's own cleanup needs no extra confirmation for other
+computers.

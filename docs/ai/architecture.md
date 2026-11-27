@@ -983,7 +983,7 @@ database):
 - "Start transcription" launches one worker for every batch in `ready`. The worker processes
   every manifest in `batch_metadata/` without `_done.json`, so the estimate and
   `MAX_RUNTIME_S` cover all of them, including batches this computer does not know (listed
-  separately, open Q28). The app shows:
+  separately, Q28, §3.9). The app shows:
   waiting for a machine (cancellable), starting, transcribing (batch, file, elapsed time,
   cost so far), finished or failed.
 - **Run activity** (`transcribe_ui/runs/activity.py`, with `pods.py` and `heartbeats.py`;
@@ -1340,6 +1340,76 @@ directories, the settings store, the locks and the lazily opened database.
   reaches stderr: a record that cannot be written is dropped and the next one opens the file
   again; after `close`, records are dropped. The log dir is created with the first
   record. An unexpected exception's traceback goes only there (§3.1).
+
+### 3.9 Several installations on one bucket
+
+Requirements "Runpod control" (Q28): installations on several computers share one bucket, and
+not all of them hold the Runpod key. Planned in `plans/m6.md` (M6.13 and the GUI parts named
+there); the open parts are A21, A22 and Q35, and an answer that differs changes the part that
+implements it.
+
+- **Roles.** Every installation needs the four R2 credentials; the Runpod key is optional.
+  - An installation without it (R2-only) composes, reviews, uploads, checks for results,
+    downloads and cleans up. Cloud setup, Start transcription, Cancel and Stop, and the cloud
+    machines list need the key; the GUI shows them as unavailable with the reason (another
+    computer with a Runpod key starts transcription for every uploaded job).
+  - Today: the credential store and `credentials_status` already treat each credential on its
+    own, `check_credentials` reports Runpod `missing` without failing, and `setup_cloud`,
+    `launch_worker`, `cancel_worker`, `reconcile_cloud`, `terminate_pod` and
+    `cancel_queued_pod` rightly need the key. But the upload's manifest step, `cleanup_cloud`
+    and the withdrawal of a leftover manifest open the cloud through `runs/cloud.py`
+    `open_cloud`, which reads all five credentials (the activity check fails closed without
+    the Runpod lists), and `refresh_status` reads the Runpod key up front. So an R2-only
+    installation can neither publish an upload, nor clean up, nor see its results.
+  - Needed: these open the Runpod client only when a key is set, and the activity check works
+    from R2 alone (A21). `refresh_status` without a key skips the Runpod steps (1, 2 and the
+    straggler wait of 4) when no local run is open; a local run left open (the key removed
+    later) gets `credentials_missing` in that run's `stop_error`, and the R2 steps (3, 5) still
+    run.
+- **The start** (an installation with the key). `plan_launch` lists every manifest without
+  `_done.json`, those this database does not know separately (id, files, audio length), counts
+  them in `MAX_RUNTIME_S` and the cost estimate, and each can be deleted from the cloud with one
+  confirmation (`cleanup_cloud` on an unknown batch, §3.3). This is the accepted Q28 default,
+  built in M5; the GUI shows it in M6.6 and M6.10. With A22 the list also shows each job's root
+  folder name and the name of the computer that uploaded it.
+- **Download by the uploader.** The uploading installation keeps the batch in its history.
+  `refresh_status` step 3 checks `_done.json` and the results of every `ready` batch, whoever
+  started the run, so placement (next to the originals included) works as for a batch it
+  started. Since an R2-only installation has no local run to poll, the GUI sends
+  `refresh_status` at start-up and every 300 s while any batch is `ready` (the same poll as
+  during a run), and on "Check now".
+- **Download of another installation's job.**
+  - `list_cloud_batches` (new; R2 only): every manifest in R2 with its id, whether this
+    database knows it, file count, audio length, and its state (waiting, transcribing with
+    the results done so far, transcribed).
+  - `adopt_cloud_batch` (new; one confirmation): reads the manifest (`reading.read_manifest`)
+    and records the batch in the local history, marked as another computer's, with the jobs of
+    the manifest and only each file's path relative to the scan root. From then on it is
+    followed by `refresh_status` and downloaded like any batch, again any number of times (Q25).
+  - Placement: `mirror` into a chosen folder (the default for such a batch; the folder takes
+    the place of the scan root, so the original relative folders and file names are kept),
+    `flat`, `flat_with_folders` and custom work from the relative paths; `next_to_media` is
+    refused (`no_local_sources`), since the originals are on another computer.
+  - Not available for such a batch: retry (the uploader decides), the "audio" cleanup, and
+    subtitles extracted from inside video files (they are made and kept only on the uploading
+    computer and never reach the cloud, §3.3); its download plan says so.
+  - Privacy: requests and responses about another installation's batch carry no absolute path
+    of that computer, and the local database stores none. The manifest has what is needed: each
+    item's `original_path` lies under `scan_root` (the contract validates it), so the relative
+    folders and the file name follow. It also exposes both as absolute paths of the uploading
+    computer to every bucket user; A22 proposes storing only relative paths (a contracts and
+    worker change, schema 2.0).
+- **Downloading twice.** Results leave R2 only through `cleanup_cloud` (manual; `everything`
+  asks a second time while this database has a job without a placement outcome; an unknown
+  batch's `everything` asks once, with no download check). Nothing deletes results on its own,
+  so both installations can download in any order and as often as they like. The remaining
+  risk is a manual "everything" on one computer before the other one downloaded: Q35 proposes a
+  per-installation download marker `<batch_id>/downloads/<installation id>.json` (written by
+  that installation after a download, so every object keeps one writer) and an extra
+  confirmation when the uploader has not downloaded yet.
+- **Batch ids.** Ids are unique only per database; an upload already checks that nothing exists
+  under its id in R2 before its first object (§3.3 upload), so two computers creating a batch in
+  the same second do not mix.
 
 ## 4. R2 object layout (contract)
 
@@ -1790,7 +1860,7 @@ next step are in `docs/ai/status.md`.
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement, retry and cloud cleanup (§3.1-3.7).
 - **M6** (planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
-  (§3.1).
+  (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
   platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit).
