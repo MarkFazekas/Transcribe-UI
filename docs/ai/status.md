@@ -26,8 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.1 (backend additions) on `feat/m6.1-backend`: built and checked locally, waiting for its
-  PR and review; M6.2 rebases onto it once merged.
+- M6.2 (GUI foundation) on `feat/m6.2-gui-foundation`, built and checked locally; it merges
+  after M6.1 and then switches `gui/feedback.confirming_value` to `Confirmation.set_to`.
 
 ## Waiting on humans
 

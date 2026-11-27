@@ -76,6 +76,17 @@ Desktop tests import their helpers as `support.*` from `apps/desktop/tests/suppo
 runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`) after
 `uv sync --all-packages`.
 
+The GUI runs from source as `uv run transcribe-ui-gui` (a `[project.gui-scripts]` entry) after
+`uv sync --all-packages`. Its log is `transcribe-ui-gui.log` in the user log
+dir, and it uses the real per-user state like the CLI.
+
+GUI tests (pytest-qt, `qtbot`) run headless: `conftest.py` sets `QT_QPA_PLATFORM=offscreen`
+with `setdefault`, so `QT_QPA_PLATFORM=xcb uv run pytest apps/desktop/tests/test_gui_shell.py`
+(or `windows`, `cocoa`) shows the windows. No Xvfb, no screenshots. Tests wait on the event loop
+with `qtbot.waitUntil` (`support.gated.wait_for`), never with sleeps; the gated fake runner
+(`support/gated.py`) holds chosen actions until released, so pool and cancel states are
+deterministic.
+
 Desktop test backends come from `support.fakes.seeded_ports(root)`: fixed clock, seeded ids and
 the local state under `<root>/app/{data,config,cache,log}`; close `ports.state` when a test opened
 the database (the parity runner closes its legs). The CLI run by hand uses the real per-user
@@ -105,6 +116,16 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 - The desktop's runtime dependencies for all of M5 (pydantic, sqlalchemy, alembic,
   platformdirs, keyring, httpx, boto3) were added at once by M5.1, so parallel parts do not
   conflict on `uv.lock`. `keyring` and `platformdirs` ship their own types.
+- The GUI uses `pyside6-essentials` (QtCore, QtGui, QtWidgets, QtTest; LGPL modules only) as a
+  runtime dependency and `pytest-qt` as a dev dependency, both added by M6.2 for all of M6.
+  mypy strict uses PySide6's own stubs; no override was needed. Only `gui/` imports Qt, and the
+  CLI never imports `gui/` (tested). CI's Ubuntu desktop leg installs the libraries Qt loads
+  even offscreen: `libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3` (apt); Windows
+  needs nothing extra.
+- Qt overrides keep Qt's names (`closeEvent`, `run`, later `rowCount`, `data`, `index`) and
+  carry `@typing.override`, which mypy checks and both ruff's and pep8-naming's N802 honour.
+  WPS110 does not, so `.flake8` ignores only WPS110 in `*/gui/*/models.py` and
+  `*/gui/*/view.py`; ruff needs no per-file ignore.
 - mypy runs on the worker without the `engine` extra: `[[tool.mypy.overrides]]` sets
   `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio`, `ctranslate2` and
   `faster_whisper`; only the engine adapter modules (`engine/whisperx_engine.py`,
