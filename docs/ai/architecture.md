@@ -1246,7 +1246,9 @@ database):
      batch to `transcribed`, the `downloaded` rule (§3.5) moves it on to `downloaded` when every job
      already has a placement outcome or failed (downloaded in full while `ready`); the response
      shows the phase. Then the rule is applied to every `transcribed` batch whose lock is free (a
-     download killed after its last outcome).
+     download killed after its last outcome). From M6.13 this step also reads the live leases
+     (`runs/*/launch.json`, with the bound and finality of §3.9 "Run scope") and keeps them in
+     memory with the refresh time, for `waits_for_current_run`.
   4. Every final run not yet collected (`objects_collected`; `cancelled` and `launch_failed`
      runs too, whose pod is verified gone or never existed) keeps its last status in the
      payload (if its end did not; written before anything is deleted), writes `worker.log` to
@@ -1422,8 +1424,9 @@ there). The answers it rests on are Q28, Q35, A21 and A22.
     `open_cloud`, which reads all five credentials (the activity check fails closed without
     the Runpod lists), and `refresh_status` reads the Runpod key up front. So an R2-only
     installation can neither publish an upload, nor clean up, nor see its results.
-  - Needed: these open the Runpod client only when a key is set, and the activity check works
-    from R2 alone ("Run scope" below). `refresh_status` without a key: steps 1 and 2 are skipped (a local run
+  - Needed: these open the Runpod client only when a key is set; the manifest step needs no
+    check, and the per-batch lease check of cleanup and the withdrawal works from R2 alone
+    ("Run scope" below). `refresh_status` without a key: steps 1 and 2 are skipped (a local run
     left open, the key removed later, gets `credentials_missing` as its `stop_error`); step 3
     runs; collection (step 4) is put off, as it already is when the Runpod lists cannot be read
     (`runs/monitor.py` `_collect`); step 5 goes away with the held manifests ("Run scope").
@@ -1457,7 +1460,9 @@ there). The answers it rests on are Q28, Q35, A21 and A22.
     lease write that stored the object is covered by the same rule. The delete runs under the
     runs lock, outside any transaction and only after the final status is committed; it opens
     R2 lazily (as `LazyStore`), and an R2 or credentials failure is logged and never fails or
-    reverts a verified stop (collection or the next refresh removes the lease). A run that never writes `status.json` (cancelled while
+    reverts a verified stop (collection or the next refresh removes the lease). The delete
+    lives in the shared run-ending helper, so every ending path gets it, `reconcile_cloud`
+    (through `resolve_launching`) included. A run that never writes `status.json` (cancelled while
     queued, `launch_failed`, a crash before the POST) therefore does not block Start here or on
     other computers until its deadline. A straggler that starts later finds no lease and
     processes nothing, which is safe.
