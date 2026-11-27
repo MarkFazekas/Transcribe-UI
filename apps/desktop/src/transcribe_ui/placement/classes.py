@@ -13,7 +13,8 @@ from transcribe_contracts.classes import LanguageCode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath
 from transcribe_ui.placement.constants import CUSTOM_PLAN_VERSION
 
-# How a download places its subtitles (§3.5 strategies 1-4; custom plans are imported instead).
+# How a download places its subtitles (§3.5 strategies 1-4; custom plans are imported instead);
+# also what the placement settings pre-fill a download with (`api.classes.PlacementDefaults`).
 type PlacementStrategy = Literal["next_to_media", "mirror", "flat", "flat_with_folders"]
 # Whether a job's subtitle can be placed: it is in the cloud or in SQLite (`available`), the
 # job found no speech (`empty`), the job failed, or it has no result yet (`pending`).

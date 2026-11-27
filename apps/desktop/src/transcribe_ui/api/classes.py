@@ -21,6 +21,7 @@ from transcribe_ui.discovery.classes import (
     ScanTreeResponse,
 )
 from transcribe_ui.discovery.constants import SIDECAR_EXTENSIONS
+from transcribe_ui.placement.classes import PlacementStrategy
 
 
 def _check_whisper_language(code: str) -> str:
@@ -53,8 +54,6 @@ type SetPath = Annotated[LocalPath, StringConstraints(min_length=1)]
 # An absolute path of an executable: absolute in the Windows or the POSIX sense, so the rule
 # does not depend on the machine; the tool lookup also refuses one that is not absolute here.
 type ToolPath = Annotated[SetPath, AfterValidator(_check_absolute)]
-# Placement strategies a download can be pre-filled with (§3.5; custom plans are per download).
-type PlacementStrategy = Literal["next_to_media", "mirror", "flat", "flat_with_folders"]
 
 
 # Requests
