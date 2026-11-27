@@ -16,7 +16,9 @@ from collections.abc import Mapping
 from transcribe_ui.gui.constants import (
     DESKTOP_PLATFORMS,
     DISPLAY_VARIABLES,
+    FORCED_PLATFORM_MESSAGE,
     HEADLESS_PLATFORMS,
+    NO_DISPLAY_MESSAGE,
     QT_PLATFORM_VARIABLE,
     WAYLAND_DISPLAY_VARIABLE,
     WAYLAND_PLATFORM_PREFIX,
@@ -50,8 +52,8 @@ def _can_start(name: str, env: Environ) -> bool:
     return False
 
 
-def display_available(environ: Environ | None = None, platform: str | None = None) -> bool:
-    """Return whether Qt can open a window here (`os.environ` and `sys.platform` unless given).
+def display_problem(environ: Environ | None = None, platform: str | None = None) -> str | None:
+    """Return why Qt cannot open a window here, or None if it can (`os.environ`, `sys.platform` unless given).
 
     Windows and macOS always have a display. Elsewhere, a `QT_QPA_PLATFORM` list needs one entry
     that can start: `offscreen`, `minimal` or `vnc` always; `xcb` with `DISPLAY`; `wayland*`
@@ -61,8 +63,18 @@ def display_available(environ: Environ | None = None, platform: str | None = Non
     env = os.environ if environ is None else environ
     host = sys.platform if platform is None else platform
     if host in DESKTOP_PLATFORMS:
-        return True
-    chosen = _platform_names(env.get(QT_PLATFORM_VARIABLE, ""))
+        return None
+    forced = env.get(QT_PLATFORM_VARIABLE, "")
+    chosen = _platform_names(forced)
     if chosen:
-        return any(_can_start(name, env) for name in chosen)
-    return any(env.get(name) for name in DISPLAY_VARIABLES)
+        if any(_can_start(name, env) for name in chosen):
+            return None
+        return FORCED_PLATFORM_MESSAGE.format(platforms=forced)
+    if any(env.get(name) for name in DISPLAY_VARIABLES):
+        return None
+    return NO_DISPLAY_MESSAGE
+
+
+def display_available(environ: Environ | None = None, platform: str | None = None) -> bool:
+    """Return whether Qt can open a window here (see `display_problem`)."""
+    return display_problem(environ, platform) is None

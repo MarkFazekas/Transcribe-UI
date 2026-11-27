@@ -101,10 +101,16 @@ WAYLAND_PLATFORM_PREFIX: Final = "wayland"
 HEADLESS_PLATFORMS: Final = frozenset(("offscreen", "minimal", "vnc"))
 # `sys.platform` values that always have a display for Qt (Windows, macOS).
 DESKTOP_PLATFORMS: Final = frozenset(("win32", "darwin"))
-# What the GUI executable logs (and writes to stderr, if it has one) when no display is available.
-DISPLAY_UNAVAILABLE_MESSAGE: Final = (
-    "No display is available for the GUI (neither DISPLAY nor WAYLAND_DISPLAY is set); "
-    "use the `transcribe-ui` command line instead."
+# Message of `display_unavailable` when QT_QPA_PLATFORM is not set and no display variable is.
+NO_DISPLAY_MESSAGE: Final = (
+    "No display is available for the GUI: neither DISPLAY nor WAYLAND_DISPLAY is set. "
+    "Use the `transcribe-ui` command line instead."
+)
+# Message of `display_unavailable` when no platform QT_QPA_PLATFORM names can start (`{platforms}`: its value).
+FORCED_PLATFORM_MESSAGE: Final = (
+    "No display is available for the GUI: QT_QPA_PLATFORM={platforms} cannot start here "
+    "(xcb needs DISPLAY, wayland needs WAYLAND_DISPLAY, device platforms are not supported). "
+    "Use the `transcribe-ui` command line instead."
 )
 
 # Window title (the app version is appended once `get_app_info` answered, M6.3).

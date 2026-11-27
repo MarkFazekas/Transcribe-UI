@@ -18,13 +18,14 @@ from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.gui import main as gui_main
 from transcribe_ui.gui.constants import (
-    DISPLAY_UNAVAILABLE_MESSAGE,
+    FORCED_PLATFORM_MESSAGE,
     GUI_LOG_FILE_NAME,
+    NO_DISPLAY_MESSAGE,
     QT_PLATFORM_VARIABLE,
     WAYLAND_DISPLAY_VARIABLE,
     X11_DISPLAY_VARIABLE,
 )
-from transcribe_ui.gui.display import display_available
+from transcribe_ui.gui.display import display_available, display_problem
 from transcribe_ui.gui.messages import qt_messages_to_log
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.state.logs import log_to_file
@@ -67,6 +68,17 @@ def _environ(forced: str, *, x11: bool, wayland: bool) -> dict[str, str]:
     return environ
 
 
+# Imports the GUI entry module and runs the display check, then fails if Qt was loaded on the way.
+GUI_ENTRY_WITHOUT_QT = """
+import sys
+import transcribe_ui.gui.main
+from transcribe_ui.gui.display import display_problem
+display_problem({}, "linux")
+loaded = [name for name in sys.modules if name.startswith(("PySide6", "shiboken6"))]
+assert not loaded, loaded
+"""
+
+
 @pytest.mark.parametrize(
     ("forced", "x11", "wayland", "platform", "expected"),
     [
@@ -89,6 +101,17 @@ def _environ(forced: str, *, x11: bool, wayland: bool) -> dict[str, str]:
 def test_display_check(forced: str, x11: bool, wayland: bool, platform: str, expected: bool) -> None:  # noqa: FBT001 -- pytest parameters
     """Windows and macOS always have a display; elsewhere the forced platform needs what it uses."""
     assert display_available(_environ(forced, x11=x11, wayland=wayland), platform) is expected
+
+
+def test_gui_entry_checks_the_display_without_qt() -> None:
+    """The GUI entry module (with the display check and the constants) loads no Qt before the check."""
+    completed = subprocess.run(  # noqa: S603 -- the test interpreter on a fixed script
+        [sys.executable, "-c", GUI_ENTRY_WITHOUT_QT],
+        capture_output=True,
+        timeout=SUBPROCESS_TIMEOUT_S,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_cli_never_loads_qt() -> None:
@@ -150,7 +173,14 @@ def test_no_display_answers_display_unavailable(
     response = response_adapter().validate_json(stdout.getvalue())
     assert isinstance(response, ErrorResponse)
     assert response.error.code == ERROR_DISPLAY_UNAVAILABLE
-    assert DISPLAY_UNAVAILABLE_MESSAGE in log_file.read_text(encoding="utf-8")
+    assert response.error.message == NO_DISPLAY_MESSAGE
+    assert NO_DISPLAY_MESSAGE in log_file.read_text(encoding="utf-8")
+
+
+def test_a_forced_platform_is_named_in_the_message() -> None:
+    """A forced platform that cannot start is named, with what it would need."""
+    problem = display_problem({QT_PLATFORM_VARIABLE: "xcb"}, LINUX)
+    assert problem == FORCED_PLATFORM_MESSAGE.format(platforms="xcb")
 
 
 def test_a_qt_warning_lands_in_the_log(tmp_path: Path, qtbot: QtBot) -> None:

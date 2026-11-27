@@ -51,7 +51,7 @@ def _error(code: str, details: dict[str, object] | None = None) -> ErrorResponse
 def test_view_model_modules_do_not_load_qt() -> None:
     """The view-model modules and the GUI entry module import no Qt (tests run them without a display)."""
     lines = ["import sys", *(f"import {name}" for name in QT_FREE_MODULES)]
-    lines.append("assert not [name for name in sys.modules if name.startswith('PySide6')]")
+    lines.append("assert not [name for name in sys.modules if name.startswith(('PySide6', 'shiboken6'))]")
     script = "\n".join(lines)
     completed = subprocess.run(  # noqa: S603 -- the test interpreter on a fixed script
         [sys.executable, "-c", script],

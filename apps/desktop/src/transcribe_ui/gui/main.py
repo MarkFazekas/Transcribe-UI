@@ -19,8 +19,8 @@ from transcribe_ui.api.constants import ERROR_DISPLAY_UNAVAILABLE
 from transcribe_ui.api.wiring import build_backend
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.cli.output import failure, respond
-from transcribe_ui.gui.constants import DISPLAY_UNAVAILABLE_MESSAGE, GUI_APP_MODULE, GUI_LOG_FILE_NAME
-from transcribe_ui.gui.display import display_available
+from transcribe_ui.gui.constants import GUI_APP_MODULE, GUI_LOG_FILE_NAME
+from transcribe_ui.gui.display import display_problem
 from transcribe_ui.state.logs import log_to_file, user_log_file
 
 logger = logging.getLogger(__name__)
@@ -48,9 +48,10 @@ def main(
     given) and the exit code is 1.
     """
     with log_to_file(log_file):
-        if not display_available():
-            logger.error(DISPLAY_UNAVAILABLE_MESSAGE)
-            response = failure(ERROR_DISPLAY_UNAVAILABLE, DISPLAY_UNAVAILABLE_MESSAGE)
+        problem = display_problem()
+        if problem is not None:
+            logger.error(problem)
+            response = failure(ERROR_DISPLAY_UNAVAILABLE, problem)
             out = _standard_output() if stdout is None else stdout
             if out is None:
                 return EXIT_ERROR
