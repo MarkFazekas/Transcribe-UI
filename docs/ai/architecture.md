@@ -967,9 +967,11 @@ requests wire it in M5.13):
   recorded neither; a stray pod carrying the run's name leaves the run as it is. Ids follow the reaper's rule
   `[A-Za-z0-9_-]{1,64}`.
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
-  `worker.py`, `results.py`, `collect.py`, `progress.py`; request `refresh_status`, no fields;
-  runs lock for the whole request, no transaction across a Runpod or R2 call). The GUI sends it
-  periodically while a run is active and once at start-up. In order:
+  `worker.py`, `results.py`, `result_reads.py`, `collect.py`, `progress.py`; request
+  `refresh_status`, no fields; runs lock for the whole request, no transaction across a Runpod
+  or R2 call). The GUI sends it periodically while a run is active and once at start-up. Only
+  the Runpod key is read up front; R2 is opened on first use (`runs/cloud.py` `LazyStore`), so
+  missing or rejected R2 credentials never block a deadline stop. In order:
   1. Every run that is not final is followed; the Runpod lists are read once, only when such a
      run exists (a failed read or lookup fails the request with nothing more changed, re-send).
      A `launching` run is resolved by its name (`resolve_launching`). A run without a pod id
@@ -977,16 +979,23 @@ requests wire it in M5.13):
      queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
      `podId`: `running` with that pod not seen; `CANCELLED`: `cancelled`; `EXPIRED`, `FAILED`:
      `failed`). A queued pod Runpod no longer knows (404) with no pod under the run's name ends
-     the run (`failed`) only `DEPLOY_SETTLE_S` after the queue's `expiresAt`, when a pod deployed
-     just before it would be listed. A run with a pod id follows that pod (listed, else read by
+     the run (`failed`, `queue_ended`) only `DEPLOY_SETTLE_S` after the queue's `expiresAt`, when
+     a pod deployed just before it would be listed, and only after two such lookups at least
+     `LAUNCH_LOOKUP_GAP_S` apart (the first recorded in `first_empty_lookup_at`, which a later
+     sighting of the queued pod clears), as for a `launching` run. A run with a pod id follows that pod (listed, else read by
      id): a read is a sighting (`pod_seen`) and records the status, the price (`cost`, USD/h),
      the creation time (`createdAt`, else now) and the first `RUNNING` read
      (`first_running_at`). The pod is gone when it reads `TERMINATED`, or is missing (404) and
-     `KnownPod.gone_when_missing` holds (seen, or `DEPLOY_SETTLE_S` after its deploy); a missing
-     pod never seen stays followed. `EXITED` and `ERROR` pods still exist and are followed until
+     `KnownPod.gone_when_missing` holds (seen, or `DEPLOY_SETTLE_S` after its deploy: the queued
+     pod's `resolvedAt`, else `pod_recorded_at`, which `update_run` sets when the run first
+     records a pod id); a missing pod never seen stays followed. `EXITED` and `ERROR` pods still exist and are followed until
      gone or the deadline (the worker's entry terminates its own pod).
-  2. The worker's `runs/<run_id>/status.json` is read (`reading.read_run_status`; an invalid
-     one or another major shows as `unreadable`). A run whose pod is gone ends: `finished` when
+  2. Whether the pod is gone and whether the desktop deadline has passed are decided from the
+     Runpod data alone. Then the worker's `runs/<run_id>/status.json` is read
+     (`reading.read_run_status`; an invalid one or another major shows as `unreadable`). When R2
+     (or its credentials) fails, a run whose pod is gone is not ended (fail closed), a run past
+     its deadline is still stopped, and the R2 error is raised once every run was handled. A run
+     whose pod is gone ends: `finished` when
      the worker reported `finished` (`end_reason` `worker_finished`), else `failed`
      (`worker_failed`, or `pod_gone` without a final report); the readable report is kept in
      the payload (`final_status`). Otherwise, past the **desktop deadline** (`first_running_at`
@@ -1000,14 +1009,22 @@ requests wire it in M5.13):
   3. Every `ready` batch (not only the run's: the worker processes every manifest; its lock
      only tried, a busy one listed in `busy`) gets the status of each pending transcribe job
      whose result JSON is listed (`ok`, `no_speech`, `failed` through `reading.read_job_result`,
-     stored in the job's `status` column: the failed/no-speech flags; an unreadable result stays
-     pending and is logged), then moves to `transcribed` by compare-and-set when `_done.json`
-     exists (HEAD, as the launch scope decides). The `downloaded` rule is M5.13's.
+     stored in the job's `status` column: the failed/no-speech flags; a failed result's `error` in
+     the job payload's `result_error`), then moves to `transcribed` by compare-and-set when
+     `_done.json` exists (HEAD, as the launch scope decides). `_done.json` is looked for before
+     the results are listed: the worker writes it after the batch's last result, so a listing
+     made after seeing it holds every result (one written in between is read at the next
+     refresh, while the batch is still `ready`). An unreadable result stays pending (logged)
+     until `_done.json` is there; then the job is `failed` with `result_error` `unreadable
+     result`, so a retry (M5.14) can take it. The `downloaded` rule is M5.13's.
   4. Every final run not yet collected (`objects_collected`; `cancelled` and `launch_failed`
      runs too, whose pod is verified gone or never existed) keeps its last status in the
-     payload (if its end did not), writes `worker.log` to `<log dir>/worker-<run_id>.log`,
-     deletes every object under `runs/<run_id>/` and is marked collected. An R2 or file error
-     is logged and retried at the next refresh, without failing the request.
+     payload (if its end did not; written before anything is deleted), writes `worker.log` to
+     `<log dir>/worker-<run_id>.log`, deletes every object under `runs/<run_id>/` and is then
+     marked collected. An R2 or file error is logged and retried at the next refresh, without
+     failing the request. A straggler pod carrying a collected run's name may write objects
+     again: `terminate_pod` and `cancel_queued_pod` mark such a final run uncollected
+     (`collect.reopen_collection`), so the next refresh collects them.
   5. With no local run open, `publish_held_manifests` (its own activity check: a straggler or a
      recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
      heartbeat no longer counts.
