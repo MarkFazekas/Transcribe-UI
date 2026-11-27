@@ -10,24 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q22. Line length of Chinese and Japanese subtitles
-
-Subtitle lines hold at most 42 characters. Chinese and Japanese characters are about twice as
-wide on screen as Latin letters, so a 42-character line in these languages is roughly twice as
-wide as an English one and may not fit the screen.
-
-Proposed default: keep 42 characters for every language for now (Hungarian and English are the
-main languages); revisit if Chinese or Japanese subtitles are actually used.
-
-### Q23. Subtitles "next to the original file" when that folder is gone
-
-The job remembers where each original file was. If, by the time the subtitles are downloaded,
-the file's folder was moved, renamed or deleted, the subtitle cannot be put next to it.
-
-Proposed default: the download plan lists these files with the reason "original folder not
-found" and skips them; every other subtitle is placed. The user can download the skipped ones
-again with another option (for example into a chosen folder; see Q25).
-
 ### Q24. Downloading finished subtitles before the whole job is done
 
 The cloud machine finishes a job's files one by one. The phases in the requirements allow the
@@ -55,7 +37,7 @@ Proposed default: a downloaded job can be downloaded again any number of times, 
 placement option, as long as its subtitles are still in the cloud (not after "delete
 everything"; subtitles taken from inside the video files are kept on the computer and can be
 placed again even after that). Files already in place are listed as existing and skipped
-unless overwrite is chosen. This is also how the files skipped under Q23 are placed later.
+unless overwrite is chosen. This is also how the files skipped because their original folder is gone are placed later.
 
 ### Q26. Abandoning a job before it is uploaded
 

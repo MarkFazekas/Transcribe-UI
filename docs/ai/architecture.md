@@ -7,7 +7,7 @@ so). Research behind the decisions: `docs/ai/research/`.
 ## 1. System overview
 
 ```
- Desktop app (Windows / macOS / Linux, single-file exe)        Cloudflare R2 (S3 API)
+ Desktop app (Windows / macOS / Linux, GUI + CLI executables)        Cloudflare R2 (S3 API)
  ┌──────────────────────────────────────────────┐            ┌──────────────────────────┐
  │ Frontends: GUI (PySide6) │ CLI (JSON) │ MCP* │            │ batch_metadata/<id>.json │
  │        ── Pydantic requests / responses ──   │  upload    │ <batch_id>/audio/...     │
@@ -51,6 +51,10 @@ docs/human/, docs/ai/     see CLAUDE.md
 
 ### 3.1 Backend / frontend boundary
 
+- Two entry points (executables per platform, §8): the GUI executable (windowed, contains Qt,
+  opens the GUI) and the CLI executable (console, no Qt: `run`, `schema`, `--version`,
+  `credentials`). Both call the same façade. The CLI entry and everything it imports must never
+  import Qt (`PySide6`); a test checks it.
 - The backend exposes one façade: `Backend.execute(request: Request, progress: ProgressSink,
   cancel: CancelToken) -> Response` (`execute_json` validates a JSON document first; an invalid
   one is answered with the error `invalid_request`). `Request` is a Pydantic discriminated union
@@ -724,7 +728,7 @@ download requests below wire it to the batches):
   long-path support. These name errors are reported for every job, whatever its outcome.
 - Outcomes: `pending` → `not_finished` (Q24), `failed` → `skip_failed`, `empty` →
   `skip_empty` unless `include_empty`; next to the media a missing original folder gives
-  `skip_folder_missing` for that file while the others are placed (Q23's proposed default); an
+  `skip_folder_missing` for that file while the others are placed (requirements "Subtitle download options"); an
   existing file → `skip_existing`, or `overwrite` when asked; a folder in the way is skipped,
   and asking to overwrite it is `target_not_a_file`; a target that cannot be checked (no
   permission) is `target_unreadable`, never a skip. These target errors are reported only for
@@ -1517,7 +1521,7 @@ pods-only key is passed as a Runpod secret.
   share the word's time, or the segment's when untimed, in proportion to length, so the
   line and cue limits hold; lines and cues may break between units. Thai and similar
   scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
-  width (open product question Q22); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  width (42 characters for every language, requirements "Subtitle download options"); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
   text (the compression and segment checks still do).
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
@@ -1707,9 +1711,11 @@ Few unit tests; mostly regression and flow tests:
   `windows-2025`); one aggregate `ci-ok` job is the single
   required status check. gitlint checks PR commits.
 - `release-desktop.yml` on push to `main` when desktop/contracts code changes: PyInstaller
-  one-file builds on Windows, macOS arm64, macOS x86_64 and Ubuntu 22.04, smoke-run
-  `--version`, upload only the executable (`actions/upload-artifact` with `archive: false`)
-  and attach the four executables to a GitHub Release. Builds are unsigned for now (macOS
+  one-file builds on Windows, macOS arm64, macOS x86_64 and Ubuntu 22.04, two per platform:
+  the GUI build (windowed, with Qt) and the CLI build (console, without Qt; it must never
+  import Qt). Smoke-run the CLI build's `--version`, upload only the executables
+  (`actions/upload-artifact` with `archive: false`) and attach the eight executables to a
+  GitHub Release. Builds are unsigned for now (macOS
   users clear the quarantine flag; Windows SmartScreen may warn).
 - `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
   changes: build the Docker image and smoke-test it (a full pod run with the fake engine, a fake
@@ -1763,5 +1769,6 @@ next step are in `docs/ai/status.md`.
 - **M6** (planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
   (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
-- **M8**: Desktop release: `release-desktop.yml` one-file builds for the four platforms (§8).
+- **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
+  platforms, eight files (§8; the workflow does not exist yet).
 - **Later**: MCP frontend over the same requests.

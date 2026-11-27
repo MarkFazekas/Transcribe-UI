@@ -36,6 +36,8 @@ translated to English.
 
 ## Quality first
 
+- Quality and the end-user experience are the first and main principle; they decide between
+  options (architect).
 - Never compromise quality or usability because of usage quota. Stopping and resuming later is
   fine; nothing is lost.
 - If a stop is imminent (quota or `/exit`), stop in an orderly way: finish the step in progress
@@ -63,8 +65,8 @@ translated to English.
 - A few minutes after a merge, re-check the CI runs. Waiting for CI must not block other work,
   but the result must be checked.
 - CI is scoped sensibly: release builds only when relevant code (UI app, deployed app) changed;
-  no release on PRs. The only uploaded artifact is the runnable single-file executable, with no
-  extra zip or other files.
+  no release on PRs. The only uploaded artifacts are the runnable single-file executables,
+  two per platform (GUI and CLI; architect decision A20), with no extra zip or other files.
 - Local lint, typecheck and tests run in parallel (UI app and deployed app at the same time),
   but no parallelism without real gain (e.g. no pytest-xdist).
 - Finished fixes are not thrown away even if the experiment they belonged to is dropped.
