@@ -89,6 +89,31 @@
       "title": "ErrorResponse",
       "type": "object"
     },
+    "FolderSelection": {
+      "additionalProperties": false,
+      "description": "Check state of a folder with at least one selected media file below it.",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "state": {
+          "$ref": "#/$defs/FolderState"
+        }
+      },
+      "required": [
+        "path",
+        "state"
+      ],
+      "title": "FolderSelection",
+      "type": "object"
+    },
+    "FolderState": {
+      "enum": [
+        "all",
+        "partial"
+      ],
+      "type": "string"
+    },
     "GetAppInfoResponse": {
       "additionalProperties": false,
       "description": "Versions of the running app.",
@@ -124,6 +149,16 @@
       "type": "object"
     },
     "JsonValue": {},
+    "LocalPath": {
+      "type": "string"
+    },
+    "MediaKind": {
+      "enum": [
+        "audio",
+        "video"
+      ],
+      "type": "string"
+    },
     "NeedsConfirmation": {
       "additionalProperties": false,
       "description": "Nothing was changed: send the same request again with the listed fields set.",
@@ -155,16 +190,429 @@
       "title": "NeedsConfirmation",
       "type": "object"
     },
+    "PathFlavor": {
+      "type": "string"
+    },
+    "PreviewSelectionResponse": {
+      "additionalProperties": false,
+      "description": "The selected files in scan order, the folders' check states and the totals.",
+      "properties": {
+        "action": {
+          "const": "preview_selection",
+          "default": "preview_selection",
+          "title": "Action",
+          "type": "string"
+        },
+        "counts": {
+          "$ref": "#/$defs/SelectionCounts"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/SelectedFile"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/FolderSelection"
+          },
+          "title": "Folders",
+          "type": "array"
+        },
+        "path_flavor": {
+          "$ref": "#/$defs/PathFlavor"
+        },
+        "root": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ScanWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "root",
+        "path_flavor",
+        "files",
+        "folders",
+        "counts",
+        "warnings"
+      ],
+      "title": "PreviewSelectionResponse",
+      "type": "object"
+    },
+    "ScanCounts": {
+      "additionalProperties": false,
+      "description": "Totals of a scan.",
+      "properties": {
+        "audio_files": {
+          "minimum": 0,
+          "title": "Audio Files",
+          "type": "integer"
+        },
+        "folders": {
+          "minimum": 0,
+          "title": "Folders",
+          "type": "integer"
+        },
+        "subtitle_files": {
+          "minimum": 0,
+          "title": "Subtitle Files",
+          "type": "integer"
+        },
+        "video_files": {
+          "minimum": 0,
+          "title": "Video Files",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "folders",
+        "video_files",
+        "audio_files",
+        "subtitle_files"
+      ],
+      "title": "ScanCounts",
+      "type": "object"
+    },
+    "ScanFile": {
+      "additionalProperties": false,
+      "description": "A media file found by the scan.",
+      "properties": {
+        "folder": {
+          "minimum": 0,
+          "title": "Folder",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "mtime_ns": {
+          "title": "Mtime Ns",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "subtitles": {
+          "items": {
+            "$ref": "#/$defs/Sidecar"
+          },
+          "title": "Subtitles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "folder",
+        "kind",
+        "size_bytes",
+        "mtime_ns",
+        "subtitles"
+      ],
+      "title": "ScanFile",
+      "type": "object"
+    },
+    "ScanFolder": {
+      "additionalProperties": false,
+      "description": "A folder holding media files at some depth; index 0 is the scan root.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "parent"
+      ],
+      "title": "ScanFolder",
+      "type": "object"
+    },
+    "ScanTreeResponse": {
+      "additionalProperties": false,
+      "description": "The media tree, flattened: folders in depth-first order, files grouped by folder.",
+      "properties": {
+        "action": {
+          "const": "scan_tree",
+          "default": "scan_tree",
+          "title": "Action",
+          "type": "string"
+        },
+        "counts": {
+          "$ref": "#/$defs/ScanCounts"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/ScanFile"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/ScanFolder"
+          },
+          "title": "Folders",
+          "type": "array"
+        },
+        "path_flavor": {
+          "$ref": "#/$defs/PathFlavor"
+        },
+        "root": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ScanWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "root",
+        "path_flavor",
+        "folders",
+        "files",
+        "counts",
+        "warnings"
+      ],
+      "title": "ScanTreeResponse",
+      "type": "object"
+    },
+    "ScanWarning": {
+      "additionalProperties": false,
+      "description": "An entry left out of the scan, or a selection path that matched nothing.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ScanWarningCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        }
+      },
+      "required": [
+        "code",
+        "path",
+        "message"
+      ],
+      "title": "ScanWarning",
+      "type": "object"
+    },
+    "ScanWarningCode": {
+      "enum": [
+        "invalid_name",
+        "link_skipped",
+        "unreadable",
+        "too_deep",
+        "no_media_at_path"
+      ],
+      "type": "string"
+    },
+    "SelectedFile": {
+      "additionalProperties": false,
+      "description": "A selected media file and the subtitles it already has.",
+      "properties": {
+        "forced_subtitle_languages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forced Subtitle Languages",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "subtitle_languages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subtitle Languages",
+          "type": "array"
+        },
+        "unknown_language_subtitles": {
+          "minimum": 0,
+          "title": "Unknown Language Subtitles",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "kind",
+        "size_bytes",
+        "subtitle_languages",
+        "forced_subtitle_languages",
+        "unknown_language_subtitles"
+      ],
+      "title": "SelectedFile",
+      "type": "object"
+    },
+    "SelectionCounts": {
+      "additionalProperties": false,
+      "description": "Totals of a selection.",
+      "properties": {
+        "audio_files": {
+          "minimum": 0,
+          "title": "Audio Files",
+          "type": "integer"
+        },
+        "files": {
+          "minimum": 0,
+          "title": "Files",
+          "type": "integer"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "video_files": {
+          "minimum": 0,
+          "title": "Video Files",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "video_files",
+        "audio_files",
+        "size_bytes"
+      ],
+      "title": "SelectionCounts",
+      "type": "object"
+    },
+    "Sidecar": {
+      "additionalProperties": false,
+      "description": "A subtitle file next to a media file.",
+      "properties": {
+        "extension": {
+          "$ref": "#/$defs/SubtitleFormat"
+        },
+        "forced": {
+          "title": "Forced",
+          "type": "boolean"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Language"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "extension",
+        "language",
+        "forced"
+      ],
+      "title": "Sidecar",
+      "type": "object"
+    },
+    "SubtitleFormat": {
+      "enum": [
+        "ass",
+        "srt",
+        "ssa",
+        "sub",
+        "vtt"
+      ],
+      "type": "string"
+    },
     "SuccessResponse": {
       "discriminator": {
         "mapping": {
-          "get_app_info": "#/$defs/GetAppInfoResponse"
+          "get_app_info": "#/$defs/GetAppInfoResponse",
+          "preview_selection": "#/$defs/PreviewSelectionResponse",
+          "scan_tree": "#/$defs/ScanTreeResponse"
         },
         "propertyName": "action"
       },
       "oneOf": [
         {
           "$ref": "#/$defs/GetAppInfoResponse"
+        },
+        {
+          "$ref": "#/$defs/ScanTreeResponse"
+        },
+        {
+          "$ref": "#/$defs/PreviewSelectionResponse"
         }
       ]
     }

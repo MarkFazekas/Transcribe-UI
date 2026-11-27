@@ -12,6 +12,7 @@ from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.info import get_app_info
 from transcribe_ui.api.ports import CancelFlag, CancelToken, DiscardProgress, Ports, ProgressSink, RequestContext
 from transcribe_ui.api.schema import parse_request
+from transcribe_ui.discovery.services import preview_selection, scan_tree
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,8 @@ def default_routes() -> Routes:
     return MappingProxyType(
         {
             "get_app_info": Route(run=get_app_info, needs_database=False),
+            "scan_tree": Route(run=scan_tree, needs_database=False),
+            "preview_selection": Route(run=preview_selection, needs_database=False),
         },
     )
 

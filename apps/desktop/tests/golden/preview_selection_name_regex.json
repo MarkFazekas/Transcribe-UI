@@ -1,0 +1,68 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "preview_selection",
+    "root": "<root>/media",
+    "path_flavor": "<flavor>",
+    "files": [
+      {
+        "name": "Film.mkv",
+        "path": "<root>/media/Movies/Film.mkv",
+        "kind": "video",
+        "size_bytes": 0,
+        "subtitle_languages": [
+          "en",
+          "hu"
+        ],
+        "forced_subtitle_languages": [
+          "hu"
+        ],
+        "unknown_language_subtitles": 0
+      },
+      {
+        "name": "Film.mp4",
+        "path": "<root>/media/Movies/Film.mp4",
+        "kind": "video",
+        "size_bytes": 0,
+        "subtitle_languages": [
+          "en",
+          "hu"
+        ],
+        "forced_subtitle_languages": [
+          "hu"
+        ],
+        "unknown_language_subtitles": 0
+      },
+      {
+        "name": "Film.part2.mkv",
+        "path": "<root>/media/Movies/Film.part2.mkv",
+        "kind": "video",
+        "size_bytes": 0,
+        "subtitle_languages": [
+          "pt"
+        ],
+        "forced_subtitle_languages": [],
+        "unknown_language_subtitles": 1
+      }
+    ],
+    "folders": [
+      {
+        "path": "<root>/media",
+        "state": "partial"
+      },
+      {
+        "path": "<root>/media/Movies",
+        "state": "partial"
+      }
+    ],
+    "counts": {
+      "files": 3,
+      "video_files": 3,
+      "audio_files": 0,
+      "size_bytes": 0
+    },
+    "warnings": []
+  },
+  "events": []
+}

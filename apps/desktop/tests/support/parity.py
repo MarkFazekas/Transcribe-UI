@@ -23,6 +23,8 @@ from transcribe_ui.cli.output import exit_code
 
 # Builds the dispatch table of one leg from the leg's root (tests with stub handlers).
 type RoutesFactory = Callable[[Path], Routes]
+# Fills a leg's fresh root before the first request (a media tree, for example).
+type Prepare = Callable[[Path], None]
 
 
 @dataclass(frozen=True)
@@ -63,9 +65,11 @@ class Leg:
     normaliser: PathNormaliser
 
     @classmethod
-    def create(cls, root: Path, routes: RoutesFactory | None) -> Self:
-        """Make the root and a backend from the seeded factory."""
+    def create(cls, root: Path, routes: RoutesFactory | None, prepare: Prepare | None = None) -> Self:
+        """Make the root (filled by `prepare`) and a backend from the seeded factory."""
         root.mkdir(parents=True)
+        if prepare is not None:
+            prepare(root)
         backend = Backend(seeded_ports(), None if routes is None else routes(root))
         return cls(root, backend, PathNormaliser([root]))
 
@@ -96,13 +100,19 @@ def _via_cli(leg: Leg, template: str, request_file: Path) -> Exchange:
     return leg.exchange(response_adapter().validate_json(stdout.getvalue()), events, code)
 
 
-def run_parity(tmp_path: Path, templates: Sequence[str], routes: RoutesFactory | None = None) -> list[Exchange]:
+def run_parity(
+    tmp_path: Path,
+    templates: Sequence[str],
+    routes: RoutesFactory | None = None,
+    prepare: Prepare | None = None,
+) -> list[Exchange]:
     """Run the request documents through both legs, assert they agree, return the CLI leg's outcomes.
 
-    A document may contain `<root>`, which each leg replaces with its own root.
+    A document may contain `<root>`, which each leg replaces with its own root; `prepare` fills
+    each leg's root first.
     """
-    direct = Leg.create(tmp_path / "backend", routes)
-    via_cli = Leg.create(tmp_path / "cli", routes)
+    direct = Leg.create(tmp_path / "backend", routes, prepare)
+    via_cli = Leg.create(tmp_path / "cli", routes, prepare)
     # Request files live outside the leg's root, so they never show up in what a request sees there.
     requests_dir = tmp_path / "requests-cli"
     requests_dir.mkdir()
@@ -115,6 +125,11 @@ def run_parity(tmp_path: Path, templates: Sequence[str], routes: RoutesFactory |
     return exchanges
 
 
-def run_one(tmp_path: Path, template: str, routes: RoutesFactory | None = None) -> Exchange:
+def run_one(
+    tmp_path: Path,
+    template: str,
+    routes: RoutesFactory | None = None,
+    prepare: Prepare | None = None,
+) -> Exchange:
     """Run one request document through both legs; return the CLI leg's outcome."""
-    return run_parity(tmp_path, [template], routes)[0]
+    return run_parity(tmp_path, [template], routes, prepare)[0]

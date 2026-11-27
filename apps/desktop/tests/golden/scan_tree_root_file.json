@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "scan_tree",
+    "error": {
+      "code": "root_not_a_folder",
+      "message": "The path to scan is not a folder.",
+      "details": {}
+    }
+  },
+  "events": []
+}

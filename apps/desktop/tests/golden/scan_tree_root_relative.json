@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "scan_tree",
+    "error": {
+      "code": "root_not_absolute",
+      "message": "The folder to scan must be given as an absolute path.",
+      "details": {}
+    }
+  },
+  "events": []
+}

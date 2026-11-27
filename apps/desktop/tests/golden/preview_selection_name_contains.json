@@ -1,0 +1,40 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "preview_selection",
+    "root": "<root>/media",
+    "path_flavor": "<flavor>",
+    "files": [
+      {
+        "name": "Ünnepi műsor.mkv",
+        "path": "<root>/media/Movies/Ünnepi műsor.mkv",
+        "kind": "video",
+        "size_bytes": 0,
+        "subtitle_languages": [
+          "de"
+        ],
+        "forced_subtitle_languages": [],
+        "unknown_language_subtitles": 0
+      }
+    ],
+    "folders": [
+      {
+        "path": "<root>/media",
+        "state": "partial"
+      },
+      {
+        "path": "<root>/media/Movies",
+        "state": "partial"
+      }
+    ],
+    "counts": {
+      "files": 1,
+      "video_files": 1,
+      "audio_files": 0,
+      "size_bytes": 0
+    },
+    "warnings": []
+  },
+  "events": []
+}

@@ -1,0 +1,27 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "preview_selection",
+              "operations",
+              "0",
+              "filters",
+              "name"
+            ],
+            "message": "Value error, not a valid regular expression: missing ), unterminated subpattern",
+            "type": "value_error"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

@@ -1,0 +1,230 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "scan_tree",
+    "root": "<root>/media",
+    "path_flavor": "<flavor>",
+    "folders": [
+      {
+        "name": "media",
+        "path": "<root>/media",
+        "parent": null
+      },
+      {
+        "name": "Audio",
+        "path": "<root>/media/Audio",
+        "parent": 0
+      },
+      {
+        "name": "Movies",
+        "path": "<root>/media/Movies",
+        "parent": 0
+      },
+      {
+        "name": "Series",
+        "path": "<root>/media/Series",
+        "parent": 0
+      },
+      {
+        "name": "S01",
+        "path": "<root>/media/Series/S01",
+        "parent": 3
+      },
+      {
+        "name": "Extras",
+        "path": "<root>/media/Series/S01/Extras",
+        "parent": 4
+      }
+    ],
+    "files": [
+      {
+        "name": "interview.flac",
+        "path": "<root>/media/Audio/interview.flac",
+        "folder": 1,
+        "kind": "audio",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "interview.en.srt",
+            "path": "<root>/media/Audio/interview.en.srt",
+            "extension": "srt",
+            "language": "en",
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "podcast.MP3",
+        "path": "<root>/media/Audio/podcast.MP3",
+        "folder": 1,
+        "kind": "audio",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": []
+      },
+      {
+        "name": "Film.mkv",
+        "path": "<root>/media/Movies/Film.mkv",
+        "folder": 2,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "Film.en.srt",
+            "path": "<root>/media/Movies/Film.en.srt",
+            "extension": "srt",
+            "language": "en",
+            "forced": false
+          },
+          {
+            "name": "Film.hun.forced.srt",
+            "path": "<root>/media/Movies/Film.hun.forced.srt",
+            "extension": "srt",
+            "language": "hu",
+            "forced": true
+          },
+          {
+            "name": "Film.Hungarian.srt",
+            "path": "<root>/media/Movies/Film.Hungarian.srt",
+            "extension": "srt",
+            "language": "hu",
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "Film.mp4",
+        "path": "<root>/media/Movies/Film.mp4",
+        "folder": 2,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "Film.en.srt",
+            "path": "<root>/media/Movies/Film.en.srt",
+            "extension": "srt",
+            "language": "en",
+            "forced": false
+          },
+          {
+            "name": "Film.hun.forced.srt",
+            "path": "<root>/media/Movies/Film.hun.forced.srt",
+            "extension": "srt",
+            "language": "hu",
+            "forced": true
+          },
+          {
+            "name": "Film.Hungarian.srt",
+            "path": "<root>/media/Movies/Film.Hungarian.srt",
+            "extension": "srt",
+            "language": "hu",
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "Film.part2.mkv",
+        "path": "<root>/media/Movies/Film.part2.mkv",
+        "folder": 2,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "Film.part2.pt-BR.vtt",
+            "path": "<root>/media/Movies/Film.part2.pt-BR.vtt",
+            "extension": "vtt",
+            "language": "pt",
+            "forced": false
+          },
+          {
+            "name": "Film.part2.srt",
+            "path": "<root>/media/Movies/Film.part2.srt",
+            "extension": "srt",
+            "language": null,
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "Ünnepi műsor.mkv",
+        "path": "<root>/media/Movies/Ünnepi műsor.mkv",
+        "folder": 2,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "Ünnepi műsor.de.ass",
+            "path": "<root>/media/Movies/Ünnepi műsor.de.ass",
+            "extension": "ass",
+            "language": "de",
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "Show S01E01.mkv",
+        "path": "<root>/media/Series/S01/Show S01E01.mkv",
+        "folder": 4,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "Show S01E01.en.srt",
+            "path": "<root>/media/Series/S01/Show S01E01.en.srt",
+            "extension": "srt",
+            "language": "en",
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "Show S01E02.mkv",
+        "path": "<root>/media/Series/S01/Show S01E02.mkv",
+        "folder": 4,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": [
+          {
+            "name": "Show S01E02.en.srt",
+            "path": "<root>/media/Series/S01/Show S01E02.en.srt",
+            "extension": "srt",
+            "language": "en",
+            "forced": false
+          },
+          {
+            "name": "Show S01E02.hu.srt",
+            "path": "<root>/media/Series/S01/Show S01E02.hu.srt",
+            "extension": "srt",
+            "language": "hu",
+            "forced": false
+          }
+        ]
+      },
+      {
+        "name": "Show behind the scenes.webm",
+        "path": "<root>/media/Series/S01/Extras/Show behind the scenes.webm",
+        "folder": 5,
+        "kind": "video",
+        "size_bytes": 0,
+        "mtime_ns": 1795780800000000000,
+        "subtitles": []
+      }
+    ],
+    "counts": {
+      "folders": 6,
+      "video_files": 7,
+      "audio_files": 2,
+      "subtitle_files": 10
+    },
+    "warnings": []
+  },
+  "events": []
+}
