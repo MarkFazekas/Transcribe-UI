@@ -54,7 +54,16 @@ per changed target. No pytest-xdist: the suites are small and process start-up w
 gain.
 
 Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are regenerated with
-`UPDATE_SNAPSHOTS=1 uv run pytest packages/contracts/tests`; review the diff.
+`UPDATE_SNAPSHOTS=1 uv run pytest packages/contracts/tests`; review the diff. The desktop's
+`Request`/`Response` schema snapshots (`apps/desktop/tests/snapshots/`) and golden files
+(`apps/desktop/tests/golden/`) are regenerated the same way with
+`UPDATE_SNAPSHOTS=1 uv run pytest apps/desktop/tests`. On a rebase conflict in a snapshot or
+golden file, regenerate it; never merge it by hand.
+
+Desktop tests import their helpers as `support.*` from `apps/desktop/tests/support/` (pytest
+`pythonpath` in the root `pyproject.toml`; `support` is first-party for isort). The desktop CLI
+runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`) after
+`uv sync --all-packages`.
 
 ## Dependencies
 
@@ -63,8 +72,12 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
   The Docker build installs it (`uv sync --package transcribe-worker --extra engine`).
 - boto3 is typed through the `types-boto3[s3]` dev dependency (imported only under
   `TYPE_CHECKING`).
-- CI installs the system `ffmpeg` for the worker target (the decode tests run the real
-  binary); locally it must be on `PATH`.
+- CI installs the system `ffmpeg` for the worker and desktop targets (apt on Ubuntu,
+  Chocolatey on Windows; the worker's decode tests and, from M5.4, the desktop's media tests
+  run the real binary); locally it must be on `PATH`.
+- The desktop's runtime dependencies for all of M5 (pydantic, sqlalchemy, alembic,
+  platformdirs, keyring, httpx, boto3) were added at once by M5.1, so parallel parts do not
+  conflict on `uv.lock`. `keyring` and `platformdirs` ship their own types.
 - mypy runs on the worker without the `engine` extra: `[[tool.mypy.overrides]]` sets
   `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio`, `ctranslate2` and
   `faster_whisper`; only the engine adapter modules (`engine/whisperx_engine.py`,
@@ -104,7 +117,7 @@ desktop app.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target) → `check` matrix running `scripts/check.py <target>` (desktop also on Windows once it exists); `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
+| `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target; a `jq` step turns the changed targets into matrix legs) → `check` matrix running `scripts/check.py <target>`, every target on `ubuntu-24.04` and the desktop target also on `windows-2025`; `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
 | `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS); then a release job (`needs:` all four builds, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the four executables, only if every build and smoke test passed |
 | `release-worker.yml` | pull requests and pushes to `main` touching `apps/worker/**`, `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `.dockerignore`, `scripts/smoke_*.py` or the workflow; manual dispatch | `build`: free runner disk, `docker buildx build -f apps/worker/Dockerfile`, `scripts/smoke_worker_image.py` (moto S3 in Docker, fake Runpod API on localhost, the image run as a pod with `TRANSCRIBE_ENGINE=fake`: result, `_done.json`, finished status, pod deleted, exit 0; then, inside the image, the CUDA libraries load and, with `--network none`, the GPU stack imports, the Whisper model resolves with `local_files_only` as the engine loads it, the baked hu/en aligners load, and WhisperX's Silero VAD is built from the baked copy and run on silence). On `main` only: the image is saved (`docker save` + zstd) as a one-day artifact (the repository is public, so artifact storage is free), and a separate `push` job in `environment: dockerhub` loads it and pushes `sha-<short>`, `schema-<major>` and `latest` to `markfazekasgh/transcribe-ui-worker`. The job holding the token never runs the image. |
 | `reaper.yml` | schedule (`*/15 * * * *`); manual dispatch with a `dry-run` input | `reap` in `environment: runpod-reaper`: without the secret only a `::warning::` and success; otherwise uv pinned to 0.11.8, `uv sync --locked --no-dev --package transcribe-worker` (no `engine` extra, no uv cache) and `transcribe-worker-reaper [--dry-run]`; concurrency groups `reaper-live` / `reaper-dry` (never cancelled; a dry run cannot replace a pending live pass), 15-minute timeout; checkout pinned by SHA |
