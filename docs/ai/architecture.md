@@ -351,7 +351,10 @@ docs/human/, docs/ai/     see CLAUDE.md
     summary; the upload takes it to `transcribed` without a manifest.
   - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
     `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
-    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade).
+    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade). Every job
+    in `get_batch` (and the other batch details) shows its `status` and, for a failed job, its
+    `result_error` (the result's error, `unreadable result` or `missing result`): the "failed: …"
+    reason of the job view (requirements "Failure handling").
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
   own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
   `refresh_status` call `publish_held_manifests`).
@@ -594,8 +597,8 @@ invalid on the target OS become `_`; a file name over 255 bytes is a plan error 
 anything is written. Each subtitle is written to a temp file in the target folder and moved
 into place with `os.replace`, so an interrupted download never leaves a partial file.
 
-Planner (`placement/`, built in M5.7; `plan_download`, `run_download` and the custom plan
-requests wire it in M5.13):
+Planner (`placement/`: `planner.py`, `custom.py`, `drafts.py`, `naming.py`, `probe.py`; the
+download requests below wire it to the batches):
 
 - Pure: `plan_placement(jobs, scan_root, options, rules, probe)` and
   `import_custom_plan(document, jobs, options, rules, probe)` return a `PlacementPlan` (one
@@ -635,8 +638,7 @@ requests wire it in M5.13):
   superscript-digit forms, `CONIN$`, `CONOUT$`; also with an extension) gets `_` after its base
   (`CON_.hu.srt`). Name length is counted as the file system does: UTF-8 bytes on POSIX, UTF-16
   units on Windows. The limits leave room for the `.tmp` suffix of the temp file the subtitle
-  is first written to (`run_download`, M5.13, must use exactly that suffix in the target
-  folder): a name over 255 with it is `name_too_long`; on Windows a temp file path over 259
+  is first written to (`run_download` uses exactly that suffix in the target folder): a name over 255 with it is `name_too_long`; on Windows a temp file path over 259
   UTF-16 units (MAX_PATH) or a target folder path over 247 (the 248 that folder creation
   allows, minus the NUL) is `path_too_long`, since long paths may fail on a system without
   long-path support. These name errors are reported for every job, whatever its outcome.
@@ -663,6 +665,59 @@ requests wire it in M5.13):
   resolving `..` lexically and links through the probe, must be below the resolved output
   folder) and `duplicate_target` (compared after resolving). Jobs are keyed by item id and
   language.
+
+Download (`placement/`: `services.py`, `sources.py`, `download.py`, `writer.py`, `recording.py`;
+requests `plan_download`, `run_download`, `export_custom_plan`, `import_custom_plan`; all open the
+database):
+
+- **Phases.** Allowed in `ready` (the jobs whose results the last `refresh_status` recorded; the
+  others are `not_finished`, Q24), `transcribed`, `downloaded` (again, any number of times, with
+  any strategy, Q25) and `cleaned` (only the extract jobs are planned: their SRT is in SQLite, the
+  transcribed results are gone); any other phase is `wrong_phase`. A job's subtitle state comes
+  from the database: a transcribe job's status (`ok` → `available`, `no_speech` → `empty`,
+  `failed` → `failed`, `pending` → `pending`), an extract job's stored SRT. Sources are the items'
+  paths, the scan root the batch's, the name rules this computer's (`Ports.path_rules`), and the
+  planner asks the real file system (`OsPlacementProbe`).
+- **Requests.** `plan_download` (batch, `placement`: the strategy options with their defaults)
+  returns the batch summary and the plan and writes nothing. `run_download` (the same, plus
+  `confirm_overwrite`) carries it out. `export_custom_plan` returns the batch's custom plan and,
+  with an absolute `path`, also writes it there as JSON (temp file + `os.replace`;
+  `custom_plan_unwritable` with the exception type). `import_custom_plan` reads the edited plan
+  from an absolute `plan_path` (at most 32 MiB; `custom_plan_unreadable` with the exception
+  type), validates it against the batch's jobs and `placement` (output folder, `overwrite`,
+  `include_empty`) and carries it out; with `check_only` it only returns the validated plan, errors
+  included. Plan and export take no lock; `run_download` and `import_custom_plan` hold the batch
+  lock (never waited for).
+- **Carrying out** (`download.py`). A plan with errors is refused as `download_plan_invalid`
+  (details: the plan errors) before anything is written. A plan that would overwrite files is
+  answered with `needs_confirmation` (`confirm_overwrite`; details: the target file names) and
+  nothing changes. Then job by job, in plan order, with the cancel token between jobs: the
+  subtitle of a job the plan writes is read (an extracted one from SQLite, a transcribed one
+  from `<batch>/results/<item>.<lang>.srt` in R2, opened on first use so a download of extracted
+  subtitles needs no R2 credentials, an empty result as an empty file; a finished job whose SRT is
+  gone is `subtitle_missing`), the target is checked again (next to the media the folder must
+  still exist and is never created: else `skip_folder_missing`; the other strategies create their
+  folders; a target that appeared since the plan is `skip_existing` unless overwriting), the file
+  is written to `<target>.tmp`, flushed to disk and moved onto the target with `os.replace`
+  (which replaces an existing file on Windows too), and the job's outcome (the planned skip, or
+  what was done) is recorded in its own transaction as a `placements` row (`not_finished` is no
+  outcome). A failed write (a target open in another program on Windows) removes its temp file
+  and fails the request with `download_write_failed` (details: item, language, exception type).
+  No R2 call and no file write happens inside a transaction. The response lists every job with
+  the outcome as carried out and counts the files written, the skips and the jobs not finished;
+  progress: one `download` event per job with its target.
+- **Interruptions.** A cancel, a failure or a kill keeps the outcomes recorded so far. Sending the
+  request again plans anew: files placed before are existing targets (skipped unless overwriting,
+  so their jobs get their outcome then), and a temp file a kill left is overwritten by the next
+  write of the same target. A user file named like a temp file (`<name>.srt.tmp`) next to a target
+  would be overwritten too (accepted).
+- **The `downloaded` rule** (`recording.py`). A batch moves `transcribed` → `downloaded` (compare
+  and set) when every job has a recorded outcome: placed, overwritten, or skipped as an existing
+  file, a missing folder, an empty or a failed result (a failed job must not block the batch; it
+  is retried through a retry batch). `run_download` and `import_custom_plan` apply it after each
+  download; `refresh_status` applies it in the transaction that moves a `ready` batch to
+  `transcribed`, so a batch downloaded in full while `ready` goes straight on to `downloaded`.
+  Downloading again only adds rows; the phase never moves back, and `cleaned` stays `cleaned`.
 
 ### 3.6 Credentials
 
@@ -1020,7 +1075,9 @@ requests wire it in M5.13):
      refresh, while the batch is still `ready`). An unreadable result stays pending (logged)
      until `_done.json` is there; then the job is `failed` with `result_error` `unreadable
      result`, and a job with no result JSON at all `failed` with `missing result` (the worker
-     never comes back to a done batch), so a retry (M5.14) can take them. The `downloaded` rule is M5.13's.
+     never comes back to a done batch), so a retry (M5.14) can take them. In the transaction that moves a
+     batch to `transcribed`, the `downloaded` rule (§3.5) moves it on to `downloaded` when every job
+     already has a placement outcome (downloaded in full while `ready`); the response shows the phase.
   4. Every final run not yet collected (`objects_collected`; `cancelled` and `launch_failed`
      runs too, whose pod is verified gone or never existed) keeps its last status in the
      payload (if its end did not; written before anything is deleted), writes `worker.log` to
@@ -1586,7 +1643,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.12 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.13 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

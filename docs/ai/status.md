@@ -42,12 +42,12 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `runpod-reaper` environment (deployment branch policy: `main` only); its first real run on
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
-2. M5 wave 5 per `docs/ai/plans/m5.md` §4 (M5.1-M5.12 are built): M5.13 (download) next, then
-   M5.14; M4 runs whenever the architect is available.
-3. M5.13 adds the `downloaded` rule to `refresh_status` where it moves a `ready` batch to
-   `transcribed` (`runs/results.py` `_check_batch`, which holds the batch lock); job results
-   are in the job rows' `status` (`pending`, `ok`, `no_speech`, `failed`; `extracted` for
-   extract jobs).
+2. M5 wave 5 per `docs/ai/plans/m5.md` §4 (M5.1-M5.13 are built): M5.14 next; M4 runs whenever
+   the architect is available.
+3. For M5.14: whether a batch's results were downloaded (the second confirmation of the
+   `everything` cleanup) is its phase `downloaded`, or per job a `placements` row
+   (`placement/recording.py`); the end-to-end flow places subtitles with `run_download` and
+   `import_custom_plan` (architecture §3.5 "Download").
 4. M5.14 builds `create_retry_batch` on the M5.10 copy variant: retry items carry
    `ItemPayload.copy_sources` (`upload/payloads.py` `CopySource`) and are created in phase
    `reviewed` in an `uploading` batch; `run_upload` (or the retry request through the same
