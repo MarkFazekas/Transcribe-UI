@@ -44,8 +44,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. M5 wave 4 per `docs/ai/plans/m5.md` §4 (M5.1-M5.10 are built): M5.11 (worker launch and
-   reconciliation), then M5.12; M4 runs whenever the architect is available.
+2. M5 wave 4 per `docs/ai/plans/m5.md` §4 (M5.1-M5.11 are built): M5.12 (run monitoring)
+   next, then M5.13 and M5.14; M4 runs whenever the architect is available.
 3. M5.14 builds `create_retry_batch` on the M5.10 copy variant: retry items carry
    `ItemPayload.copy_sources` (`upload/payloads.py` `CopySource`) and are created in phase
    `reviewed` in an `uploading` batch; `run_upload` (or the retry request through the same
@@ -55,6 +55,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `create_retry_batch` must run the same cross-computer check (`upload/start.py`: manifest,
    objects and open multipart uploads under the id) before it creates the batch.
    `CopySource.source_key` must be the layout's audio key of its track and extension.
-4. M5.11 uses `runs/activity.py` `check_activity`, `runs/scope.py` `read_launch_scope`
-   (fingerprint) and `publish_held_manifests`, all under the runs lock; the run row payload is
-   still `{}` (M5.11 defines it).
+4. M5.12 follows runs through `runs/records.py` (`RunPayload` in `runs/payloads.py`; it adds the
+   first `RUNNING` sighting), resolves `launching` runs with `runs/settling.py`
+   `resolve_launching`, terminates with `runs/stopping.py` `terminate_verified`, and calls
+   `publish_held_manifests` under the runs lock once no run is active.
