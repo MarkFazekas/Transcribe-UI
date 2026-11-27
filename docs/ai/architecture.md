@@ -67,7 +67,7 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Models live in the desktop app (not in contracts: they are not shared with the worker): the
   unions in `transcribe_ui/api/classes.py`, each sub-package's request and response models in
   its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`,
-  `WhisperLanguage`), so
+  `SetPath`, `ToolPath`, `WhisperLanguage`, `check_distinct`), so
   `api/classes.py` can import them without a cycle. A path on the user's computer is typed
   `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
   fields (§7).
@@ -257,7 +257,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     running; a live `transcribe-ui-*` pod or queued pod; or a `status.json` younger than its
     heartbeat timeout; `plans/m5.md` §1), so no worker writes after a cleanup.
     A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
-    (`everything` only, Q26) is allowed during a run and also aborts open multipart uploads.
+    (`everything` only, Q26) is allowed during a run (unless R2 holds a leftover manifest of an
+    interrupted manifest step for it) and also aborts open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
     then `_done.json` and results, then audio; a crash in between leaves only objects under the
     batch prefix, which the next attempt removes. If results were not downloaded yet, the
@@ -267,6 +268,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     possible (a retry request is refused); the UI says so before confirming.
   - Both scopes are refused on a batch while one of its retry batches is still `uploading`
     with copies pending (the error names the retry batch).
+  - A batch this database does not know (Q28) can be deleted with `everything` once its
+    manifest reads; its deletes put the manifest last (below).
 - **Readiness marker**: the manifest is uploaded last, after every audio object is verified.
   A manifest present in `batch_metadata/` therefore always means "ready"; the worker never sees
   half-uploaded batches.
@@ -503,6 +506,70 @@ docs/human/, docs/ai/     see CLAUDE.md
     that were verified; re-sending empties the temp folder, aborts open multipart uploads,
     sweeps unrecorded objects and continues, so the bucket ends with exactly the objects of an
     uninterrupted upload (tested by interrupting before and after every R2 and ffmpeg call).
+
+- **Retry and cleanup** (`transcribe_ui/cleanup/`: `services.py` (the two handlers),
+  `origins.py`, `planning.py`, `rows.py`, `retry.py`, `targets.py`, `known.py`, `unknown.py`,
+  `manifests.py`, `stages.py`; requests `create_retry_batch` and `cleanup_cloud`, both open the
+  database). No R2 or Runpod call runs inside a transaction.
+  - **Retry request.** `create_retry_batch` names the source batch and its jobs (item id and
+    language, at least one, each once). Under the source's batch lock (never waited for, so a
+    cleanup of the source cannot run meanwhile) it looks for the retry batch of this source and
+    job set: the batch payload's `retry_of` holds the source id and the sorted jobs, found with
+    `json_extract`. A retry batch in `cleaned` no longer counts (its jobs can be retried
+    again). An existing one past `uploading` is returned as it is (`created: false`, outcome
+    `past_upload`, nothing done).
+  - **New retry batch.** The source must not have `audio_deleted` (`audio_deleted`), must be
+    `transcribed` or `downloaded` (`wrong_phase`), and every job must be a `transcribe` job of
+    the source (`retry_job_invalid`, reason `no_such_job`) with status `failed` or `no_speech`
+    (reason `not_flagged`; details: the job's index); each job's track needs a verified audio
+    object of the source (`copy_source_missing`). The batch gets the source's scan root and
+    path flavour, the jobs' languages and `retry_of`; each source item with chosen jobs becomes
+    a new item (new ULID, so its own audio key) in phase `reviewed`, its payload copied with
+    `copy_sources` set (the source's object key and `AudioObjectPayload` per track), its jobs
+    `careful` on the same track, pending. Its id is the next free batch id of the clock (as
+    `create_batch`) that R2 holds nothing under (`upload/start.py` `id_in_use`: the start check
+    of `run_upload`, which never runs for a batch created in `uploading`); an id taken in R2 is
+    skipped for the next one (up to 10, then `batch_id_taken`). The batch is committed in
+    `uploading` before anything is copied.
+  - **Copy and publish.** Under the retry batch's lock the handler runs `run_upload`'s
+    resumable path (`upload/services.py` `continue_upload`: temp folder, stale multipart
+    uploads, orphan sweep, the copy variant per item, then the manifest step, held during a
+    run). The response carries the retry batch's summary, `created`, the outcome (`ready`,
+    `held`) and the objects copied. A kill or a cancel at any point is resumed by repeating the
+    request (it finds the batch by `retry_of`) or by `run_upload` on the retry batch; no second
+    retry batch is made.
+  - **Cleanup order of locks.** `cleanup_cloud` takes the runs lock (bounded wait), then the
+    batch lock of the id (never waited for), and holds both to the end, so no run starts and
+    no request changes the batch between the checks and the last delete.
+  - **Known batch.** Phases: `everything` from `uploading` on, again in `cleaned` (to finish an
+    interrupted cleanup); `audio` in `ready`, `transcribed` and `downloaded`, refused while a
+    transcribe job is `pending` (`results_pending`, details: the count). Both are refused while
+    a retry batch of the batch is `uploading` with an item not `uploaded` (`retry_copying`,
+    details: the retry batch). Confirmations: `confirm`, and for `everything` on a `ready` or
+    `transcribed` batch with transcribe jobs also `confirm_not_downloaded` (both listed at
+    once). The activity check runs (`run_active`, `cloud_unreachable`) unless the batch is
+    `uploading` or `cleaned` and R2 holds no manifest for it. Then one transaction records the
+    intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), and
+    for `everything` the phase `cleaned` with `manifest_held` and `pending_withdrawal` cleared
+    (nothing publishes the batch again). The rows stay (history; extracted subtitles stay
+    downloadable).
+  - **Deletes** (`stages.py`; each object checked before its delete, so what is gone is not
+    counted; the cancel token before each delete; progress `delete_objects` per object). Known
+    `everything`: abort multipart uploads under `<id>/`, the manifest, `_done.json`, the results,
+    then everything left under `<id>/`; the batch's temp folder is emptied. `audio`: abort the
+    uploads under `<id>/audio/`, delete its objects. Repeating an interrupted cleanup finishes
+    it.
+  - **Unknown batch** (Q28): only `everything` (`audio` gives `batch_not_found`). The id is a
+    `BatchId` (else `invalid_request`); `batch_metadata/<id>.json` must exist
+    (`batch_not_found`) and read through `reading.read_manifest` (`manifest_unreadable`) before
+    anything is deleted; one confirmation (details: the file count, `known: false`); refused
+    while a run is active. Nothing local remembers this cleanup, so the manifest, the only
+    proof that the prefix is a published batch, goes last: everything under `<id>/` but
+    `_done.json`, then `_done.json` (a worker skips the batch while it exists), then the
+    manifest. A crash between the last two leaves a manifest whose audio is gone, which a
+    worker would fail quickly; repeating the cleanup removes it.
+  - **Response**: the batch id, the scope, the batch summary (None for an unknown batch), the
+    objects deleted and the multipart uploads aborted by this request.
 
 ### 3.4 Conversion
 

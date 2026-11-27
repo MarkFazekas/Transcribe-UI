@@ -26,7 +26,10 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- None.
+- M5.14 retry and cleanup on `feat/m5.14-retry-cleanup` (`transcribe_ui/cleanup/`, architecture
+  §3.3 "Retry and cleanup"): `create_retry_batch` and `cleanup_cloud` with their tests and
+  goldens are done; the branch is rebased onto M5.13 once that merges, then the end-to-end flow
+  test of §7 is added and M5 is marked **(built)**.
 
 ## Waiting on humans
 
@@ -48,14 +51,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `everything` cleanup) is its phase `downloaded`, or per job a `placements` row
    (`placement/recording.py`); the end-to-end flow places subtitles with `run_download` and
    `import_custom_plan` (architecture §3.5 "Download").
-4. M5.14 builds `create_retry_batch` on the M5.10 copy variant: retry items carry
-   `ItemPayload.copy_sources` (`upload/payloads.py` `CopySource`) and are created in phase
-   `reviewed` in an `uploading` batch; `run_upload` (or the retry request through the same
-   path) copies, verifies and publishes them. Cloud cleanup of an `uploading` batch also
-   empties its temp folder (`upload/temp.py` `clear_temp`). Retry batches are created in
-   `uploading`, so `run_upload` never runs the `batch_id_taken` check for them:
-   `create_retry_batch` must run the same cross-computer check (`upload/start.py`: manifest,
-   objects and open multipart uploads under the id) before it creates the batch.
-   `CopySource.source_key` must be the layout's audio key of its track and extension. The
-   flagged jobs of a retry are those with job status `failed` or `no_speech` (set by
-   `refresh_status`).
+4. M5.14: the end-to-end flow test of §7 (create → upload → manifest → launch → results →
+   download → retry → cleanup, CLI and backend with goldens), then M5 **(built)** in §10.
