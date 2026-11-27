@@ -19,7 +19,7 @@ from transcribe_contracts.pods import is_app_pod_name, parse_pod_name
 from transcribe_worker.entry.constants import TERMINATED_STATUS
 from transcribe_worker.entry.pod_api import PodApiError
 from transcribe_worker.reaper.api import ReaperApi
-from transcribe_worker.reaper.classes import ListedPod
+from transcribe_worker.reaper.classes import ListedPod, Listing
 from transcribe_worker.reaper.constants import (
     CALL_ATTEMPTS,
     CONFIRM_CHECKS,
@@ -54,7 +54,7 @@ class _Kind:
     action: str
     budget: timedelta
     min_window: timedelta
-    list_entries: Callable[[], list[ListedPod]]
+    list_entries: Callable[[], Listing]
     is_active: Callable[[str], bool]
     remove: Callable[[str], None]
     removed: Callable[[str], bool]
@@ -142,11 +142,16 @@ def _reap_kind(kind: _Kind, state: _Pass) -> None:
     phase_start = state.ports.now()
     stop_at = max(state.started + kind.budget, phase_start + kind.min_window)
     try:
-        listed = _with_retries(kind.list_entries, state.ports, f"list {kind.label}s")
+        listing = _with_retries(kind.list_entries, state.ports, f"list {kind.label}s")
     except PodApiError as error:
         logger.error("list %ss failed: %s", kind.label, error)  # noqa: TRY400 - message only, no traceback
         state.fail()
         return
+    if listing.dropped:
+        # The items themselves are never logged: they are untrusted and may belong to others.
+        logger.error("%d %s list items are not objects: ignored", listing.dropped, kind.label)
+        state.fail()
+    listed = listing.entries
     candidates = (_app_entry(kind, entry) for entry in listed)
     ours = [entry for entry in candidates if entry is not None]
     logger.info("%d %ss listed, %d active with the app prefix", len(listed), kind.label, len(ours))

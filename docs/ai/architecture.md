@@ -413,27 +413,29 @@ Termination layers, each sufficient on its own for the failures it covers:
    alone and fails the run; other pods are never touched or logged by name. List items are
    parsed leniently: any JSON value (or none) of `id`, `name`, `status` and `createdAt` is
    accepted, a non-string becoming null, so one odd entry or format change cannot fail the
-   list. Entries without a string name are foreign (never logged); an app entry whose status is not a string fails the run but is still handled by its deadline; app entries are
-   validated one by one. An app entry whose id is not a string fully matching
-   `[A-Za-z0-9_-]{1,64}` is left alone and fails the run. A deadline not yet due that lies more
-   than 32 days (`MAX_DEADLINE_SPAN`: Runpod's 30-day queue maximum + the 24 h `MAX_RUNTIME_S`
-   ceiling + a day of margins) after the entry's `createdAt` is treated the same way, so a
-   wrong deadline cannot silently disable this layer; deadline arithmetic cannot overflow (year
-   9999 included). A missing, non-string, unparseable or naive `createdAt` fails the run, but
-   the entry is still handled with the pass start as its creation time (a `createdAt` after the
-   pass start is capped to it). Untrusted names and ids are logged truncated and escaped
-   (`%r`), so they cannot inject workflow commands. Each call is retried a few times within the
-   pass. The queued phase starts no new cancel after 1 minute from the pass start, its list
-   included (a slow list fails the run, and a queued pod that deploys meanwhile is caught by
-   the pod phase); the pod phase always lists and starts terminates until 4 minutes after the
-   pass start or 2 minutes after its own start, whichever is later, so a slow queued phase
-   cannot starve it. The hard bound is the job's 15-minute timeout. Assuming one-page lists and
-   that the 30 s HTTP (socket) timeout bounds each operation (a trickling response or slow DNS
-   lookup can exceed it), the pass ends after about 10.7 minutes (one action up to 231 s; the
-   arithmetic is in `reaper/constants.py`). Any failure exits 1 while the other pods are still
-   handled. `--dry-run` sends no DELETE. Covers failures before Python starts (image pull
-   failure, crash loop) and queued pods that start while the desktop app is closed. The HTTP
-   layer is the entry's `ApiSession` (same URL, redirect and error-message rules).
+   list; list items that are not JSON objects are dropped unlogged and fail the run. Entries
+   without a string name are foreign (never logged); an app entry whose status is not a string
+   fails the run but is still handled by its deadline; app entries are validated one by one. An
+   app entry whose id is not a string fully matching `[A-Za-z0-9_-]{1,64}` is left alone and
+   fails the run. A deadline not yet due that lies more than 32 days (`MAX_DEADLINE_SPAN`:
+   Runpod's 30-day queue maximum + the 24 h `MAX_RUNTIME_S` ceiling + a day of margins) after
+   the entry's `createdAt` is treated the same way, so a wrong deadline cannot silently disable
+   this layer; deadline arithmetic cannot overflow (year 9999 included). A missing, non-string,
+   unparseable or naive `createdAt` fails the run, but the entry is still handled with the pass
+   start as its creation time (a `createdAt` after the pass start is capped to it). Untrusted
+   names and ids are logged truncated and escaped (`%r`), so they cannot inject workflow
+   commands. Each call is retried a few times within the pass. The queued phase starts no new
+   cancel after 1 minute from the pass start, its list included (a slow list fails the run, and
+   a queued pod that deploys meanwhile is caught by the pod phase); the pod phase always lists
+   and starts terminates until 4 minutes after the pass start or 2 minutes after its own start,
+   whichever is later, so a slow queued phase cannot starve it. The hard bound is the job's
+   15-minute timeout. Assuming one-page lists and that the 30 s HTTP (socket) timeout bounds
+   each operation (a trickling response or slow DNS lookup can exceed it), the pass ends after
+   about 10.7 minutes (one action up to 231 s; the arithmetic is in `reaper/constants.py`). Any
+   failure exits 1 while the other pods are still handled. `--dry-run` sends no DELETE. Covers
+   failures before Python starts (image pull failure, crash loop) and queued pods that start
+   while the desktop app is closed. The HTTP layer is the entry's `ApiSession` (same URL,
+   redirect and error-message rules).
 5. Account spend limit and low-balance alert (a zero balance stops pods instead of
    terminating them, which still bills volume storage).
 

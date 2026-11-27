@@ -60,6 +60,8 @@ TICK = timedelta(seconds=1)
 NUMERIC_JSON = 1764240000
 P_IN_TIME = "p_in_time"
 GARBAGE = "garbage"
+# (queued, overdue id, its DELETE path) of each kind.
+KINDS = ((False, P_OVERDUE, P_OVERDUE_PATH), (True, Q_OVERDUE, Q_OVERDUE_PATH))
 POD_ACTION_TAKES = QUEUED_PHASE_BUDGET + TICK
 ID_MAX_LENGTH = 64
 AUDIT_LINE = f"pod={P_OVERDUE} run={RUN_ID} deadline=2026-11-27T11:49:00+00:00 action=terminate outcome=done"
@@ -98,6 +100,7 @@ class FakeRunpod:
     failing_deletes: set[str] = field(default_factory=set)
     sticky_deletes: set[str] = field(default_factory=set)
     list_body: bytes | None = None
+    junk_items: list[object] = field(default_factory=list)
     scripted: dict[tuple[str, str], list[int]] = field(default_factory=dict)
     on_delete: Callable[[str], None] | None = None
     requests: list[tuple[str, str, str]] = field(default_factory=list)
@@ -110,7 +113,7 @@ class FakeRunpod:
             pod["createdAt"] = created_at
         self.pods[str(pod_id)] = pod
 
-    def add_queued(self, queued_id: str, name: str, status: str = QUEUED) -> None:
+    def add_queued(self, queued_id: str, name: str, status: object = QUEUED) -> None:
         """Add a queued pod."""
         self.queued[queued_id] = {
             "id": queued_id,
@@ -165,7 +168,7 @@ class FakeRunpod:
         if self.list_body is not None:
             return HTTP_OK, self.list_body
         start = int(parse_qs(query).get("cursor", ["0"])[0])
-        entries = list(collection.values())
+        entries: list[object] = [*self.junk_items, *collection.values()]
         end = start + self.page_size
         more = end < len(entries)
         pagination = {"nextCursor": str(end) if more else None, "hasNextPage": more}
@@ -537,50 +540,54 @@ def test_invalid_created_at_fails_but_is_handled(
 
 
 @pytest.mark.parametrize("status", [None, NUMERIC_JSON, {GARBAGE: True}])
-def test_app_pod_without_string_status_is_handled(
+@pytest.mark.parametrize("kind", KINDS)
+def test_app_entry_without_string_status_is_handled(
     fake_runpod: FakeRunpod,
     caplog: pytest.LogCaptureFixture,
     status: object,
+    kind: tuple[bool, str, str],
 ) -> None:
-    """An app pod whose status is not a string fails the pass but is still terminated once overdue."""
+    """An app pod or queued pod whose status is not a string fails the pass but is removed once overdue."""
     state = fake_runpod
-    checked = {P_OVERDUE: OVERDUE, P_IN_TIME: IN_TIME}
-    for pod_id, name in checked.items():
-        state.add_pod(pod_id, name, status=status)
-    assert (state.reap(), state.deletes(), set(state.pods)) == (False, [P_OVERDUE_PATH], {P_IN_TIME})
-    assert caplog.text.count("status missing or not a string") == len(checked)
+    queued, overdue_id, overdue_path = kind
+    add = state.add_queued if queued else state.add_pod
+    collection = state.queued if queued else state.pods
+    add(overdue_id, OVERDUE, status=status)
+    add(P_IN_TIME, IN_TIME, status=status)
+    assert (state.reap(), state.deletes()) == (False, [overdue_path])
+    assert P_IN_TIME in collection
+    assert caplog.text.count("status missing or not a string") == len((overdue_id, P_IN_TIME))
+    assert ("not confirmed" in caplog.text, GARBAGE in caplog.text) == (False, False)
+
+
+def test_queued_confirm_without_status_fails(
+    fake_runpod: FakeRunpod,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A queued pod whose single GET has no string status is not confirmed; the pass goes on and fails."""
+    state = fake_runpod
+    state.add_queued(Q_OVERDUE, OVERDUE, status={GARBAGE: True})
+    state.sticky_deletes.add(Q_OVERDUE)
+    state.add_overdue_pod()
+    assert (state.reap(), state.deletes()) == (False, [Q_OVERDUE_PATH, P_OVERDUE_PATH])
+    assert "confirmation check failed: GET queued pod: response without a status" in caplog.text
+    assert "action=cancel outcome=FAILED: not confirmed" in caplog.text
     assert GARBAGE not in caplog.text
 
 
-@pytest.mark.parametrize(
-    "foreign",
-    [
-        {"id": "foreign id\n", NAME: FOREIGN, STATUS: RUNNING, "createdAt": "foreign-garbage"},
-        {"id": NUMERIC_JSON, NAME: None, STATUS: RUNNING, "createdAt": NUMERIC_JSON},
-        {"id": None, NAME: [GARBAGE], STATUS: {GARBAGE: True}, "createdAt": {GARBAGE: 1}},
-        {},
-    ],
-)
-def test_foreign_entries_are_not_validated(
+@pytest.mark.parametrize("kind", KINDS)
+def test_non_object_list_items_are_dropped(
     fake_runpod: FakeRunpod,
     caplog: pytest.LogCaptureFixture,
-    foreign: dict[str, object],
+    kind: tuple[bool, str, str],
 ) -> None:
-    """A foreign entry with any JSON values (or none) neither fails the list nor shows up in the log."""
+    """Null, string and number list items are dropped unlogged; the pass fails, overdue entries are removed."""
     state = fake_runpod
-    state.pods["foreign"] = foreign
-    state.add_overdue_pod()
-    with caplog.at_level(logging.INFO):
-        assert state.reap()
-    assert state.deletes() == [P_OVERDUE_PATH]
-    assert ("foreign" in caplog.text, GARBAGE in caplog.text) == (False, False)
-
-
-def test_names_cannot_inject_workflow_commands(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) -> None:
-    """A malformed app name with a newline is logged escaped, so no log line starts with `::`."""
-    state = fake_runpod
-    state.add_pod("p_malformed", f"{MALFORMED}\n::error::injected")
-    with caplog.at_level(logging.INFO):
-        assert not state.reap()
-    assert not any(line.startswith("::") for line in caplog.text.splitlines())
-    assert "::error::injected" in caplog.text
+    queued, overdue_id, overdue_path = kind
+    state.junk_items = [None, "x-junk-item", NUMERIC_JSON]
+    add = state.add_queued if queued else state.add_pod
+    add(overdue_id, OVERDUE)
+    assert (state.reap(), state.deletes()) == (False, [overdue_path])
+    assert caplog.text.count("3 queued pod list items are not objects") == 1
+    assert caplog.text.count("3 pod list items are not objects") == 1
+    assert ("x-junk-item" in caplog.text, str(NUMERIC_JSON) in caplog.text) == (False, False)

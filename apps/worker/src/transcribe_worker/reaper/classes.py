@@ -6,7 +6,7 @@ can hold secrets) is ignored and never logged.
 
 from typing import Annotated
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 
 class ApiModel(BaseModel):
@@ -46,10 +46,28 @@ class ListedPod(ApiModel):
 
 
 class Page(ApiModel):
-    """One page of a list response."""
+    """One page of a list response.
+
+    List items that are not JSON objects (null, a string, a number, ...) are dropped before
+    validation and only counted in `dropped`, so one odd item cannot fail the page.
+    """
 
     entries: list[ListedPod]
     pagination: Pagination
+    dropped: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_non_objects(cls, raw: object) -> object:
+        if not isinstance(raw, dict):
+            return raw
+        key = cls.model_fields["entries"].alias or "entries"
+        raw_items = raw.get(key)
+        if not isinstance(raw_items, list):
+            return raw
+        kept = [candidate for candidate in raw_items if isinstance(candidate, dict)]
+        # Always set here, so a `dropped` key in the response cannot hide a dropped item.
+        return {**raw, key: kept, "dropped": len(raw_items) - len(kept)}
 
 
 class PodPage(Page):
@@ -62,3 +80,10 @@ class QueuedPodPage(Page):
     """One page of `GET /v2/queued-pods`."""
 
     entries: list[ListedPod] = Field(alias="queuedPods")
+
+
+class Listing(ApiModel):
+    """Every entry of one list endpoint (all pages) and the count of dropped non-object items."""
+
+    entries: list[ListedPod]
+    dropped: int

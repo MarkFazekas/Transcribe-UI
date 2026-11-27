@@ -8,17 +8,17 @@ from pydantic import ValidationError
 
 from transcribe_worker.entry.constants import TERMINATED_STATUS
 from transcribe_worker.entry.pod_api import ApiSession, PodApiError
-from transcribe_worker.reaper.classes import ListedPod, Page, PodPage, QueuedPodPage
+from transcribe_worker.reaper.classes import ListedPod, Listing, Page, PodPage, QueuedPodPage
 from transcribe_worker.reaper.constants import CURSOR_PARAMETER, MAX_PAGES, PODS_PATH, QUEUED_PODS_PATH, QUEUED_STATUS
 
 
 class ReaperApi(Protocol):
     """The Runpod operations one reaper pass needs. Every failure is a PodApiError."""
 
-    def list_pods(self) -> list[ListedPod]:
+    def list_pods(self) -> Listing:
         """Return every pod of the account (all pages)."""
 
-    def list_queued_pods(self) -> list[ListedPod]:
+    def list_queued_pods(self) -> Listing:
         """Return every queued pod of the account (all pages, any status)."""
 
     def terminate_pod(self, pod_id: str) -> None:
@@ -53,11 +53,11 @@ class RunpodReaperApi:
         """
         self._session = ApiSession(base_url, api_key)
 
-    def list_pods(self) -> list[ListedPod]:
+    def list_pods(self) -> Listing:
         """List pods (`GET /pods`, following `pagination.nextCursor`)."""
         return self._list(PODS_PATH, PodPage, "pods")
 
-    def list_queued_pods(self) -> list[ListedPod]:
+    def list_queued_pods(self) -> Listing:
         """List queued pods (`GET /queued-pods`, following `pagination.nextCursor`)."""
         return self._list(QUEUED_PODS_PATH, QueuedPodPage, "queued pods")
 
@@ -77,15 +77,17 @@ class RunpodReaperApi:
         """Return True on 404 or any status but QUEUED (`GET /queued-pods/{id}`)."""
         return self._status(QUEUED_PODS_PATH, queued_pod_id, "queued pod") != QUEUED_STATUS
 
-    def _list(self, path: str, page_model: type[Page], what: str) -> list[ListedPod]:
+    def _list(self, path: str, page_model: type[Page], what: str) -> Listing:
         listed: list[ListedPod] = []
+        dropped = 0
         query = ""
         for _ in range(MAX_PAGES):
             body = self._get(f"{path}{query}", what)
             page = _parse_page(page_model, body, what)
             listed.extend(page.entries)
+            dropped += page.dropped
             if not page.pagination.has_next_page:
-                return listed
+                return Listing(entries=listed, dropped=dropped)
             if not page.pagination.next_cursor:
                 msg = f"GET {what}: next page announced without a cursor"
                 raise PodApiError(msg)
