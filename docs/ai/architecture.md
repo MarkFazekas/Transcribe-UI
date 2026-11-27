@@ -413,8 +413,8 @@ docs/human/, docs/ai/     see CLAUDE.md
       its `manifest_step`, before the new manifest is written; `publish_held_manifests`, which
       first finishes the pending withdrawal of every `uploading` batch (held or not, its lock
       only tried) and is called by `launch_worker` before it launches and by
-      `refresh_status`; and (planned) the orphan sweep of `run_upload` and the extract-only
-      transition to `transcribed` (M5.10). The launch scope counts a leftover whose digest a
+      `refresh_status`; the orphan sweep of `run_upload` (before it deletes anything); and the
+      extract-only transition to `transcribed` (below). The launch scope counts a leftover whose digest a
       pending withdrawal recorded as absent (a held batch is counted from the database).
     - **Remaining window.** This app cannot launch during a withdrawal: its launch holds the
       runs lock for its whole check-publish-launch sequence, and a launch already under way
@@ -425,6 +425,74 @@ docs/human/, docs/ai/     see CLAUDE.md
       deletion; the batch would then be skipped or keep a stale subtitle until its results are
       deleted again. This needs a crash in the manifest step, a later exclusion or re-review,
       and a launch on another computer at that moment, and is accepted.
+
+- **Upload** (`transcribe_ui/upload/`: `services.py` (`run_upload`), `start.py`, `sweep.py`,
+  `items.py`, `tracks.py`, `transfer.py`, `rows.py`, `temp.py`, `finish.py`; request
+  `run_upload`, opens the database). Under the batch's lock (never waited for); R2 and the
+  Runpod API are opened once with all five credentials (the manifest step needs both), so a
+  credentials error changes nothing. No R2, Runpod or ffmpeg call runs inside a transaction,
+  and the runs lock is taken only through its bounded wait.
+  - **Start.** A batch in `reviewing` needs every item `reviewed` (else `review_incomplete`,
+    details: the item ids). Batch ids are unique only in this database, so before the first
+    upload `batch_metadata/<id>.json` and everything under `<id>/` must be absent (else
+    `batch_id_taken`: another computer's batch of the same second, or one of a deleted
+    database; nothing changes, the user deletes the batch and creates it again, which gives a
+    new id); then the batch moves `reviewing` → `uploading` by compare-and-set. From then on
+    objects under the prefix are taken as the batch's own. Remaining window: another computer
+    creating the same id in the same second and checking before this one uploads anything
+    shares the prefix; the sweep and the stale-upload abort below could then remove its
+    objects. Accepted (two computers, same second, both uploading at once).
+  - **Leftovers of an interruption.** Each batch has its own temp folder
+    (`<cache>/upload/<batch_id>/`); `run_upload` empties it first (finished and partial files
+    a kill left), then aborts every open multipart upload under `<id>/`. The orphan sweep
+    lists `<id>/audio/` and deletes every object that is not a verified `audio_objects` row of
+    the batch: objects of excluded or re-reviewed items whose deletion was interrupted, objects
+    uploaded but never recorded, another extension of a track (one rule covers the plan's
+    "orphans" and "what is left under a re-uploaded item's prefix"). A pending withdrawal is
+    finished first (under the runs lock, no run active), since its leftover manifest may list
+    those objects; while a run is active, the cloud cannot be checked or the runs lock stays
+    busy, the sweep is put off (`sweep_skipped: true`) and the upload goes on: the objects are
+    in no manifest this database builds, and the withdrawal is finished before any new
+    manifest is written.
+  - **Per item** (resolved items in selection order; `uploaded` ones are skipped, items in
+    review are reported), each step in its own transaction, so a resume continues after the
+    last recorded step:
+    - the source-unchanged check (size and mtime as probed; a missing file counts as changed),
+      before the item and again after every read of the file before its outcome is recorded;
+      a changed file sends the item back to review (`return_item_to_review`: its rows and
+      objects go); a file that cannot be read during the upload counts the same;
+    - each `extract` job without a stored SRT: extracted, stored in `extracted_subtitles`
+      (payload: the stream index), the job status becomes `extracted`;
+    - each audio track a `transcribe` job uses without a verified object: an audio file is
+      uploaded as it is (extension lower-cased; one the R2 layout's rule `[a-z0-9]{1,10}` does
+      not allow, or an empty file, gives `audio_unusable`; codec: the probed first track's); a
+      video track is converted into the temp folder (`<item>.a<track>`, `.mka` or `.flac`;
+      codec: the track's, or `flac` after the fallback) and the temp file is deleted after the
+      upload; duration: the probed container duration (0 when unknown). The target key is
+      deleted first, so a HEAD after an ambiguous failure (a retried complete that gets
+      `NoSuchUpload`, a lost response) can only see this request's object: such a failure
+      counts as success when HEAD finds the object with the local size. The object is verified
+      by HEAD size (`upload_unverified` otherwise) and recorded as a `verified` row;
+    - the item moves to `uploaded`.
+  - **Copy variant** (retry batches, M5.14): an item whose payload has `copy_sources` (the
+    source batch's key and its `AudioObjectPayload` per track) copies each object server side
+    (`CopyObject`) to `<id>/audio/<item>[.a<track>].<ext>`, verifies the size and records the
+    source's payload; it has no source-unchanged check, since its audio is never read from the
+    file. A missing source object gives `r2_object_missing`.
+  - **End.** Items still in review: outcome `items_in_review` (their ids), no manifest. A batch
+    with `transcribe` jobs goes through the manifest step (outcome `ready`, or `held` with the
+    activity sources). A batch with only `extract` jobs moves `uploading` → `transcribed`
+    without a manifest; a pending withdrawal is finished first under the runs lock, and during
+    a run it is refused with `run_active` (nothing more changes; re-sending resumes).
+  - **Response**: the batch summary, the outcome, the items in review, the objects uploaded or
+    copied and the subtitles extracted by this request, the objects the sweep deleted,
+    `sweep_skipped`, and the activity that holds the manifest. Progress: `upload_bytes` per part
+    (bytes of the current object) and `upload_item` per item. `run_upload` on a batch past
+    `uploading` is `wrong_phase`.
+  - **Interruptions.** A kill or a cancel at any point leaves recorded steps only for objects
+    that were verified; re-sending empties the temp folder, aborts open multipart uploads,
+    sweeps unrecorded objects and continues, so the bucket ends with exactly the objects of an
+    uninterrupted upload (tested by interrupting before and after every R2 and ffmpeg call).
 
 ### 3.4 Conversion
 
@@ -468,7 +536,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     - POSIX: a new session (`start_new_session`; no `preexec_fn`, which is not thread-safe);
       the kill is `killpg(SIGKILL)`. If the app itself dies, a running ffmpeg is orphaned and
       runs to its end; this is accepted, since it writes only its own uniquely named partial
-      file, which the start-up cleanup of the temp folder (M5.10) removes;
+      file, which the next `run_upload` of its batch removes when it empties the batch's temp
+      folder (§3.3 "Upload");
     - Windows: `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, created suspended, put into a
       job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, then resumed (ctypes, no
       dependency); the kill is `TerminateJobObject`, and when the app dies the OS closes the
@@ -1320,7 +1389,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.9 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.10 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
