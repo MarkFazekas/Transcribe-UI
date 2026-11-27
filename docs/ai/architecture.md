@@ -493,39 +493,57 @@ requests wire it in M5.13):
 
 - Runpod **REST API v2** (`https://api.runpod.io/v2`; v1 was retired on 2026-11-15) through a
   thin typed `httpx` client (`transcribe_ui/runpod/`: `client.py` with `pods.py` and
-  `account.py` per resource, `session.py` for the HTTP session, `retry.py` for the policy,
-  `wire.py`/`bodies.py` for the bodies read and sent). The key is sent only over https to a
-  `*.runpod.io` host (checked for the base URL and again for every request), redirects are
-  never followed, environment proxies are ignored when a test transport is injected, and error
-  messages name the call and the status or exception type only (no URL, header or body).
-  Lists follow `pagination.nextCursor` (at most 100 pages).
+  `account.py` per resource, `session.py` for the HTTP session, `calls.py` for the calls and
+  the host check, `retry.py` for the policy, `timing.py` for waits, clock and cancel,
+  `parsing.py`, and `wire.py`/`bodies.py` for the bodies read and sent). The key is sent only
+  over https to exactly `api.runpod.io` (host compared case-insensitively; no port, no
+  trailing dot, no other Runpod host), checked for the base URL and again for every request;
+  redirects are never followed; environment proxies are ignored when a test transport is
+  injected; error messages name the call and the status or exception type only (no URL,
+  header or body), and errors are raised outside `except` blocks, so no exception chain
+  (`__cause__` or `__context__`) keeps a request or a response. Lists follow
+  `pagination.nextCursor` (at most 100 pages).
 - Retries: reads, deletes and updates (PATCH is idempotent) retry a 429 after `Retry-After`
-  (delta seconds, capped at 60 s), a 5xx or a network failure with backoff (1, 2, 4, 8 s), up
-  to 5 attempts; other 4xx are final. A create retries only a 429 and a failure to connect
-  (`ConnectError`, `ConnectTimeout`, `PoolTimeout`: nothing was sent). A timeout, a 5xx, a
-  redirect or a drop after sending raises `AmbiguousCreateError` and is never re-sent. Waits go
-  through an injected sleep, so tests do not sleep.
+  (delta seconds or an HTTP date measured against the injected clock, clamped to 0-60 s; a
+  missing, unreadable or non-finite value backs off instead), a 5xx or a network failure with
+  backoff (1, 2, 4, 8 s), up to 5 attempts; other 4xx are final. A create retries only a 429
+  and a failure to connect (`ConnectError`, `ConnectTimeout`, `PoolTimeout`: nothing was
+  sent). A timeout, a 5xx, a redirect, a drop after sending, or a 2xx whose body does not
+  parse (the object exists) raises `AmbiguousCreateError` and is never re-sent. Waits go
+  through an injected wait that ends early on the request's cancel token, and no attempt
+  starts once it is set (`cancelled`), so a cancel never lags behind a long `Retry-After`;
+  tests record the waits instead of sleeping.
 - Bodies read from the API keep only the fields the app uses: a pod's `env` (R2 secrets and
   the pod-scoped key) is never parsed, template env values are `SecretStr`, and no response,
-  log line or error message contains env values, keys or R2 secrets.
+  log line or error message contains env values, keys or R2 secrets. Templates are validated
+  only after filtering by name, so an unrelated template of an unexpected shape cannot fail
+  the setup.
 - Cloud setup (`setup_cloud`, `cloud_setup_status`; DB-free, stateless, nothing stored
   locally): by fixed names, the Global Volume `transcribe-ui-backups`, four Runpod secrets
   holding the R2 endpoint, bucket, access key id and secret (`transcribe_ui_r2_*`, from the
   desktop's credentials; open A18 proposes this one bucket-scoped token) and the template
-  `transcribe-ui-worker` (image `markfazekasgh/transcribe-ui-worker:schema-<contracts major>`,
-  `startSsh`/`startJupyter` false, env `R2_*` = `{{ RUNPOD_SECRET_transcribe_ui_r2_* }}`).
-  `setup_cloud` creates what is missing, always rewrites the secret values (they are
-  write-only, so a change cannot be detected; a token rotation is a re-run), updates an
-  outdated template (image, `env` entries the app sets, `startSsh`, `startJupyter`; other env
-  entries are ignored, so merge or replace on PATCH does not matter) and deletes duplicates by
-  name, keeping the oldest (`createdAt`, then id; templates have no `createdAt`, so the lowest
-  id). A duplicate still in use (400 template, 409 volume) stops with `cloud_object_in_use`. An
-  ambiguous create, or a 409 on a secret name the list does not show yet, stops with
-  `cloud_setup_interrupted`; a re-run adopts the object, or creates a second one during list
-  lag that the run after removes. `cloud_setup_status` reports each object as `ok`, `missing`,
-  `outdated` (with field names) or `duplicated`; `require_cloud_setup` gives `launch_worker`
-  the template and volume ids, or refuses with `cloud_not_set_up` / `cloud_setup_outdated`
-  (duplicates included, so no pod mounts a duplicate volume).
+  `transcribe-ui-worker-schema-<contracts major>` (image
+  `markfazekasgh/transcribe-ui-worker:schema-<contracts major>`, `startSsh`/`startJupyter`
+  false, env `R2_*` = `{{ RUNPOD_SECRET_transcribe_ui_r2_* }}`). The template name carries the
+  major, so app versions of different contract majors keep their own template instead of
+  rewriting one back and forth. `setup_cloud` creates what is missing, always rewrites the
+  secret values (they are write-only, so a change cannot be detected; a token rotation is a
+  re-run), and updates an outdated template (image, `env` entries the app sets, `startSsh`,
+  `startJupyter`; other env entries are ignored, so merge or replace on PATCH does not
+  matter). Duplicate secrets and templates are deleted: of secrets the exact-name match is
+  kept before case variants (Runpod compares names case-insensitively), then the oldest
+  (`createdAt`, then id); of templates (no `createdAt`, ids not ordered by age) a stable pick
+  that prefers one already up to date, then the lowest id. A duplicate template still in use
+  (400) stops with `cloud_object_in_use`. Global Volumes are never deleted (they may hold
+  result backups): several with the app's name stop `setup_cloud` with
+  `cloud_volume_duplicated`, listing their ids, and the user removes the unwanted ones in the
+  Runpod console (open Q29). An ambiguous create, or a 409 on a secret name the list does not
+  show yet, stops with `cloud_setup_interrupted`; a re-run adopts the object, or (during list
+  lag) creates a second one that the run after removes (for a volume: reported as duplicated).
+  `cloud_setup_status` reports each object as `ok`, `missing`, `outdated` (with field names) or
+  `duplicated`; `require_cloud_setup` gives `launch_worker` the template and volume ids, or
+  refuses with `cloud_volume_duplicated`, `cloud_not_set_up` or `cloud_setup_outdated`
+  (duplicates included), so no pod mounts an arbitrary volume.
 - `runpod/check.py` is the Runpod half of `check_credentials` (`GET /v2/pods?limit=1`, body not
   parsed): `ok`, `missing`, `rejected`, `missing_scope` or `unreachable`; the credential
   store's request includes it once both parts are merged.
