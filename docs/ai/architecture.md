@@ -531,16 +531,21 @@ docs/human/, docs/ai/     see CLAUDE.md
     of `run_upload`, which never runs for a batch created in `uploading`); an id taken in R2 is
     skipped for the next one (up to 10, then `batch_id_taken`). The batch is committed in
     `uploading` before anything is copied.
-  - **Copy and publish.** Under the retry batch's lock the handler runs `run_upload`'s
-    resumable path (`upload/services.py` `continue_upload`: temp folder, stale multipart
+  - **Copy and publish.** Under the retry batch's lock the handler reads its phase again: one
+    that moved on meanwhile gives `past_upload`, one cleaned up meanwhile `wrong_phase`
+    (nothing is copied into a cleaned prefix). Otherwise it runs `run_upload`'s resumable path (`upload/services.py` `continue_upload`: temp folder, stale multipart
     uploads, orphan sweep, the copy variant per item, then the manifest step, held during a
     run). The response carries the retry batch's summary, `created`, the outcome (`ready`,
     `held`) and the objects copied. A kill or a cancel at any point is resumed by repeating the
     request (it finds the batch by `retry_of`) or by `run_upload` on the retry batch; no second
     retry batch is made.
   - **Cleanup order of locks.** `cleanup_cloud` takes the runs lock (bounded wait), then the
-    batch lock of the id (never waited for), and holds both to the end, so no run starts and
-    no request changes the batch between the checks and the last delete.
+    batch lock of the id (never waited for). For a known batch the runs lock is held through
+    the checks, the activity check and the transaction that records the cleanup, then released
+    before the deletes: the recorded marker keeps every launch out, and the batch lock and the
+    phase keep the manifest step and `publish_held_manifests` out, so a long delete never
+    blocks `refresh_status` (the deadline stop) or `cancel_worker`. The batch lock is held to
+    the end. An unknown batch keeps both locks to the end (nothing local blocks a launch).
   - **Known batch.** Phases: `everything` from `uploading` on, again in `cleaned` (to finish an
     interrupted cleanup); `audio` in `ready`, `transcribed` and `downloaded`, refused while a
     transcribe job is `pending` (`results_pending`, details: the count). Both are refused while
@@ -549,9 +554,14 @@ docs/human/, docs/ai/     see CLAUDE.md
     `transcribed` batch with transcribe jobs also `confirm_not_downloaded` (both listed at
     once). The activity check runs (`run_active`, `cloud_unreachable`) unless the batch is
     `uploading` or `cleaned` and R2 holds no manifest for it. Then one transaction records the
-    intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), and
-    for `everything` the phase `cleaned` with `manifest_held` and `pending_withdrawal` cleared
-    (nothing publishes the batch again). The rows stay (history; extracted subtitles stay
+    intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), the
+    batch payload's `cleanup_pending` (the scope; shown in `BatchSummary`), and for
+    `everything` the phase `cleaned` with `manifest_held` and `pending_withdrawal` cleared
+    (nothing publishes the batch again). A last transaction after the last delete clears
+    `cleanup_pending`. While any batch has it (a kill or an R2 failure in between: its manifest
+    or audio may still be in R2), `plan_launch` and `launch_worker` refuse with
+    `cleanup_pending` (details: the batch ids), so nothing half deleted is transcribed;
+    repeating the cleanup clears it. The rows stay (history; extracted subtitles stay
     downloadable).
   - **Deletes** (`stages.py`; each object checked before its delete, so what is gone is not
     counted; the cancel token before each delete; progress `delete_objects` per object). Known
@@ -1028,7 +1038,8 @@ database):
   errors itself). The factors are placeholders recalibrated at M7.
 - **Launch** (`runs/launch.py`, `creating.py`, `pod_body.py`, `records.py`, `payloads.py`;
   request `launch_worker`: `wait_s`, `test_mode`, `confirm_fingerprint`). Under the runs lock
-  for the whole sequence, no transaction across a Runpod or R2 call:
+  for the whole sequence, no transaction across a Runpod or R2 call (first, as in `plan_launch`,
+  a batch with `cleanup_pending`, an interrupted cloud cleanup, gives `cleanup_pending`, §3.3):
   1. the activity check: any sign of a run (a straggler included) gives `run_active`, an
      unreadable cloud `cloud_unreachable`;
   2. `require_cloud_setup` (template and volume ids, or `cloud_not_set_up`,
