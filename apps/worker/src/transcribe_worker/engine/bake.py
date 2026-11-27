@@ -33,6 +33,9 @@ def bake() -> None:
         force_reload=False,
         onnx=False,
         trust_repo=True,
+        # The fork check calls the GitHub API, which rate-limits shared CI runners; WhisperX
+        # loads from this cache at run time and does not repeat it.
+        skip_validation=True,
     )
 
 
