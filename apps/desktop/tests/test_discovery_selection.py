@@ -20,6 +20,8 @@ from support.discovery import (
     FILM_SEQUEL,
     FILM_TWIN,
     INTERVIEW,
+    LARGE_TREE_BUDGET_S,
+    LARGE_TREE_SHAPE,
     MEDIA_ROOT,
     PODCAST,
     JsonObject,
@@ -43,6 +45,7 @@ from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorResponse
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_INVALID_REQUEST, EXIT_OK
 from transcribe_ui.discovery.classes import PreviewSelectionRequest, PreviewSelectionResponse
+from transcribe_ui.discovery.constants import REGEX_MAX_LENGTH
 from transcribe_ui.discovery.rules import PathRules, macos_rules, posix_rules, windows_rules
 
 SERIES = f"{MEDIA_ROOT}/Series"
@@ -51,10 +54,6 @@ AUDIO = f"{MEDIA_ROOT}/Audio"
 HUNGARIAN = "hu"
 MISSING_ONE = "missing_one"
 NO_MEDIA_AT_PATH = "no_media_at_path"
-# Folders x files per folder of the large-tree regression guard.
-LARGE_TREE_SHAPE = (200, 100)
-# Time budget of a preview over the large tree (generous: a regression guard, not a benchmark).
-LARGE_TREE_BUDGET_S = 30.0
 # Media files below `MOVIES`.
 MOVIES_FILES = 4
 # Files of the nested scenario.
@@ -175,6 +174,7 @@ def test_paths_outside_the_root_are_refused(tmp_path: Path, name: str, path: str
     exchange = run_one(tmp_path, preview_request([include(path)]), prepare=build_media_tree)
     assert exchange.exit_code == EXIT_ERROR
     assert error_code(exchange) == "path_outside_root"
+    assert response_of(exchange)["error"]["details"] == {"operation": 0}
     assert_golden(f"preview_selection_outside_{name}.json", exchange.golden())
 
 
@@ -185,6 +185,7 @@ def test_paths_outside_the_root_are_refused(tmp_path: Path, name: str, path: str
         ("language", {"subtitles": subtitles("any", "xx")}),
         ("no_languages", {"subtitles": subtitles("any")}),
         ("empty_text", {"name": name_filter("contains", "")}),
+        ("long_regex", {"name": name_filter("regex", "a" * (REGEX_MAX_LENGTH + 1))}),
     ],
 )
 def test_invalid_filters_are_refused(tmp_path: Path, name: str, filters: JsonObject) -> None:
@@ -246,16 +247,11 @@ def test_root_with_another_case_matches_on_windows(tmp_path: Path) -> None:
     assert refused.error.code == "path_outside_root"
 
 
-def test_large_tree_previews_within_budget(tmp_path: Path) -> None:
+def test_large_tree_previews_within_budget(large_tree: Path) -> None:
     """A filtered preview over 20 000 files stays within a generous budget (regression guard)."""
     folders, per_folder = LARGE_TREE_SHAPE
-    names = (
-        f"media/folder{folder:03}/clip{number:03}.mkv" for folder in range(folders) for number in range(per_folder)
-    )
-    build_tree(tmp_path, names)
-    root = media_dir(tmp_path)
-    operations = [include(str(root), name=name_filter("ends_with", "7")), exclude(str(root / "folder000"))]
-    document = {"action": "preview_selection", "scan": {"root": str(root)}, "operations": operations}
+    operations = [include(str(large_tree), name=name_filter("ends_with", "7")), exclude(str(large_tree / "folder000"))]
+    document = {"action": "preview_selection", "scan": {"root": str(large_tree)}, "operations": operations}
     started = time.monotonic()
     response = Backend(seeded_ports()).execute(PreviewSelectionRequest.model_validate(document))
     elapsed = time.monotonic() - started

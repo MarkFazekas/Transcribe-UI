@@ -5,7 +5,6 @@ Each request runs through the backend and the CLI (parity); golden files are reg
 """
 
 import ctypes
-import dataclasses
 import os
 import stat
 import sys
@@ -18,12 +17,15 @@ from support.discovery import (
     EVERY_FILE,
     FILM_SEQUEL,
     FILM_TWIN,
+    LARGE_TREE_BUDGET_S,
+    LARGE_TREE_SHAPE,
     MEDIA_ROOT,
     build_media_tree,
     error_code,
     file_names,
     media_dir,
     response_of,
+    scan_direct,
     scan_request,
     warning_codes,
 )
@@ -39,25 +41,11 @@ from transcribe_ui.discovery.classes import ScanTreeRequest, ScanTreeResponse
 from transcribe_ui.discovery.constants import SCAN_PROGRESS_INTERVAL
 from transcribe_ui.discovery.rules import PathRules, macos_rules, posix_rules, windows_rules
 
-# Files of the large-tree regression guard: folders x files per folder.
-LARGE_TREE_SHAPE = (200, 100)
-# Time budget of scanning the large tree (generous: a regression guard, not a benchmark).
-LARGE_TREE_BUDGET_S = 30.0
 # Entries of `MEDIA_TREE` only a scan with hidden entries finds.
 HIDDEN_MEDIA = (".cover.mp4", "secret.mkv")
-# Files of the Windows attribute test, and how many of them a scan with hidden entries finds.
-ATTRIBUTE_FILES = 3
+# Files of the Windows attribute test.
+ATTRIBUTE_FILES = 4
 LINK_SKIPPED = "link_skipped"
-
-
-def _scan(root: Path, rules: PathRules | None = None, **fields: object) -> ScanTreeResponse:
-    ports = seeded_ports()
-    if rules is not None:
-        ports = dataclasses.replace(ports, path_rules=rules)
-    request = ScanTreeRequest.model_validate({"action": "scan_tree", "root": str(root), **fields})
-    response = Backend(ports).execute(request)
-    assert isinstance(response, ScanTreeResponse), response
-    return response
 
 
 def _subtitles(response: ScanTreeResponse) -> dict[str, list[str]]:
@@ -166,16 +154,18 @@ def test_scan_reports_names_that_are_not_unicode(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows file attributes")
-def test_scan_skips_windows_hidden_and_system_entries(tmp_path: Path) -> None:
-    """Entries with the Windows hidden or system attribute are skipped unless asked."""
-    build_tree(tmp_path, ["media/shown.mkv", "media/hidden.mkv", "media/system.mkv"])
+def test_scan_skips_windows_hidden_entries(tmp_path: Path) -> None:
+    """The Windows hidden attribute hides an entry unless asked; the system attribute alone does not."""
+    build_tree(tmp_path, ["media/shown.mkv", "media/hidden.mkv", "media/system.mkv", "media/both.mkv"])
     media = media_dir(tmp_path)
     if sys.platform == "win32":  # Lets the type checker see `ctypes.windll`.
         set_attributes = ctypes.windll.kernel32.SetFileAttributesW
-        assert set_attributes(str(media / "hidden.mkv"), stat.FILE_ATTRIBUTE_HIDDEN)
-        assert set_attributes(str(media / "system.mkv"), stat.FILE_ATTRIBUTE_SYSTEM)
-    assert [found.name for found in _scan(media).files] == ["shown.mkv"]
-    assert len(_scan(media, include_hidden=True).files) == ATTRIBUTE_FILES
+        hidden, system = stat.FILE_ATTRIBUTE_HIDDEN, stat.FILE_ATTRIBUTE_SYSTEM
+        assert set_attributes(str(media / "hidden.mkv"), hidden)
+        assert set_attributes(str(media / "system.mkv"), system)
+        assert set_attributes(str(media / "both.mkv"), hidden | system)
+    assert [found.name for found in scan_direct(media).files] == ["shown.mkv", "system.mkv"]
+    assert len(scan_direct(media, include_hidden=True).files) == ATTRIBUTE_FILES
 
 
 SIDECAR_CASE_TREE = ("media/Movie.MKV", "media/movie.EN.srt", "media/MOVIE.hu.forced.SRT")
@@ -202,7 +192,7 @@ def test_sidecar_stems_compare_under_the_path_rule(
 ) -> None:
     """Case folds on Windows and macOS, Unicode normalisation only on macOS."""
     build_tree(tmp_path, tree)
-    response = _scan(media_dir(tmp_path), rules)
+    response = scan_direct(media_dir(tmp_path), rules)
     assert len(response.files) == 1
     assert next(iter(_subtitles(response).values())) == expected
     assert response.path_flavor == rules.flavor
@@ -219,15 +209,11 @@ def test_scan_stops_when_cancelled(tmp_path: Path) -> None:
     assert response.error.code == "cancelled"
 
 
-def test_large_tree_scans_within_budget(tmp_path: Path) -> None:
+def test_large_tree_scans_within_budget(large_tree: Path) -> None:
     """20 000 files scan within a generous budget and report progress (regression guard)."""
     folders, per_folder = LARGE_TREE_SHAPE
-    names = (
-        f"media/folder{folder:03}/clip{number:03}.mkv" for folder in range(folders) for number in range(per_folder)
-    )
-    build_tree(tmp_path, names)
     progress = RecordingProgress()
-    request = ScanTreeRequest(action="scan_tree", root=str(media_dir(tmp_path)))
+    request = ScanTreeRequest(action="scan_tree", root=str(large_tree))
     started = time.monotonic()
     response = Backend(seeded_ports()).execute(request, progress)
     elapsed = time.monotonic() - started

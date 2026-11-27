@@ -226,6 +226,9 @@
         "root": {
           "$ref": "#/$defs/LocalPath"
         },
+        "scan_id": {
+          "$ref": "#/$defs/Ulid"
+        },
         "status": {
           "const": "ok",
           "default": "ok",
@@ -243,6 +246,7 @@
       "required": [
         "status",
         "action",
+        "scan_id",
         "root",
         "path_flavor",
         "files",
@@ -400,6 +404,9 @@
         "root": {
           "$ref": "#/$defs/LocalPath"
         },
+        "scan_id": {
+          "$ref": "#/$defs/Ulid"
+        },
         "status": {
           "const": "ok",
           "default": "ok",
@@ -417,6 +424,7 @@
       "required": [
         "status",
         "action",
+        "scan_id",
         "root",
         "path_flavor",
         "folders",
@@ -615,6 +623,10 @@
           "$ref": "#/$defs/PreviewSelectionResponse"
         }
       ]
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
     }
   },
   "discriminator": {

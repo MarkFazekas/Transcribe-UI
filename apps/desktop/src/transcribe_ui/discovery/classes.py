@@ -6,7 +6,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, NonNegativeInt, StringConstraints, field_validator, model_validator
 
-from transcribe_contracts.classes import LanguageCode, MediaKind
+from transcribe_contracts.classes import LanguageCode, MediaKind, Ulid
 from transcribe_contracts.constants import WHISPER_LANGUAGES
 from transcribe_ui.api.base import FrozenModel, LocalPath, PathFlavor
 from transcribe_ui.discovery.constants import (
@@ -14,6 +14,7 @@ from transcribe_ui.discovery.constants import (
     DEFAULT_VIDEO_EXTENSIONS,
     EXTENSION_PATTERN,
     NAME_FILTER_MAX_LENGTH,
+    REGEX_MAX_LENGTH,
     SIDECAR_EXTENSIONS,
 )
 
@@ -88,6 +89,9 @@ class NameFilter(FrozenModel):
     @model_validator(mode="after")
     def _check_regex(self) -> Self:
         if self.match == "regex":
+            if len(self.text) > REGEX_MAX_LENGTH:
+                msg = f"a regular expression may have at most {REGEX_MAX_LENGTH} characters"
+                raise ValueError(msg)
             try:
                 re.compile(unicodedata.normalize("NFC", self.text))
             except re.error as error:
@@ -117,6 +121,10 @@ class PreviewSelectionRequest(FrozenModel):
 
     action: Literal["preview_selection"]
     scan: ScanSpec
+    scan_id: Ulid | None = Field(
+        default=None,
+        description="Reuse this scan of the same options if this process still keeps it; else scan again.",
+    )
     operations: tuple[SelectionOperation, ...] = ()
 
 
@@ -179,6 +187,8 @@ class ScanTreeResponse(FrozenModel):
 
     status: Literal["ok"] = "ok"
     action: Literal["scan_tree"] = "scan_tree"
+    # Id under which this process keeps the scan for `preview_selection`.
+    scan_id: Ulid
     root: LocalPath
     path_flavor: PathFlavor
     folders: tuple[ScanFolder, ...]
@@ -223,6 +233,8 @@ class PreviewSelectionResponse(FrozenModel):
 
     status: Literal["ok"] = "ok"
     action: Literal["preview_selection"] = "preview_selection"
+    # The scan the selection was resolved on (the kept one, or a new one).
+    scan_id: Ulid
     root: LocalPath
     path_flavor: PathFlavor
     files: tuple[SelectedFile, ...]

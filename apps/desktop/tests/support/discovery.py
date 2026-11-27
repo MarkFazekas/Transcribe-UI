@@ -1,17 +1,27 @@
 """Shared media tree and request builders of the discovery tests (plan m5 §3 M5.3)."""
 
+import dataclasses
 import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from support.fakes import seeded_ports
 from support.parity import Exchange
 from support.trees import build_tree
+from transcribe_ui.api.backend import Backend
+from transcribe_ui.discovery.classes import ScanTreeRequest, ScanTreeResponse
+from transcribe_ui.discovery.rules import PathRules
 
 # Name of the scanned folder inside each leg's root: fixed, so the root folder's name matches on both legs.
 MEDIA = "media"
 # The scan root of the request documents.
 MEDIA_ROOT = f"<root>/{MEDIA}"
+
+# Large-tree regression guard: folders x media files per folder.
+LARGE_TREE_SHAPE = (200, 100)
+# Time budget of one request over the large tree (generous: a regression guard, not a benchmark).
+LARGE_TREE_BUDGET_S = 30.0
 
 # A JSON object of a request document.
 type JsonObject = dict[str, object]
@@ -121,3 +131,20 @@ def error_code(exchange: Exchange) -> str:
     """Return the error code of the exchange's response."""
     code: str = response_of(exchange)["error"]["code"]
     return code
+
+
+def large_tree_names() -> list[str]:
+    """Return the relative paths of the large tree's media files."""
+    folders, per_folder = LARGE_TREE_SHAPE
+    return [f"media/folder{folder:03}/clip{number:03}.mkv" for folder in range(folders) for number in range(per_folder)]
+
+
+def scan_direct(root: Path, rules: PathRules | None = None, **fields: object) -> ScanTreeResponse:
+    """Scan through a fresh seeded backend (no CLI leg), with another path rule if given."""
+    ports = seeded_ports()
+    if rules is not None:
+        ports = dataclasses.replace(ports, path_rules=rules)
+    request = ScanTreeRequest.model_validate({"action": "scan_tree", "root": str(root), **fields})
+    response = Backend(ports).execute(request)
+    assert isinstance(response, ScanTreeResponse), response
+    return response

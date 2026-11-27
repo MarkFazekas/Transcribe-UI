@@ -5,8 +5,10 @@
     "action": "preview_selection",
     "error": {
       "code": "path_outside_root",
-      "message": "A selection path is not inside the scanned folder.",
-      "details": {}
+      "message": "The path of operation 0 is not inside the scanned folder.",
+      "details": {
+        "operation": 0
+      }
     }
   },
   "events": []

@@ -76,6 +76,18 @@
         },
         "scan": {
           "$ref": "#/$defs/ScanSpec"
+        },
+        "scan_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reuse this scan of the same options if this process still keeps it; else scan again."
         }
       },
       "required": [
@@ -341,6 +353,10 @@
         "any",
         "missing_one"
       ],
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
       "type": "string"
     }
   },

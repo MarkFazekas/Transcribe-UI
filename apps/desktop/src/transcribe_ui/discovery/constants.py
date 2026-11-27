@@ -1,5 +1,6 @@
 """Constants of the scan and the selection (architecture §3.2)."""
 
+import os
 import stat
 from collections.abc import Mapping
 from types import MappingProxyType
@@ -216,9 +217,19 @@ SCAN_PROGRESS_INTERVAL: Final = 1000
 SCAN_STAGE: Final = "scan"
 # Longest text of a name filter (characters).
 NAME_FILTER_MAX_LENGTH: Final = 1000
+# Longest regular expression of a name filter (characters); one match cannot be cancelled.
+REGEX_MAX_LENGTH: Final = 200
+# Process-local scans `preview_selection` can reuse by `scan_id` (the latest ones are kept).
+SCAN_CACHE_SIZE: Final = 4
+# Name tokens that may follow a media stem in a sidecar name besides a language and `forced`.
+SIDECAR_TAGS: Final = frozenset(("cc", "default", "full", "hi", "sdh"))
+# Disc or part tokens that may follow a media stem in a sidecar name (CD and a number).
+SIDECAR_PART_PATTERN: Final = r"^cd[0-9]+$"
 
 # Error code: the scan root is not an absolute path.
 ERROR_ROOT_NOT_ABSOLUTE: Final = "root_not_absolute"
+# Error code: the scan root exists but cannot be listed.
+ERROR_ROOT_UNREADABLE: Final = "root_unreadable"
 # Error code: the scan root does not exist.
 ERROR_ROOT_NOT_FOUND: Final = "root_not_found"
 # Error code: the scan root exists but is not a folder.
@@ -226,7 +237,12 @@ ERROR_ROOT_NOT_A_FOLDER: Final = "root_not_a_folder"
 # Error code: a selection path is not below the scan root (or contains `..`).
 ERROR_PATH_OUTSIDE_ROOT: Final = "path_outside_root"
 
-# Windows file attributes that make an entry hidden from the scan (unless hidden ones are asked).
-HIDDEN_FILE_ATTRIBUTES: Final = stat.FILE_ATTRIBUTE_HIDDEN | stat.FILE_ATTRIBUTE_SYSTEM
+# Windows file attribute that makes an entry hidden from the scan (a system-only entry stays visible).
+HIDDEN_FILE_ATTRIBUTE: Final = stat.FILE_ATTRIBUTE_HIDDEN
 # Prefix of hidden names on every OS.
 HIDDEN_NAME_PREFIX: Final = "."
+# Prefix of macOS AppleDouble metadata files (`._` and the media name): never media, never a sidecar.
+APPLE_DOUBLE_PREFIX: Final = "._"
+# Whether this OS reports hidden flags in `stat` (Windows attributes, macOS/BSD `st_flags`);
+# elsewhere the scan stats only media files.
+STAT_HAS_HIDDEN_FLAGS: Final = hasattr(os.stat_result, "st_file_attributes") or hasattr(os.stat_result, "st_flags")

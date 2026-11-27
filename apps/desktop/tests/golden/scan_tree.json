@@ -3,6 +3,7 @@
   "response": {
     "status": "ok",
     "action": "scan_tree",
+    "scan_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
     "root": "<root>/media",
     "path_flavor": "<flavor>",
     "folders": [

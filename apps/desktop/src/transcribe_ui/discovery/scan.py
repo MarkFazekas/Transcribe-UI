@@ -1,12 +1,11 @@
 """The folder walk behind `scan_tree` and `preview_selection` (architecture §3.2).
 
 `os.scandir` without following links (symlinks and Windows junctions are reported and skipped),
-hidden and system entries left out unless asked, entries classified by extension; no ffprobe.
-Names that are not valid Unicode cannot be shown or stored, so they are reported and skipped.
+hidden entries left out unless asked, entries classified by extension; no ffprobe. The walk is
+iterative (an explicit stack), so deep trees never reach the interpreter's recursion limit.
 """
 
 import os
-import stat
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 
@@ -20,22 +19,19 @@ from transcribe_ui.discovery.classes import (
     ScanFolder,
     ScanSpec,
     ScanTreeResponse,
-    ScanWarning,
-    ScanWarningCode,
     Sidecar,
 )
 from transcribe_ui.discovery.constants import (
     ERROR_ROOT_NOT_A_FOLDER,
     ERROR_ROOT_NOT_ABSOLUTE,
     ERROR_ROOT_NOT_FOUND,
-    HIDDEN_FILE_ATTRIBUTES,
-    HIDDEN_NAME_PREFIX,
     MAX_SCAN_DEPTH,
     SCAN_PROGRESS_INTERVAL,
     SCAN_STAGE,
     SIDECAR_EXTENSIONS,
 )
-from transcribe_ui.discovery.rules import PathRules, display_order
+from transcribe_ui.discovery.entries import EntryReader
+from transcribe_ui.discovery.rules import PathRules
 from transcribe_ui.discovery.sidecars import NamedPath, match_sidecars, stem_index
 
 
@@ -53,40 +49,14 @@ class _Media:
 class _Folder:
     name: str
     path: str
+    depth: int
     media: list[_Media] = field(default_factory=list)
     children: list["_Folder"] = field(default_factory=list)
     subtitle_files: int = 0
 
     def has_media(self) -> bool:
-        # Children are kept only when they hold media themselves.
+        # Called bottom-up after the walk, when children without media are already pruned.
         return bool(self.media or self.children)
-
-
-@dataclass(frozen=True)
-class _Entry:
-    name: str
-    path: str
-    entry_stat: os.stat_result
-
-
-def _is_hidden(name: str, entry_stat: os.stat_result) -> bool:
-    attributes = getattr(entry_stat, "st_file_attributes", 0)  # Windows only.
-    flags = getattr(entry_stat, "st_flags", 0)  # macOS and BSD only.
-    hidden_flag = bool(flags & stat.UF_HIDDEN)
-    return name.startswith(HIDDEN_NAME_PREFIX) or bool(attributes & HIDDEN_FILE_ATTRIBUTES) or hidden_flag
-
-
-def _is_valid_unicode(name: str) -> bool:
-    try:
-        name.encode("utf-8")
-    except UnicodeEncodeError:
-        return False
-    return True
-
-
-def _shown(name: str) -> str:
-    """Return a name with what is not valid Unicode replaced by U+FFFD."""
-    return os.fsencode(name).decode("utf-8", errors="replace")
 
 
 def checked_root(root: str) -> str:
@@ -106,88 +76,73 @@ def checked_root(root: str) -> str:
 
 
 class _Walker:
-    """Walks one tree; collects warnings and reports progress."""
+    """Walks one tree; reports progress, the reader collects the warnings."""
 
     def __init__(self, spec: ScanSpec, rules: PathRules, context: RequestContext, action: str) -> None:
         video: dict[str, MediaKind] = dict.fromkeys(spec.video_extensions, "video")
         audio: dict[str, MediaKind] = dict.fromkeys(spec.audio_extensions, "audio")
         self._kinds = video | audio
-        self._include_hidden = spec.include_hidden
         self._rules = rules
         self._context = context
         self._action = action
         self._found = 0
-        self.warnings: list[ScanWarning] = []
+        self.reader = EntryReader(include_hidden=spec.include_hidden)
 
-    def folder(self, path: str, name: str, depth: int) -> _Folder:
-        """Return the folder with its media files and its subfolders that hold media."""
-        self._context.check_cancelled()
-        node = _Folder(name, path)
+    def walk(self, root: str) -> _Folder:
+        """Return the root folder with its media files and the subfolders that hold media."""
+        tree = _Folder(Path(root).name or root, root, depth=0)
+        visited: list[_Folder] = []
+        pending = [tree]
+        while pending:
+            node = pending.pop()
+            self._context.check_cancelled()
+            visited.append(node)
+            self._fill(node, is_root=node is tree)
+            pending.extend(reversed(node.children))
+        # Children come after their parent in `visited`, so this prunes bottom-up.
+        for node in reversed(visited):
+            node.children = [child for child in node.children if child.has_media()]
+        return tree
+
+    def _fill(self, node: _Folder, *, is_root: bool) -> None:
         subtitles: list[NamedPath] = []
-        for entry in self._entries(path):
-            if stat.S_ISDIR(entry.entry_stat.st_mode):
-                self._descend(node, entry, depth)
-            elif stat.S_ISREG(entry.entry_stat.st_mode):
+        for entry in self.reader.entries(node.path, is_root=is_root):
+            kind = self.reader.kind_of(entry)
+            if kind == "folder":
+                self._add_folder(node, entry)
+            elif kind == "file":
                 self._classify(node, entry, subtitles)
         self._attach(node, subtitles)
-        return node
 
-    def _warn(self, code: ScanWarningCode, path: str, message: str) -> None:
-        self.warnings.append(ScanWarning(code=code, path=path, message=message))
-
-    def _entries(self, path: str) -> list[_Entry]:
-        try:
-            with os.scandir(path) as listing:
-                found = sorted(listing, key=lambda entry: display_order(entry.name))
-        except OSError:
-            self._warn("unreadable", path, "The folder could not be read.")
-            return []
-        kept = (self._inspect(entry) for entry in found)
-        return [entry for entry in kept if entry is not None]
-
-    def _inspect(self, entry: os.DirEntry[str]) -> _Entry | None:
-        if not _is_valid_unicode(entry.name):
-            folder = Path(entry.path).parent
-            shown = str(folder / _shown(entry.name))
-            self._warn("invalid_name", shown, "The name is not valid Unicode; rename it to include it.")
-            return None
-        try:
-            entry_stat = entry.stat(follow_symlinks=False)
-            linked = entry.is_symlink() or entry.is_junction()
-        except OSError:
-            self._warn("unreadable", entry.path, "The entry could not be read.")
-            return None
-        if not self._include_hidden and _is_hidden(entry.name, entry_stat):
-            return None
-        if linked:
-            self._warn("link_skipped", entry.path, "Links are not followed.")
-            return None
-        return _Entry(entry.name, entry.path, entry_stat)
-
-    def _descend(self, node: _Folder, entry: _Entry, depth: int) -> None:
-        if depth >= MAX_SCAN_DEPTH:
-            self._warn("too_deep", entry.path, f"Folders deeper than {MAX_SCAN_DEPTH} levels are not scanned.")
+    def _add_folder(self, node: _Folder, entry: os.DirEntry[str]) -> None:
+        if node.depth >= MAX_SCAN_DEPTH:
+            self.reader.warn("too_deep", entry.path, f"Folders deeper than {MAX_SCAN_DEPTH} levels are not scanned.")
             return
-        child = self.folder(entry.path, entry.name, depth + 1)
-        if child.has_media():
-            node.children.append(child)
+        child = _Folder(entry.name, entry.path, node.depth + 1)
+        node.children.append(child)
 
-    def _classify(self, node: _Folder, entry: _Entry, subtitles: list[NamedPath]) -> None:
+    def _classify(self, node: _Folder, entry: os.DirEntry[str], subtitles: list[NamedPath]) -> None:
         extension = PurePath(entry.name).suffix[1:].lower()
         kind = self._kinds.get(extension)
         if kind is not None:
-            entry_stat = entry.entry_stat
-            media = _Media(entry.name, entry.path, kind, entry_stat.st_size, entry_stat.st_mtime_ns)
-            node.media.append(media)
-            self._count_media(node.path)
+            self._add_media(node, entry, kind)
         elif extension in SIDECAR_EXTENSIONS:
             subtitles.append((entry.name, entry.path))
 
-    def _count_media(self, path: str) -> None:
+    def _add_media(self, node: _Folder, entry: os.DirEntry[str], kind: MediaKind) -> None:
+        try:
+            entry_stat = entry.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        except OSError:
+            self.reader.warn("unreadable", entry.path, "The entry could not be read.")
+            return
+        media = _Media(entry.name, entry.path, kind, entry_stat.st_size, entry_stat.st_mtime_ns)
+        node.media.append(media)
         self._found += 1
         if self._found % SCAN_PROGRESS_INTERVAL == 0:
-            found = self._found
-            event = ProgressEvent(action=self._action, stage=SCAN_STAGE, completed=found, path=path)
+            found, folder = self._found, node.path
+            event = ProgressEvent(action=self._action, stage=SCAN_STAGE, completed=found, path=folder)
             self._context.progress.emit(event)
 
     def _attach(self, node: _Folder, subtitles: list[NamedPath]) -> None:
@@ -237,16 +192,16 @@ def _subtitle_files(root: _Folder) -> int:
     return total
 
 
-def scan(spec: ScanSpec, rules: PathRules, context: RequestContext, action: str) -> ScanTreeResponse:
-    """Walk the tree below `spec.root`; progress events carry `action`.
+def scan(spec: ScanSpec, context: RequestContext, action: str) -> ScanTreeResponse:
+    """Walk the tree below `spec.root`; progress events carry `action`; the scan gets a new id.
 
     Raises:
-        DomainError: If the root is not an absolute path of an existing folder.
+        DomainError: If the root is not an absolute path of a readable folder.
     """
     root = checked_root(spec.root)
+    rules = context.ports.path_rules
     walker = _Walker(spec, rules, context, action)
-    name = Path(root).name or root
-    tree = walker.folder(root, name, depth=0)
+    tree = walker.walk(root)
     folders, files = _flatten(tree)
     counts = ScanCounts(
         folders=len(folders),
@@ -255,10 +210,11 @@ def scan(spec: ScanSpec, rules: PathRules, context: RequestContext, action: str)
         subtitle_files=_subtitle_files(tree),
     )
     return ScanTreeResponse(
+        scan_id=context.ports.ids.new_id(),
         root=root,
         path_flavor=rules.flavor,
         folders=tuple(folders),
         files=tuple(files),
         counts=counts,
-        warnings=tuple(walker.warnings),
+        warnings=tuple(walker.reader.warnings),
     )

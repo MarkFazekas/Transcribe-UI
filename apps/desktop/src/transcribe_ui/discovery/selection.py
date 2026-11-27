@@ -6,11 +6,14 @@ compare under the host's path-flavour rule (case-insensitive on Windows and macO
 normalisation-insensitive on macOS).
 """
 
+from bisect import bisect_left
 from collections import Counter
 from collections.abc import Sequence
+from itertools import islice
 from pathlib import Path
 
 from transcribe_ui.api.errors import DomainError
+from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.discovery.classes import (
     FolderSelection,
     FolderState,
@@ -41,15 +44,22 @@ class _Index:
         folder_keys: list[RelativeKey] = []
         for folder in tree.folders:
             folder_keys.append(self._folder_key(folder_keys, folder))
-        self.file_keys = [self._file_key(folder_keys, scanned) for scanned in tree.files]
+        file_keys = [self._file_key(folder_keys, scanned) for scanned in tree.files]
+        # File keys sorted, with their positions: the files below a prefix are one contiguous run.
+        pairs = ((key, position) for position, key in enumerate(file_keys))
+        ordered = sorted(pairs)
+        self._sorted_keys = [key for key, _position in ordered]
+        self._sorted_positions = [position for _key, position in ordered]
+        # Positions of the selected files, changed by each operation in turn.
+        self.selected: set[int] = set()
         self.facts = [facts_of(scanned) for scanned in tree.files]
 
     def key_of(self, parts: Sequence[str]) -> RelativeKey:
         """Return the rule keys of path parts."""
         return tuple(self.rules.key(part) for part in parts)
 
-    def relative_key(self, path: str) -> RelativeKey:
-        """Return the key of a path below the root.
+    def relative_key(self, path: str, number: int) -> RelativeKey:
+        """Return the key of operation `number`'s path below the root.
 
         Raises:
             DomainError: If the path is relative, contains `..` or is not at or below the root.
@@ -59,14 +69,23 @@ class _Index:
         depth = len(self.root_key)
         inside = keys[:depth] == self.root_key and ".." not in parts
         if not inside or not Path(path).is_absolute():
-            raise DomainError(ERROR_PATH_OUTSIDE_ROOT, "A selection path is not inside the scanned folder.")
+            # The path itself is not in the details: details are not path-normalised, and the
+            # request holds it at that index.
+            message = f"The path of operation {number} is not inside the scanned folder."
+            raise DomainError(ERROR_PATH_OUTSIDE_ROOT, message, {"operation": number})
         return keys[depth:]
 
     def below(self, prefix: RelativeKey) -> list[int]:
         """Return the positions of the files at or below a relative key."""
         size = len(prefix)
-        positions = enumerate(self.file_keys)
-        return [position for position, key in positions if key[:size] == prefix]
+        keys = self._sorted_keys
+        start = bisect_left(keys, prefix)
+        end = start
+        for key in islice(keys, start, None):
+            if key[:size] != prefix:
+                break
+            end += 1
+        return self._sorted_positions[start:end]
 
     def _folder_key(self, known: Sequence[RelativeKey], folder: ScanFolder) -> RelativeKey:
         if folder.parent is None:
@@ -77,14 +96,25 @@ class _Index:
         return (*folder_keys[scanned.folder], self.rules.key(scanned.name))
 
 
-def _apply(index: _Index, operation: SelectionOperation, selected: set[int]) -> ScanWarning | None:
-    prefix = index.relative_key(operation.path)
+def _hits(index: _Index, operation: SelectionOperation, below: Sequence[int], context: RequestContext) -> set[int]:
+    matches = compile_filter(operation.filters)
+    hits: set[int] = set()
+    for position in below:
+        # Checked per file: a name regex can be slow; one match itself cannot be interrupted.
+        context.check_cancelled()
+        if matches(index.facts[position]):
+            hits.add(position)
+    return hits
+
+
+def _apply(index: _Index, number: int, operation: SelectionOperation, context: RequestContext) -> ScanWarning | None:
+    prefix = index.relative_key(operation.path, number)
     below = index.below(prefix)
     if not below:
         message = "No media file is at or below this path."
         return ScanWarning(code="no_media_at_path", path=operation.path, message=message)
-    matches = compile_filter(operation.filters)
-    hits = {position for position in below if matches(index.facts[position])}
+    hits = _hits(index, operation, below, context)
+    selected = index.selected
     if operation.operation == "include":
         selected.update(hits)
     else:
@@ -126,20 +156,22 @@ def _folder_states(tree: ScanTreeResponse, selected: set[int]) -> tuple[FolderSe
 
 
 def select(
-    tree: ScanTreeResponse, operations: Sequence[SelectionOperation], rules: PathRules
+    tree: ScanTreeResponse,
+    operations: Sequence[SelectionOperation],
+    context: RequestContext,
 ) -> PreviewSelectionResponse:
     """Apply the operations in order to the scanned tree.
 
     Raises:
         DomainError: If an operation's path is not inside the scanned folder.
     """
-    index = _Index(tree, rules)
-    selected: set[int] = set()
+    index = _Index(tree, context.ports.path_rules)
     warnings = list(tree.warnings)
-    for operation in operations:
-        warning = _apply(index, operation, selected)
+    for number, operation in enumerate(operations):
+        warning = _apply(index, number, operation, context)
         if warning is not None:
             warnings.append(warning)
+    selected = index.selected
     files = tuple(_selected_file(index, position) for position in sorted(selected))
     counts = SelectionCounts(
         files=len(files),
@@ -148,6 +180,7 @@ def select(
         size_bytes=sum(chosen.size_bytes for chosen in files),
     )
     return PreviewSelectionResponse(
+        scan_id=tree.scan_id,
         root=tree.root,
         path_flavor=tree.path_flavor,
         files=files,

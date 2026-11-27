@@ -12,12 +12,18 @@ from transcribe_ui.discovery.selection import select
 
 
 def scan_tree(request: ScanTreeRequest, context: RequestContext) -> ScanTreeResponse:
-    """Return the media tree below the request's root."""
-    return scan(request, context.ports.path_rules, context, request.action)
+    """Return the media tree below the request's root and keep it for previews."""
+    tree = scan(request, context, request.action)
+    context.ports.scan_cache.put(request, tree)
+    return tree
 
 
 def preview_selection(request: PreviewSelectionRequest, context: RequestContext) -> PreviewSelectionResponse:
-    """Scan, then return the files the request's operations select."""
-    rules = context.ports.path_rules
-    tree = scan(request.scan, rules, context, request.action)
-    return select(tree, request.operations, rules)
+    """Return the files the request's operations select, on the kept scan `scan_id` or a new one."""
+    cache = context.ports.scan_cache
+    scan_id = request.scan_id
+    tree = None if scan_id is None else cache.get(scan_id, request.scan)
+    if tree is None:
+        tree = scan(request.scan, context, request.action)
+        cache.put(request.scan, tree)
+    return select(tree, request.operations, context)
