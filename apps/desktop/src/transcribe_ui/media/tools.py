@@ -17,6 +17,8 @@ from transcribe_ui.media.constants import DEFAULT_PATHEXT, ERROR_MEDIA_TOOL_NOT_
 
 # Looks a command up on `PATH` (`search_path` with this process's environment).
 type Which = Callable[[str], str | None]
+# Returns the current overrides (the composition root reads them from the settings file).
+type OverridesSource = Callable[[], "ToolOverrides"]
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,10 @@ class ToolLocator:
     """Resolves a tool to an executable path, at the time it is needed."""
 
     overrides: ToolOverrides = field(default_factory=ToolOverrides)
+    # When set, the overrides are read from it at every lookup (instead of `overrides`), so a
+    # settings change applies to the next tool call and a broken settings file only fails calls
+    # that need a tool.
+    load_overrides: OverridesSource | None = None
     # Folder of the bundled builds; None when the app runs without a bundle.
     bundle_dir: Path | None = None
     which: Which = _which
@@ -78,9 +84,11 @@ class ToolLocator:
         """Return the executable to run for the tool.
 
         Raises:
-            DomainError: `media_tool_not_found` if the override does not exist or nothing was found.
+            DomainError: `media_tool_not_found` if the override does not exist or nothing was found,
+                or whatever `load_overrides` raises (`settings_invalid`).
         """
-        override = self.overrides.for_tool(tool)
+        overrides = self.overrides if self.load_overrides is None else self.load_overrides()
+        override = overrides.for_tool(tool)
         if override is not None:
             if override.is_file():
                 return override

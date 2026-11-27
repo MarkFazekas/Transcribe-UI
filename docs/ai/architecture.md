@@ -299,7 +299,9 @@ docs/human/, docs/ai/     see CLAUDE.md
   (`media_tool_not_found`), never skipped. The `PATH` search is the app's own: only absolute
   entries, never the current folder (Windows' `shutil.which` searches it first), `PATHEXT` on
   Windows. The tools are resolved when first used, so requests that need no media work without
-  them.
+  them. The composition root (`api/wiring.py`) gives `ToolLocator` a `load_overrides` that
+  reads the settings file at every lookup: a changed path applies to the next tool call, and a
+  broken settings file gives `settings_invalid` only to requests that run a tool.
 - Media adapter (`transcribe_ui/media/`): the `MediaTools` port (`probe`, `convert`,
   `extract`), its ffmpeg adapter and a deterministic fake for golden flows. Processes run
   through an injectable `ProcessRunner`:
@@ -489,8 +491,8 @@ directories, the settings store, the locks and the lazily opened database.
   does not know. An unreadable or invalid file gives `settings_invalid` until settings are
   saved again; a failed write gives `settings_unwritable`. Request handling never reads the
   settings: machine-dependent inputs (scan options, placement options, test mode) are request
-  fields that the GUI fills from them, and the composition root (`api/wiring.py`) reads the
-  adapter configuration (ffmpeg/ffprobe override) when it builds the adapters.
+  fields that the GUI fills from them, and the media adapter that the composition root
+  (`api/wiring.py`) builds reads the ffmpeg/ffprobe override at each tool lookup (§3.4).
 - **Logging**: a frontend wraps its run in `log_to_file(<its log file>)`: a human-readable
   rotating file (1 MiB, 3 backups, UTF-8) in the user log dir, the app's loggers from INFO,
   other libraries from WARNING, warnings captured. One file per frontend keeps the GUI and the
