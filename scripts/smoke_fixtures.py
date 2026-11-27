@@ -27,7 +27,10 @@ TONE_SECONDS = 2
 AMPLITUDE = 8000
 HTTP_OK = 200
 HTTP_NO_CONTENT = 204
+HTTP_UNAUTHORIZED = 401
 HTTP_NOT_FOUND = 404
+API_KEY = "smoke"
+POD_PATH = f"/pods/{POD_ID}"
 
 
 class FakeRunpod(ThreadingHTTPServer):
@@ -45,12 +48,14 @@ class FakeRunpod(ThreadingHTTPServer):
 
 
 class FakeRunpodHandler(BaseHTTPRequestHandler):
-    """GET returns the pod until DELETE; then 404."""
+    """GET returns the pod until DELETE; then 404. Only the smoke pod and key are accepted."""
 
     server: FakeRunpod
 
     def do_GET(self) -> None:
         """Answer the pod probe."""
+        if not self._valid(POD_PATH):
+            return
         if self.server.deleted.is_set():
             self._send(HTTP_NOT_FOUND, b"")
             return
@@ -59,16 +64,28 @@ class FakeRunpodHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         """Delete the pod."""
-        self.server.deleted.set()
-        self._send(HTTP_NO_CONTENT, b"")
+        if self._valid(POD_PATH):
+            self.server.deleted.set()
+            self._send(HTTP_NO_CONTENT, b"")
 
     def do_POST(self) -> None:
         """Accept a stop request."""
-        self._send(HTTP_OK, b"{}")
+        if self._valid(f"{POD_PATH}/action"):
+            self._send(HTTP_OK, b"{}")
 
     @override
     def log_message(self, format_: str, *args: object) -> None:
         """Silence request logging."""
+
+    def _valid(self, path: str) -> bool:
+        """Answer 401/404 (and return False) unless the request has the smoke key and path."""
+        if self.headers.get("Authorization") != f"Bearer {API_KEY}":
+            self._send(HTTP_UNAUTHORIZED, b"")
+            return False
+        if self.path != path:
+            self._send(HTTP_NOT_FOUND, b"")
+            return False
+        return True
 
     def _send(self, status: int, body: bytes) -> None:
         self.send_response(status)

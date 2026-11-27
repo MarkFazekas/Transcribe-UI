@@ -11,6 +11,7 @@ on:
       - packages/contracts/**
       - uv.lock
       - pyproject.toml
+      - .python-version
       - .dockerignore
       - scripts/smoke_*.py
       - .github/workflows/release-worker.yml
@@ -24,7 +25,8 @@ permissions:
 
 concurrency:
   group: release-worker-${{ github.ref }}
-  # Superseded PR runs are cancelled; a publish on main always finishes.
+  # Superseded PR runs are cancelled; a running publish on main is not (a newer push may still
+  # replace one that is only queued).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -51,8 +53,13 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --all-packages
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          # Build straight into the Docker image store, so `--load` makes no second copy.
+          driver: docker
       - name: Build the image
-        run: docker buildx build --load -f apps/worker/Dockerfile -t "$LOCAL_IMAGE" .
+        run: |
+          docker buildx build --load -f apps/worker/Dockerfile -t "$LOCAL_IMAGE" .
+          df -h /
       - name: Smoke test (entry, worker with the fake engine, self-termination)
         run: uv run scripts/smoke_worker_image.py "$LOCAL_IMAGE"
       - id: meta
@@ -62,7 +69,10 @@ jobs:
           echo "schema-major=$(uv run python -c 'from transcribe_contracts.constants import SCHEMA_MAJOR; print(SCHEMA_MAJOR)')" >> "$GITHUB_OUTPUT"
       - name: Save the image for the publish job
         if: env.PUBLISH == 'true'
-        run: docker save "$LOCAL_IMAGE" | zstd -T0 -3 > "$IMAGE_ARCHIVE"
+        run: |
+          docker buildx prune --all --force
+          docker save "$LOCAL_IMAGE" | zstd -T0 -3 > "$IMAGE_ARCHIVE"
+          df -h /
       - if: env.PUBLISH == 'true'
         uses: actions/upload-artifact@v7
         with:

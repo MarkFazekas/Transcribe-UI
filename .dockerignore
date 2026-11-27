@@ -7,8 +7,8 @@
 **/.pytest_cache
 .git
 .claude
-.env
-.env.*
+**/.env
+**/.env.*
 docs
 scripts
 apps/*/tests

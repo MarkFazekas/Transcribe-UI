@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from urllib.request import urlopen
 
 import boto3
-from smoke_fixtures import BATCH_ID, BUCKET, ITEM_ID, LANGUAGE, POD_ID, FakeRunpod, upload_batch
+from smoke_fixtures import API_KEY, BATCH_ID, BUCKET, ITEM_ID, LANGUAGE, POD_ID, FakeRunpod, upload_batch
 
 from transcribe_contracts import layout
 from transcribe_contracts.reading import read_batch_summary, read_job_result, read_run_status
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 MOTO_IMAGE = "motoserver/moto:5.2.6@sha256:344e076f31ad1f5ff1ec4492f741e7d42911d1c7a1ef9b1590f56c340b968513"
 MOTO_CONTAINER = "transcribe-smoke-moto"
+WORKER_CONTAINER = "transcribe-smoke-worker"
 S3_PORT = 5000
 S3_URL = f"http://127.0.0.1:{S3_PORT}"
 RUN_ID = "01JDA4B7C8D9E0F1G2H3J4K5M6"
@@ -37,15 +38,21 @@ RUN_TIMEOUT_S = 900
 STARTUP_TIMEOUT_S = 60
 POLL_S = 0.5
 THROWAWAY_CREDENTIAL = "smoke"
-# Files the image must contain (model caches baked at build time).
-BAKED_PATHS = (
-    "/opt/models/huggingface/hub/models--Systran--faster-whisper-large-v3",
-    "/opt/models/huggingface/hub/models--jonatasgrosman--wav2vec2-large-xlsr-53-hungarian",
-    "/opt/models/torch/hub/snakers4_silero-vad_master",
-    "/opt/models/torch/hub/checkpoints",
-)
-# Python run in the image: the GPU stack imports without a GPU.
-IMPORT_CHECK = "import transcribe_worker.engine.whisperx_engine, transcribe_worker.engine.bake"
+# Python run in the image: the CUDA libraries of the torch wheels load (no GPU needed), so a
+# wrong library path fails here.
+CUDA_LIBRARY_CHECK = "import ctypes; ctypes.CDLL('libcublas.so.12'); ctypes.CDLL('libcudnn.so.9')"
+# Python run in the image without network: every baked model resolves from the image, and the
+# GPU stack imports.
+OFFLINE_MODEL_CHECK = """
+import whisperx
+from faster_whisper.utils import download_model
+from transcribe_worker.engine.silero import load_silero
+import transcribe_worker.engine.whisperx_engine
+download_model("large-v3", local_files_only=True)
+whisperx.load_align_model(language_code="hu", device="cpu")
+whisperx.load_align_model(language_code="en", device="cpu")
+load_silero()
+"""
 
 
 class SmokeError(AssertionError):
@@ -76,7 +83,7 @@ def run_worker(image: str, api: FakeRunpod) -> int:
     """Run the image as a pod would and return the container's exit code."""
     env = {
         "RUNPOD_POD_ID": POD_ID,
-        "RUNPOD_API_KEY": THROWAWAY_CREDENTIAL,
+        "RUNPOD_API_KEY": API_KEY,
         "RUNPOD_API_BASE_URL": api.base_url,
         "MAX_RUNTIME_S": str(RUN_TIMEOUT_S),
         "TRANSCRIBE_RUN_ID": RUN_ID,
@@ -90,7 +97,8 @@ def run_worker(image: str, api: FakeRunpod) -> int:
     env_args: list[str] = []
     for name, setting in env.items():
         env_args.extend(("--env", f"{name}={setting}"))
-    return docker("run", "--rm", "--network", "host", *env_args, image, timeout_s=RUN_TIMEOUT_S)
+    run_args = ("run", "--rm", "--name", WORKER_CONTAINER, "--network", "host", *env_args, image)
+    return docker(*run_args, timeout_s=RUN_TIMEOUT_S)
 
 
 def read_object(client: "S3Client", key: str) -> bytes:
@@ -105,30 +113,34 @@ def check_outputs(client: "S3Client", api: FakeRunpod, exit_code: int) -> None:
     Raises:
         SmokeError: A check failed.
     """
+    run_outcome = (exit_code, api.deleted.is_set())
+    if run_outcome != (0, True):
+        msg = f"(container exit code, pod deleted) = {run_outcome}, expected (0, True)"
+        raise SmokeError(msg)
     result_key = layout.result_json_key(BATCH_ID, ITEM_ID, LANGUAGE)
     done_key = layout.done_key(BATCH_ID)
     status_key = layout.run_status_key(RUN_ID)
     job = read_job_result(result_key, read_object(client, result_key))
     done = read_batch_summary(done_key, read_object(client, done_key))
     status = read_run_status(status_key, read_object(client, status_key))
-    deleted = api.deleted.is_set()
-    found = (exit_code, job.status, done.counts.ok, status.state, deleted)
-    expected = (0, "ok", 1, "finished", True)
+    found = (job.status, done.counts.ok, status.state)
+    expected = ("ok", 1, "finished")
     if found != expected:
-        msg = f"(exit code, job status, ok count, run state, pod deleted) = {found}, expected {expected}"
+        msg = f"(job status, ok count, run state) = {found}, expected {expected}"
         raise SmokeError(msg)
 
 
 def check_image_contents(image: str) -> None:
-    """Check that the GPU stack imports and the baked models exist.
+    """Check that the CUDA libraries load and every baked model resolves without network.
 
     Raises:
         SmokeError: A check failed.
     """
-    imports = docker("run", "--rm", "--entrypoint", "python", image, "-c", IMPORT_CHECK)
-    listing = docker("run", "--rm", "--entrypoint", "ls", image, "-d", *BAKED_PATHS)
-    if imports or listing:
-        msg = f"image contents: imports exit {imports}, baked models exit {listing}"
+    python = ("run", "--rm", "--entrypoint", "python")
+    cuda = docker(*python, image, "-c", CUDA_LIBRARY_CHECK)
+    offline = docker(*python, "--network", "none", "--env", "HF_HUB_OFFLINE=1", image, "-c", OFFLINE_MODEL_CHECK)
+    if cuda or offline:
+        msg = f"image contents: CUDA libraries exit {cuda}, offline models exit {offline}"
         raise SmokeError(msg)
 
 
@@ -165,6 +177,7 @@ def smoke(image: str) -> None:
         api = FakeRunpod()
         threading.Thread(target=api.serve_forever, daemon=True).start()
         cleanup.callback(api.shutdown)
+        cleanup.callback(docker, "rm", "-f", WORKER_CONTAINER)
         wait_for_s3()
         client = s3_client()
         upload_batch(client)
