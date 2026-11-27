@@ -26,7 +26,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- The M6 plan (`docs/ai/plans/m6.md`, questions A20 and Q30-Q34) on `docs/m6-plan`.
+- None.
 
 ## Waiting on humans
 
@@ -46,10 +46,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `runpod-reaper` environment (deployment branch policy: `main` only); its first real run on
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
-2. M6 (desktop frontends) as planned in `docs/ai/plans/m6.md` §3-§4, once the plan is merged:
-   wave 1 M6.1 (backend additions) and M6.2 (GUI foundation) in parallel, M6.1 merged first;
-   wave 2 M6.4, M6.5, M6.6, then M6.3 and M6.7; wave 3 M6.8, M6.9, M6.10; wave 4 M6.11 (marks
-   M6 built). M4 runs whenever the architect is available.
+2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Next: wave 1, M6.1 (backend
+   additions, high effort; includes a new Alembic revision) and M6.2 (GUI foundation, high
+   effort) in parallel, M6.1 merged first. Then wave 2 M6.4, M6.5, M6.6, followed by M6.3 and
+   M6.7; wave 3 M6.8, M6.9, M6.10; wave 4 M6.11 (marks M6 built). M4 runs whenever the
+   architect is available.
 3. From now on every database schema change, including a change of a stored payload's shape,
    is a new Alembic revision (architecture §3.8); the initial revision is no longer edited.
 4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5) and the cleanup repeated
