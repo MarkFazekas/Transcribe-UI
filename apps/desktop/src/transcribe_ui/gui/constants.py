@@ -11,7 +11,7 @@ from transcribe_ui.runs.constants import ERROR_CLEANUP_PENDING
 from transcribe_ui.state.constants import ERROR_APP_BUSY
 
 # Name of a thread pool of the GUI's request bridge.
-type PoolName = Literal["long", "short", "poll"]
+type PoolName = Literal["scan", "long", "short", "poll"]
 # Where a call is: waiting in its pool, running on a pool thread, or completed.
 type CallState = Literal["queued", "running", "done"]
 # Where an activity of the panel is.
@@ -46,12 +46,16 @@ QT_LOG_LEVELS: Final[Mapping[str, int]] = MappingProxyType(
     },
 )
 
-# Pool of long requests (scans, conversion and upload, downloads, cleanup, cloud setup).
+# Pool of folder scans, so a new file selection never waits behind uploads or downloads (Q33).
+SCAN_POOL: Final[PoolName] = "scan"
+# Pool of long requests (review, conversion and upload, downloads, cleanup, cloud setup).
 LONG_POOL: Final[PoolName] = "long"
 # Pool of every other user-started request, so Stop and lists never wait behind an upload.
 SHORT_POOL: Final[PoolName] = "short"
 # Pool of the start-up checks, the poll and "Refresh now" (one reserved thread).
 POLL_POOL: Final[PoolName] = "poll"
+# Threads of the scan pool: one (the selection sends scans on a `latest` channel, so a new one replaces the last).
+SCAN_POOL_THREADS: Final = 1
 # Threads of the long pool.
 LONG_POOL_THREADS: Final = 3
 # Threads of the short pool.
@@ -60,12 +64,17 @@ SHORT_POOL_THREADS: Final = 3
 POLL_POOL_THREADS: Final = 1
 # Threads of each pool.
 POOL_THREADS: Final[Mapping[PoolName, int]] = MappingProxyType(
-    {LONG_POOL: LONG_POOL_THREADS, SHORT_POOL: SHORT_POOL_THREADS, POLL_POOL: POLL_POOL_THREADS}
+    {
+        SCAN_POOL: SCAN_POOL_THREADS,
+        LONG_POOL: LONG_POOL_THREADS,
+        SHORT_POOL: SHORT_POOL_THREADS,
+        POLL_POOL: POLL_POOL_THREADS,
+    },
 )
 # Pool of each request action that does not run on the short pool (presentation of threading, not a business rule).
 ACTION_POOLS: Final[Mapping[str, PoolName]] = MappingProxyType(
     {
-        "scan_tree": LONG_POOL,
+        "scan_tree": SCAN_POOL,
         "review_batch": LONG_POOL,
         "run_upload": LONG_POOL,
         "run_download": LONG_POOL,

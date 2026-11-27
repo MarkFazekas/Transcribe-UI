@@ -4,12 +4,26 @@ import gc
 import time
 import weakref
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QThreadPool
 from pytestqt.qtbot import QtBot
 
-from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, listing, refresh, stop, upload, uploads, wait_for
+from support.gated import (
+    DRAIN_MS,
+    REFRESH,
+    SCAN,
+    UPLOAD,
+    GatedRunner,
+    listing,
+    refresh,
+    scan,
+    stop,
+    upload,
+    uploads,
+    wait_for,
+)
 from support.parity import RecordingProgress
 from transcribe_ui.api.classes import (
     ErrorResponse,
@@ -20,7 +34,15 @@ from transcribe_ui.api.classes import (
 from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.api.routes import default_routes
 from transcribe_ui.gui.bridge import QtExecutor, pool_of
-from transcribe_ui.gui.constants import ACTION_POOLS, LONG_POOL_THREADS, POLL_POOL, POOL_THREADS, SHORT_POOL
+from transcribe_ui.gui.constants import (
+    ACTION_POOLS,
+    LONG_POOL,
+    LONG_POOL_THREADS,
+    POLL_POOL,
+    POOL_THREADS,
+    SCAN_POOL,
+    SHORT_POOL,
+)
 from transcribe_ui.gui.executor import CallHandle, PooledCall
 
 # Timeout of the shared-deadline test, in milliseconds (three pools would take three times as long).
@@ -79,6 +101,7 @@ def test_listed_actions_have_routes_and_pools() -> None:
     """The pool table names real actions only; Stop and lists run on the short pool, the poll on its own."""
     assert set(ACTION_POOLS) <= set(default_routes())
     assert {pool_of("cancel_worker"), pool_of("terminate_pod"), pool_of("list_batches")} == {SHORT_POOL}
+    assert (pool_of(SCAN), pool_of(UPLOAD)) == (SCAN_POOL, LONG_POOL)
     assert pool_of(REFRESH) == POLL_POOL
 
 
@@ -95,6 +118,20 @@ def test_short_call_runs_beside_a_full_long_pool(
     wait_for(qtbot, lambda: bool(stopped) and bool(listed))
     assert not any(responses for _call, responses in held)
     assert held[-1][0].state == "queued"
+
+
+def test_scan_runs_beside_a_full_long_pool(
+    executor: QtExecutor,
+    gated: GatedRunner,
+    qtbot: QtBot,
+    tmp_path: Path,
+) -> None:
+    """A new folder scan is answered while every long-pool thread holds an upload and another waits."""
+    held = [_collect(executor, request) for request in uploads(LONG_POOL_THREADS + 1)]
+    wait_for(qtbot, lambda: gated.started(UPLOAD) == LONG_POOL_THREADS)
+    _scan_call, scanned = _collect(executor, scan(tmp_path))
+    wait_for(qtbot, lambda: bool(scanned))
+    assert not any(responses for _call, responses in held)
 
 
 def test_cancelled_queued_call_leaves_its_pool(
@@ -177,11 +214,11 @@ def test_completed_calls_are_freed(gated: GatedRunner, qtbot: QtBot) -> None:
     assert _runnables() <= before
 
 
-def test_thread_wait_shares_one_deadline(qtbot: QtBot) -> None:
+def test_thread_wait_shares_one_deadline(qtbot: QtBot, tmp_path: Path) -> None:
     """With a stuck call on every pool, the wait gives up after one timeout, not one per pool."""
-    stuck = GatedRunner((UPLOAD, REFRESH, "cancel_worker"), honour_cancel=False)
+    stuck = GatedRunner((SCAN, UPLOAD, REFRESH, "cancel_worker"), honour_cancel=False)
     executor = QtExecutor(stuck)
-    for request in (upload(), refresh(), stop()):
+    for request in (scan(tmp_path), upload(), refresh(), stop()):
         executor.submit(request, _ignore)
     wait_for(qtbot, lambda: len(stuck.calls) == len(POOL_THREADS))
     started = time.monotonic()

@@ -2,12 +2,14 @@
 
 import threading
 from collections.abc import Callable, Iterable
+from pathlib import Path
 
 from pytestqt.qtbot import QtBot
 
 from transcribe_ui.api.classes import GetAppInfoResponse, ProgressEvent, Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.batches.classes import ListBatchesRequest
+from transcribe_ui.discovery.classes import ScanTreeRequest
 from transcribe_ui.gui.executor import cancelled_response
 from transcribe_ui.runs.classes import CancelWorkerRequest, RefreshStatusRequest
 from transcribe_ui.upload.classes import RunUploadRequest
@@ -22,6 +24,8 @@ DRAIN_MS = 5000
 HELD_STAGE = "held"
 # Action of the long upload request.
 UPLOAD = "run_upload"
+# Action of the folder scan.
+SCAN = "scan_tree"
 # Action of the poll request.
 REFRESH = "refresh_status"
 # A batch id the fake requests name.
@@ -38,6 +42,11 @@ def upload(batch_id: str = BATCH_ID) -> RunUploadRequest:
 def uploads(count: int) -> list[RunUploadRequest]:
     """Return `count` uploads of distinct batches."""
     return [upload(f"batch_20261127_1200{index:02d}") for index in range(count)]
+
+
+def scan(root: Path) -> ScanTreeRequest:
+    """Return a `scan_tree` request (scan pool)."""
+    return ScanTreeRequest(action=SCAN, root=str(root))
 
 
 def stop() -> CancelWorkerRequest:

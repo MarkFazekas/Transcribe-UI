@@ -9,12 +9,12 @@ from pytestqt.qtbot import QtBot
 from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, listing, refresh, uploads, wait_for
 from transcribe_ui.api.classes import GetAppInfoResponse, Response
 from transcribe_ui.gui.bridge import QtExecutor
-from transcribe_ui.gui.constants import LONG_POOL, POLL_POOL, SHORT_POOL, CallState
+from transcribe_ui.gui.constants import LONG_POOL, POLL_POOL, SCAN_POOL, SHORT_POOL, CallState
 from transcribe_ui.gui.executor import ExclusiveChannel, LatestChannel, SingleFlightChannel
 from transcribe_ui.upload.classes import RunUploadRequest
 
 # One thread per pool, so a held call keeps the next one queued.
-SINGLE_THREADS = MappingProxyType({LONG_POOL: 1, SHORT_POOL: 1, POLL_POOL: 1})
+SINGLE_THREADS = MappingProxyType({SCAN_POOL: 1, LONG_POOL: 1, SHORT_POOL: 1, POLL_POOL: 1})
 KEY = "preview"
 # Calls that reach the backend when a held call and the latest one run.
 TWO_CALLS = 2
