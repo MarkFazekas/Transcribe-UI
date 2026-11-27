@@ -66,7 +66,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     `internal_error` with a generic message (the traceback goes to the log only).
 - Models live in the desktop app (not in contracts: they are not shared with the worker): the
   unions in `transcribe_ui/api/classes.py`, each sub-package's request and response models in
-  its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`), so
+  its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`,
+  `WhisperLanguage`), so
   `api/classes.py` can import them without a cycle. A path on the user's computer is typed
   `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
   fields (§7).
@@ -93,8 +94,8 @@ docs/human/, docs/ai/     see CLAUDE.md
   - **GUI**: view-models translate widget state into the same request models.
   - **MCP (later)**: one FastMCP tool per request type; the tool signature is the request
     model, so no new business logic is needed.
-- Determinism: clock, ULID generator, filesystem root and external clients (R2, Runpod,
-  ffmpeg) are injected ports. Given the same request and the same port fakes, the backend
+- Determinism: clock, local time zone, ULID generator, filesystem root and external clients
+  (R2, Runpod, ffmpeg) are injected ports. Given the same request and the same port fakes, the backend
   returns byte-identical JSON regardless of frontend. Flow tests assert this directly
   (section 7).
 - Requests are validated only against machine-independent rules (for example the full Whisper
@@ -273,6 +274,68 @@ docs/human/, docs/ai/     see CLAUDE.md
   ORM, one writer process at a time; rows store Pydantic models as JSON plus indexed status
   columns. Temp audio goes to `user_cache_dir`, one file at a time. History is kept; finished
   batches can be hidden. Details: §3.8.
+- **Implementation** (`transcribe_ui/batches/`; requests `create_batch`, `edit_batch`,
+  `delete_batch`, `start_review`, `review_batch`, `resolve_review`, `exclude_items`,
+  `list_batches`, `get_batch`, `set_batch_hidden`; all open the database). Models: `classes.py`
+  (requests), `responses.py`, `payloads.py` (the JSON payloads of the `batches`, `items` and
+  `jobs` rows; the M5.2 tables are used as they are).
+  - **Composition.** `create_batch` and `edit_batch` carry the scan options, an optional
+    `scan_id` (the kept scan is reused as in `preview_selection`), the selection operations
+    and the batch's target languages, plus optional `item_languages` (other languages for
+    single files, matched with the path-flavour rule; an entry naming a file outside the
+    selection is `path_not_selected`). The backend resolves the selection itself, so the
+    request alone decides (§3.1); an empty selection is `nothing_selected`. A job for a
+    language the file already has a sidecar subtitle in (forced ones do not count) needs
+    `confirm_existing_languages`; the confirmation lists the files by their `/`-separated path
+    below the scan root (details are not path-normalised). Items are listed in scan order.
+  - **Ids and locks.** The batch id comes from the injected clock in `Ports.local_zone` (None:
+    this computer's zone, read at each use, so DST applies); the free id is picked inside the
+    transaction that inserts the batch (`BEGIN IMMEDIATE` serialises two creations in one
+    second), so `create_batch` takes no batch lock: nobody can know the id before it commits.
+    Every other changing request holds the batch lock and changes the batch conditionally:
+    phase moves by compare-and-set, other changes by `touch_batch` (`UPDATE ... WHERE phase
+    IN (...)`). A request in the wrong phase gets `wrong_phase` (details: phase, allowed);
+    `phase_conflict` stays the error of a lost race. `start_review` on a batch already in
+    `reviewing` is a no-op.
+  - **Item phases**: `composing`, `reviewing`, `reviewed` (probed, every job resolved),
+    `uploaded` (written by the upload, M5.10). An item in `reviewing` or `reviewed` is "in
+    review": its choices can change. The review is complete when no item in review is
+    unresolved; the upload moves the batch on from there.
+  - **Probing.** `review_batch` stat-s and probes every item in `reviewing` (also on a later
+    call, so a file that changed is caught; the probe cache makes this cheap): one transaction
+    per item, ffprobe outside it, progress per item, the cancel token between items, so an
+    interrupted review continues with the rest. The probe cache keeps one row per path. The
+    item's recorded size and mtime become the probed ones (the upload's source-unchanged
+    check compares against them). A missing file (`source_missing`) or a failed or timed-out
+    probe (`probe_failed`) is an item problem, not a failed request; a missing tool, broken
+    settings or cancel fail the request.
+  - **Pre-selection** (`choices.py`): a job transcribes by default (the user asked for a
+    transcription); extracting an embedded subtitle is chosen in the review. Track: the one
+    tagged with the job's language (tags read like sidecar names, `hun` = `hu`), else the
+    default-flagged one, else the first. An audio file has no track choice (uploaded as it is,
+    the manifest's audio item has no track); it is not in the track view. A file without audio
+    extracts a text subtitle tagged with the job's language when it has one, else the job stays
+    unresolved. Choices made earlier are kept when a file probes the same as before.
+  - **Views.** `review_batch` returns `subtitle_view` (files with embedded subtitles),
+    `track_view` (video files with more than one audio track) and `unresolved` (files with a
+    problem or an unresolved job), narrowed by the request's `filters` (job languages, a folder
+    compared with the path-flavour rule), plus totals over all items in review.
+    `resolve_review` applies its choices all or none (`choice_invalid` with the choice's index
+    and a reason: unknown item or job, item not in review, not probed, track or stream out of
+    range, a track for an audio file, a picture subtitle to extract) and returns the
+    unfiltered views.
+  - **Leaving the upload.** `exclude_items` (batch in `reviewing` or `uploading`, never the
+    last item: `last_item`) deletes the excluded items' audio objects first (the recorded ones
+    and anything else under the item's audio prefix; only an `uploading` batch touches R2, so a
+    batch in review needs no credentials), then their rows, clearing `manifest_held` in the
+    same transaction. `batches/rereview.py` `return_item_to_review` is the upload's way to
+    send an item whose source changed back to review (caller holds the batch lock): objects
+    first, then its audio and extracted-subtitle rows, jobs pending again, item `reviewing`,
+    `manifest_held` cleared. A batch with only `extract` jobs left shows `extract_only` in its
+    summary; the upload takes it to `transcribed` without a manifest.
+  - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
+    `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
+    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade).
 
 ### 3.4 Conversion
 
@@ -1114,7 +1177,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.7 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.8 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
