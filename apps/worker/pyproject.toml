@@ -24,6 +24,7 @@ engine = [
 
 [project.scripts]
 transcribe-worker-entry = "transcribe_worker.entry.supervisor:main"
+transcribe-worker-reaper = "transcribe_worker.reaper.main:main"
 
 [tool.uv.sources]
 transcribe-contracts = { workspace = true }
