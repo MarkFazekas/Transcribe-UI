@@ -87,13 +87,24 @@ def test_cancel_while_queued(ready: RunsWorld) -> None:
 
 
 def test_cancel_with_a_deploy_during_the_cancel(ready: RunsWorld) -> None:
-    """The queued pod deploys while it is cancelled: its pod is terminated, verified, then the run is `cancelled`."""
+    """The queued pod deploys while it is cancelled: its pod counts as gone only once the deploy settled.
+
+    The pod was never seen and a 204 on its DELETE proves nothing; re-sending the cancel finishes it.
+    """
     run_id = _launch(ready, capacity=False)
     _deploy_at_next_request(ready)
+    first = send(ready, CANCEL, run_id=run_id)
+    status, payload = run_row(ready, run_id)
+    assert (error_code(first), status, payload.pod_seen, queued_of(ready)[0][1], pods_of(ready)) == (
+        ERROR_STOP_UNVERIFIED,
+        "running",
+        False,
+        QUEUED_POD_DEPLOYED,
+        [],
+    )
+    ready.cloud.clock.advance(SETTLED)
     cancelled = _cancel(ready, run_id)
-    pod_id = cancelled.run.pod_id
-    assert (queued_of(ready)[0][1], pods_of(ready), cancelled.run.status) == (QUEUED_POD_DEPLOYED, [], CANCELLED)
-    assert (pod_id is not None, cancelled.terminated_pod_id) == (True, pod_id)
+    assert (cancelled.run.status, cancelled.terminated_pod_id) == (CANCELLED, payload.pod_id)
 
 
 def test_unseen_pod_missing_after_deploy_not_gone(ready: RunsWorld) -> None:

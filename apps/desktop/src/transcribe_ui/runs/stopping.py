@@ -1,7 +1,8 @@
 """Stopping pods and queued pods, each verified by a follow-up read (plan m5 §1 "Cancel follows a deploy").
 
 A terminate counts once the pod reads `TERMINATED`, or is unknown (404) after a pod read showed
-it or, for a pod known only from its queued pod, `DEPLOY_SETTLE_S` after the deploy.
+it or, for a pod known only from its queued pod, `DEPLOY_SETTLE_S` after the deploy (a 204 on
+the delete is no sighting).
 A cancel counts once the queued pod reads `CANCELLED`, `EXPIRED` or `FAILED` (none of them leads
 to a pod), or is unknown; when it names a pod, it deployed during the cancel, and that pod is
 terminated and verified too.
@@ -23,6 +24,8 @@ from transcribe_ui.runs.responses import QueuedStop
 # Told the pod a queued pod deployed, before that pod is terminated (so a run can follow it if
 # the termination cannot be verified).
 type OnDeployed = Callable[["KnownPod"], None]
+# Told the id of a pod known only from its queued pod once a pod read returned it (a sighting).
+type OnSeen = Callable[[str], None]
 
 
 class CloudObject(NamedTuple):
@@ -65,12 +68,13 @@ class KnownPod:
         return deployed is not None and now - deployed >= timedelta(seconds=DEPLOY_SETTLE_S)
 
 
-def terminate_verified(pods: PodsApi, pod: KnownPod, clock: Clock) -> None:
+def terminate_verified(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None = None) -> None:
     """Terminate the pod and read it again.
 
     A 404 (on the delete or the read) verifies it only for a pod that was seen (a pod read showed
-    it, or the delete was accepted), or one whose deploy has settled; otherwise it may not be
-    visible yet.
+    it), or one whose deploy has settled; otherwise it may not be visible yet. A 204 on the
+    delete proves nothing (Runpod may answer it for an id it does not know yet). A read that
+    returns the pod, in any status, is a sighting: `on_seen` is told, so a later 404 counts.
 
     Raises:
         StopUnverifiedError: The pod still reads live, or is missing too early to count as gone.
@@ -78,18 +82,26 @@ def terminate_verified(pods: PodsApi, pod: KnownPod, clock: Clock) -> None:
     """
     pod_id = pod.pod_id
     existed = runpod_call(lambda: pods.terminate(pod_id))
-    # A delete Runpod accepted (204) shows the pod existed: a 404 after it means it is gone.
-    seen = KnownPod(pod_id, seen=True) if existed else pod
-    if not existed and not seen.gone_when_missing(clock.now()):
+    if not existed and not pod.gone_when_missing(clock.now()):
         raise StopUnverifiedError(POD_KIND, pod_id)
     found = runpod_call(lambda: pods.get_pod(pod_id))
-    if found is None and seen.gone_when_missing(clock.now()):
-        return
-    if found is None or found.status != POD_TERMINATED:
+    if found is None:
+        if pod.gone_when_missing(clock.now()):
+            return
+        raise StopUnverifiedError(POD_KIND, pod_id)
+    if not pod.seen and on_seen is not None:
+        on_seen(pod_id)
+    if found.status != POD_TERMINATED:
         raise StopUnverifiedError(POD_KIND, pod_id)
 
 
-def cancel_queued_verified(pods: PodsApi, queued_pod_id: str, on_deployed: OnDeployed, clock: Clock) -> QueuedStopped:
+def cancel_queued_verified(
+    pods: PodsApi,
+    queued_pod_id: str,
+    clock: Clock,
+    on_deployed: OnDeployed | None = None,
+    on_seen: OnSeen | None = None,
+) -> QueuedStopped:
     """Cancel the queued pod and read it again; terminate (verified) a pod it deployed meanwhile.
 
     Raises:
@@ -104,8 +116,9 @@ def cancel_queued_verified(pods: PodsApi, queued_pod_id: str, on_deployed: OnDep
     pod_id = entry.pod_id
     if pod_id is not None:
         deployed = KnownPod(pod_id, seen=False, deployed_at=entry.resolved_at)
-        on_deployed(deployed)
-        terminate_verified(pods, deployed, clock)
+        if on_deployed is not None:
+            on_deployed(deployed)
+        terminate_verified(pods, deployed, clock, on_seen)
         return QueuedStopped("pod_terminated", pod_id)
     if entry.status in IGNORED_QUEUED_POD_STATUSES:
         return QueuedStopped("cancelled")

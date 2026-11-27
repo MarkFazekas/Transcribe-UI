@@ -59,5 +59,6 @@ the status change on the current branch. On a merge conflict in this file, re-de
    first `RUNNING` sighting), resolves `launching` runs with `runs/settling.py`
    `resolve_launching`, terminates with `runs/stopping.py` `terminate_verified` (a `KnownPod`:
    a pod id known only from a queued pod is not seen, so a 404 counts as gone only after
-   `DEPLOY_SETTLE_S`; the run payload keeps `pod_seen` and `pod_deployed_at`), and calls
+   `DEPLOY_SETTLE_S`, and a 204 on its DELETE is no sighting; the run payload keeps `pod_seen`
+   and `pod_deployed_at`), and calls
    `publish_held_manifests` under the runs lock once no run is active.

@@ -77,7 +77,7 @@ def cancel_queued_pod(
         run_id = _app_run_id(found)
         if not request.confirm:
             return _confirmation(request.action, found, run_id)
-        stopped = cancel_queued_verified(pods, queued_id, _ignore_pod, ports.clock)
+        stopped = cancel_queued_verified(pods, queued_id, ports.clock)
         changes = {"queued_pod_id": queued_id, "pod_id": stopped.pod_id}
         local = cancel_local_run(ports.state, run_id, ports.clock.now(), changes)
     return CancelQueuedPodResponse(
@@ -88,10 +88,6 @@ def cancel_queued_pod(
         run_id=run_id,
         local_status=local,
     )
-
-
-def _ignore_pod(_pod: KnownPod) -> None:
-    """Keep nothing about the deployed pod: the local run, if any, is updated after the stop."""
 
 
 def _app_run_id(found: CloudObject) -> str | None:

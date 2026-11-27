@@ -933,10 +933,13 @@ requests wire it in M5.13):
 - **Cancel** (`runs/cancel.py`, `stopping.py`; request `cancel_worker` with `run_id`; runs
   lock): a `launching` run is resolved first (one lookup); still unresolved gives
   `launch_unresolved`. A run with a pod id: `DELETE` the pod, then `GET` it: `TERMINATED`
-  verifies it, and so does a 404 for a seen pod (a pod read showed it, or Runpod accepted the
-  `DELETE`). A pod known only from its queued pod's `podId` is not seen: a 404 for it (on the
-  `DELETE` or the `GET`) within `DEPLOY_SETTLE_S` of its deploy may be lag, so it gives
-  `stop_unverified` and the run stays `running` with the pod recorded. A run with only a
+  verifies it, and so does a 404 for a seen pod (a pod read showed it). A pod known only from
+  its queued pod's `podId` is not seen: a 204 on its `DELETE` is no sighting (Runpod may answer
+  it for an id it does not know yet; open item 7 of `research/runpod.md`), only a `GET` that
+  returns the pod (any status; recorded as `pod_seen`) is. A 404 for it (on the `DELETE` or the
+  `GET`) within `DEPLOY_SETTLE_S` of its deploy may be lag, so it gives `stop_unverified` and the
+  run stays `running` with the pod recorded; re-sending the cancel finishes it once the pod is
+  read or the deploy has settled. A run with only a
   queued-pod id: `DELETE` the queued pod, then `GET` it: a pod id in it means it deployed
   during the cancel, so the run records that pod (not seen) and becomes `running` (followed
   from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED`, `FAILED` or a

@@ -58,17 +58,23 @@ def _resolve(state: LocalState, pods: PodsApi, run_id: str, now: datetime) -> Ru
 def _stop(state: LocalState, pods: PodsApi, run_id: str, clock: Clock) -> str | None:
     """Stop the run's pod (or queued pod); return the id of the pod terminated, if any."""
     payload = read_payload(state, run_id)
+    seen = partial(_mark_seen, state, run_id, clock)
     if payload.pod_id is not None:
         pod = KnownPod(payload.pod_id, seen=payload.pod_seen, deployed_at=payload.pod_deployed_at)
-        terminate_verified(pods, pod, clock)
+        terminate_verified(pods, pod, clock, seen)
         return pod.pod_id
     if payload.queued_pod_id is None:
         raise LaunchUnresolvedError(run_id)  # not final, yet neither id is known
     follow = partial(_follow_pod, state, run_id, clock)
-    return cancel_queued_verified(pods, payload.queued_pod_id, follow, clock).pod_id
+    return cancel_queued_verified(pods, payload.queued_pod_id, clock, follow, seen).pod_id
 
 
 def _follow_pod(state: LocalState, run_id: str, clock: Clock, pod: KnownPod) -> None:
     """Record the pod a queued pod deployed during the cancel; the run follows it until it is terminated."""
     changes = {"pod_id": pod.pod_id, "pod_seen": pod.seen, "pod_deployed_at": pod.deployed_at}
     update_run(state, run_id, clock.now(), "running", changes)
+
+
+def _mark_seen(state: LocalState, run_id: str, clock: Clock, _pod_id: str) -> None:
+    """Record that a pod read showed the run's pod: from now on a 404 for it means gone."""
+    update_run(state, run_id, clock.now(), changes={"pod_seen": True})
