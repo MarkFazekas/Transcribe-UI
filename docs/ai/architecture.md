@@ -959,8 +959,8 @@ requests wire it in M5.13):
   deadline from its name, the local run's status, `role` (`current`: its local run is not
   final; else `straggler`), `overdue` (past its name deadline) and the response `attention`
   when any entry is a straggler or overdue. A straggler of a final run whose objects were
-  collected marks that run uncollected (see "Monitoring", step 4). `terminate_pod` (`pod_id`) and `cancel_queued_pod`
-  (`queued_pod_id`) read the object first (404 → `pod_not_found`; a name that is not the app's
+  collected marks that run uncollected (see "Monitoring", step 4). `terminate_pod` (`pod_id`)
+  and `cancel_queued_pod` (`queued_pod_id`) read the object first (404 → `pod_not_found`; a name that is not the app's
   → `not_an_app_pod`, left alone), answer `needs_confirmation` (field `confirm`, details: kind,
   id, name, status, run id) until confirmed, then stop it verified as `cancel_worker` does (the
   pod of `terminate_pod` was read, so it is seen). A local run of that id that is not final
@@ -974,7 +974,8 @@ requests wire it in M5.13):
   the Runpod key is read up front; R2 is opened on first use (`runs/cloud.py` `LazyStore`), so
   missing or rejected R2 credentials never block a deadline stop. In order:
   1. Every run that is not final is followed; the Runpod lists are read once, only when such a
-     run exists (a failed read or lookup fails the request with nothing more changed, re-send).
+     run exists or a final run waits for collection (a failed read or lookup fails the request
+     with nothing more changed, re-send).
      A `launching` run is resolved by its name (`resolve_launching`). A run without a pod id
      follows its queued pod: a pod listed under the run's name is adopted as seen; else the
      queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
@@ -1023,15 +1024,21 @@ requests wire it in M5.13):
      runs too, whose pod is verified gone or never existed) keeps its last status in the
      payload (if its end did not; written before anything is deleted), writes `worker.log` to
      `<log dir>/worker-<run_id>.log`, deletes every object under `runs/<run_id>/` and is then
-     marked collected. A kept log is never overwritten: a log collected again goes to
-     `worker-<run_id>-<n>.log` with the next free n from 2, and a log already kept with the same
-     bytes (a retried collection) is not written again. An R2 or file error is logged and
-     retried at the next refresh, without failing the request. A straggler pod carrying a
-     collected run's name may write objects again: `reconcile_cloud` (for every straggler it
-     lists), `terminate_pod` and `cancel_queued_pod` mark such a final run uncollected
-     (`collect.reopen_collection`), so the next refresh collects them. Refresh never calls
-     reconcile, so this cannot loop; a straggler still running is collected again at each
-     reconcile that lists it, until it is stopped.
+     marked collected. Logs (`runs/worker_logs.py`) are written whole and never over another:
+     to a temp file in the log dir (flushed to disk), then published with a hard link, which
+     fails instead of replacing (POSIX and Windows/NTFS); the temp file is removed afterwards
+     and on any failure, and temp files a crash left for the run are removed before the next
+     write. A log collected again goes to `worker-<run_id>-<n>.log` with the next free n from
+     2, and a log already kept with the same bytes (a retried collection) is not written again.
+     An R2 or file error is logged and retried at the next refresh, without failing the
+     request. A straggler pod or queued pod carrying the run's name may still write these
+     objects, so collection waits while one is live in the lists read in step 1
+     (`runs/lingering.py`: another id than the run's own, live by the activity check's rules:
+     a pod not `TERMINATED`, a queued pod `queued_pod_active` keeps; its lookup failing fails
+     the request). `reconcile_cloud` (for every straggler it lists), `terminate_pod` and
+     `cancel_queued_pod` mark a final, collected run uncollected (`records.reopen_collection`),
+     so the first refresh after the straggler is gone collects what it wrote, once and whole.
+     Refresh never calls reconcile, so nothing loops.
   5. With no local run open, `publish_held_manifests` (its own activity check: a straggler or a
      recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
      heartbeat no longer counts.
