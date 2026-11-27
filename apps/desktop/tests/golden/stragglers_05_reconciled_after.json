@@ -1,0 +1,11 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "reconcile_cloud",
+    "entries": [],
+    "runs": [],
+    "attention": false
+  },
+  "events": []
+}

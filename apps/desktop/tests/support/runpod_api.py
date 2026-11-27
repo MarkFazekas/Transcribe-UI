@@ -133,6 +133,10 @@ class FakeSettings:
     gpu_price: float = FAKE_GPU_PRICE
     # True: terminated pods stay listed with status TERMINATED; False: they disappear.
     keep_terminal: bool = True
+    # False: a pod DELETE answers 204 but the pod keeps running (a terminate that did not take effect).
+    terminate_effective: bool = True
+    # Called with each request before it is answered (tests pause a request here).
+    on_request: Callable[[httpx.Request], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -224,6 +228,12 @@ class Collection:
 class Pods(Collection):
     """Pods: created from a template, terminated by DELETE."""
 
+    def __init__(self, api: "FakeRunpodApi") -> None:
+        """Start empty."""
+        super().__init__(api, "pods", "pod", newest_first=True)
+        # Bodies of every `POST /pods` that reached the fake, in order.
+        self.create_bodies: list[Json] = []
+
     def add(self, name: str, status: str = FAKE_POD_START_STATUS, env: dict[str, str] | None = None) -> Json:
         """Seed a pod (its `env` is served like Runpod's: secrets included)."""
         body = {NAME: name, STATUS: status, ENV: dict(env or {}), "template": None, "cost": 0.27}
@@ -231,6 +241,7 @@ class Pods(Collection):
 
     def create(self, body: Json) -> httpx.Response:
         """Create a pod if there is capacity, otherwise queue it (with `queue`) or answer 400."""
+        self.create_bodies.append(body)
         settings = self.api.settings
         if settings.capacity:
             return httpx.Response(httpx.codes.CREATED, json=self.start(body))
@@ -252,6 +263,8 @@ class Pods(Collection):
         found = self.find(object_id)
         if found is None:
             return problem(HTTP_NOT_FOUND, NOT_FOUND)
+        if not self.api.settings.terminate_effective:
+            return httpx.Response(httpx.codes.NO_CONTENT)
         found[STATUS] = POD_TERMINATED
         if not self.api.settings.keep_terminal:
             self.records.pop(object_id)
@@ -279,6 +292,10 @@ class QueuedPods(Collection):
         if deploy_after is not None:
             record.deploy_at = self.api.now() + deploy_after
         return queued
+
+    def schedule_deploy(self, queued_pod_id: str, moment: datetime) -> None:
+        """Let a queued pod (created through `POST /pods`) deploy at the first request from this moment on."""
+        self.records[queued_pod_id].deploy_at = moment
 
     def advance(self) -> None:
         """Deploy queued pods whose time came; expire those past `expiresAt`."""
@@ -408,7 +425,7 @@ class FakeRunpodApi:
         self._now = now
         self.settings = settings or FakeSettings()
         self._seen: list[SeenRequest] = []
-        self.pods = Pods(self, "pods", "pod", newest_first=True)
+        self.pods = Pods(self)
         self.queued_pods = QueuedPods(self, "queuedPods", "qpod", newest_first=True)
         self.templates = Templates(self, "templates", "tpl")
         self.secrets = Secrets(self)
@@ -443,6 +460,9 @@ class FakeRunpodApi:
         timeout = request.extensions.get("timeout", {})
         timeouts = (timeout.get("connect"), timeout.get("read"))
         self._seen.append(SeenRequest(request.method, path, request.url.query.decode(), authorised, timeouts))
+        hook = self.settings.on_request
+        if hook is not None:
+            hook(request)
         if request.url.host != FAKE_API_HOST or not path.startswith(FAKE_API_PREFIX):
             return problem(HTTP_NOT_FOUND, "unknown host or path")
         if not authorised:

@@ -1,0 +1,36 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "reconcile_cloud",
+    "entries": [
+      {
+        "kind": "pod",
+        "entry_id": "pod7919",
+        "name": "transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR01-until-20261127T1500Z",
+        "status": "RUNNING",
+        "pod_id": null,
+        "run_id": "01JDZZZZZZZZZZZZZZZZZZZR01",
+        "deadline": "2026-11-27T15:00:00Z",
+        "local_status": null,
+        "role": "straggler",
+        "overdue": false
+      },
+      {
+        "kind": "queued_pod",
+        "entry_id": "qpod7919",
+        "name": "transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR02-until-20261127T1500Z",
+        "status": "QUEUED",
+        "pod_id": null,
+        "run_id": "01JDZZZZZZZZZZZZZZZZZZZR02",
+        "deadline": "2026-11-27T15:00:00Z",
+        "local_status": null,
+        "role": "straggler",
+        "overdue": false
+      }
+    ],
+    "runs": [],
+    "attention": true
+  },
+  "events": []
+}

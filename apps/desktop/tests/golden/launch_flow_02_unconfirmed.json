@@ -1,0 +1,77 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "launch_worker",
+    "confirmations": [
+      {
+        "field": "confirm_fingerprint",
+        "message": "Start one worker for 3 job(s) in 2 batch(es), 2.0 h of audio; estimated cost 0.05-0.20 USD. 1 of the batches were uploaded from another computer.",
+        "details": {
+          "plan": {
+            "scope": {
+              "batches": [
+                {
+                  "batch_id": "batch_20260101_090000",
+                  "known": false,
+                  "held": false,
+                  "files": 1,
+                  "pending_jobs": [
+                    {
+                      "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ09",
+                      "language": "de",
+                      "mode": "normal",
+                      "duration_s": 1800.0
+                    }
+                  ],
+                  "pending_duration_s": 1800.0
+                },
+                {
+                  "batch_id": "batch_20261127_130000",
+                  "known": true,
+                  "held": true,
+                  "files": 2,
+                  "pending_jobs": [
+                    {
+                      "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ01",
+                      "language": "en",
+                      "mode": "normal",
+                      "duration_s": 5400.0
+                    },
+                    {
+                      "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ02",
+                      "language": "en",
+                      "mode": "normal",
+                      "duration_s": 60.0
+                    }
+                  ],
+                  "pending_duration_s": 5460.0
+                }
+              ],
+              "unreadable": [],
+              "pending_jobs": 3,
+              "pending_duration_s": 7260.0,
+              "fingerprint": "7751973d624a42c380dafab4b3c556f77018c1163cf43efe30bdb103cfe85e46"
+            },
+            "test_mode": false,
+            "weighted_duration_s": 7260.0,
+            "max_runtime_s": 4284,
+            "cost": {
+              "low_usd": 0.05,
+              "high_usd": 0.2,
+              "price_per_hour_usd": 0.27,
+              "price_source": "catalog",
+              "note": null
+            },
+            "wait": {
+              "default_s": 3600,
+              "min_s": 300,
+              "max_s": 86400
+            }
+          }
+        }
+      }
+    ]
+  },
+  "events": []
+}

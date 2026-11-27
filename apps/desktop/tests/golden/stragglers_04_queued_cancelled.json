@@ -1,0 +1,14 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "cancel_queued_pod",
+    "queued_pod_id": "qpod7919",
+    "name": "transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR02-until-20261127T1500Z",
+    "outcome": "cancelled",
+    "terminated_pod_id": null,
+    "run_id": "01JDZZZZZZZZZZZZZZZZZZZR02",
+    "local_status": null
+  },
+  "events": []
+}

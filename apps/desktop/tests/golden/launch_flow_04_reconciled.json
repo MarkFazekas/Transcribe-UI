@@ -1,0 +1,41 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "reconcile_cloud",
+    "entries": [
+      {
+        "kind": "pod",
+        "entry_id": "pod7919",
+        "name": "transcribe-ui-01M8EE0VG08BW9FC8PBW4Q3DY4-until-20261127T1522Z",
+        "status": "RUNNING",
+        "pod_id": null,
+        "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+        "deadline": "2026-11-27T15:22:00Z",
+        "local_status": "running",
+        "role": "current",
+        "overdue": false
+      }
+    ],
+    "runs": [
+      {
+        "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+        "status": "running",
+        "pod_name": "transcribe-ui-01M8EE0VG08BW9FC8PBW4Q3DY4-until-20261127T1522Z",
+        "pod_id": "pod7919",
+        "queued_pod_id": null,
+        "test_mode": false,
+        "max_runtime_s": 4284,
+        "queue_expires_at": "2026-11-27T14:00:00Z",
+        "name_deadline": "2026-11-27T15:22:00Z",
+        "covered_batch_ids": [
+          "batch_20260101_090000",
+          "batch_20261127_130000"
+        ],
+        "created_at": "2026-11-27T12:00:00Z"
+      }
+    ],
+    "attention": false
+  },
+  "events": []
+}
