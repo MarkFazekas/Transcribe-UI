@@ -7,7 +7,6 @@ estimates for the display; Runpod's own bill is what counts.
 
 from datetime import datetime
 
-from transcribe_ui.runs.collect import worker_log_path
 from transcribe_ui.runs.constants import (
     COST_SO_FAR_DECIMALS,
     SECONDS_PER_HOUR,
@@ -17,9 +16,20 @@ from transcribe_ui.runs.constants import (
 from transcribe_ui.runs.ending import desktop_deadline
 from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.runs.records import load_run, payload_of, run_info
+from transcribe_ui.runs.refreshing import Refreshed
 from transcribe_ui.runs.responses import RunInfo, RunProgress, RunStage
 from transcribe_ui.runs.worker import WorkerReport
+from transcribe_ui.runs.worker_logs import worker_log_path
 from transcribe_ui.state.store import LocalState
+
+
+def runs_progress(state: LocalState, refreshed: list[Refreshed], now: datetime) -> tuple[RunProgress, ...]:
+    """Return each refreshed run as it is now, with the worker report its refresh read."""
+    return tuple(_refreshed_progress(state, each, now) for each in refreshed)
+
+
+def _refreshed_progress(state: LocalState, refreshed: Refreshed, now: datetime) -> RunProgress:
+    return run_progress(state, refreshed.run_id, refreshed.worker, refreshed.stop_error, now)
 
 
 def run_progress(

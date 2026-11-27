@@ -6,6 +6,7 @@ its own short transaction, never open across a Runpod call.
 
 from collections.abc import Mapping
 from datetime import datetime
+from typing import NamedTuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -155,3 +156,47 @@ def cancel_local_run(state: LocalState, run_id: str | None, now: datetime, chang
     known = {field: change for field, change in changes.items() if change}
     cancelled = update_run(state, run_id, now, "cancelled", known)
     return cancelled.status
+
+
+def has_uncollected(state: LocalState) -> bool:
+    """Return whether a final run's objects are still to be collected."""
+    return bool(uncollected_runs(state))
+
+
+class Uncollected(NamedTuple):
+    """A final run whose objects are still to be collected."""
+
+    run_id: str
+    pod_name: str
+    payload: RunPayload
+
+
+def _uncollected_of(row: RunRow) -> Uncollected:
+    return Uncollected(row.run_id, row.pod_name, payload_of(row))
+
+
+def uncollected_runs(state: LocalState) -> list[Uncollected]:
+    """Return the final runs not collected yet, by run id."""
+    final = RunRow.status.in_(FINAL_RUN_STATUSES)
+    with state.session() as session:
+        query = select(RunRow).where(final).order_by(RunRow.run_id)
+        rows = list(session.scalars(query))
+        found = [_uncollected_of(row) for row in rows]
+    return [each for each in found if not each.payload.objects_collected]
+
+
+def reopen_collection(state: LocalState, run_id: str | None, now: datetime) -> None:
+    """Mark a final, collected run uncollected: a straggler carrying its name was listed or stopped.
+
+    It may have written run objects again; `refresh_status` collects them once no live straggler
+    carries the name any more (`runs/lingering.py`).
+    """
+    if run_id is None:
+        return
+    final = RunRow.status.in_(FINAL_RUN_STATUSES)
+    with state.session() as session:
+        query = select(RunRow).where(RunRow.run_id == run_id, final)
+        row = session.scalar(query)
+        collected = row is not None and payload_of(row).objects_collected
+    if collected:
+        update_run(state, run_id, now, changes={"objects_collected": False})

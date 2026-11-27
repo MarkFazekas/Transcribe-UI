@@ -16,10 +16,9 @@ from datetime import datetime
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runs.classes import ReconcileCloudRequest
 from transcribe_ui.runs.cloud import open_runpod
-from transcribe_ui.runs.collect import reopen_collection
 from transcribe_ui.runs.entries import live_entries, needs_attention
 from transcribe_ui.runs.errors import runpod_call
-from transcribe_ui.runs.records import open_runs, read_run, run_statuses
+from transcribe_ui.runs.records import open_runs, read_run, reopen_collection, run_statuses
 from transcribe_ui.runs.responses import CloudEntry, ReconcileCloudResponse, RunInfo
 from transcribe_ui.runs.settling import Listed, resolve_launching
 from transcribe_ui.state.store import LocalState

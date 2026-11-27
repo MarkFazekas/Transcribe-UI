@@ -6,7 +6,7 @@ from R2. A run whose pod is gone ends, which needs the report (`finished` or `fa
 cannot be read, the run stays as it is (fail closed). A run past its deadline gets its pod
 stopped, verified, and fails (`runs/ending.py`) even when R2 cannot be read, so an R2 outage or
 missing R2 credentials never keep a billing pod alive; the R2 error is then raised after every
-run was handled. The Runpod lists are read once, and only when such a run exists.
+run was handled. The Runpod lists are read once per refresh (`runs/monitor.py`).
 """
 
 from dataclasses import dataclass
@@ -35,8 +35,10 @@ class Refreshed:
     failure: DomainError | None = None
 
 
-def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore) -> list[Refreshed]:
-    """Follow every run that is not final, oldest first; end or stop those whose time came.
+def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore, listed: Listed | None) -> list[Refreshed]:
+    """Follow every run that is not final, oldest first, by the lists read once; end or stop those whose time came.
+
+    `listed` is None only when no run was open when the caller looked.
 
     Raises:
         DomainError: The Runpod lists or a lookup could not be read; the runs followed before
@@ -45,14 +47,24 @@ def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore) -> li
     before = open_runs(context.ports.state)
     if not before:
         return []
-    listed = runpod_call(lambda: Listed.read(pods))
+    if listed is None:
+        listed = runpod_call(lambda: Listed.read(pods))
     return [_refresh_run(context, pods, store, run.run_id, listed) for run in before]
 
 
-def first_failure(refreshed: list[Refreshed]) -> DomainError | None:
-    """Return the first R2 failure of the refreshed runs, if any."""
+def refresh_open_runs(
+    context: RequestContext, pods: PodsApi, store: LazyStore, listed: Listed | None
+) -> list[Refreshed]:
+    """Follow the open runs (`refresh_runs`); raise the first R2 failure once every run was handled.
+
+    Raises:
+        DomainError: Runpod or R2 (or the R2 credentials) failed.
+    """
+    refreshed = refresh_runs(context, pods, store, listed)
     failures = [each.failure for each in refreshed if each.failure is not None]
-    return failures[0] if failures else None
+    if failures:
+        raise failures[0]
+    return refreshed
 
 
 def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_id: str, listed: Listed) -> Refreshed:

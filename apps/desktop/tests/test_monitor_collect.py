@@ -2,38 +2,23 @@
 
 The worker's last status is kept in the run row before anything is deleted, and the run is
 marked collected last. A straggler pod carrying a collected run's name may write objects again;
-stopping it marks the run uncollected, so the next refresh collects them.
+listing or stopping it marks the run uncollected, and the first refresh after it is gone collects
+them. A kept log is never written twice or over another.
 """
 
 import pytest
 
-from support.credentials import TEST_BUCKET
-from support.launch import TERMINATE, launch_run, ok_as, pods_of, reconcile, run_row, send, set_up_cloud
-from support.monitor import WORKER_LOG, end_pod, refresh, run_objects, write_log, write_status
+from support.launch import TERMINATE, launch_run, ok_as, pods_of, run_row, send, set_up_cloud
+from support.monitor import WORKER_LOG, FailingDeletes, end_pod, refresh, run_objects, write_log, write_status
 from support.runs import RunsWorld, seed_uploaded, set_run_status
-from support.storage import store_client
-from transcribe_ui.runs.collect import collect_run_objects, worker_log_path
+from transcribe_ui.runs.collect import collect_run_objects
 from transcribe_ui.runs.responses import TerminatePodResponse
-from transcribe_ui.storage.constants import ERROR_R2_UNREACHABLE
-from transcribe_ui.storage.errors import StorageError
-from transcribe_ui.storage.r2 import R2ObjectStore
+from transcribe_ui.runs.worker_logs import worker_log_path
 
 # Objects the worker leaves under `runs/<run_id>/`: its status and its log.
 WORKER_OBJECTS = 2
 # Log a straggler of a collected run writes.
 STRAGGLER_LOG = "straggler started\n"
-
-
-class FailingDeletes(R2ObjectStore):
-    """The test bucket, where every delete fails (R2 unreachable)."""
-
-    def __init__(self) -> None:
-        """Use the test bucket."""
-        super().__init__(store_client(), TEST_BUCKET)
-
-    def delete(self, key: str) -> None:  # noqa: ARG002 -- every delete fails, whatever the key
-        """Fail (the object stays)."""
-        raise StorageError(ERROR_R2_UNREACHABLE, "delete", "ConnectionError")
 
 
 @pytest.fixture
@@ -90,17 +75,3 @@ def test_recollection_keeps_the_first_log(world: RunsWorld) -> None:
     first = worker_log_path(log_dir, run.run_id)
     second = log_dir / f"worker-{run.run_id}-2.log"
     assert (first.read_text(), second.read_text()) == (WORKER_LOG, STRAGGLER_LOG)
-
-
-def test_reconcile_reopens_a_collected_run(world: RunsWorld) -> None:
-    """A straggler listed by `reconcile_cloud` marks its final, collected run uncollected; the refresh collects it."""
-    run = launch_run(world)
-    end_pod(world, pods_of(world)[0][0])
-    refresh(world)
-    world.cloud.api.pods.add(run.pod_name)
-    write_status(world.store, run.run_id, "transcribing", world.now())
-    reconciled = reconcile(world)
-    roles = [entry["role"] for entry in reconciled["entries"]]
-    assert (roles, run_row(world, run.run_id)[1].objects_collected) == (["straggler"], False)
-    refresh(world)
-    assert (run_row(world, run.run_id)[1].objects_collected, run_objects(world, run.run_id)) == (True, [])

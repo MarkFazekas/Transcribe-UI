@@ -7,13 +7,17 @@ last job. Nothing talks to a real worker or Runpod.
 
 from datetime import datetime, timedelta
 
+from support.credentials import TEST_BUCKET
 from support.launch import ok_as, send
 from support.runs import JSON_TYPE, RunsWorld
+from support.storage import store_client
 from transcribe_contracts.classes import BatchSummary, EngineInfo, JobCounts, JobRef, JobResult, RunState, RunStatus
 from transcribe_contracts.classes import JobStatus as ResultStatus
 from transcribe_contracts.layout import done_key, result_json_key, result_srt_key, run_log_key, run_status_key
 from transcribe_ui.runs.responses import RefreshStatusResponse, RunProgress
 from transcribe_ui.state.models import JobRow
+from transcribe_ui.storage.constants import ERROR_R2_UNREACHABLE
+from transcribe_ui.storage.errors import StorageError
 from transcribe_ui.storage.r2 import R2ObjectStore
 
 # Request action of the monitoring.
@@ -134,3 +138,15 @@ def job_statuses(world: RunsWorld, batch_id: str) -> dict[str, str]:
     with world.ports.state.session() as session:
         rows = session.query(JobRow).filter(JobRow.batch_id == batch_id)
         return {row.item_id: row.status for row in rows}
+
+
+class FailingDeletes(R2ObjectStore):
+    """The test bucket, where every delete fails (R2 unreachable)."""
+
+    def __init__(self) -> None:
+        """Use the test bucket."""
+        super().__init__(store_client(), TEST_BUCKET)
+
+    def delete(self, key: str) -> None:  # noqa: ARG002 -- every delete fails, whatever the key
+        """Fail (the object stays)."""
+        raise StorageError(ERROR_R2_UNREACHABLE, "delete", "ConnectionError")

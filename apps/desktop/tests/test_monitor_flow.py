@@ -25,8 +25,8 @@ from support.monitor import (
 )
 from support.runs import READY, RunsWorld, batch_state, seed_uploaded
 from transcribe_contracts.classes import JobRef
-from transcribe_ui.runs.collect import worker_log_path
 from transcribe_ui.runs.constants import DESKTOP_DEADLINE_MARGIN_S, WAIT_MIN_S
+from transcribe_ui.runs.worker_logs import worker_log_path
 
 # Two hours of waiting for a machine.
 TWO_HOURS_S = 7200

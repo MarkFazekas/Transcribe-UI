@@ -2,31 +2,28 @@
 
 Once a run is final (its pod is gone, or it never had one), `refresh_status` keeps the worker's
 last `status.json` in the run row (if the run's end did not already), writes `worker.log` to the
-user log dir (`worker-<run_id>.log`; never over a log kept before, see `_keep_log`), then deletes every object under `runs/<run_id>/` and marks
-the run collected (last). The worker is the only writer of these objects and is gone by then. A
-failure is logged and leaves the run uncollected: the next refresh tries again. A straggler pod
-carrying a collected run's name may write objects again; listing it in `reconcile_cloud` or
-stopping it through `terminate_pod` or `cancel_queued_pod` marks the run uncollected
-(`reopen_collection`), so they are collected too.
+user log dir (`runs/worker_logs.py`: whole, never over a log kept before), then deletes every
+object under `runs/<run_id>/` and marks the run collected (last). A failure is logged and leaves
+the run uncollected: the next refresh tries again.
+
+Only the run's worker writes these objects, and it is gone by then; but a straggler pod or queued
+pod carrying the run's name may still write them. Collection therefore waits while one is live
+in the Runpod lists (`runs/lingering.py`). Listing a straggler in `reconcile_cloud`, or stopping
+it through `terminate_pod` or `cancel_queued_pod`, marks a collected run uncollected
+(`reopen_collection`); the refresh after the straggler is gone collects what it wrote, so a
+straggler's log is kept once, whole, not in parts.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
-from pathlib import Path
-
-from sqlalchemy import select
 
 from transcribe_contracts.constants import RUNS_PREFIX
 from transcribe_contracts.layout import run_log_key
-from transcribe_ui.runs.constants import (
-    FINAL_RUN_STATUSES,
-    FIRST_EXTRA_LOG_NUMBER,
-    WORKER_LOG_EXTRA_NAME,
-    WORKER_LOG_NAME,
-)
-from transcribe_ui.runs.records import payload_of, read_payload, update_run
+from transcribe_ui.runs.payloads import RunPayload
+from transcribe_ui.runs.records import read_payload, uncollected_runs, update_run
 from transcribe_ui.runs.worker import read_worker
-from transcribe_ui.state.models import RunRow
+from transcribe_ui.runs.worker_logs import keep_log
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.errors import StorageError
 from transcribe_ui.storage.r2 import ObjectStore
@@ -34,39 +31,44 @@ from transcribe_ui.storage.r2 import ObjectStore
 logger = logging.getLogger(__name__)
 
 
-def worker_log_path(log_dir: Path, run_id: str) -> Path:
-    """Return where a run's worker log is kept."""
-    return log_dir / WORKER_LOG_NAME.format(run_id=run_id)
+# Whether a live straggler still carries a final run's name (its pod name and payload given).
+type StragglerCheck = Callable[[str, RunPayload], bool]
 
 
-def collect_run_objects(state: LocalState, store: ObjectStore, now: datetime) -> tuple[str, ...]:
-    """Keep and delete the objects of every final run not collected yet; return the run ids collected now."""
+def collect_run_objects(
+    state: LocalState,
+    store: ObjectStore,
+    now: datetime,
+    straggling: StragglerCheck | None = None,
+) -> tuple[str, ...]:
+    """Keep and delete the objects of every final run not collected yet; return the run ids collected now.
+
+    A run a live straggler carries the name of (`straggling`) waits for the next refresh.
+
+    Raises:
+        DomainError: `straggling` could not read Runpod (nothing more is collected).
+    """
     collected: list[str] = []
-    for run_id in _uncollected(state):
-        try:
-            _collect(state, store, run_id, now)
-        except StorageError as error:
-            logger.warning(
-                "Collecting the objects of run %s failed (%s); retried at the next refresh", run_id, error.code
-            )
-            continue
-        except OSError as error:
-            logger.warning("Keeping the worker log of run %s failed (%s); retried at the next refresh", run_id, error)
-            continue
-        collected.append(run_id)
+    for uncollected in uncollected_runs(state):
+        run_id = uncollected.run_id
+        if straggling is not None and straggling(uncollected.pod_name, uncollected.payload):
+            logger.info("Run %s: a straggler still carries its name; its objects are collected later", run_id)
+        elif _collected(state, store, run_id, now):
+            collected.append(run_id)
     return tuple(collected)
 
 
-def _uncollected(state: LocalState) -> list[str]:
-    final = RunRow.status.in_(FINAL_RUN_STATUSES)
-    with state.session() as session:
-        query = select(RunRow).where(final).order_by(RunRow.run_id)
-        rows = list(session.scalars(query))
-        return [row.run_id for row in rows if _uncollected_row(row)]
-
-
-def _uncollected_row(row: RunRow) -> bool:
-    return not payload_of(row).objects_collected
+def _collected(state: LocalState, store: ObjectStore, run_id: str, now: datetime) -> bool:
+    """Collect one run; return whether that worked (a failure is logged, the next refresh retries)."""
+    try:
+        _collect(state, store, run_id, now)
+    except StorageError as error:
+        logger.warning("Collecting the objects of run %s failed (%s); retried at the next refresh", run_id, error.code)
+        return False
+    except OSError as error:
+        logger.warning("Keeping the worker log of run %s failed (%s); retried at the next refresh", run_id, error)
+        return False
+    return True
 
 
 def _collect(state: LocalState, store: ObjectStore, run_id: str, now: datetime) -> None:
@@ -83,49 +85,7 @@ def _collect(state: LocalState, store: ObjectStore, run_id: str, now: datetime) 
             update_run(state, run_id, now, changes={"final_status": report.status})
     log = store.read(run_log_key(run_id))
     if log is not None:
-        _keep_log(state.paths.log_dir, run_id, log)
+        keep_log(state.paths.log_dir, run_id, log)
     for found in store.list_objects(f"{RUNS_PREFIX}{run_id}/"):
         store.delete(found.key)
     update_run(state, run_id, now, changes={"objects_collected": True})
-
-
-def _keep_log(log_dir: Path, run_id: str, body: bytes) -> None:
-    """Write the worker log to the log dir, never over a log kept before.
-
-    The first log is `worker-<run_id>.log`; a log collected again (after a straggler) goes to
-    `worker-<run_id>-<n>.log` with the next free n from 2. A log already kept with the same
-    bytes (a collection retried after a later step failed) is not written again.
-
-    Raises:
-        OSError: The log could not be written.
-    """
-    log_dir.mkdir(parents=True, exist_ok=True)
-    first = worker_log_path(log_dir, run_id)
-    extra = WORKER_LOG_EXTRA_NAME.format(run_id=run_id, number="*")
-    kept = [first, *sorted(log_dir.glob(extra))]
-    if any(_same_bytes(path, body) for path in kept):
-        return
-    target = first
-    number = FIRST_EXTRA_LOG_NUMBER
-    while target.exists():
-        target = log_dir / WORKER_LOG_EXTRA_NAME.format(run_id=run_id, number=number)
-        number += 1
-    with target.open("xb") as written:  # "x": never replaces a file
-        written.write(body)
-
-
-def _same_bytes(path: Path, body: bytes) -> bool:
-    return path.is_file() and path.read_bytes() == body
-
-
-def reopen_collection(state: LocalState, run_id: str | None, now: datetime) -> None:
-    """Mark a final, collected run uncollected (a straggler carrying its name was stopped and may have written objects)."""
-    if run_id is None:
-        return
-    final = RunRow.status.in_(FINAL_RUN_STATUSES)
-    with state.session() as session:
-        query = select(RunRow).where(RunRow.run_id == run_id, final)
-        row = session.scalar(query)
-        collected = row is not None and payload_of(row).objects_collected
-    if collected:
-        update_run(state, run_id, now, changes={"objects_collected": False})

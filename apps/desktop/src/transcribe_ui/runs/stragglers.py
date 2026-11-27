@@ -15,10 +15,9 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runs.classes import CancelQueuedPodRequest, TerminatePodRequest
 from transcribe_ui.runs.cloud import open_runpod
-from transcribe_ui.runs.collect import reopen_collection
 from transcribe_ui.runs.constants import POD_KIND, QUEUED_POD_KIND
 from transcribe_ui.runs.errors import NotAppPodError, PodNotFoundError, runpod_call
-from transcribe_ui.runs.records import PayloadChanges, cancel_local_run
+from transcribe_ui.runs.records import PayloadChanges, cancel_local_run, reopen_collection
 from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
 from transcribe_ui.runs.stopping import CloudObject, KnownPod, cancel_queued_verified, terminate_verified
 from transcribe_ui.state.models import RunStatus

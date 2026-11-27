@@ -153,6 +153,10 @@ WORKER_LOG_NAME: Final = "worker-{run_id}.log"
 WORKER_LOG_EXTRA_NAME: Final = "worker-{run_id}-{number}.log"
 # Number of the first further worker log of a run.
 FIRST_EXTRA_LOG_NUMBER: Final = 2
+# Prefix of the temp file a worker log is written to before it is published (by run id).
+WORKER_LOG_TEMP_PREFIX: Final = ".worker-{run_id}-"
+# Suffix of that temp file (never matches a kept log's name).
+WORKER_LOG_TEMP_SUFFIX: Final = ".part"
 # Decimals of the cost so far (dollars).
 COST_SO_FAR_DECIMALS: Final = 2
 

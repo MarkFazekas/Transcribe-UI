@@ -11,7 +11,7 @@ from support.monitor import end_pod, progress_of, refresh, refreshed_run, run_ob
 from support.runpod_api import Failure
 from support.runs import HELD, OTHER_RUN_ID, OUTAGE, READY, RunsWorld, app_pod_name, batch_state, seed_uploaded
 from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE
-from transcribe_ui.runs.collect import worker_log_path
+from transcribe_ui.runs.worker_logs import worker_log_path
 
 # A second batch of this database.
 OTHER_BATCH_ID = "batch_20261127_140000"
