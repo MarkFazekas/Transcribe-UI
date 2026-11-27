@@ -9,7 +9,6 @@ from platformdirs import PlatformDirs
 from transcribe_ui.state.constants import (
     APP_DIR_NAME,
     DATABASE_FILE_NAME,
-    LOG_FILE_NAME,
     ROOT_CACHE_FOLDER,
     ROOT_CONFIG_FOLDER,
     ROOT_DATA_FOLDER,
@@ -66,8 +65,3 @@ class AppPaths:
     def settings_file(self) -> Path:
         """Return the settings JSON file."""
         return self.config_dir / SETTINGS_FILE_NAME
-
-    @property
-    def log_file(self) -> Path:
-        """Return the current rotating log file."""
-        return self.log_dir / LOG_FILE_NAME

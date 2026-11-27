@@ -49,6 +49,7 @@ eagain
 edeadlk
 enospc
 errnos
+errorcode
 ewouldblock
 exc
 exe
@@ -57,6 +58,7 @@ exitcode
 extractall
 fcntl
 fdopen
+fetchall
 fetchone
 ffmpeg
 ffprobe
@@ -68,8 +70,10 @@ fmt
 formatter
 fromkeys
 fromtimestamp
+frontends
 fsdecode
 fsencode
+fstat
 fsync
 fullmatch
 fullwidth
@@ -88,6 +92,7 @@ ign
 ignorecase
 impl
 injectable
+ino
 invoker
 isalnum
 isalpha
@@ -101,6 +106,7 @@ iterdir
 jobobject
 joinpath
 kernel32
+kibibytes
 killpg
 lavfi
 levelname
@@ -161,6 +167,7 @@ q27
 qs
 r2
 randbits
+rdonly
 rdwr
 recv
 removeprefix
@@ -215,6 +222,7 @@ untracked
 untrusted
 unwritable
 utf16
+util
 utils
 v2
 v3

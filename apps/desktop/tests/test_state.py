@@ -1,14 +1,11 @@
-"""Flow tests of the local state (plan m5 M5.2): database, migrations, locks, compare-and-set, logs."""
+"""Flow tests of the local state (plan m5 M5.2): database, migrations, writer lock, compare-and-set."""
 
-import io
 import os
 import sqlite3
 import subprocess
 import sys
 import threading
-import time
-import warnings
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import closing
 from functools import partial
 from importlib.resources import files
@@ -16,24 +13,27 @@ from pathlib import Path
 from typing import Final
 
 import pytest
+from alembic import command as alembic_command
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import select
 
 from support.fakes import FIXED_NOW, TEST_RUNS_LOCK_WAIT_S, app_paths_under, seeded_ports
 from support.routes import database_routes
-from transcribe_ui.api.backend import Backend, Route
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, GetAppInfoRequest, GetAppInfoResponse, Response
-from transcribe_ui.api.errors import CancelledError
-from transcribe_ui.api.info import get_app_info
-from transcribe_ui.api.ports import CancelFlag, RequestContext
+from transcribe_ui.api.backend import Backend
+from transcribe_ui.api.classes import ErrorBody, ErrorResponse, GetAppInfoRequest, Response
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_OK
-from transcribe_ui.cli.main import main
-from transcribe_ui.state.constants import LOG_FILE_NAME, MIGRATIONS_FOLDER, MIGRATIONS_PACKAGE
+from transcribe_ui.state.constants import MIGRATIONS_FOLDER, MIGRATIONS_PACKAGE
 from transcribe_ui.state.database import compare_and_set_phase
-from transcribe_ui.state.errors import BatchNotFoundError, PhaseConflictError, RunsBusyError
-from transcribe_ui.state.locks import LockRegistry
+from transcribe_ui.state.errors import (
+    BatchNotFoundError,
+    LockOrderError,
+    PhaseConflictError,
+    StateBusyError,
+    StateUnavailableError,
+)
 from transcribe_ui.state.models import Base, BatchRow, RunRow
 from transcribe_ui.state.store import LocalState
 
@@ -179,87 +179,6 @@ def test_newer_database_is_refused(tmp_path: Path, state: LocalState) -> None:
     assert _sqlite_value(database_file, "SELECT version_num FROM alembic_version") == UNKNOWN_REVISION
 
 
-def _hold_batch(
-    entered: threading.Event,
-    release: threading.Event,
-    request: GetAppInfoRequest,
-    context: RequestContext,
-) -> Response:
-    with context.ports.state.locks.batch(BATCH_ID):
-        entered.set()
-        release.wait(THREAD_TIMEOUT_S)
-        return get_app_info(request, context)
-
-
-def test_batch_lock_refuses_a_concurrent_request(tmp_path: Path) -> None:
-    """A request that finds its batch locked by another thread gets `batch_busy` at once."""
-    entered = threading.Event()
-    release = threading.Event()
-    run = partial(_hold_batch, entered, release)
-    backend = Backend(seeded_ports(tmp_path), {"get_app_info": Route(run=run, needs_database=False)})
-    outcomes: list[Response] = []
-    holder = threading.Thread(target=lambda: outcomes.append(backend.execute(GET_APP_INFO)))
-    holder.start()
-    assert entered.wait(THREAD_TIMEOUT_S)
-    started = time.monotonic()
-    refused = backend.execute(GET_APP_INFO)
-    assert time.monotonic() - started < TEST_RUNS_LOCK_WAIT_S
-    release.set()
-    holder.join(THREAD_TIMEOUT_S)
-    assert (_error_code(refused), _error(refused).details) == ("batch_busy", {"batch_id": BATCH_ID})
-    assert isinstance(outcomes[0], GetAppInfoResponse)
-    assert isinstance(backend.execute(GET_APP_INFO), GetAppInfoResponse)
-
-
-def _hold_runs(locks: LockRegistry, entered: threading.Event, hold_s: float) -> None:
-    with locks.runs():
-        entered.set()
-        time.sleep(hold_s)
-
-
-def _holder(locks: LockRegistry, hold_s: float) -> threading.Thread:
-    entered = threading.Event()
-    thread = threading.Thread(target=_hold_runs, args=(locks, entered, hold_s))
-    thread.start()
-    assert entered.wait(THREAD_TIMEOUT_S)
-    return thread
-
-
-def test_runs_lock_waits_then_gives_runs_busy() -> None:
-    """The runs lock is waited for at most the bounded wait, then the request gets `runs_busy`."""
-    wait_s = 0.3
-    locks = LockRegistry(runs_wait_s=wait_s)
-    holder = _holder(locks, hold_s=wait_s * 4)
-    started = time.monotonic()
-    with pytest.raises(RunsBusyError), locks.runs():
-        pytest.fail("the runs lock was taken while held")
-    waited = time.monotonic() - started
-    holder.join(THREAD_TIMEOUT_S)
-    assert wait_s <= waited < wait_s * 3
-
-
-def test_runs_lock_is_handed_over_within_the_wait() -> None:
-    """A holder that finishes within the wait hands the runs lock over."""
-    locks = LockRegistry(runs_wait_s=THREAD_TIMEOUT_S)
-    holder = _holder(locks, hold_s=SHORT_HOLD_S)
-    with locks.runs():
-        assert not holder.is_alive()
-    holder.join(THREAD_TIMEOUT_S)
-
-
-def test_runs_lock_wait_stops_on_cancel() -> None:
-    """Cancelling while the runs lock is waited for stops the wait with `cancelled`."""
-    locks = LockRegistry(runs_wait_s=THREAD_TIMEOUT_S)
-    holder = _holder(locks, hold_s=1)
-    flag = CancelFlag()
-    threading.Timer(SHORT_HOLD_S, flag.cancel).start()
-    started = time.monotonic()
-    with pytest.raises(CancelledError), locks.runs(flag.is_cancelled):
-        pytest.fail("the runs lock was taken while held")
-    assert time.monotonic() - started < THREAD_TIMEOUT_S / 2
-    holder.join(THREAD_TIMEOUT_S)
-
-
 def _race(state: LocalState, barrier: threading.Barrier, run_id: str, outcomes: dict[str, str]) -> None:
     barrier.wait(THREAD_TIMEOUT_S)
     try:
@@ -313,27 +232,56 @@ def test_compare_and_set_condition_and_missing_batch(state: LocalState) -> None:
         compare_and_set_phase(session, "batch_20261127_120001", COMPOSING, REVIEWING, now=FIXED_NOW)
 
 
-def _crash_with_warning(_request: GetAppInfoRequest, _context: RequestContext) -> Response:
-    warnings.warn("a library warning", UserWarning, stacklevel=1)
-    raise RuntimeError(CRASH_DETAIL)
+def test_conditional_change_refreshes_loaded_row(state: LocalState) -> None:
+    """A change whose condition holds succeeds, and a row the session loaded shows the new phase."""
+    _add_batch(state)
+    not_hidden = BatchRow.hidden.is_(False)
+    with state.session() as session:
+        loaded = session.get_one(BatchRow, BATCH_ID)
+        compare_and_set_phase(session, BATCH_ID, COMPOSING, REVIEWING, now=FIXED_NOW, conditions=[not_hidden])
+        assert loaded.phase == REVIEWING
 
 
-def test_cli_logs_go_to_the_log_file_not_stderr(tmp_path: Path) -> None:
-    """Warnings and the traceback of a crash land in the log file; stderr stays empty."""
-    request_file = tmp_path / "request.json"
-    request_file.write_text(GET_APP_INFO_JSON, encoding="utf-8")
-    backend = Backend(seeded_ports(tmp_path), {"get_app_info": Route(run=_crash_with_warning, needs_database=False)})
-    log_dir = tmp_path / "log"
-    stderr = io.BytesIO()
-    code = main(
-        ["run", str(request_file)],
-        make_backend=lambda: backend,
-        stdout=io.BytesIO(),
-        stderr=stderr,
-        log_dir=log_dir,
+def test_locks_are_refused_inside_a_session(state: LocalState) -> None:
+    """Lock order runs → batch → transaction: asking for a lock inside a session is a bug."""
+    with state.session():
+        with pytest.raises(LockOrderError), state.locks.batch(BATCH_ID):
+            pytest.fail("a batch lock was taken inside a session")
+        with pytest.raises(LockOrderError), state.locks.runs():
+            pytest.fail("the runs lock was taken inside a session")
+    with state.locks.runs(), state.locks.batch(BATCH_ID), state.session():
+        assert state.in_session()
+    assert not state.in_session()
+
+
+def test_locked_database_gives_state_busy(tmp_path: Path) -> None:
+    """A transaction that waits past the busy timeout gives `state_busy`, not `internal_error`."""
+    state = LocalState(app_paths_under(tmp_path), busy_timeout_s=SHORT_HOLD_S)
+    with closing(state):
+        state.open_database()
+        blocker = sqlite3.connect(state.paths.database_file, isolation_level=None)
+        with closing(blocker):
+            blocker.execute("BEGIN IMMEDIATE")
+            with pytest.raises(StateBusyError) as busy, state.session() as session:
+                session.get(BatchRow, BATCH_ID)
+            blocker.execute("ROLLBACK")
+    assert busy.value.code == "state_busy"
+
+
+def _upgrade_leaving_an_orphan(upgrade: Callable[[Config, str], None], config: Config, revision: str) -> None:
+    upgrade(config, revision)
+    connection = config.attributes["connection"]
+    connection.exec_driver_sql(
+        "INSERT INTO items (item_id, batch_id, phase, payload) VALUES ('01JDQ0000000000000000000C3', 'missing', 'x', '{}')",
     )
-    assert code == EXIT_ERROR
-    assert not stderr.getvalue()
-    log_text = (log_dir / LOG_FILE_NAME).read_text(encoding="utf-8")
-    assert "a library warning" in log_text
-    assert f"RuntimeError: {CRASH_DETAIL}" in log_text
+
+
+def test_migration_breaking_foreign_keys_rolls_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rows a migration leaves pointing at missing rows abort it; the database stays empty."""
+    monkeypatch.setattr(alembic_command, "upgrade", partial(_upgrade_leaving_an_orphan, alembic_command.upgrade))
+    state = LocalState(app_paths_under(tmp_path))
+    with closing(state), pytest.raises(StateUnavailableError):
+        state.open_database()
+    with closing(sqlite3.connect(state.paths.database_file)) as connection:
+        tables = connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    assert not tables

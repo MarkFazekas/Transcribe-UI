@@ -274,7 +274,6 @@
       "description": "Placement choices a download request is pre-filled with (§3.5).",
       "properties": {
         "folder_count": {
-          "default": 1,
           "exclusiveMinimum": 0,
           "title": "Folder Count",
           "type": "integer"
@@ -287,17 +286,14 @@
             {
               "type": "null"
             }
-          ],
-          "default": null
+          ]
         },
         "overwrite": {
-          "default": false,
           "title": "Overwrite",
           "type": "boolean"
         },
         "strategy": {
-          "$ref": "#/$defs/PlacementStrategy",
-          "default": "next_to_media"
+          "$ref": "#/$defs/PlacementStrategy"
         }
       },
       "required": [
@@ -683,29 +679,12 @@
     },
     "Settings": {
       "additionalProperties": false,
-      "description": "The user's settings; a missing settings file means these defaults.",
+      "description": "The user's settings (all fields required; see `state.settings.default_settings`).",
       "properties": {
         "audio_extensions": {
-          "$ref": "#/$defs/MediaExtensions",
-          "default": [
-            "aac",
-            "ac3",
-            "aiff",
-            "flac",
-            "m4a",
-            "mka",
-            "mp3",
-            "ogg",
-            "opus",
-            "wav",
-            "wma"
-          ]
+          "$ref": "#/$defs/MediaExtensions"
         },
         "enabled_languages": {
-          "default": [
-            "hu",
-            "en"
-          ],
           "items": {
             "$ref": "#/$defs/WhisperLanguage"
           },
@@ -721,8 +700,7 @@
             {
               "type": "null"
             }
-          ],
-          "default": null
+          ]
         },
         "ffprobe_path": {
           "anyOf": [
@@ -732,11 +710,9 @@
             {
               "type": "null"
             }
-          ],
-          "default": null
+          ]
         },
         "include_hidden": {
-          "default": false,
           "title": "Include Hidden",
           "type": "boolean"
         },
@@ -744,25 +720,7 @@
           "$ref": "#/$defs/PlacementDefaults"
         },
         "video_extensions": {
-          "$ref": "#/$defs/MediaExtensions",
-          "default": [
-            "3gp",
-            "avi",
-            "flv",
-            "m2ts",
-            "m4v",
-            "mkv",
-            "mov",
-            "mp4",
-            "mpeg",
-            "mpg",
-            "mts",
-            "ogv",
-            "ts",
-            "vob",
-            "webm",
-            "wmv"
-          ]
+          "$ref": "#/$defs/MediaExtensions"
         }
       },
       "required": [

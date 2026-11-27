@@ -19,7 +19,7 @@ from sqlalchemy import Connection, Engine
 
 from transcribe_ui.state.constants import HEAD_REVISION, MIGRATION_CONNECTION_KEY, MIGRATIONS_FOLDER, MIGRATIONS_PACKAGE
 from transcribe_ui.state.database import sqlite_engine
-from transcribe_ui.state.errors import DatabaseTooNewError
+from transcribe_ui.state.errors import DatabaseTooNewError, StateUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ def migrate(database_file: Path) -> None:
 
     Raises:
         DatabaseTooNewError: If the database was written by a newer app; it is left unchanged.
+        StateUnavailableError: If the migrated data violates a foreign key; nothing is changed.
     """
     with _alembic_config() as config, _migration_engine(database_file) as engine, engine.begin() as connection:
         script = ScriptDirectory.from_config(config)
@@ -71,3 +72,16 @@ def migrate(database_file: Path) -> None:
         logger.info("Migrating the database from %s to %s", current or "empty", heads)
         config.attributes[MIGRATION_CONNECTION_KEY] = connection
         command.upgrade(config, HEAD_REVISION)
+        _check_foreign_keys(connection)
+
+
+def _check_foreign_keys(connection: Connection) -> None:
+    """Refuse a migration that left rows pointing at missing rows (keys are off while migrating).
+
+    Raises:
+        StateUnavailableError: If any row violates a foreign key; the migration is rolled back.
+    """
+    violations = connection.exec_driver_sql("PRAGMA foreign_key_check").all()
+    if violations:
+        logger.error("The migration left %d foreign key violation(s): %s", len(violations), violations[:10])
+        raise StateUnavailableError

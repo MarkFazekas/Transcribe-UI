@@ -15,11 +15,11 @@ from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
 from transcribe_ui.api.info import app_version
 from transcribe_ui.api.schema import render_schema
 from transcribe_ui.api.wiring import build_backend
-from transcribe_ui.cli.constants import ERROR_INVALID_ARGUMENTS
+from transcribe_ui.cli.constants import CLI_LOG_FILE_NAME, ERROR_INVALID_ARGUMENTS
 from transcribe_ui.cli.output import failure, respond, write_text
 from transcribe_ui.cli.run_command import BackendFactory, cancelled_before_reading, run_request
 from transcribe_ui.constants import DISTRIBUTION_NAME
-from transcribe_ui.state.logs import log_to_file, user_log_dir
+from transcribe_ui.state.logs import log_to_file, user_log_file
 
 logger = logging.getLogger(__name__)
 
@@ -72,17 +72,17 @@ def main(
     make_backend: BackendFactory = build_backend,
     stdout: BinaryIO | None = None,
     stderr: BinaryIO | None = None,
-    log_dir: Path | None = None,
+    log_file: Path | None = None,
 ) -> int:
     """Run the CLI and return the exit code; tests inject the backend factory and the streams.
 
     Whatever fails, stdout gets a JSON response (`--help` excepted): an unexpected exception is
     answered with `internal_error`, a Ctrl+C outside a request with `cancelled`. Log records and
-    warnings go to the rotating log file in `log_dir` (dropped when None), never to stderr.
+    warnings go to the rotating `log_file` (dropped when None), never to stderr.
     """
     out = sys.stdout.buffer if stdout is None else stdout
     err = sys.stderr.buffer if stderr is None else stderr
-    with log_to_file(log_dir):
+    with log_to_file(log_file):
         try:
             return _dispatch(argv, make_backend, out, err)
         except KeyboardInterrupt:
@@ -94,4 +94,4 @@ def main(
 
 def run() -> NoReturn:
     """Entry point of the `transcribe-ui` script."""
-    sys.exit(main(log_dir=user_log_dir()))
+    sys.exit(main(log_file=user_log_file(CLI_LOG_FILE_NAME)))

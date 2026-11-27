@@ -5,8 +5,11 @@
 - Batch locks (in-process, one per batch): never waited for; a held lock gives `batch_busy`.
 - Runs lock (in-process, one): waited for at most `RUNS_LOCK_WAIT_S`, then `runs_busy`.
 
-Lock order is runs → batch. Since batch locks are never waited for and the runs lock wait is
-bounded, no two requests can wait on each other for ever.
+Lock order is runs → batch → database transaction (innermost). Since batch locks are never
+waited for and the runs lock wait is bounded, no two requests can wait on each other for ever.
+The database transaction (`LocalState.session`) is always the innermost: never wait for a lock
+or do network I/O inside it. `LockRegistry` enforces the lock half of that rule: asking for a
+batch or the runs lock while this thread has a session open raises `LockOrderError`.
 """
 
 import logging
@@ -25,12 +28,20 @@ from transcribe_ui.state.constants import (
     WRITER_LOCK_FILE_MODE,
     WRITER_LOCK_HELD_ERRNOS,
 )
-from transcribe_ui.state.errors import AppBusyError, BatchBusyError, RunsBusyError, StateUnavailableError
+from transcribe_ui.state.errors import (
+    AppBusyError,
+    BatchBusyError,
+    LockOrderError,
+    RunsBusyError,
+    StateUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
 # Returns whether cancellation was requested (the `is_cancelled` of a cancel token).
 type CancelCheck = Callable[[], bool]
+# Returns whether the calling thread has a database session open.
+type TransactionCheck = Callable[[], bool]
 
 
 if sys.platform == "win32":
@@ -110,9 +121,14 @@ class WriterLock:
 class LockRegistry:
     """The in-process batch locks and the runs lock of one backend; safe across threads."""
 
-    def __init__(self, runs_wait_s: float = RUNS_LOCK_WAIT_S) -> None:
-        """Wait at most `runs_wait_s` seconds for the runs lock (tests shorten it)."""
+    def __init__(self, runs_wait_s: float = RUNS_LOCK_WAIT_S, in_transaction: TransactionCheck | None = None) -> None:
+        """Wait at most `runs_wait_s` seconds for the runs lock (tests shorten it).
+
+        `in_transaction` tells whether the calling thread has a database session open; locks
+        are refused then (lock order).
+        """
         self._runs_wait_s = runs_wait_s
+        self._in_transaction = in_transaction
         self._guard = threading.Lock()
         self._busy_batches: set[str] = set()
         self._runs = threading.Lock()
@@ -124,6 +140,7 @@ class LockRegistry:
         Raises:
             BatchBusyError: If another request holds it.
         """
+        self._check_order()
         with self._guard:
             if batch_id in self._busy_batches:
                 raise BatchBusyError(batch_id)
@@ -146,11 +163,17 @@ class LockRegistry:
             RunsBusyError: If the lock stayed held for the whole wait.
             CancelledError: If cancellation was requested while waiting.
         """
+        self._check_order()
         self._acquire_runs(cancelled)
         try:
             yield
         finally:
             self._runs.release()
+
+    def _check_order(self) -> None:
+        if self._in_transaction is not None and self._in_transaction():
+            msg = "A lock was requested inside a database session; take locks before opening one."
+            raise LockOrderError(msg)
 
     def _acquire_runs(self, cancelled: CancelCheck | None) -> None:
         deadline = time.monotonic() + self._runs_wait_s

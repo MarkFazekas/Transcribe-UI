@@ -24,7 +24,7 @@
         "strategy": "flat_with_folders",
         "output_folder": "<root>/subtitles",
         "folder_count": 2,
-        "overwrite": false
+        "overwrite": true
       }
     },
     "languages": [

@@ -10,6 +10,7 @@ from transcribe_ui.state.constants import (
     ERROR_RUNS_BUSY,
     ERROR_SETTINGS_INVALID,
     ERROR_SETTINGS_UNWRITABLE,
+    ERROR_STATE_BUSY,
     ERROR_STATE_UNAVAILABLE,
 )
 
@@ -111,3 +112,22 @@ class SettingsUnwritableError(DomainError):
             ERROR_SETTINGS_UNWRITABLE,
             "The settings cannot be saved; the details are in the log.",
         )
+
+
+class StateBusyError(DomainError):
+    """A database transaction waited longer than the busy timeout; nothing was changed."""
+
+    def __init__(self) -> None:
+        """Use the fixed `state_busy` code and message."""
+        super().__init__(
+            ERROR_STATE_BUSY,
+            "The local database is busy with another request; send the request again.",
+        )
+
+
+class LockOrderError(RuntimeError):
+    """A programming error: a lock was requested inside an open database transaction.
+
+    Lock order is runs → batch → database transaction; nothing may wait for a lock (or do
+    network I/O) while a session is open. It becomes `internal_error`, never a domain code.
+    """

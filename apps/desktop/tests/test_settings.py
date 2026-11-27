@@ -5,6 +5,8 @@ with the same normalised responses (golden files).
 """
 
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -15,7 +17,8 @@ from support.parity import run_one, run_parity
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorResponse, GetSettingsRequest, Response, Settings, UpdateSettingsRequest
 from transcribe_ui.cli.constants import EXIT_INVALID_REQUEST, EXIT_OK
-from transcribe_ui.state.constants import SETTINGS_TEMP_PREFIX
+from transcribe_ui.state.constants import SETTINGS_STALE_TEMP_S, SETTINGS_TEMP_PREFIX
+from transcribe_ui.state.settings import default_settings
 
 GET_SETTINGS = '{"action": "get_settings"}'
 
@@ -28,8 +31,17 @@ def _updated_settings() -> dict[str, object]:
         "include_hidden": True,
         "ffmpeg_path": "<root>/tools/ffmpeg",
         "ffprobe_path": None,
-        "placement": {"strategy": "flat_with_folders", "output_folder": "<root>/subtitles", "folder_count": 2},
+        "placement": {
+            "strategy": "flat_with_folders",
+            "output_folder": "<root>/subtitles",
+            "folder_count": 2,
+            "overwrite": True,
+        },
     }
+
+
+def _defaults_with(**changes: object) -> dict[str, object]:
+    return {**default_settings().model_dump(mode="json"), **changes}
 
 
 def _update(settings: object) -> str:
@@ -57,13 +69,15 @@ def test_settings_round_trip_matches_on_both_legs(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("name", "settings"),
     [
-        ("unknown_language", {"enabled_languages": ["hu", "xx"]}),
-        ("duplicate_language", {"enabled_languages": ["hu", "en", "hu"]}),
-        ("no_language", {"enabled_languages": []}),
-        ("bad_extension", {"video_extensions": [".MKV"]}),
-        ("extension_in_both_classes", {"video_extensions": ["mka"], "audio_extensions": ["mka"]}),
-        ("empty_path", {"ffmpeg_path": ""}),
-        ("unknown_field", {"theme": "dark"}),
+        ("unknown_language", _defaults_with(enabled_languages=["hu", "xx"])),
+        ("duplicate_language", _defaults_with(enabled_languages=["hu", "en", "hu"])),
+        ("no_language", _defaults_with(enabled_languages=[])),
+        ("bad_extension", _defaults_with(video_extensions=[".MKV"])),
+        ("extension_in_both_classes", _defaults_with(video_extensions=["mka"], audio_extensions=["mka"])),
+        ("empty_path", _defaults_with(ffmpeg_path="")),
+        ("unknown_field", _defaults_with(theme="dark")),
+        # A partial document is refused, never completed with defaults (that would reset fields).
+        ("partial", {"enabled_languages": ["hu"]}),
     ],
 )
 def test_invalid_settings_are_refused_on_both_legs(tmp_path: Path, name: str, settings: object) -> None:
@@ -78,8 +92,8 @@ def test_settings_file_is_replaced_atomically(tmp_path: Path) -> None:
     """A save leaves exactly the settings file (no temp file) holding the new settings."""
     ports = seeded_ports(tmp_path)
     backend = Backend(ports)
-    settings = Settings(enabled_languages=("en",), include_hidden=True)
-    backend.execute(_update_request(Settings()))
+    settings = default_settings().model_copy(update={"enabled_languages": ("en",), "include_hidden": True})
+    backend.execute(_update_request(default_settings()))
     backend.execute(_update_request(settings))
     settings_file = ports.state.paths.settings_file
     assert [entry.name for entry in settings_file.parent.iterdir()] == [settings_file.name]
@@ -96,7 +110,7 @@ def test_broken_settings_file_is_reported(tmp_path: Path) -> None:
     settings_file.write_text('{"enabled_languages": ["xx"]}', encoding="utf-8")
     get_request = GetSettingsRequest(action="get_settings")
     assert _error_code(backend.execute(get_request)) == "settings_invalid"
-    backend.execute(_update_request(Settings()))
+    backend.execute(_update_request(default_settings()))
     assert backend.execute(get_request).status == "ok"
 
 
@@ -105,7 +119,7 @@ def test_settings_need_no_database(tmp_path: Path) -> None:
     ports = seeded_ports(tmp_path)
     backend = Backend(ports)
     backend.execute(GetSettingsRequest(action="get_settings"))
-    backend.execute(_update_request(Settings()))
+    backend.execute(_update_request(default_settings()))
     assert not ports.state.paths.data_dir.exists()
 
 
@@ -115,5 +129,37 @@ def test_unwritable_settings_are_reported(tmp_path: Path) -> None:
     config_dir = ports.state.paths.config_dir
     config_dir.parent.mkdir(parents=True)
     config_dir.write_bytes(b"")
-    response = Backend(ports).execute(_update_request(Settings()))
+    response = Backend(ports).execute(_update_request(default_settings()))
     assert _error_code(response) == "settings_unwritable"
+
+
+def test_settings_file_of_another_version_is_read(tmp_path: Path) -> None:
+    """Unknown fields (a newer app) are ignored and missing ones (an older app) take the defaults."""
+    ports = seeded_ports(tmp_path)
+    settings_file = ports.state.paths.settings_file
+    settings_file.parent.mkdir(parents=True)
+    stored = {"enabled_languages": ["de"], "theme": "dark", "placement": {"overwrite": True, "layout": "x"}}
+    settings_file.write_text(json.dumps(stored), encoding="utf-8")
+    loaded = ports.state.settings.load()
+    defaults = default_settings()
+    assert loaded == defaults.model_copy(
+        update={
+            "enabled_languages": ("de",),
+            "placement": defaults.placement.model_copy(update={"overwrite": True}),
+        },
+    )
+
+
+def test_save_removes_stale_temp_files(tmp_path: Path) -> None:
+    """A save removes temp files a crashed write left behind, but not a fresh one of another writer."""
+    ports = seeded_ports(tmp_path)
+    folder = ports.state.paths.config_dir
+    folder.mkdir(parents=True)
+    stale = folder / f"{SETTINGS_TEMP_PREFIX}crashed.json"
+    fresh = folder / f"{SETTINGS_TEMP_PREFIX}writing.json"
+    stale.write_bytes(b"{")
+    fresh.write_bytes(b"{")
+    old = time.time() - SETTINGS_STALE_TEMP_S * 2
+    os.utime(stale, (old, old))
+    ports.state.settings.save(default_settings())
+    assert (stale.exists(), fresh.exists()) == (False, True)

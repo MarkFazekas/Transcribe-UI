@@ -2,6 +2,7 @@
 
 import errno
 import logging
+import sqlite3
 from types import MappingProxyType
 from typing import Final
 
@@ -46,6 +47,10 @@ LANGUAGE_CODE_LENGTH: Final = 3
 STATUS_LENGTH: Final = 32
 # Seconds a database transaction waits for another thread's write transaction (SQLite busy timeout).
 DATABASE_BUSY_TIMEOUT_S: Final = 30.0
+# SQLite primary result codes of a lock that stayed held past the busy timeout.
+SQLITE_BUSY_CODES: Final = frozenset((sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED))
+# Mask turning an extended SQLite result code into its primary code.
+SQLITE_PRIMARY_CODE_MASK: Final = 0xFF
 # Package holding the Alembic environment (`env.py`, `script.py.mako`, `versions/`).
 MIGRATIONS_PACKAGE: Final = "transcribe_ui.state"
 # Folder of the Alembic environment inside `MIGRATIONS_PACKAGE`.
@@ -64,13 +69,20 @@ RUNS_LOCK_POLL_S: Final = 0.1
 SETTINGS_FILE_NAME: Final = "settings.json"
 # Prefix of the temp file a settings write goes through before `os.replace`.
 SETTINGS_TEMP_PREFIX: Final = ".settings-"
-# Attempts of the `os.replace` of a settings write (Windows refuses it while a reader has the file open).
-SETTINGS_REPLACE_ATTEMPTS: Final = 5
-# Seconds between those attempts.
-SETTINGS_REPLACE_DELAY_S: Final = 0.05
+# Suffix of that temp file.
+SETTINGS_TEMP_SUFFIX: Final = ".json"
+# Age in seconds after which a leftover settings temp file (from a crashed write) is removed.
+SETTINGS_STALE_TEMP_S: Final = 60.0
+# Pauses between attempts of the `os.replace` of a settings write while Windows reports a
+# sharing violation (another process has the file open); about 2 s in all.
+SETTINGS_REPLACE_DELAYS_S: Final = (0.05, 0.1, 0.2, 0.4, 0.6, 0.65)
 
-# File name of the rotating log in the user log dir.
-LOG_FILE_NAME: Final = "transcribe-ui.log"
+# Suffix the log file gets while it is being rotated (renamed first, then moved to `.1`).
+LOG_ROTATING_SUFFIX: Final = ".rotating"
+# Bytes (64 kibibytes) appended after a failed rotation before the next attempt (another process held the file).
+LOG_ROLLOVER_RETRY_BYTES: Final = 65536
+# Encoding of the log files.
+LOG_ENCODING: Final = "utf-8"
 # Size at which the log file is rotated.
 LOG_MAX_BYTES: Final = 1024 * 1024
 # Rotated log files kept next to the current one.
@@ -86,6 +98,8 @@ ERROR_APP_BUSY: Final = "app_busy"
 ERROR_DATABASE_TOO_NEW: Final = "database_too_new"
 # Error code: the data dir, the lock file or the database cannot be opened.
 ERROR_STATE_UNAVAILABLE: Final = "state_unavailable"
+# Error code: the database stayed locked by another transaction past the busy timeout; re-send.
+ERROR_STATE_BUSY: Final = "state_busy"
 # Error code: another request is changing the same batch right now.
 ERROR_BATCH_BUSY: Final = "batch_busy"
 # Error code: another request holds the runs lock longer than the bounded wait.
@@ -135,5 +149,7 @@ DEFAULT_AUDIO_EXTENSIONS: Final = (
     "wav",
     "wma",
 )
+# Placement strategy offered by a fresh installation (§3.5).
+DEFAULT_PLACEMENT_STRATEGY: Final = "next_to_media"
 # Folders closest to the file joined into the name by the flat-with-folders placement (X, §3.5).
 DEFAULT_PLACEMENT_FOLDER_COUNT: Final = 1

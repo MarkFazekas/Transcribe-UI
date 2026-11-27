@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, StringConstraints, model_validator
 
-from transcribe_contracts.constants import DEFAULT_LANGUAGES, WHISPER_LANGUAGES
+from transcribe_contracts.constants import WHISPER_LANGUAGES
 from transcribe_ui.api.base import FrozenModel, LocalPath
 from transcribe_ui.discovery.classes import (
     PreviewSelectionRequest,
@@ -18,12 +18,7 @@ from transcribe_ui.discovery.classes import (
     ScanTreeRequest,
     ScanTreeResponse,
 )
-from transcribe_ui.state.constants import (
-    DEFAULT_AUDIO_EXTENSIONS,
-    DEFAULT_PLACEMENT_FOLDER_COUNT,
-    DEFAULT_VIDEO_EXTENSIONS,
-    MEDIA_EXTENSION_PATTERN,
-)
+from transcribe_ui.state.constants import MEDIA_EXTENSION_PATTERN
 
 
 def _check_whisper_language(code: str) -> str:
@@ -62,35 +57,36 @@ class GetAppInfoRequest(FrozenModel):
     action: Literal["get_app_info"]
 
 
-# Settings (stored in the user config dir; they only pre-fill request fields, plan m5 §1)
+# Settings (stored in the user config dir; they only pre-fill request fields, plan m5 §1).
+# Every field is required, so `update_settings` always carries the whole document and a partial
+# one is refused instead of silently resetting the missing fields; the defaults are
+# `state.settings.default_settings()`.
 
 
 class PlacementDefaults(FrozenModel):
     """Placement choices a download request is pre-filled with (§3.5)."""
 
-    strategy: PlacementStrategy = "next_to_media"
+    strategy: PlacementStrategy
     # Target folder of the mirror and flat strategies; None until the user picks one.
-    output_folder: SetPath | None = None
+    output_folder: SetPath | None
     # Folders closest to the file joined into the name by `flat_with_folders` (X).
-    folder_count: PositiveInt = DEFAULT_PLACEMENT_FOLDER_COUNT
-    overwrite: bool = False
+    folder_count: PositiveInt
+    overwrite: bool
 
 
 class Settings(FrozenModel):
-    """The user's settings; a missing settings file means these defaults."""
+    """The user's settings (all fields required; see `state.settings.default_settings`)."""
 
     # Languages the GUI offers in choosers and filters, in the user's order.
-    enabled_languages: Annotated[tuple[WhisperLanguage, ...], Field(min_length=1), AfterValidator(_check_unique)] = (
-        DEFAULT_LANGUAGES
-    )
-    video_extensions: MediaExtensions = DEFAULT_VIDEO_EXTENSIONS
-    audio_extensions: MediaExtensions = DEFAULT_AUDIO_EXTENSIONS
+    enabled_languages: Annotated[tuple[WhisperLanguage, ...], Field(min_length=1), AfterValidator(_check_unique)]
+    video_extensions: MediaExtensions
+    audio_extensions: MediaExtensions
     # Whether scans include hidden and system files and folders.
-    include_hidden: bool = False
+    include_hidden: bool
     # ffmpeg/ffprobe to use instead of the bundled build (§3.4); None uses the bundled one.
-    ffmpeg_path: SetPath | None = None
-    ffprobe_path: SetPath | None = None
-    placement: PlacementDefaults = Field(default_factory=PlacementDefaults)
+    ffmpeg_path: SetPath | None
+    ffprobe_path: SetPath | None
+    placement: PlacementDefaults
 
     @model_validator(mode="after")
     def _extension_classes_are_disjoint(self) -> "Settings":

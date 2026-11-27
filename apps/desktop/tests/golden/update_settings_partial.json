@@ -1,0 +1,70 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (6 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "video_extensions"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          },
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "audio_extensions"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          },
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "include_hidden"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          },
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "ffmpeg_path"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          },
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "ffprobe_path"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          },
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "placement"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}
