@@ -17,6 +17,7 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 
 ## Working rules (summary of docs/human/working-agreements.md)
 
+- Quality and the end-user experience are the main principle (see working-agreements).
 - The user is the **architect**. Architecture, hosting, CI and implementation questions go to
   `questions-for-architect.md` and chat; product (UI/behaviour) questions go to
   `questions-for-product.md`, each with a proposed default. "default" means: apply the

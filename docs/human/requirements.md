@@ -197,7 +197,8 @@ Naming and conflicts:
 
 - Project language: English (code, docs, commits, PR texts, product questions).
 - Very high code quality standard.
-  Quality is the first and main principle (`working-agreements.md`).
+  Quality and the end-user experience are the first and main principle
+  (`working-agreements.md`).
 - Business logic is separated from the UI. The backend logic must be usable from the CLI and
   the UI. Frontend and backend live in one app; the boundary is internal and validated with
   Pydantic.
