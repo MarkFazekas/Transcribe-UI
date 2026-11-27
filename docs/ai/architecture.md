@@ -728,7 +728,7 @@ download requests below wire it to the batches):
   long-path support. These name errors are reported for every job, whatever its outcome.
 - Outcomes: `pending` → `not_finished` (Q24), `failed` → `skip_failed`, `empty` →
   `skip_empty` unless `include_empty`; next to the media a missing original folder gives
-  `skip_folder_missing` for that file while the others are placed (Q23's proposed default); an
+  `skip_folder_missing` for that file while the others are placed (requirements "Subtitle download options"); an
   existing file → `skip_existing`, or `overwrite` when asked; a folder in the way is skipped,
   and asking to overwrite it is `target_not_a_file`; a target that cannot be checked (no
   permission) is `target_unreadable`, never a skip. These target errors are reported only for
@@ -1521,7 +1521,7 @@ pods-only key is passed as a Runpod secret.
   share the word's time, or the segment's when untimed, in proportion to length, so the
   line and cue limits hold; lines and cues may break between units. Thai and similar
   scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
-  width (open product question Q22); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  width (42 characters for every language, requirements "Subtitle download options"); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
   text (the compression and segment checks still do).
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of

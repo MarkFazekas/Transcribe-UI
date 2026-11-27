@@ -124,6 +124,14 @@ Naming and conflicts:
 - An existing subtitle file with the same name is listed before the download; skipped by
   default, overwrite selectable. Low effort: this can practically only happen if the file was
   transcribed while the batch was being started.
+- Original folder gone *(Q23, accepted default)*: the job remembers where each original file
+  was. If by download time the file's folder was moved, renamed or deleted, the download plan
+  lists the file with the reason "original folder not found" and skips it; every other subtitle
+  is placed. The user can download the skipped ones again with another option (for example into
+  a chosen folder).
+- Subtitle line length *(Q22, accepted default)*: lines hold at most 42 characters for every
+  language, including Chinese and Japanese (Hungarian and English are the main languages);
+  revisit if Chinese or Japanese subtitles are actually used.
 - Two subtitles that would get the same name in one folder are shown; by default each gets its
   folder name as prefix: `A_movie.hu.srt`, `B_movie.hu.srt`. No numbering.
 
