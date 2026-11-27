@@ -44,6 +44,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. M5 wave 2 per `docs/ai/plans/m5.md` §4, first M5.2 (local state) and M5.4 (media tools)
-   in parallel (M5.3 is built), then M5.5, M5.6 and M5.7; M4 runs whenever the architect
-   is available.
+2. M5 wave 2 per `docs/ai/plans/m5.md` §4: M5.2 (local state; M5.3 and M5.4 are built),
+   then M5.5, M5.6 and M5.7; M4 runs whenever the architect is available. M5.2 also passes
+   the settings' ffmpeg/ffprobe override into `ToolOverrides` in `api/wiring.py` (M5.4 left
+   it empty).

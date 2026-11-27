@@ -286,11 +286,36 @@ docs/human/, docs/ai/     see CLAUDE.md
   (that only worked for AAC). If the muxer rejects a codec, fall back to lossless FLAC.
 - Audio track choice for multi-track videos comes from the review step. Distinct tracks
   become distinct audio objects.
-- Embedded subtitle extraction: `ffmpeg -nostdin -i <in> -map 0:s:<n> -c:s srt <tmp>.srt`
-  for text codecs (`subrip`, `ass`, `ssa`, `mov_text`, `webvtt`, `text`).
+- Embedded subtitle extraction:
+  `ffmpeg -nostdin -copyts -i <in> -map 0:s:<n> -c:s srt -f srt pipe:1` for text codecs
+  (`subrip`, `ass`, `ssa`, `mov_text`, `webvtt`, `text`); the SRT is read from stdout (no temp
+  file). `-copyts` keeps the cue times as the container stores them; without it ffmpeg shifts
+  them by the file's start time (tens of milliseconds from audio priming, more in some
+  containers). Bitmap codecs (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`, `xsub`) and
+  unknown ones are transcribe-only.
 - ffmpeg/ffprobe: bundled static LGPL builds inside the executable. Resolution order: the
-  path set in the settings, then the bundled build, then `PATH` (development runs without a
-  bundle), so a `PATH` ffmpeg of unknown version never silently replaces the tested one.
+  path set in the settings, then the bundled build (`sys._MEIPASS` of a PyInstaller build),
+  then `PATH` (development runs without a bundle), so a `PATH` ffmpeg of unknown version never
+  silently replaces the tested one. A settings path that is not a file is an error
+  (`media_tool_not_found`), never skipped. The tools are resolved when first used, so requests
+  that need no media work without them.
+- Media adapter (`transcribe_ui/media/`): the `MediaTools` port (`probe`, `convert`,
+  `extract`), its ffmpeg adapter and a deterministic fake for golden flows. Processes run
+  through an injectable `ProcessRunner`:
+  - every ffmpeg/ffprobe process starts in its own process group (`start_new_session` on
+    POSIX; `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` on Windows), so the terminal's Ctrl+C
+    reaches only the app; the runner polls the cancel token and the timeout every 0.1 s and
+    kills the process itself (the whole group on POSIX), also when anything else interrupts
+    the wait (a second Ctrl+C);
+  - timeouts: probe 2 min, each conversion attempt and an extraction 1 h (hang guards, not
+    performance limits);
+  - a conversion writes `<name>.<ext>.part` and renames it into place on success; the partial
+    file is removed on failure, timeout and cancel, so a finished name always means a complete
+    file. The FLAC fallback runs whenever the stream copy exits non-zero (not after a timeout
+    or cancel), since ffmpeg's wording of a muxer refusal is not stable across versions;
+  - errors: `media_tool_not_found` (details `source`: `settings`, `search` or `start`),
+    `media_tool_failed` (details: tool, operation, exit code and the last 500 characters of
+    stderr), `media_tool_timeout`, `cancelled`.
 
 ### 3.5 Download and placement
 
@@ -779,7 +804,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1 and M5.3 built): Desktop backend: façade, discovery and selection,
+- **M5** (planned in `plans/m5.md`; M5.1, M5.3 and M5.4 built): Desktop backend: façade, discovery and selection,
   batches, conversion and resumable R2 upload, credentials, worker launch and monitoring,
   download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

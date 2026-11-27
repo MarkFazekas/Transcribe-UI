@@ -73,8 +73,11 @@ runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`)
 - boto3 is typed through the `types-boto3[s3]` dev dependency (imported only under
   `TYPE_CHECKING`).
 - CI installs the system `ffmpeg` for the worker and desktop targets (apt on Ubuntu,
-  Chocolatey on Windows; the worker's decode tests and, from M5.4, the desktop's media tests
-  run the real binary); locally it must be on `PATH`.
+  Chocolatey on Windows; the worker's decode tests and the desktop's media tests run the real
+  binary, the desktop's generating tiny media with `lavfi` sources in
+  `apps/desktop/tests/support/media.py`); locally it must be on `PATH`. The desktop's
+  kill-on-cancel and timeout tests on real ffmpeg read a named pipe and run on POSIX only; on
+  Windows the same kill paths are covered by the runner tests with Python children.
 - The desktop's runtime dependencies for all of M5 (pydantic, sqlalchemy, alembic,
   platformdirs, keyring, httpx, boto3) were added at once by M5.1, so parallel parts do not
   conflict on `uv.lock`. `keyring` and `platformdirs` ship their own types.
