@@ -26,7 +26,7 @@ from support.cleanup import (
 )
 from support.credentials import TEST_BUCKET, moto_bucket
 from support.interrupt import Crash, TripStore, Tripwire
-from support.launch import ok_as
+from support.launch import PLAN, document, ok_as
 from support.runs import RUN_ID, RunsWorld, seed_run, seed_uploaded
 from support.upload import open_uploads, set_phase, temp_files, upload_world
 from transcribe_contracts.layout import done_key, manifest_key
@@ -159,6 +159,13 @@ def test_scopes_refused_in_the_wrong_phase(uploading: RunsWorld) -> None:
     assert flags(uploading) == ("reviewing", False)
 
 
+def _assert_launches_refused(world: RunsWorld, wire: Tripwire) -> None:
+    """A cleanup killed after it was recorded keeps its marker: no plan (and no launch) until it is repeated."""
+    assert cleanup_pending(world) == EVERYTHING, wire
+    refusal = ("cleanup_pending", {"batch_ids": [FIRST_BATCH_ID]})
+    assert error_of(send(world, document(PLAN))) == refusal, wire
+
+
 def _killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wire: Tripwire) -> bool:
     """Kill an `everything` cleanup at the wire on a fresh bucket, then repeat it; return whether it fired."""
     bucket = f"cleanup-{wire.at}-{int(wire.after)}"
@@ -171,6 +178,8 @@ def _killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wire: 
         patch_store(monkeypatch, "known", lambda store: store)
         if not wire.fired:
             return False
+        if flags(world)[1]:
+            _assert_launches_refused(world, wire)
         _cleaned(world, confirmed(EVERYTHING))
         assert (keys_under(world.store), flags(world)) == ([], ("cleaned", True)), wire
         assert cleanup_pending(world) is None, wire

@@ -73,13 +73,16 @@ def transcribing(cloud: Cloud, store: R2ObjectStore, run_id: str, current: JobRe
 
 
 def finished(cloud: Cloud, store: R2ObjectStore, run_id: str, batch_id: str, jobs: tuple[SimulatedJob, ...]) -> None:
-    """Write every job's result, `_done.json`, the final heartbeat and the log; the pod ends itself."""
+    """Write every job's result, `_done.json`, the final heartbeat and the log; the pod ends itself.
+
+    Every pod and queued pod record goes, listed yet or not (list lag), so nothing of the run lives on.
+    """
     now = cloud.clock.now()
     for job in jobs:
         write_job_result(store, batch_id, job, run_id, now)
     write_done(store, batch_id, run_id, now)
     write_status(store, run_id, "finished", now, done_jobs=len(jobs), total_jobs=len(jobs))
     write_log(store, run_id)
-    for pod in cloud.api.pods.listed():
-        cloud.api.pods.records.pop(str(pod["id"]))
+    cloud.api.pods.records.clear()
+    cloud.api.queued_pods.records.clear()
     cloud.clock.advance(timedelta(minutes=1))

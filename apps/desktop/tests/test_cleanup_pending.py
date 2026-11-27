@@ -18,7 +18,7 @@ import pytest
 
 from support.batch_backend import error_of, run_ok
 from support.batches import FIRST_BATCH_ID, batch_request
-from support.cleanup import EVERYTHING, cleanup_pending, confirmed, keys_under, patch_store, seed_world, send
+from support.cleanup import AUDIO, EVERYTHING, cleanup_pending, confirmed, keys_under, patch_store, seed_world, send
 from support.credentials import moto_bucket
 from support.interrupt import Crash, StoreWrap, TripStore, Tripwire
 from support.launch import LAUNCH, PLAN, document
@@ -89,6 +89,20 @@ def test_interrupted_cleanup_blocks_launches(world: RunsWorld, monkeypatch: pyte
     assert send(world, confirmed(EVERYTHING)).status == "ok"
     assert (cleanup_pending(world), keys_under(world.store)) == (None, [])
     assert send(world, document(PLAN)).status == "ok"
+
+
+def test_audio_cleanup_then_everything(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An interrupted `audio` cleanup leaves its marker; `everything` takes it over, then clears it."""
+    patch_store(monkeypatch, "known", lambda store: _CrashingDeletes(store, Tripwire()))
+    with contextlib.suppress(Crash):
+        send(world, confirmed(AUDIO))
+    assert cleanup_pending(world) == AUDIO
+    with contextlib.suppress(Crash):
+        send(world, confirmed(EVERYTHING))
+    assert cleanup_pending(world) == EVERYTHING
+    patch_store(monkeypatch, "known", lambda store: store)
+    assert send(world, confirmed(EVERYTHING)).status == "ok"
+    assert (cleanup_pending(world), keys_under(world.store)) == (None, [])
 
 
 def test_refresh_runs_while_a_cleanup_deletes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
