@@ -158,7 +158,7 @@ Deployment credentials live in GitHub environments whose deployment branch polic
 | Environment | Variables | Secrets | Used by |
 |---|---|---|---|
 | `dockerhub` | `DOCKERHUB_USERNAME` | `DOCKERHUB_TOKEN` (Docker Hub personal access token, Read & Write) | `release-worker.yml` push job |
-| `runpod-reaper` | | `RUNPOD_REAPER_API_KEY` (pods-only Runpod key) | `reaper.yml` |
+| `runpod-reaper` | | `RUNPOD_REAPER_API_KEY` (Runpod key, scope Pods read+write only) | `reaper.yml` |
 
 Set them from the repo root with `gh variable set NAME --env <env> --body <value>` and
 `gh secret set NAME --env <env>` (prompts for the value, so it never lands in shell history;
