@@ -56,6 +56,66 @@ class NoRedirect(HTTPRedirectHandler):
         """Do not follow; the 3xx then surfaces as an HTTPError."""
 
 
+class ApiSession:
+    """Authenticated requests to one Runpod API base URL.
+
+    The key is only sent to an allowed base URL (https on `*.runpod.io`, or http on 127.0.0.1 in tests), redirects are refused, and
+    error messages never contain request or response data.
+    """
+
+    def __init__(self, base_url: str, api_key: str) -> None:
+        """Create a session.
+
+        Args:
+            base_url: API base URL: https on a runpod.io host, or http on 127.0.0.1 (tests).
+            api_key: Bearer token.
+
+        Raises:
+            ValueError: If the base URL is not allowed.
+        """
+        _check_base_url(base_url)
+        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key
+        self._opener: OpenerDirector = build_opener(NoRedirect)
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: JsonBody = None,
+        *,
+        what: str = "pod",
+    ) -> bytes | None:
+        """Send one request; return the body, or None on 404.
+
+        Args:
+            method: HTTP method.
+            path: Path below the base URL (with a leading slash and any query string).
+            body: JSON body, or None for no body.
+            what: Short label of the target, used in error messages.
+
+        Raises:
+            PodApiError: Network or protocol error, or an HTTP status other than 2xx and 404.
+        """
+        payload = None if body is None else json.dumps(body).encode()
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
+        url = f"{self._base_url}{path}"
+        try:
+            request = Request(url, data=payload, headers=headers, method=method)  # noqa: S310 - URL checked
+            with self._opener.open(request, timeout=HTTP_TIMEOUT_S) as response:
+                response_body: bytes = response.read()
+        except HTTPError as error:
+            if error.code == HTTP_NOT_FOUND:
+                return None
+            msg = f"{method} {what}: HTTP {error.code}"
+            raise PodApiError(msg) from None
+        except (OSError, HTTPException, ValueError) as error:  # network, protocol, header encoding
+            # Only the type: messages may echo request data, and the chain stays out of logs.
+            msg = f"{method} {what}: {type(error).__name__}"
+            raise PodApiError(msg) from None
+        return response_body
+
+
 class RunpodPodApi:
     """`PodApi` over Runpod REST v2 with `urllib`.
 
@@ -74,32 +134,30 @@ class RunpodPodApi:
         Raises:
             ValueError: If the base URL is not allowed.
         """
-        _check_base_url(base_url)
-        self._pod_url = f"{base_url.rstrip('/')}/pods/{pod_id}"
-        self._api_key = api_key
-        self._opener: OpenerDirector = build_opener(NoRedirect)
+        self._session = ApiSession(base_url, api_key)
+        self._pod_path = f"/pods/{pod_id}"
         self._seen = False
 
     def exists(self) -> bool:
         """Probe the pod (`GET /pods/{id}`)."""
-        found = self._request("GET", self._pod_url) is not None
+        found = self._session.request("GET", self._pod_path) is not None
         self._seen = self._seen or found
         return found
 
     def terminate(self) -> None:
         """Terminate the pod (`DELETE /pods/{id}`)."""
-        if self._request("DELETE", self._pod_url) is not None:
+        if self._session.request("DELETE", self._pod_path) is not None:
             self._seen = True
         elif not self._seen:
             _unknown_pod()
 
     def stop(self) -> None:
         """Stop the pod (`POST /pods/{id}/action`)."""
-        self._request("POST", f"{self._pod_url}/action", {"action": "stop"})
+        self._session.request("POST", f"{self._pod_path}/action", {"action": "stop"})
 
     def is_gone(self) -> bool:
         """Return True if the pod is terminated (`GET /pods/{id}`)."""
-        response = self._request("GET", self._pod_url)
+        response = self._session.request("GET", self._pod_path)
         if response is None:
             if not self._seen:
                 _unknown_pod()
@@ -111,25 +169,6 @@ class RunpodPodApi:
             msg = "unreadable pod status"
             raise PodApiError(msg) from None
         return isinstance(pod, dict) and pod.get("status") == TERMINATED_STATUS
-
-    def _request(self, method: str, url: str, body: JsonBody = None) -> bytes | None:
-        """Send a request; return the body, or None on 404. Every failure is a PodApiError."""
-        payload = None if body is None else json.dumps(body).encode()
-        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
-        try:
-            request = Request(url, data=payload, headers=headers, method=method)  # noqa: S310 - URL checked
-            with self._opener.open(request, timeout=HTTP_TIMEOUT_S) as response:
-                response_body: bytes = response.read()
-        except HTTPError as error:
-            if error.code == HTTP_NOT_FOUND:
-                return None
-            msg = f"{method} pod: HTTP {error.code}"
-            raise PodApiError(msg) from None
-        except (OSError, HTTPException, ValueError) as error:  # network, protocol, header encoding
-            # Only the type: messages may echo request data, and the chain stays out of logs.
-            msg = f"{method} pod: {type(error).__name__}"
-            raise PodApiError(msg) from None
-        return response_body
 
 
 def _check_base_url(base_url: str) -> None:

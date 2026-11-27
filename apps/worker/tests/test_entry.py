@@ -454,7 +454,7 @@ def test_protocol_errors_are_pod_api_errors(monkeypatch: pytest.MonkeyPatch) -> 
     partial_body = b"secret"
     opener = Mock(spec=["open"])
     opener.open.side_effect = IncompleteRead(partial_body)
-    monkeypatch.setattr(api, "_opener", opener)
+    monkeypatch.setattr(api._session, "_opener", opener)  # noqa: SLF001 - inject the failure below the client
     with pytest.raises(PodApiError, match="IncompleteRead") as caught:
         api.terminate()
     assert "secret" not in str(caught.value)
