@@ -6,8 +6,10 @@ the runs lock, and no database transaction is open across a Runpod or R2 call. I
 1. Every run that is not final is followed (`runs/refreshing.py`): `launching` runs are resolved
    by their name, a queued pod is followed to the pod it deploys, a pod read records its status,
    price and first `RUNNING` sighting, and the worker's `status.json` is read. A run whose pod is
-   gone ends (`finished` when the worker reported so, else `failed`); past its desktop deadline
-   its pod is stopped, verified, and the run fails.
+   gone ends (`finished` when the worker reported so, else `failed`; not while R2 cannot be
+   read); past its desktop deadline its pod is stopped, verified, and the run fails, whatever R2
+   does. Only the Runpod key is needed up to here: R2 is opened on first use (`LazyStore`), and
+   an R2 error is raised once every run was handled.
 2. Every `ready` batch gets its job results and, with `_done.json`, moves to `transcribed`
    (`runs/results.py`).
 3. The objects of final runs are kept locally and deleted (`runs/collect.py`).
@@ -18,12 +20,13 @@ the runs lock, and no database transaction is open across a Runpod or R2 call. I
 from datetime import datetime
 
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runs.classes import RefreshStatusRequest
-from transcribe_ui.runs.cloud import CloudAccess, open_cloud
+from transcribe_ui.runs.cloud import CloudAccess, LazyStore, open_runpod
 from transcribe_ui.runs.collect import collect_run_objects
 from transcribe_ui.runs.progress import run_progress
 from transcribe_ui.runs.records import open_runs
-from transcribe_ui.runs.refreshing import Refreshed, refresh_runs
+from transcribe_ui.runs.refreshing import Refreshed, first_failure, refresh_runs
 from transcribe_ui.runs.responses import RefreshStatusResponse, RunProgress
 from transcribe_ui.runs.results import check_ready_batches
 from transcribe_ui.state.store import LocalState
@@ -43,8 +46,10 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
     """
     ports = context.ports
     state = ports.state
-    with state.locks.runs(context.cancel.is_cancelled), open_cloud(context) as cloud:
-        refreshed = refresh_runs(context, cloud)
+    with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
+        store = LazyStore(context)
+        refreshed = _runs_refreshed(context, client.pods, store)
+        cloud = CloudAccess(store.get(), client.pods)
         checked = check_ready_batches(context, cloud.store)
         collect_run_objects(state, cloud.store, ports.clock.now())
         published = _publish(context, cloud)
@@ -57,6 +62,19 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         published=published.published,
         held=_still_held(published),
     )
+
+
+def _runs_refreshed(context: RequestContext, pods: PodsApi, store: LazyStore) -> list[Refreshed]:
+    """Follow the open runs; raise the first R2 failure once every run was handled.
+
+    Raises:
+        DomainError: Runpod or R2 (or the R2 credentials) failed.
+    """
+    refreshed = refresh_runs(context, pods, store)
+    failure = first_failure(refreshed)
+    if failure is not None:
+        raise failure
+    return refreshed
 
 
 def _publish(context: RequestContext, cloud: CloudAccess) -> HeldPublication:

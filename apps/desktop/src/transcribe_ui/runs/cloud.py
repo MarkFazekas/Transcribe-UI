@@ -58,3 +58,29 @@ def open_runpod(context: RequestContext) -> Iterator[RunpodClient]:
     api_key = context.ports.credentials.runpod_api_key()
     with context.ports.runpod.client(api_key, context.cancel.is_cancelled) as client:
         yield client
+
+
+class LazyStore:
+    """R2 opened with the stored credentials on first use, so work that needs only Runpod runs without it.
+
+    `refresh_status` stops a run at its deadline from Runpod data alone: missing or rejected R2
+    credentials, or an R2 outage, must not keep a billing pod alive.
+    """
+
+    def __init__(self, context: RequestContext) -> None:
+        """Open nothing yet."""
+        self._context = context
+        self._store: ObjectStore | None = None
+
+    def get(self) -> ObjectStore:
+        """Return the object store, opening it on the first call.
+
+        Raises:
+            DomainError: `credentials_missing` or `credentials_invalid` for the R2 credentials,
+                or a `StorageError` when the R2 client cannot be built.
+        """
+        if self._store is None:
+            ports = self._context.ports
+            r2 = ports.credentials.r2()
+            self._store = R2ObjectStore(ports.r2_clients(r2, TRANSFER_LIMITS), r2.bucket)
+        return self._store
