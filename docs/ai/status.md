@@ -30,8 +30,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## Waiting on humans
 
-- Architect: schedule the M4 approved Runpod run; A20 (one executable for the GUI and the
-  CLI) in `questions-for-architect.md`; M6.2 builds on its proposed default.
+- Architect: schedule the M4 approved Runpod run.
 - Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
   gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
   before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud), Q29

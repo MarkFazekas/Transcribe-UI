@@ -189,6 +189,7 @@ Naming and conflicts:
 
 - Project language: English (code, docs, commits, PR texts, product questions).
 - Very high code quality standard.
+  Quality is the first and main principle (`working-agreements.md`).
 - Business logic is separated from the UI. The backend logic must be usable from the CLI and
   the UI. Frontend and backend live in one app; the boundary is internal and validated with
   Pydantic.
@@ -202,7 +203,11 @@ Naming and conflicts:
 - Managed with uv, as one workspace (`packages/contracts`, `apps/desktop`, `apps/worker`);
   Python 3.13 everywhere.
 - Desktop stack *(accepted proposal)*: PySide6, PyInstaller one-file, static LGPL ffmpeg
-  bundled, four unsigned builds.
+  bundled, unsigned builds for four platforms.
+- Two executables per platform *(A20, architect: option b)*: a GUI executable (windowed, GUI
+  subsystem, contains Qt, opens the GUI) and a CLI executable (console, without Qt, so it is
+  small and fast to start; serves `run`, `schema`, `--version` and `credentials`). The release
+  has eight files, two per platform.
 - Local state: SQLite with SQLAlchemy and Alembic.
 - Code layout, Django-like: constants per folder / app / sub-app in a `constants.py`, each with
   a roughly one-line explanation of its purpose, not with an underscore at the top of other
