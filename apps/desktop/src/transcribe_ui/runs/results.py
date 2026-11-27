@@ -2,39 +2,32 @@
 
 For every `ready` batch (not only the run's: the worker processes every manifest), each pending
 transcribe job whose result JSON is listed gets its status (`ok`, `no_speech` or `failed`, read
-through `reading.read_job_result`; one that cannot be read stays pending and is logged), and a
-batch whose `_done.json` exists moves to `transcribed` by compare-and-set. Each batch's lock is
-only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2 is read
-outside any transaction.
+through `reading.read_job_result`, with the result's `error`), and a batch whose `_done.json`
+exists moves to `transcribed` by compare-and-set. `_done.json` is looked for before the results
+are listed: the worker writes it after the batch's last result, so a listing made after seeing
+it holds every result (one written in between is seen at the next refresh, before the batch can
+move on). A result that cannot be read stays pending (logged) until `_done.json` is there; then
+the job is `failed` with the reason `unreadable result`, so a retry can take it. Each batch's
+lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
+is read outside any transaction.
 """
 
-import logging
 from collections import Counter
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, select, update
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
-from transcribe_contracts.errors import ContractError
-from transcribe_contracts.layout import done_key, parse_result_key, results_prefix
-from transcribe_contracts.reading import read_job_result
+from transcribe_contracts.layout import done_key
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import JOB_PENDING
-from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBED_PHASE
+from transcribe_ui.batches.payloads import JobPayload
+from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND, TRANSCRIBED_PHASE
 from transcribe_ui.runs.responses import BatchResults
+from transcribe_ui.runs.result_reads import UNREADABLE_RESULT, PendingJobs, ResultRead, read_results
 from transcribe_ui.state.database import compare_and_set_phase
 from transcribe_ui.state.models import BatchRow, JobRow
 from transcribe_ui.storage.r2 import ObjectStore
-
-logger = logging.getLogger(__name__)
-
-# Kind of the jobs the worker runs.
-TRANSCRIBE_KIND = "transcribe"
-# Suffix of a job's result JSON (its "done" marker).
-RESULT_SUFFIX = ".json"
-
-# Pending transcribe job ids by (item id, language).
-type PendingJobs = dict[tuple[str, str], int]
 
 
 @dataclass(frozen=True)
@@ -73,11 +66,12 @@ def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> 
     state = context.ports.state
     with state.session() as session:
         pending = _pending_jobs(session, batch_id)
-    found = _read_results(store, batch_id, pending)
     done = store.head(done_key(batch_id)) is not None
+    found = read_results(store, batch_id, pending)
+    outcomes = _outcomes(found, done=done)
     with state.session() as session:
-        for job_id, job_status in found.items():
-            _record_result(session, job_id, job_status)
+        for job_id, outcome in outcomes.items():
+            _record_result(session, job_id, outcome)
         if done:
             now = context.ports.clock.now()
             compare_and_set_phase(session, batch_id, READY_PHASE, TRANSCRIBED_PHASE, now=now)
@@ -85,18 +79,37 @@ def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> 
     return _batch_results(batch_id, statuses, done=done)
 
 
-def _record_result(session: Session, job_id: int, job_status: str) -> None:
-    """Set a job's status from its result, unless it is no longer pending."""
-    still_pending = (JobRow.job_id == job_id, JobRow.status == JOB_PENDING)
-    statement = update(JobRow).where(*still_pending)
-    session.execute(statement.values(status=job_status))
+# Results read per job id (None: unreadable).
+type FoundResults = dict[int, ResultRead | None]
+
+
+def _outcomes(found: FoundResults, *, done: bool) -> dict[int, ResultRead]:
+    """Return what to record per job: the readable results, and the unreadable ones as failed once done."""
+    outcomes: dict[int, ResultRead] = {}
+    for job_id, outcome in found.items():
+        if outcome is not None:
+            outcomes[job_id] = outcome
+        elif done:
+            outcomes[job_id] = UNREADABLE_RESULT
+    return outcomes
+
+
+def _record_result(session: Session, job_id: int, outcome: ResultRead) -> None:
+    """Set a job's status (and its failure reason) from its result, unless it is no longer pending."""
+    row = session.get(JobRow, job_id)
+    if row is None or row.status != JOB_PENDING:
+        return
+    stored = JobPayload.model_validate(row.payload)
+    payload = stored.model_copy(update={"result_error": outcome.error})
+    row.status = outcome.status
+    row.payload = payload.model_dump(mode="json")
 
 
 def _transcribe_jobs(batch_id: str) -> tuple[ColumnElement[bool], ...]:
     return (JobRow.batch_id == batch_id, JobRow.kind == TRANSCRIBE_KIND)
 
 
-def _pending_jobs(session: Session, batch_id: str) -> dict[tuple[str, str], int]:
+def _pending_jobs(session: Session, batch_id: str) -> PendingJobs:
     """Return the batch's pending transcribe jobs: job id by (item id, language)."""
     columns = select(JobRow.item_id, JobRow.language, JobRow.job_id)
     query = columns.where(*_transcribe_jobs(batch_id), JobRow.status == JOB_PENDING)
@@ -107,36 +120,6 @@ def _pending_jobs(session: Session, batch_id: str) -> dict[tuple[str, str], int]
 def _transcribe_statuses(session: Session, batch_id: str) -> list[str]:
     query = select(JobRow.status).where(*_transcribe_jobs(batch_id))
     return list(session.scalars(query))
-
-
-def _read_results(store: ObjectStore, batch_id: str, pending: PendingJobs) -> dict[int, str]:
-    """Return the status of each pending job whose result JSON is listed and readable, by job id."""
-    found: dict[int, str] = {}
-    for listed in store.list_objects(results_prefix(batch_id)):
-        job_id = _pending_job_of(listed.key, pending)
-        job_status = None if job_id is None else _result_status(store, listed.key)
-        if job_id is not None and job_status is not None:
-            found[job_id] = job_status
-    return found
-
-
-def _pending_job_of(key: str, pending: PendingJobs) -> int | None:
-    """Return the pending job a result JSON key belongs to, or None."""
-    parts = parse_result_key(key)
-    if parts is None or parts.suffix != RESULT_SUFFIX:
-        return None
-    return pending.get((parts.item_id, parts.language))
-
-
-def _result_status(store: ObjectStore, key: str) -> str | None:
-    body = store.read(key)
-    if body is None:
-        return None  # deleted since the listing
-    try:
-        return read_job_result(key, body).status
-    except ContractError:
-        logger.warning("The job result %s cannot be read; the job stays pending", key)
-        return None
 
 
 def _batch_results(batch_id: str, statuses: list[str], *, done: bool) -> BatchResults:

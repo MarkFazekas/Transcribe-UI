@@ -137,6 +137,14 @@ WORKER_FAILED: Final = "failed"
 READY_PHASE: Final = "ready"
 # Batch phase a `ready` batch moves to once its `_done.json` is there.
 TRANSCRIBED_PHASE: Final = "transcribed"
+# Job status of a transcribe job whose result reports a failure (or could not be read in time).
+JOB_FAILED: Final = "failed"
+# Failure reason of a job whose result JSON could not be read once its batch had `_done.json`.
+UNREADABLE_RESULT_ERROR: Final = "unreadable result"
+# Kind of the jobs the worker runs.
+TRANSCRIBE_KIND: Final = "transcribe"
+# Suffix of a job's result JSON (its "done" marker).
+RESULT_SUFFIX: Final = ".json"
 # Name of a run's worker log in the user log dir, kept after `runs/<run_id>/` is deleted.
 WORKER_LOG_NAME: Final = "worker-{run_id}.log"
 # Decimals of the cost so far (dollars).

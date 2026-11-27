@@ -73,3 +73,6 @@ class JobPayload(FrozenModel):
     track_index: NonNegativeInt | None = None
     # Embedded subtitle stream (`extract`).
     stream_index: NonNegativeInt | None = None
+    # Why a transcribe job failed: its result's `error`, or `unreadable result` when its result
+    # JSON could not be read once the batch's `_done.json` was there (`refresh_status`).
+    result_error: str | None = None
