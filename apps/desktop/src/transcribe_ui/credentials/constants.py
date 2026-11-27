@@ -52,6 +52,10 @@ VALUE_EMPTY: Final = "must not be empty"
 VALUE_TOO_LONG: Final = f"must be at most {TOKEN_MAX_LENGTH} characters"
 # A key, secret, token or URL contains white space or control characters.
 VALUE_NOT_COMPACT: Final = "must not contain spaces or control characters"
+# A key, secret or token is only `*` characters: a masked value pasted back, not the real one.
+VALUE_MASKED: Final = "is a masked value (only '*' characters); enter the real one"
+# Character a masked `SecretStr` is shown with.
+MASK_CHARACTER: Final = "*"
 # The endpoint URL is not an https URL with only a host (and port).
 ENDPOINT_RULE: Final = "must be an https URL with a host name only (https://<account>.r2.cloudflarestorage.com)"
 # The bucket name breaks `BUCKET_PATTERN`.

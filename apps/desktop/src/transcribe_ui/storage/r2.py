@@ -47,7 +47,7 @@ class ObjectStore(Protocol):
         ...
 
     def head(self, key: str) -> ObjectInfo | None:
-        """Return the object's size, or None if it does not exist."""
+        """Return the object's size, or None if it does not exist (or the bucket does not: HEAD cannot tell)."""
         ...
 
     def list_objects(self, prefix: str) -> tuple[ObjectInfo, ...]:
@@ -63,7 +63,11 @@ class ObjectStore(Protocol):
         ...
 
     def write_new(self, key: str, body: bytes, content_type: str) -> bool:
-        """Create the object only if it does not exist; return False if it already existed."""
+        """Create the object only if it does not exist; return False if it already existed.
+
+        False is ambiguous after a retried request whose first attempt was written: callers
+        that must know compare the stored content.
+        """
         ...
 
     def copy(self, source_key: str, target_key: str) -> None:
@@ -86,7 +90,10 @@ class ObjectStore(Protocol):
         progress: UploadProgress,
         cancel: "CancelToken",
     ) -> int:
-        """Upload a local file with progress, checking `cancel` between parts; return the bytes sent."""
+        """Upload a local file with progress, checking `cancel` between parts; return the bytes sent.
+
+        A failure after a lost response may leave the object written: callers verify with `head`.
+        """
         ...
 
 
@@ -110,7 +117,11 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
             self._client.list_objects_v2(Bucket=self._bucket, MaxKeys=1)
 
     def head(self, key: str) -> ObjectInfo | None:
-        """Return the object's size, or None if it does not exist."""
+        """Return the object's size, or None if it does not exist.
+
+        A HEAD response has no body, so a missing bucket also gives None; `check_access` (or
+        `read`) tells the two apart.
+        """
         with translated("head"):
             try:
                 response = self._client.head_object(Bucket=self._bucket, Key=key)
@@ -152,7 +163,12 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
             )
 
     def write_new(self, key: str, body: bytes, content_type: str) -> bool:
-        """Create the object with `If-None-Match: *`; return False if it already existed."""
+        """Create the object with `If-None-Match: *`; return False if it already existed.
+
+        Ambiguous: when botocore retries after a lost response to a PUT that was written, the
+        retry gets 412 and this returns False although this call created the object. Callers
+        that must know compare the stored content (`read`).
+        """
         with translated("write"):
             try:
                 self._client.put_object(
@@ -173,16 +189,22 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
 
         Raises:
             ObjectMissingError: The source object does not exist.
+            StorageError: `r2_bucket_not_found` when the bucket itself is missing (the copy's
+                HEAD cannot tell; one listing call on the error path does).
         """
         source: CopySourceTypeDef = {"Bucket": self._bucket, "Key": source_key}
         operation = "copy"
+        missing = False
         with translated(operation):
             try:
                 self._client.copy(source, self._bucket, target_key, Config=self._transfer)
             except ClientError as error:
-                if is_missing(error):
-                    raise ObjectMissingError(operation) from error
-                raise
+                if not is_missing(error):
+                    raise
+                missing = True
+        if missing:
+            self.check_access()
+            raise ObjectMissingError(operation)
 
     def delete(self, key: str) -> None:
         """Delete the object; a missing object is success."""
@@ -209,7 +231,8 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
         """Upload a local file, in parts from `part_bytes` on; return the bytes sent.
 
         `cancel` is checked before each part; a cancelled or failed multipart upload is
-        aborted, and the next upload of the object starts from its beginning.
+        aborted, and the next upload of the object starts from its beginning. A failure after a
+        lost response may leave the object written (see `put_in_parts`): verify with `head`.
 
         Raises:
             CancelledError: The cancel token was set.

@@ -1,7 +1,8 @@
 """R2 failures as domain errors with fixed messages (architecture §6).
 
 The SDK's own messages are never passed on: they can quote URLs, bucket names and parameters.
-An error carries the operation and the S3 error code or the exception type only.
+An error carries the operation and the S3 error code or the exception type only, and is raised
+`from None`, so not even a logged traceback shows the SDK's exception.
 """
 
 import logging
@@ -95,9 +96,9 @@ def translated(operation: str) -> Iterator[None]:
         cause = error_code(error) or str(http_status(error))
         failure = StorageError(_client_error_code(error), operation, cause)
         logger.warning("R2 %s failed: %s (%s)", operation, failure.code, cause)
-        raise failure from error
+        raise failure from None
     except (BotoCoreError, Boto3Error) as error:
         cause = type(error).__name__
         failure = StorageError(_sdk_error_code(error), operation, cause)
         logger.warning("R2 %s failed: %s (%s)", operation, failure.code, cause)
-        raise failure from error
+        raise failure from None

@@ -12,7 +12,7 @@ from transcribe_ui.credentials.classes import (
     StoreCredentialsResponse,
 )
 from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING, R2_CHECK_PASSED
-from transcribe_ui.storage.client import open_object_store
+from transcribe_ui.storage.client import CHECK_LIMITS, open_object_store
 
 
 def store_credentials(request: StoreCredentialsRequest, context: RequestContext) -> StoreCredentialsResponse:
@@ -28,7 +28,7 @@ def credentials_status(_request: CredentialsStatusRequest, context: RequestConte
 
 
 def check_credentials(_request: CheckCredentialsRequest, context: RequestContext) -> CheckCredentialsResponse:
-    """Try the credentials: R2 lists one key of the bucket."""
+    """Try the credentials: R2 lists one key of the bucket (short timeouts, 2 attempts)."""
     context.check_cancelled()
     return CheckCredentialsResponse(checks=(_check_r2(context),))
 
@@ -36,7 +36,7 @@ def check_credentials(_request: CheckCredentialsRequest, context: RequestContext
 def _check_r2(context: RequestContext) -> ServiceCheck:
     ports = context.ports
     try:
-        open_object_store(ports.credentials, ports.r2_clients).check_access()
+        open_object_store(ports.credentials, ports.r2_clients, CHECK_LIMITS).check_access()
     except DomainError as error:
         outcome = "missing" if error.code == ERROR_CREDENTIALS_MISSING else "failed"
         return ServiceCheck(service="r2", outcome=outcome, code=error.code, message=error.message)

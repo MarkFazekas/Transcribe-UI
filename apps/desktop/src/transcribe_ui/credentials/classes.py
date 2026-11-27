@@ -18,9 +18,11 @@ from transcribe_ui.credentials.constants import (
     ENDPOINT_PATHS,
     ENDPOINT_RULE,
     ENDPOINT_SCHEME,
+    MASK_CHARACTER,
     NOTHING_TO_STORE,
     TOKEN_MAX_LENGTH,
     VALUE_EMPTY,
+    VALUE_MASKED,
     VALUE_NOT_COMPACT,
     VALUE_TOO_LONG,
 )
@@ -51,14 +53,23 @@ def _is_compact(text: str) -> bool:
     return text.isprintable() and not any(map(str.isspace, text))
 
 
-def _check_token(secret: SecretStr) -> SecretStr:
-    text = secret.get_secret_value()
+def _token_problem(text: str) -> str | None:
+    """Return why the text is not a valid token (a fixed message), or None."""
     if not text:
-        raise ValueError(VALUE_EMPTY)
+        return VALUE_EMPTY
     if len(text) > TOKEN_MAX_LENGTH:
-        raise ValueError(VALUE_TOO_LONG)
+        return VALUE_TOO_LONG
     if not _is_compact(text):
-        raise ValueError(VALUE_NOT_COMPACT)
+        return VALUE_NOT_COMPACT
+    if set(text) == {MASK_CHARACTER}:
+        return VALUE_MASKED
+    return None
+
+
+def _check_token(secret: SecretStr) -> SecretStr:
+    problem = _token_problem(secret.get_secret_value())
+    if problem is not None:
+        raise ValueError(problem)
     return secret
 
 

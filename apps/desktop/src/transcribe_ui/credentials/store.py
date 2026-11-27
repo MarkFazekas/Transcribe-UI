@@ -13,7 +13,7 @@ from functools import cache
 from typing import Protocol
 
 from keyring.errors import NoKeyringError
-from pydantic import JsonValue, SecretStr, TypeAdapter, ValidationError
+from pydantic import ConfigDict, JsonValue, SecretStr, TypeAdapter, ValidationError
 
 from transcribe_ui.api.errors import Details, DomainError
 from transcribe_ui.credentials.classes import (
@@ -251,7 +251,7 @@ def _r2_field(name: CredentialName) -> str:
 @cache
 def _token_adapter() -> TypeAdapter[SecretStr]:
     """Return the validator of a single token (the Runpod API key)."""
-    return TypeAdapter(Token)
+    return TypeAdapter(Token, config=ConfigDict(hide_input_in_errors=True))
 
 
 def _names_field(error: ValidationError, field: str) -> bool:

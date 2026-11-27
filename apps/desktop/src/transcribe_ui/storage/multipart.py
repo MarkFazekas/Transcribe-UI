@@ -5,6 +5,7 @@ resumed across requests: an interrupted object is uploaded again from its start.
 """
 
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,8 +14,8 @@ from typing import TYPE_CHECKING
 from botocore.exceptions import BotoCoreError, ClientError
 
 from transcribe_ui.api.errors import CancelledError
-from transcribe_ui.storage.constants import S3_NO_SUCH_UPLOAD
-from transcribe_ui.storage.errors import error_code
+from transcribe_ui.storage.constants import ERROR_R2_TOO_LARGE, MAX_PARTS, S3_NO_SUCH_UPLOAD
+from transcribe_ui.storage.errors import StorageError, error_code
 
 if TYPE_CHECKING:
     from types_boto3_s3.client import S3Client
@@ -71,7 +72,16 @@ def put_whole(target: UploadTarget, source: Path, control: UploadControl) -> int
 
 
 def put_in_parts(target: UploadTarget, source: Path, control: UploadControl) -> int:
-    """Upload a file as a multipart upload; return the bytes sent. Aborts the upload on failure."""
+    """Upload a file as a multipart upload; return the bytes sent. Aborts the upload on failure.
+
+    Ambiguous outcome: when the response to `CompleteMultipartUpload` is lost, botocore's retry
+    can get `NoSuchUpload` although the object was written; the call then fails. Callers verify
+    the object with HEAD (its size) before uploading it again.
+
+    Raises:
+        StorageError: `r2_object_too_large` (more than `MAX_PARTS` parts), before anything is sent.
+    """
+    _check_part_count(source.stat().st_size, control.part_bytes)
     created = target.client.create_multipart_upload(
         Bucket=target.bucket,
         Key=target.key,
@@ -85,6 +95,11 @@ def put_in_parts(target: UploadTarget, source: Path, control: UploadControl) -> 
         _abort_quietly(target, upload_id)
         raise
     return sent
+
+
+def _check_part_count(size: int, part_bytes: int) -> None:
+    if math.ceil(size / part_bytes) > MAX_PARTS:
+        raise StorageError(ERROR_R2_TOO_LARGE, "upload", "TooManyParts")
 
 
 def _send_parts(
