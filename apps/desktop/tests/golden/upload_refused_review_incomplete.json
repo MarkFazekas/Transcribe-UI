@@ -1,0 +1,18 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "run_upload",
+    "error": {
+      "code": "review_incomplete",
+      "message": "The review is not complete: resolve or exclude every file first.",
+      "details": {
+        "batch_id": "batch_20261127_130000",
+        "item_ids": [
+          "01M8EE0VG08JFF2Q77C3SY8MQJ"
+        ]
+      }
+    }
+  },
+  "events": []
+}
