@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 
 from transcribe_ui.batches.payloads import BatchPayload, RetryOrigin
 from transcribe_ui.cleanup.classes import CreateRetryBatchRequest
-from transcribe_ui.cleanup.constants import CLEANED, ITEM_UPLOADED, RETRY_SOURCE_PATH, UPLOADING
+from transcribe_ui.cleanup.constants import CLEANED, RETRY_SOURCE_PATH
 from transcribe_ui.cleanup.planning import RetryPlan, plan_retry
 from transcribe_ui.state.models import BatchRow, ItemRow
+from transcribe_ui.upload.constants import ITEM_UPLOADED, UPLOADING_BATCH
 
 
 def _retry_rows(session: Session, source_batch_id: str) -> list[BatchRow]:
@@ -32,7 +33,7 @@ class ExistingRetry:
     @property
     def uploading(self) -> bool:
         """Return whether its copy or manifest step may still be due (it is `uploading`)."""
-        return self.phase == UPLOADING
+        return self.phase == UPLOADING_BATCH
 
 
 def retry_target(session: Session, origin: RetryOrigin, request: CreateRetryBatchRequest) -> ExistingRetry | RetryPlan:
@@ -59,7 +60,7 @@ def existing_retry(session: Session, origin: RetryOrigin) -> BatchRow | None:
 def copying_retry(session: Session, source_batch_id: str) -> str | None:
     """Return the first retry batch of the source that is `uploading` with an item not copied yet, or None."""
     for row in _retry_rows(session, source_batch_id):
-        if row.phase != UPLOADING:
+        if row.phase != UPLOADING_BATCH:
             continue
         waiting = (ItemRow.batch_id == row.batch_id, ItemRow.phase != ITEM_UPLOADED)
         query = select(ItemRow.item_id).where(*waiting)

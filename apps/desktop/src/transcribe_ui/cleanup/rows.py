@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 from transcribe_ui.api.ports import IdSource
 from transcribe_ui.batches.payloads import ItemPayload, JobPayload
-from transcribe_ui.cleanup.constants import ITEM_REVIEWED, RETRY_MODE, UPLOADING
+from transcribe_ui.cleanup.constants import RETRY_MODE
 from transcribe_ui.cleanup.planning import RetryItem, RetryPlan
 from transcribe_ui.state.models import BatchRow, ItemRow, JobRow
+from transcribe_ui.upload.constants import ITEM_REVIEWED, UPLOADING_BATCH
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ def insert_retry(session: Session, new: NewBatch, plan: RetryPlan, ids: IdSource
     session.add(
         BatchRow(
             batch_id=new.batch_id,
-            phase=UPLOADING,
+            phase=UPLOADING_BATCH,
             manifest_held=False,
             audio_deleted=False,
             hidden=False,

@@ -10,12 +10,6 @@ FLAGGED_STATUSES: Final = frozenset(("failed", "no_speech"))
 RETRY_MODE: Final = "careful"
 # Batch phase of a batch whose cloud data is gone; a retry batch in it no longer stands for its jobs.
 CLEANED: Final = "cleaned"
-# Batch phase of a retry batch when it is created (finished through the upload path).
-UPLOADING: Final = "uploading"
-# Item phase of a retry item when it is created: resolved, waiting for its copy.
-ITEM_REVIEWED: Final = "reviewed"
-# Item phase of an item whose audio is verified (a retry item: copied).
-ITEM_UPLOADED: Final = "uploaded"
 # JSON path of a retry batch's source batch id in its batch payload (its `retry_of`).
 RETRY_SOURCE_PATH: Final = "$.retry_of.source_batch_id"
 # How many batch ids a retry tries when R2 already holds data under them.
