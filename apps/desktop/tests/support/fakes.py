@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from transcribe_ui.api.ports import Ports, UlidSource
+from transcribe_ui.media.fake import FakeMediaTools
 
 # The fixed "now" of every test backend.
 FIXED_NOW = datetime.fromisoformat("2026-11-27T12:00:00+00:00")
@@ -24,7 +25,7 @@ class FixedClock:
 
 
 def seeded_ports(seed: int = ID_SEED) -> Ports:
-    """Return ports with a fixed clock and seeded ULID randomness."""
+    """Return ports with a fixed clock, seeded ULID randomness and the fake media tools."""
     clock = FixedClock()
     generator = random.Random(seed)  # noqa: S311 -- reproducible test ids, not cryptography.
-    return Ports(clock=clock, ids=UlidSource(clock, generator.getrandbits))
+    return Ports(clock=clock, ids=UlidSource(clock, generator.getrandbits), media=FakeMediaTools())
