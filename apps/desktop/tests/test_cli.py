@@ -41,17 +41,19 @@ def _interrupt_then_finish(interrupts: int, request: GetAppInfoRequest, context:
     return get_app_info(request, context)
 
 
-def _seeded_backend() -> Backend:
-    return Backend(seeded_ports())
+def _seeded_backend(root: Path) -> Backend:
+    # Only requests without a database run here, so the state never needs closing.
+    return Backend(seeded_ports(root))
 
 
 def _broken_backend() -> Backend:
     raise RuntimeError(CRASH_DETAIL)
 
 
-def _run(request_file: Path, make_backend: BackendFactory = _seeded_backend) -> tuple[int, Response]:
+def _run(request_file: Path, make_backend: BackendFactory | None = None) -> tuple[int, Response]:
+    factory = partial(_seeded_backend, request_file.parent) if make_backend is None else make_backend
     stdout = io.BytesIO()
-    code = main(["run", str(request_file)], make_backend=make_backend, stdout=stdout, stderr=io.BytesIO())
+    code = main(["run", str(request_file)], make_backend=factory, stdout=stdout, stderr=io.BytesIO())
     return code, response_adapter().validate_json(stdout.getvalue())
 
 
@@ -64,7 +66,7 @@ def _error_code(response: Response) -> str:
 def test_ctrl_c_cancels_the_request(tmp_path: Path, interrupts: int) -> None:
     """The first Ctrl+C cancels at the next check, a second one at once; both answer alike with 130."""
     run = partial(_interrupt_then_finish, interrupts)
-    backend = Backend(seeded_ports(), {"get_app_info": Route(run=run, needs_database=False)})
+    backend = Backend(seeded_ports(tmp_path), {"get_app_info": Route(run=run, needs_database=False)})
     request_file = tmp_path / "request.json"
     request_file.write_bytes(GET_APP_INFO)
     original_handler = signal.getsignal(signal.SIGINT)

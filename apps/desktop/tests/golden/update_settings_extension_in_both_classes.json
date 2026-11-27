@@ -1,0 +1,24 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "update_settings",
+              "settings"
+            ],
+            "message": "Value error, an extension cannot be both a video and an audio extension",
+            "type": "value_error"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

@@ -1,0 +1,25 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "enabled_languages"
+            ],
+            "message": "Value error, every entry must appear only once",
+            "type": "value_error"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

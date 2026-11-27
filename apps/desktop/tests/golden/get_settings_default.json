@@ -1,0 +1,656 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "get_settings",
+    "settings": {
+      "enabled_languages": [
+        "hu",
+        "en"
+      ],
+      "video_extensions": [
+        "3gp",
+        "avi",
+        "flv",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpeg",
+        "mpg",
+        "mts",
+        "ogv",
+        "ts",
+        "vob",
+        "webm",
+        "wmv"
+      ],
+      "audio_extensions": [
+        "aac",
+        "ac3",
+        "aiff",
+        "flac",
+        "m4a",
+        "mka",
+        "mp3",
+        "ogg",
+        "opus",
+        "wav",
+        "wma"
+      ],
+      "include_hidden": false,
+      "ffmpeg_path": null,
+      "ffprobe_path": null,
+      "placement": {
+        "strategy": "next_to_media",
+        "output_folder": null,
+        "folder_count": 1,
+        "overwrite": false
+      }
+    },
+    "languages": [
+      {
+        "code": "af",
+        "name": "Afrikaans",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "am",
+        "name": "Amharic",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ar",
+        "name": "Arabic",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "as",
+        "name": "Assamese",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "az",
+        "name": "Azerbaijani",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ba",
+        "name": "Bashkir",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "be",
+        "name": "Belarusian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "bg",
+        "name": "Bulgarian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "bn",
+        "name": "Bengali",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "bo",
+        "name": "Tibetan",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "br",
+        "name": "Breton",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "bs",
+        "name": "Bosnian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ca",
+        "name": "Catalan",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "cs",
+        "name": "Czech",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "cy",
+        "name": "Welsh",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "da",
+        "name": "Danish",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "de",
+        "name": "German",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "el",
+        "name": "Greek",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "en",
+        "name": "English",
+        "enabled": true,
+        "alignment": true
+      },
+      {
+        "code": "es",
+        "name": "Spanish",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "et",
+        "name": "Estonian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "eu",
+        "name": "Basque",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "fa",
+        "name": "Persian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "fi",
+        "name": "Finnish",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "fo",
+        "name": "Faroese",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "fr",
+        "name": "French",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "gl",
+        "name": "Galician",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "gu",
+        "name": "Gujarati",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ha",
+        "name": "Hausa",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "haw",
+        "name": "Hawaiian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "he",
+        "name": "Hebrew",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "hi",
+        "name": "Hindi",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "hr",
+        "name": "Croatian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "ht",
+        "name": "Haitian Creole",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "hu",
+        "name": "Hungarian",
+        "enabled": true,
+        "alignment": true
+      },
+      {
+        "code": "hy",
+        "name": "Armenian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "id",
+        "name": "Indonesian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "is",
+        "name": "Icelandic",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "it",
+        "name": "Italian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "ja",
+        "name": "Japanese",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "jw",
+        "name": "Javanese",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ka",
+        "name": "Georgian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "kk",
+        "name": "Kazakh",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "km",
+        "name": "Khmer",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "kn",
+        "name": "Kannada",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ko",
+        "name": "Korean",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "la",
+        "name": "Latin",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "lb",
+        "name": "Luxembourgish",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ln",
+        "name": "Lingala",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "lo",
+        "name": "Lao",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "lt",
+        "name": "Lithuanian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "lv",
+        "name": "Latvian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "mg",
+        "name": "Malagasy",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "mi",
+        "name": "Maori",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "mk",
+        "name": "Macedonian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ml",
+        "name": "Malayalam",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "mn",
+        "name": "Mongolian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "mr",
+        "name": "Marathi",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ms",
+        "name": "Malay",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "mt",
+        "name": "Maltese",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "my",
+        "name": "Myanmar",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ne",
+        "name": "Nepali",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "nl",
+        "name": "Dutch",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "nn",
+        "name": "Nynorsk",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "no",
+        "name": "Norwegian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "oc",
+        "name": "Occitan",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "pa",
+        "name": "Punjabi",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "pl",
+        "name": "Polish",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "ps",
+        "name": "Pashto",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "pt",
+        "name": "Portuguese",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "ro",
+        "name": "Romanian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "ru",
+        "name": "Russian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "sa",
+        "name": "Sanskrit",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "sd",
+        "name": "Sindhi",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "si",
+        "name": "Sinhala",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "sk",
+        "name": "Slovak",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "sl",
+        "name": "Slovenian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "sn",
+        "name": "Shona",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "so",
+        "name": "Somali",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "sq",
+        "name": "Albanian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "sr",
+        "name": "Serbian",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "su",
+        "name": "Sundanese",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "sv",
+        "name": "Swedish",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "sw",
+        "name": "Swahili",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "ta",
+        "name": "Tamil",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "te",
+        "name": "Telugu",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "tg",
+        "name": "Tajik",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "th",
+        "name": "Thai",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "tk",
+        "name": "Turkmen",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "tl",
+        "name": "Tagalog",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "tr",
+        "name": "Turkish",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "tt",
+        "name": "Tatar",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "uk",
+        "name": "Ukrainian",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "ur",
+        "name": "Urdu",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "uz",
+        "name": "Uzbek",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "vi",
+        "name": "Vietnamese",
+        "enabled": false,
+        "alignment": true
+      },
+      {
+        "code": "yi",
+        "name": "Yiddish",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "yo",
+        "name": "Yoruba",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "yue",
+        "name": "Cantonese",
+        "enabled": false,
+        "alignment": false
+      },
+      {
+        "code": "zh",
+        "name": "Chinese",
+        "enabled": false,
+        "alignment": true
+      }
+    ]
+  },
+  "events": []
+}

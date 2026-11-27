@@ -10,7 +10,7 @@
         "problems": [
           {
             "location": [],
-            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info', 'scan_tree', 'preview_selection'",
+            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info', 'scan_tree', 'preview_selection', 'get_settings', 'update_settings'",
             "type": "union_tag_invalid"
           }
         ]

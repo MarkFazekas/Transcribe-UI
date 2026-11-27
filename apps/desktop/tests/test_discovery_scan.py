@@ -204,7 +204,7 @@ def test_scan_stops_when_cancelled(tmp_path: Path) -> None:
     cancel = CancelFlag()
     cancel.cancel()
     request = ScanTreeRequest(action="scan_tree", root=str(media_dir(tmp_path)))
-    response = Backend(seeded_ports()).execute(request, cancel=cancel)
+    response = Backend(seeded_ports(tmp_path)).execute(request, cancel=cancel)
     assert isinstance(response, ErrorResponse)
     assert response.error.code == "cancelled"
 
@@ -215,7 +215,7 @@ def test_large_tree_scans_within_budget(large_tree: Path) -> None:
     progress = RecordingProgress()
     request = ScanTreeRequest(action="scan_tree", root=str(large_tree))
     started = time.monotonic()
-    response = Backend(seeded_ports()).execute(request, progress)
+    response = Backend(seeded_ports(large_tree)).execute(request, progress)
     elapsed = time.monotonic() - started
     assert isinstance(response, ScanTreeResponse)
     assert len(response.files) == folders * per_folder

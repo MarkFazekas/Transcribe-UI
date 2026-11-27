@@ -196,7 +196,7 @@ def test_invalid_filters_are_refused(tmp_path: Path, name: str, filters: JsonObj
 
 
 def _preview(root: Path, rules: PathRules, path: str) -> PreviewSelectionResponse | ErrorResponse:
-    ports = dataclasses.replace(seeded_ports(), path_rules=rules)
+    ports = dataclasses.replace(seeded_ports(root), path_rules=rules)
     document = {"action": "preview_selection", "scan": {"root": str(root)}, "operations": [include(path)]}
     response = Backend(ports).execute(PreviewSelectionRequest.model_validate(document))
     assert isinstance(response, PreviewSelectionResponse | ErrorResponse), response
@@ -253,7 +253,7 @@ def test_large_tree_previews_within_budget(large_tree: Path) -> None:
     operations = [include(str(large_tree), name=name_filter("ends_with", "7")), exclude(str(large_tree / "folder000"))]
     document = {"action": "preview_selection", "scan": {"root": str(large_tree)}, "operations": operations}
     started = time.monotonic()
-    response = Backend(seeded_ports()).execute(PreviewSelectionRequest.model_validate(document))
+    response = Backend(seeded_ports(large_tree)).execute(PreviewSelectionRequest.model_validate(document))
     elapsed = time.monotonic() - started
     assert isinstance(response, PreviewSelectionResponse)
     assert response.counts.files == (folders - 1) * per_folder // 10
