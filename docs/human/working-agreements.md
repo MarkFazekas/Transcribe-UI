@@ -43,6 +43,7 @@ Source: the architect's initial brief (2026-11-26), translated to English.
   cheaper sub-agents under the same condition.
 - The main session can run at medium effort; code reviews and concurrency or
   failure-handling work stay at high effort.
+- The code review is started by the main session, not by the sub-agent that wrote the code.
 - Side questions (research, "would X help?") are handled by sub-agents so the main thread does
   not stall.
 

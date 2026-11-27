@@ -27,6 +27,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 - Effort: the main session runs at medium. `code-reviewer` sub-agents and any agent writing
   concurrency or failure-handling logic (threads, processes, restarts, timeouts, retries) run
   at high effort (pass `effort: "high"` when the agent definition does not set it).
+- Reviews are always started by the main session, never by a sub-agent: sub-agents write
+  code, the main session runs the `code-reviewer` on the result and decides on the findings.
 
 ## Git
 
