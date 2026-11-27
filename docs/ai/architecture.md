@@ -464,9 +464,12 @@ requests wire it in M5.13):
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
-    `r2_failed`); M5.6 adds the Runpod check. The check's client makes 2 attempts with a 5 s
-    connect and a 10 s read timeout, so a hanging R2 is reported within about 30 s (an
-    unreachable host within about 10 s); the transfer clients keep the worker's limits (§6).
+    `r2_failed`); Runpod reads one entry of the pod list (`runpod_key_rejected`,
+    `runpod_key_missing_scope`, `cloud_unreachable`; `credentials_missing` /
+    `credentials_invalid` from the store). Each check's client makes 2 attempts with a 5 s
+    connect and a 10 s read timeout, so a hanging service is reported within about 30 s (an
+    unreachable host within about 10 s); the transfer clients keep the worker's limits (§6),
+    the Runpod client its own (§3.7).
   - Operations that need credentials get `credentials_missing` (names the credentials and
     their variables) or `credentials_invalid` (names the credentials and their sources) from
     the store.
@@ -483,11 +486,9 @@ requests wire it in M5.13):
   templates, secrets and volumes) and `catalog:read` (GPU price). A 403 names the missing scope
   (`runpod_key_missing_scope`); a 401 is `runpod_key_rejected`. A separate pods-only terminate
   key for the pod exists only if M4 shows the pod-scoped key cannot delete its own pod.
-- The Runpod requests reach the credentials through a small lookup (`runpod/access.py`,
-  `CloudCredentials`: the Runpod key and the R2 credentials, each `None` when not stored),
-  which `api/wiring.py` fills from the credential store above (same keyring precedence and
-  environment variables). A missing credential answers `credentials_missing`, naming what is
-  missing, never values.
+- The Runpod requests take the API key (and `setup_cloud` the R2 credentials) from this
+  credential store (`Ports.credentials`: keyring first, then the environment). `setup_cloud`
+  checks all five first, so one `credentials_missing` names every missing one.
 
 ### 3.7 Launching the worker
 
@@ -544,9 +545,8 @@ requests wire it in M5.13):
   `duplicated`; `require_cloud_setup` gives `launch_worker` the template and volume ids, or
   refuses with `cloud_volume_duplicated`, `cloud_not_set_up` or `cloud_setup_outdated`
   (duplicates included), so no pod mounts an arbitrary volume.
-- `runpod/check.py` is the Runpod half of `check_credentials` (`GET /v2/pods?limit=1`, body not
-  parsed): `ok`, `missing`, `rejected`, `missing_scope` or `unreachable`; the credential
-  store's request includes it once both parts are merged.
+- `runpod/check.py` is the Runpod check of `check_credentials` (§3.6; `GET /v2/pods?limit=1`,
+  body not parsed, 2 attempts, 5 s connect and 10 s read timeouts).
 - `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}` (excludes
   A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer exists),
   `disk: 60`, the Global Volume mount, the template (which alone pins the image tag), non-secret
