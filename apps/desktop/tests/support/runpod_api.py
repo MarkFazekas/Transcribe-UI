@@ -117,6 +117,8 @@ class Failure:
     redirect_to: str | None = None
     # Carry the request out, then answer its status with a body of an unexpected shape.
     garbled_body: bool = False
+    # Carry the request out, then answer with this `status` in the body instead.
+    status_in_body: str | None = None
 
 
 @dataclass
@@ -131,8 +133,9 @@ class FakeSettings:
     # When a queued pod deploys after its creation; None: never.
     deploy_after: timedelta | None = None
     gpu_price: float = FAKE_GPU_PRICE
-    # True: terminated pods stay listed with status TERMINATED; False: they disappear.
-    keep_terminal: bool = True
+    # False (the documented API): a terminated pod no longer appears in the list and reads 404;
+    # True: it stays listed and readable with status TERMINATED.
+    keep_terminal: bool = False
     # False: a pod DELETE answers 204 but the pod keeps running (a terminate that did not take effect).
     terminate_effective: bool = True
     # Called with each request before it is answered (tests pause a request here).
@@ -473,13 +476,7 @@ class FakeRunpodApi:
         if refused is not None:
             return refused
         response = self._serve(request, path.removeprefix(FAKE_API_PREFIX))
-        if failure.garbled_body:
-            return httpx.Response(response.status_code, json={"unexpected": "shape"})
-        if failure.lost_response:
-            # Like real transport errors, the message holds request data (here: the key).
-            msg = f"fake: response lost ({request.headers.get('Authorization')})"
-            raise httpx.ReadTimeout(msg, request=request)
-        return response
+        return _after(failure, request, response)
 
     def _serve(self, request: httpx.Request, path: str) -> httpx.Response:
         self.queued_pods.advance()
@@ -531,6 +528,20 @@ def _locate(collections: dict[str, Collection], path: str) -> tuple[Collection |
         if rest != path and "/" not in rest:
             return collection, rest
     return None, None
+
+
+def _after(failure: Failure, request: httpx.Request, response: httpx.Response) -> httpx.Response:
+    """Return the answer of a request carried out: as served, or changed or lost as the failure asks."""
+    if failure.garbled_body:
+        return httpx.Response(response.status_code, json={"unexpected": "shape"})
+    if failure.status_in_body is not None:
+        served = {**json.loads(response.content), STATUS: failure.status_in_body}
+        return httpx.Response(response.status_code, json=served)
+    if failure.lost_response:
+        # Like real transport errors, the message holds request data (here: the key).
+        msg = f"fake: response lost ({request.headers.get('Authorization')})"
+        raise httpx.ReadTimeout(msg, request=request)
+    return response
 
 
 def _refusal(failure: Failure, request: httpx.Request) -> httpx.Response | None:

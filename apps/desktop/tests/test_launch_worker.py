@@ -129,7 +129,7 @@ def test_scope_changed_between_plan_and_launch(ready: RunsWorld) -> None:
     write_foreign(ready.store)
     again = send(ready, LAUNCH, confirm_fingerprint=old)
     assert again.status == "needs_confirmation"
-    assert again.confirmations[0].message.startswith("What the worker would process changed")
+    assert again.confirmations[0].message.startswith("The plan changed since it was confirmed")
     assert (run_ids(ready), posts(ready)) == ([], 0)
     assert launch_run(ready).covered_batch_ids == (FOREIGN_BATCH_ID, FIRST_BATCH_ID)
 

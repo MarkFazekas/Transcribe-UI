@@ -14,9 +14,9 @@ from support.launch import (
     set_up_cloud,
 )
 from support.runs import RUN_ID, RunsWorld, app_pod_name, seed_uploaded
-from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_CANCELLED
+from transcribe_ui.runpod.constants import QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import ERROR_NOT_APP_POD, ERROR_POD_NOT_FOUND
-from transcribe_ui.runs.responses import CancelQueuedPodResponse
+from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
 
 # A pod that is not one of the app's.
 FOREIGN_POD = "somebody-elses-pod"
@@ -50,10 +50,9 @@ def test_cancel_the_queued_pod_of_a_local_run(runs_world: RunsWorld, *, deploy: 
     if deploy:
         runs_world.cloud.api.queued_pods.schedule_deploy(queued_id, runs_world.now())
     stopped = _cancel(runs_world, queued_id)
-    terminated: list[str | None] = [pod_id for pod_id, status in pods_of(runs_world) if status == POD_TERMINATED]
     expected_outcome = "pod_terminated" if deploy else "cancelled"
     assert (stopped.outcome, stopped.run_id, stopped.local_status) == (expected_outcome, run.run_id, "cancelled")
-    assert [stopped.terminated_pod_id] == (terminated or [None])
+    assert (stopped.terminated_pod_id is not None, pods_of(runs_world)) == (deploy, [])
 
 
 def test_stopping_refuses_foreign_and_unknown_pods(runs_world: RunsWorld) -> None:
@@ -63,3 +62,17 @@ def test_stopping_refuses_foreign_and_unknown_pods(runs_world: RunsWorld) -> Non
     assert (error_code(refused), pods_of(runs_world)) == (ERROR_NOT_APP_POD, [(foreign_id, "RUNNING")])
     assert error_code(send(runs_world, TERMINATE, pod_id="pod-unknown")) == ERROR_POD_NOT_FOUND
     assert error_code(send(runs_world, CANCEL_QUEUED, queued_pod_id="qpod-unknown")) == ERROR_POD_NOT_FOUND
+
+
+def test_stray_pod_with_run_name_keeps_the_run(runs_world: RunsWorld) -> None:
+    """Terminating a pod the run did not record leaves the run as it is."""
+    set_up_cloud(runs_world)
+    seed_uploaded(runs_world, held=True)
+    run = launch_run(runs_world)
+    stray_id = str(runs_world.cloud.api.pods.add(run.pod_name)["id"])
+    stopped = ok_as(send(runs_world, TERMINATE, pod_id=stray_id, confirm=True), TerminatePodResponse)
+    assert (stopped.run_id, stopped.local_status, [pod_id for pod_id, _ in pods_of(runs_world)]) == (
+        run.run_id,
+        "running",
+        [run.pod_id],
+    )

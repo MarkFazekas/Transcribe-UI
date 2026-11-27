@@ -25,7 +25,6 @@ from support.launch import (
 )
 from support.runpod_api import Failure
 from support.runs import OTHER_RUN_ID, RUN_ID, RunsWorld, app_pod_name, seed_uploaded
-from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runs.constants import ERROR_RUN_ACTIVE, LAUNCH_LOOKUP_GAP_S, LAUNCH_SETTLE_S
 from transcribe_ui.runs.responses import ReconcileCloudResponse, TerminatePodResponse
 
@@ -125,11 +124,7 @@ def test_late_pod_after_launch_failed_is_a_straggler(ready: RunsWorld) -> None:
     assert error_code(send(ready, LAUNCH)) == ERROR_RUN_ACTIVE
     assert send(ready, TERMINATE, pod_id=pod_id).status == "needs_confirmation"
     stopped = ok_as(send(ready, TERMINATE, pod_id=pod_id, confirm=True), TerminatePodResponse)
-    assert (stopped.run_id, stopped.local_status, pods_of(ready)) == (
-        run_id,
-        "launch_failed",
-        [(pod_id, POD_TERMINATED)],
-    )
+    assert (stopped.run_id, stopped.local_status, pods_of(ready)) == (run_id, "launch_failed", [])
     assert _reconcile(ready).entries == ()
 
 

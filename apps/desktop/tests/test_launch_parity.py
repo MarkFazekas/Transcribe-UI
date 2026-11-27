@@ -48,7 +48,7 @@ def _field(exchange: Exchange, *path: str) -> str:
 
 
 def _confirmed_launch(exchanges: list[Exchange]) -> str:
-    fingerprint = _field(exchanges[0], "plan", "scope", "fingerprint")
+    fingerprint = _field(exchanges[0], "plan", "fingerprint")
     return document(LAUNCH, wait_s=TWO_HOURS_S, confirm_fingerprint=fingerprint)
 
 

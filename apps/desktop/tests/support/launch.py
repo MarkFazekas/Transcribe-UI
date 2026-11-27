@@ -109,7 +109,7 @@ def plan_fingerprint(world: RunsWorld, **fields: object) -> str:
     """Send `plan_launch`; return the plan's fingerprint."""
     planned = send(world, PLAN, **fields)
     assert planned.status == "ok", planned
-    fingerprint: str = response_document(planned)["plan"]["scope"]["fingerprint"]
+    fingerprint: str = response_document(planned)["plan"]["fingerprint"]
     return fingerprint
 
 
