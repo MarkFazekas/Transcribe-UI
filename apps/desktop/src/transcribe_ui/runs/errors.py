@@ -11,6 +11,7 @@ from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE, HTTP_FORBIDD
 from transcribe_ui.runpod.errors import RunpodApiError
 from transcribe_ui.runs.classes import ActivitySource, RunpodKind
 from transcribe_ui.runs.constants import (
+    ERROR_CLEANUP_PENDING,
     ERROR_LAUNCH_REFUSED,
     ERROR_LAUNCH_UNRESOLVED,
     ERROR_NOT_APP_POD,
@@ -171,3 +172,17 @@ def launch_refusal(run_id: str, error: RunpodApiError) -> DomainError:
     if error.status in {HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, None}:
         return api_failure(error)
     return LaunchRefusedError(run_id, error.status)
+
+
+class CleanupPendingError(DomainError):
+    """A cloud cleanup was interrupted: its batch's data is half deleted, so no worker may start."""
+
+    def __init__(self, batch_ids: Sequence[str]) -> None:
+        """Name the batches whose cleanup must be repeated."""
+        pending: list[JsonValue] = []
+        pending.extend(batch_ids)
+        super().__init__(
+            ERROR_CLEANUP_PENDING,
+            "A cloud cleanup was interrupted; repeat the cleanup of these batches before starting a worker.",
+            {"batch_ids": pending},
+        )

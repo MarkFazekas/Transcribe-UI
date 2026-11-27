@@ -165,6 +165,7 @@ def batch_summary(row: BatchRow, item_count: int, jobs: Sequence[JobKey]) -> Bat
         hidden=row.hidden,
         manifest_held=row.manifest_held,
         audio_deleted=row.audio_deleted,
+        cleanup_pending=BatchPayload.model_validate(row.payload).cleanup_pending,
         extract_only=_extract_only(jobs),
     )
 

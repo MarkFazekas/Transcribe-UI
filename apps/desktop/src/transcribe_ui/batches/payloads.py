@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import NonNegativeInt
 
-from transcribe_contracts.classes import MediaKind, TranscriptionMode
+from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.media.classes import ProbeResult
 from transcribe_ui.upload.payloads import CopySource
@@ -14,8 +14,24 @@ from transcribe_ui.upload.payloads import CopySource
 type ItemPhase = Literal["composing", "reviewing", "reviewed", "uploaded"]
 # What a job does: transcribe an audio track in the cloud, or extract an embedded text subtitle locally.
 type JobKind = Literal["transcribe", "extract"]
+# What a cloud cleanup deletes: the audio only (results stay downloadable), or every object of the batch.
+type CleanupScope = Literal["audio", "everything"]
 # Why an item cannot be resolved until it is probed again (or excluded).
 type ProblemCode = Literal["source_missing", "probe_failed", "source_changing"]
+
+
+class RetryJob(FrozenModel):
+    """A transcribe job of a batch, named by its item and language."""
+
+    item_id: Ulid
+    language: str
+
+
+class RetryOrigin(FrozenModel):
+    """What a retry batch retries: its source batch and the source's jobs (sorted), plan m5 §1 "Retry"."""
+
+    source_batch_id: BatchId
+    jobs: tuple[RetryJob, ...]
 
 
 class BatchPayload(FrozenModel):
@@ -25,6 +41,11 @@ class BatchPayload(FrozenModel):
     path_flavor: Literal["windows", "posix"]
     # The batch's default target languages, as requested.
     languages: tuple[str, ...]
+    # Set on a retry batch (`create_retry_batch`): one retry batch per source and job set.
+    retry_of: RetryOrigin | None = None
+    # A cloud cleanup of this scope was recorded and has not finished its deletes yet; no worker
+    # may start until it is repeated (`cleanup_cloud`).
+    cleanup_pending: CleanupScope | None = None
 
 
 class PendingWithdrawal(FrozenModel):

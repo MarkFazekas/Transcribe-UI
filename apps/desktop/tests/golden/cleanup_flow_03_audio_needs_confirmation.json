@@ -1,0 +1,19 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "cleanup_cloud",
+    "confirmations": [
+      {
+        "field": "confirm",
+        "message": "The batch's audio will be deleted from the cloud; its subtitles stay, but it can no longer be retried.",
+        "details": {
+          "batch_id": "batch_20261127_130000",
+          "scope": "audio",
+          "phase": "transcribed"
+        }
+      }
+    ]
+  },
+  "events": []
+}

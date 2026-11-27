@@ -1,0 +1,28 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "cleanup_cloud",
+    "confirmations": [
+      {
+        "field": "confirm",
+        "message": "All of the batch's data will be deleted from the cloud: audio, subtitles and its description.",
+        "details": {
+          "batch_id": "batch_20261127_130000",
+          "scope": "everything",
+          "phase": "transcribed"
+        }
+      },
+      {
+        "field": "confirm_not_downloaded",
+        "message": "The batch's subtitles may not be downloaded yet; after this, only the backup on the cloud volume keeps them.",
+        "details": {
+          "batch_id": "batch_20261127_130000",
+          "scope": "everything",
+          "phase": "transcribed"
+        }
+      }
+    ]
+  },
+  "events": []
+}

@@ -23,7 +23,7 @@ from transcribe_contracts.layout import batch_prefix
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.phases import load_batch
 from transcribe_ui.batches.records import stored_items, summary_of
-from transcribe_ui.runs.cloud import open_cloud
+from transcribe_ui.runs.cloud import CloudAccess, open_cloud
 from transcribe_ui.upload.classes import RunUploadRequest
 from transcribe_ui.upload.constants import REVIEWED_BATCH
 from transcribe_ui.upload.finish import Finish, finish_upload
@@ -46,24 +46,17 @@ def run_upload(request: RunUploadRequest, context: RequestContext) -> RunUploadR
         CancelledError: Cancelled; what was done is recorded and re-sending resumes.
     """
     batch_id = request.batch_id
-    state = context.ports.state
-    with state.locks.batch(batch_id):
+    with context.ports.state.locks.batch(batch_id):
         phase = checked_phase(context, batch_id)
         with open_cloud(context) as cloud:
             if phase == REVIEWED_BATCH:
                 start_upload(context, cloud.store, batch_id)
-            clear_temp(state.paths, batch_id)
-            cloud.store.abort_uploads(batch_prefix(batch_id))
-            deleted = sweep_orphans(context, cloud, batch_id)
-            folder = temp_dir(state.paths, batch_id)
-            run = UploadRun(context, cloud.store, folder, request.action)
-            tally = upload_items(run, batch_id)
-            finish = finish_upload(context, cloud, batch_id)
-        return _response(context, batch_id, _Report(tally, finish, deleted))
+            report = continue_upload(context, cloud, batch_id, request.action)
+        return _response(context, batch_id, report)
 
 
 @dataclass(frozen=True)
-class _Report:
+class UploadReport:
     """What the upload did: the items' tally, where it ended, and the sweep's deletions (None: put off)."""
 
     tally: ItemTally
@@ -71,7 +64,28 @@ class _Report:
     deleted: int | None
 
 
-def _response(context: RequestContext, batch_id: str, report: _Report) -> RunUploadResponse:
+def continue_upload(context: RequestContext, cloud: CloudAccess, batch_id: str, action: str) -> UploadReport:
+    """Run steps 2-4 on an `uploading` batch: leftovers, every item not uploaded yet, the end (§3.3).
+
+    The caller holds the batch's lock and not the runs lock; `create_retry_batch` uses it for
+    its retry batch (copy items) as `run_upload` does for every batch.
+
+    Raises:
+        CancelledError: Cancelled; what was done is recorded and re-sending resumes.
+        DomainError: A media tool, R2, Runpod or the database failed; re-sending resumes.
+    """
+    state = context.ports.state
+    clear_temp(state.paths, batch_id)
+    cloud.store.abort_uploads(batch_prefix(batch_id))
+    deleted = sweep_orphans(context, cloud, batch_id)
+    folder = temp_dir(state.paths, batch_id)
+    run = UploadRun(context, cloud.store, folder, action)
+    tally = upload_items(run, batch_id)
+    finish = finish_upload(context, cloud, batch_id)
+    return UploadReport(tally, finish, deleted)
+
+
+def _response(context: RequestContext, batch_id: str, report: UploadReport) -> RunUploadResponse:
     tally = report.tally
     finish = report.finish
     with context.ports.state.session() as session:

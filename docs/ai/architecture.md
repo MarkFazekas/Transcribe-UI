@@ -67,13 +67,14 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Models live in the desktop app (not in contracts: they are not shared with the worker): the
   unions in `transcribe_ui/api/classes.py`, each sub-package's request and response models in
   its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`,
-  `WhisperLanguage`), so
+  `SetPath`, `ToolPath`, `WhisperLanguage`, `check_distinct`), so
   `api/classes.py` can import them without a cycle. A path on the user's computer is typed
   `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
   fields (§7).
 - The dispatch table (`api/routes.py`) maps each action to its handler and marks whether it
-  needs the database; request types that do not (app info, settings, credentials, scans) never
-  open it, so the CLI can run them while the GUI holds the writer lock.
+  needs the database; request types that do not (app info, settings, credentials, scans, cloud
+  setup; their handlers are listed in `api/local_handlers.py`) never open it, so the CLI can run
+  them while the GUI holds the writer lock.
 - Cancellation: long requests check the `CancelToken` between items and stop with the error
   `cancelled` after persisting what is done; re-sending the request resumes.
 - Frontends only build requests and render responses/progress events:
@@ -257,7 +258,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     running; a live `transcribe-ui-*` pod or queued pod; or a `status.json` younger than its
     heartbeat timeout; `plans/m5.md` §1), so no worker writes after a cleanup.
     A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
-    (`everything` only, Q26) is allowed during a run and also aborts open multipart uploads.
+    (`everything` only, Q26) is allowed during a run (unless R2 holds a leftover manifest of an
+    interrupted manifest step for it) and also aborts open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
     then `_done.json` and results, then audio; a crash in between leaves only objects under the
     batch prefix, which the next attempt removes. If results were not downloaded yet, the
@@ -267,6 +269,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     possible (a retry request is refused); the UI says so before confirming.
   - Both scopes are refused on a batch while one of its retry batches is still `uploading`
     with copies pending (the error names the retry batch).
+  - A batch this database does not know (Q28) can be deleted with `everything` once its
+    manifest reads; its deletes put the manifest last (below).
 - **Readiness marker**: the manifest is uploaded last, after every audio object is verified.
   A manifest present in `batch_metadata/` therefore always means "ready"; the worker never sees
   half-uploaded batches.
@@ -503,6 +507,81 @@ docs/human/, docs/ai/     see CLAUDE.md
     that were verified; re-sending empties the temp folder, aborts open multipart uploads,
     sweeps unrecorded objects and continues, so the bucket ends with exactly the objects of an
     uninterrupted upload (tested by interrupting before and after every R2 and ffmpeg call).
+
+- **Retry and cleanup** (`transcribe_ui/cleanup/`: `services.py` (the two handlers),
+  `origins.py`, `planning.py`, `rows.py`, `retry.py`, `targets.py`, `known.py`, `unknown.py`,
+  `manifests.py`, `stages.py`; requests `create_retry_batch` and `cleanup_cloud`, both open the
+  database). No R2 or Runpod call runs inside a transaction.
+  - **Retry request.** `create_retry_batch` names the source batch and its jobs (item id and
+    language, at least one, each once). Under the source's batch lock (never waited for, so a
+    cleanup of the source cannot run meanwhile) it looks for the retry batch of this source and
+    job set: the batch payload's `retry_of` holds the source id and the sorted jobs, found with
+    `json_extract`. A retry batch in `cleaned` no longer counts (its jobs can be retried
+    again). An existing one past `uploading` is returned as it is (`created: false`, outcome
+    `past_upload`, nothing done).
+  - **New retry batch.** The source must not have `audio_deleted` (`audio_deleted`), must be
+    `transcribed` or `downloaded` (`wrong_phase`), and every job must be a `transcribe` job of
+    the source (`retry_job_invalid`, reason `no_such_job`) with status `failed` or `no_speech`
+    (reason `not_flagged`; details: the job's index); each job's track needs a verified audio
+    object of the source (`copy_source_missing`). The batch gets the source's scan root and
+    path flavour, the jobs' languages and `retry_of`; each source item with chosen jobs becomes
+    a new item (new ULID, so its own audio key) in phase `reviewed`, its payload copied with
+    `copy_sources` set (the source's object key and `AudioObjectPayload` per track), its jobs
+    `careful` on the same track, pending. Its id is the next free batch id of the clock (as
+    `create_batch`) that R2 holds nothing under (`upload/start.py` `id_in_use`: the start check
+    of `run_upload`, which never runs for a batch created in `uploading`); an id taken in R2 is
+    skipped for the next one (up to 10, then `batch_id_taken`). The batch is committed in
+    `uploading` before anything is copied.
+  - **Copy and publish.** Under the retry batch's lock the handler reads its phase again: one
+    that moved on meanwhile gives `past_upload`, one cleaned up meanwhile `wrong_phase`
+    (nothing is copied into a cleaned prefix). Otherwise it runs `run_upload`'s resumable path (`upload/services.py` `continue_upload`: temp folder, stale multipart
+    uploads, orphan sweep, the copy variant per item, then the manifest step, held during a
+    run). The response carries the retry batch's summary, `created`, the outcome (`ready`,
+    `held`) and the objects copied. A kill or a cancel at any point is resumed by repeating the
+    request (it finds the batch by `retry_of`) or by `run_upload` on the retry batch; no second
+    retry batch is made.
+  - **Cleanup order of locks.** `cleanup_cloud` takes the runs lock (bounded wait), then the
+    batch lock of the id (never waited for). For a known batch the runs lock is held through
+    the checks, the activity check and the transaction that records the cleanup, then released
+    before the deletes: the recorded marker keeps every launch out, and the batch lock and the
+    phase keep the manifest step and `publish_held_manifests` out, so a long delete never
+    blocks `refresh_status` (the deadline stop) or `cancel_worker`. The batch lock is held to
+    the end. An unknown batch keeps both locks to the end (nothing local blocks a launch).
+  - **Known batch.** Phases: `everything` from `uploading` on, again in `cleaned` (to finish an
+    interrupted cleanup); `audio` in `ready`, `transcribed` and `downloaded`, refused while a
+    transcribe job is `pending` (`results_pending`, details: the count). Both are refused while
+    a retry batch of the batch is `uploading` with an item not `uploaded` (`retry_copying`,
+    details: the retry batch). Confirmations: `confirm`, and for `everything` on a `ready` or
+    `transcribed` batch also `confirm_not_downloaded` while a transcribe job that did not fail
+    has no recorded placement outcome (the rule that moves a batch to `downloaded`, §3.5;
+    a `downloaded` batch never asks; both listed at once). The activity check runs (`run_active`, `cloud_unreachable`) unless the batch is
+    `uploading` or `cleaned` and R2 holds no manifest for it. Then one transaction records the
+    intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), the
+    batch payload's `cleanup_pending` (the scope; shown in `BatchSummary`), and for
+    `everything` the phase `cleaned` with `manifest_held` and `pending_withdrawal` cleared
+    (nothing publishes the batch again). A last transaction after the last delete clears
+    `cleanup_pending`. While any batch has it (a kill or an R2 failure in between: its manifest
+    or audio may still be in R2), `plan_launch` and `launch_worker` refuse with
+    `cleanup_pending` (details: the batch ids), so nothing half deleted is transcribed;
+    repeating the cleanup clears it. The rows stay (history; extracted subtitles stay
+    downloadable).
+  - **Deletes** (`stages.py`; each object checked before its delete, so what is gone is not
+    counted; the cancel token before each delete; progress `delete_objects` per object). Known
+    `everything`: abort multipart uploads under `<id>/`, the manifest, `_done.json`, the results,
+    then everything left under `<id>/`; the batch's temp folder is emptied. `audio`: abort the
+    uploads under `<id>/audio/`, delete its objects. Repeating an interrupted cleanup finishes
+    it.
+  - **Unknown batch** (Q28): only `everything` (`audio` gives `batch_not_found`). The id is a
+    `BatchId` (else `invalid_request`); `batch_metadata/<id>.json` must exist
+    (`batch_not_found`) and read through `reading.read_manifest` (`manifest_unreadable`) before
+    anything is deleted; one confirmation (details: the file count, `known: false`); refused
+    while a run is active. Nothing local remembers this cleanup, so the manifest, the only
+    proof that the prefix is a published batch, goes last: everything under `<id>/` but
+    `_done.json`, then `_done.json` (a worker skips the batch while it exists), then the
+    manifest. A crash between the last two leaves a manifest whose audio is gone, which a
+    worker would fail quickly; repeating the cleanup removes it.
+  - **Response**: the batch id, the scope, the batch summary (None for an unknown batch), the
+    objects deleted and the multipart uploads aborted by this request.
 
 ### 3.4 Conversion
 
@@ -961,7 +1040,8 @@ database):
   errors itself). The factors are placeholders recalibrated at M7.
 - **Launch** (`runs/launch.py`, `creating.py`, `pod_body.py`, `records.py`, `payloads.py`;
   request `launch_worker`: `wait_s`, `test_mode`, `confirm_fingerprint`). Under the runs lock
-  for the whole sequence, no transaction across a Runpod or R2 call:
+  for the whole sequence, no transaction across a Runpod or R2 call (first, as in `plan_launch`,
+  a batch with `cleanup_pending`, an interrupted cloud cleanup, gives `cleanup_pending`, §3.3):
   1. the activity check: any sign of a run (a straggler included) gives `run_active`, an
      unreadable cloud `cloud_unreachable`;
   2. `require_cloud_setup` (template and volume ids, or `cloud_not_set_up`,
@@ -1564,6 +1644,14 @@ Few unit tests; mostly regression and flow tests:
   media adapter and normalise temp roots, path separators and the path flavour, so the files
   match on every OS; flows with the real ffmpeg assert structure, since its output differs
   across builds.
+  - End-to-end flow (`tests/test_end_to_end.py`, goldens `end_to_end_*`): create, review and
+    upload a batch (manifest published), plan and launch the worker (fake Runpod API), refresh
+    while a simulated worker (`support/worker_sim.py`) writes its heartbeat, then its results
+    (ok, no speech, failed), `_done.json` and log, and its pod ends; download with `mirror`
+    (`downloaded`), retry the failed and no-speech jobs (`careful`, audio copied), clean up the
+    source's audio, then everything, then the retry batch (two confirmations). Interruptions
+    and every placement strategy are covered by the per-request flows (upload, download,
+    retry, cleanup), not repeated here.
   - Parity runner (`apps/desktop/tests/support/parity.py`): each leg gets a fresh temp root and
     a backend from the same seeded factory (fixed clock, seeded ULID randomness); the backend
     leg calls `Backend.execute_json`, the CLI leg calls the CLI's `main(["run", <file>])`
@@ -1669,9 +1757,9 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.13 built): Desktop backend: façade,
+- **M5** (built; planned in `plans/m5.md`): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
-  launch and monitoring, download and placement (§3.1-3.7).
+  launch and monitoring, download and placement, retry and cloud cleanup (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` one-file builds for the four platforms (§8).

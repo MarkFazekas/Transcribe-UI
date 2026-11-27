@@ -1,0 +1,55 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "plan_launch",
+    "plan": {
+      "scope": {
+        "batches": [
+          {
+            "batch_id": "batch_20261127_132100",
+            "known": true,
+            "held": false,
+            "files": 2,
+            "pending_jobs": [
+              {
+                "item_id": "01M8EE0VG012YQDTE814MPCJ9X",
+                "language": "en",
+                "mode": "careful",
+                "duration_s": 60.0
+              },
+              {
+                "item_id": "01M8EE0VG057PENN82CFTDDMHN",
+                "language": "en",
+                "mode": "careful",
+                "duration_s": 60.0
+              }
+            ],
+            "pending_duration_s": 120.0
+          }
+        ],
+        "unreadable": [],
+        "pending_jobs": 2,
+        "pending_duration_s": 120.0,
+        "fingerprint": "0281069c66367147b1d9bc2c3a90ef89b1cf9b4c8b88e8b71242274ea68be908"
+      },
+      "test_mode": false,
+      "weighted_duration_s": 240.0,
+      "max_runtime_s": 1536,
+      "cost": {
+        "low_usd": 0.02,
+        "high_usd": 0.09,
+        "price_per_hour_usd": 0.27,
+        "price_source": "catalog",
+        "note": null
+      },
+      "fingerprint": "f4bc0bb91363ff07f50c14cf9bb5129abd08b3b7f0a390992a6661d9af0dcd9e",
+      "wait": {
+        "default_s": 3600,
+        "min_s": 300,
+        "max_s": 86400
+      }
+    }
+  },
+  "events": []
+}

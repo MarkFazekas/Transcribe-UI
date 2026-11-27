@@ -1,5 +1,6 @@
 """Batch ids: `batch_YYYYMMDD_HHmmss` from the local creation time, `_2`, `_3`, ... on collision (§3.3)."""
 
+from collections.abc import Collection
 from datetime import datetime, tzinfo
 
 from sqlalchemy import select
@@ -15,17 +16,18 @@ def base_batch_id(moment: datetime, zone: tzinfo | None) -> str:
     return local.strftime(BATCH_ID_FORMAT)
 
 
-def free_batch_id(session: Session, base: str) -> str:
-    """Return `base`, or the first free `base_<n>` (n from 2) when it is taken.
+def free_batch_id(session: Session, base: str, also_taken: Collection[str] = ()) -> str:
+    """Return `base`, or the first free `base_<n>` (n from 2) when it is taken (here, or in `also_taken`).
 
     Call it in the transaction that inserts the batch: transactions start with `BEGIN
     IMMEDIATE`, so two requests creating a batch in the same second cannot both pick one id.
+    `also_taken` holds ids found in use elsewhere (in R2, by a retry batch's check).
     """
     prefix = f"{base}{BATCH_ID_SUFFIX_SEPARATOR}"
     candidates = select(BatchRow.batch_id).where(
         (BatchRow.batch_id == base) | BatchRow.batch_id.startswith(prefix, autoescape=True)
     )
-    taken = frozenset(session.scalars(candidates))
+    taken = frozenset(session.scalars(candidates)) | frozenset(also_taken)
     if base not in taken:
         return base
     suffix = FIRST_BATCH_ID_SUFFIX

@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "create_retry_batch",
+    "error": {
+      "code": "audio_deleted",
+      "message": "The batch's audio was deleted from the cloud, so it cannot be retried; create a new batch instead.",
+      "details": {
+        "batch_id": "batch_20261127_130000"
+      }
+    }
+  },
+  "events": []
+}

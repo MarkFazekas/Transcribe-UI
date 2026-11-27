@@ -6,7 +6,7 @@ from pydantic import AwareDatetime, NonNegativeInt
 
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath, PathFlavor
-from transcribe_ui.batches.payloads import ItemPhase, ItemProblem, JobKind
+from transcribe_ui.batches.payloads import CleanupScope, ItemPhase, ItemProblem, JobKind
 from transcribe_ui.discovery.classes import ScanWarning
 from transcribe_ui.media.classes import AudioTrack, SubtitleStream
 from transcribe_ui.state.models import BatchPhase
@@ -63,6 +63,8 @@ class BatchSummary(FrozenModel):
     # Upload complete, manifest kept back while a run is active.
     manifest_held: bool
     audio_deleted: bool
+    # A cloud cleanup of this scope was interrupted: repeat it (no worker starts meanwhile).
+    cleanup_pending: CleanupScope | None
     # Only `extract` jobs: the batch needs no upload and no cloud run.
     extract_only: bool
 
