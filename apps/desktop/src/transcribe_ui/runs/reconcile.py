@@ -5,8 +5,10 @@ queued pods that may still lead to a pod (the activity check's rule: not `FAILED
 `CANCELLED`; a `DEPLOYED` one only before its name deadline, while its pod is not listed as
 itself and a lookup does not show it terminated or settled away), resolves `launching` runs
 by their names (`runs/settling.py`), and reports each entry as belonging to a run that is not final or as a
-straggler, and whether it is past its name deadline. Under the runs lock; it stops nothing
-itself (`terminate_pod`, `cancel_queued_pod`).
+straggler, and whether it is past its name deadline. A straggler of a final run whose objects
+were collected marks the run uncollected, since it may have written some again (the next
+`refresh_status` collects them; refresh never calls reconcile, so nothing loops). Under the runs
+lock; it stops nothing itself (`terminate_pod`, `cancel_queued_pod`).
 """
 
 from datetime import datetime
@@ -14,10 +16,11 @@ from datetime import datetime
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runs.classes import ReconcileCloudRequest
 from transcribe_ui.runs.cloud import open_runpod
+from transcribe_ui.runs.collect import reopen_collection
 from transcribe_ui.runs.entries import live_entries, needs_attention
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.records import open_runs, read_run, run_statuses
-from transcribe_ui.runs.responses import ReconcileCloudResponse, RunInfo
+from transcribe_ui.runs.responses import CloudEntry, ReconcileCloudResponse, RunInfo
 from transcribe_ui.runs.settling import Listed, resolve_launching
 from transcribe_ui.state.store import LocalState
 
@@ -36,8 +39,16 @@ def reconcile_cloud(_request: ReconcileCloudRequest, context: RequestContext) ->
         runs = _resolve_runs(state, listed, now)
         statuses = run_statuses(state)
         entries = runpod_call(lambda: live_entries(listed, client.pods, statuses, now))
+        _reopen_stragglers(state, entries, now)
     attention = any(needs_attention(entry) for entry in entries)
     return ReconcileCloudResponse(entries=entries, runs=runs, attention=attention)
+
+
+def _reopen_stragglers(state: LocalState, entries: tuple[CloudEntry, ...], now: datetime) -> None:
+    """Mark the final, collected runs of stragglers uncollected: they may have written run objects again."""
+    for straggler in entries:
+        if straggler.role == "straggler":
+            reopen_collection(state, straggler.run_id, now)
 
 
 def _resolve_runs(state: LocalState, listed: Listed, now: datetime) -> tuple[RunInfo, ...]:

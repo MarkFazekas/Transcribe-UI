@@ -2,11 +2,12 @@
 
 Once a run is final (its pod is gone, or it never had one), `refresh_status` keeps the worker's
 last `status.json` in the run row (if the run's end did not already), writes `worker.log` to the
-user log dir (`worker-<run_id>.log`), then deletes every object under `runs/<run_id>/` and marks
+user log dir (`worker-<run_id>.log`; never over a log kept before, see `_keep_log`), then deletes every object under `runs/<run_id>/` and marks
 the run collected (last). The worker is the only writer of these objects and is gone by then. A
 failure is logged and leaves the run uncollected: the next refresh tries again. A straggler pod
-carrying a collected run's name may write objects again; stopping it through `terminate_pod` or
-`cancel_queued_pod` marks the run uncollected (`reopen_collection`), so they are collected too.
+carrying a collected run's name may write objects again; listing it in `reconcile_cloud` or
+stopping it through `terminate_pod` or `cancel_queued_pod` marks the run uncollected
+(`reopen_collection`), so they are collected too.
 """
 
 import logging
@@ -17,7 +18,12 @@ from sqlalchemy import select
 
 from transcribe_contracts.constants import RUNS_PREFIX
 from transcribe_contracts.layout import run_log_key
-from transcribe_ui.runs.constants import FINAL_RUN_STATUSES, WORKER_LOG_NAME
+from transcribe_ui.runs.constants import (
+    FINAL_RUN_STATUSES,
+    FIRST_EXTRA_LOG_NUMBER,
+    WORKER_LOG_EXTRA_NAME,
+    WORKER_LOG_NAME,
+)
 from transcribe_ui.runs.records import payload_of, read_payload, update_run
 from transcribe_ui.runs.worker import read_worker
 from transcribe_ui.state.models import RunRow
@@ -77,12 +83,39 @@ def _collect(state: LocalState, store: ObjectStore, run_id: str, now: datetime) 
             update_run(state, run_id, now, changes={"final_status": report.status})
     log = store.read(run_log_key(run_id))
     if log is not None:
-        target = worker_log_path(state.paths.log_dir, run_id)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(log)
+        _keep_log(state.paths.log_dir, run_id, log)
     for found in store.list_objects(f"{RUNS_PREFIX}{run_id}/"):
         store.delete(found.key)
     update_run(state, run_id, now, changes={"objects_collected": True})
+
+
+def _keep_log(log_dir: Path, run_id: str, body: bytes) -> None:
+    """Write the worker log to the log dir, never over a log kept before.
+
+    The first log is `worker-<run_id>.log`; a log collected again (after a straggler) goes to
+    `worker-<run_id>-<n>.log` with the next free n from 2. A log already kept with the same
+    bytes (a collection retried after a later step failed) is not written again.
+
+    Raises:
+        OSError: The log could not be written.
+    """
+    log_dir.mkdir(parents=True, exist_ok=True)
+    first = worker_log_path(log_dir, run_id)
+    extra = WORKER_LOG_EXTRA_NAME.format(run_id=run_id, number="*")
+    kept = [first, *sorted(log_dir.glob(extra))]
+    if any(_same_bytes(path, body) for path in kept):
+        return
+    target = first
+    number = FIRST_EXTRA_LOG_NUMBER
+    while target.exists():
+        target = log_dir / WORKER_LOG_EXTRA_NAME.format(run_id=run_id, number=number)
+        number += 1
+    with target.open("xb") as written:  # "x": never replaces a file
+        written.write(body)
+
+
+def _same_bytes(path: Path, body: bytes) -> bool:
+    return path.is_file() and path.read_bytes() == body
 
 
 def reopen_collection(state: LocalState, run_id: str | None, now: datetime) -> None:

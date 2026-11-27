@@ -59,9 +59,9 @@ def write_status(  # noqa: PLR0913, WPS211 -- one keyword per heartbeat field a 
     store.write(run_status_key(run_id), status.model_dump_json().encode(), JSON_TYPE)
 
 
-def write_log(store: R2ObjectStore, run_id: str) -> None:
+def write_log(store: R2ObjectStore, run_id: str, text: str = WORKER_LOG) -> None:
     """Upload the worker log."""
-    store.write(run_log_key(run_id), WORKER_LOG.encode(), "text/plain")
+    store.write(run_log_key(run_id), text.encode(), "text/plain")
 
 
 def write_result(  # noqa: PLR0913, WPS211 -- the job's key parts, its run, its time and its outcome
