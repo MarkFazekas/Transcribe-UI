@@ -167,3 +167,7 @@ COST_SO_FAR_DECIMALS: Final = 2
 
 # Error code: the pod or queued pod is not one of the app's (`transcribe-ui-*`).
 ERROR_NOT_APP_POD: Final = "not_an_app_pod"
+# Error code: a cloud cleanup of a batch was interrupted, so no worker may start until it is repeated.
+ERROR_CLEANUP_PENDING: Final = "cleanup_pending"
+# JSON path of a batch's interrupted cleanup in its batch payload (its `cleanup_pending`).
+CLEANUP_PENDING_PATH: Final = "$.cleanup_pending"

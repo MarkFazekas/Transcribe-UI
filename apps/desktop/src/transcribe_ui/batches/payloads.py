@@ -14,6 +14,8 @@ from transcribe_ui.upload.payloads import CopySource
 type ItemPhase = Literal["composing", "reviewing", "reviewed", "uploaded"]
 # What a job does: transcribe an audio track in the cloud, or extract an embedded text subtitle locally.
 type JobKind = Literal["transcribe", "extract"]
+# What a cloud cleanup deletes: the audio only (results stay downloadable), or every object of the batch.
+type CleanupScope = Literal["audio", "everything"]
 # Why an item cannot be resolved until it is probed again (or excluded).
 type ProblemCode = Literal["source_missing", "probe_failed", "source_changing"]
 
@@ -41,6 +43,9 @@ class BatchPayload(FrozenModel):
     languages: tuple[str, ...]
     # Set on a retry batch (`create_retry_batch`): one retry batch per source and job set.
     retry_of: RetryOrigin | None = None
+    # A cloud cleanup of this scope was recorded and has not finished its deletes yet; no worker
+    # may start until it is repeated (`cleanup_cloud`).
+    cleanup_pending: CleanupScope | None = None
 
 
 class PendingWithdrawal(FrozenModel):

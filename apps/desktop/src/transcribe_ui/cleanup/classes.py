@@ -6,13 +6,11 @@ from pydantic import AfterValidator, Field, NonNegativeInt
 
 from transcribe_contracts.classes import BatchId
 from transcribe_ui.api.base import FrozenModel, check_distinct
-from transcribe_ui.batches.payloads import RetryJob
+from transcribe_ui.batches.payloads import CleanupScope, RetryJob
 from transcribe_ui.batches.responses import BatchSummary, OkResponse
 from transcribe_ui.runs.classes import ActivitySource
 from transcribe_ui.upload.responses import UploadOutcome
 
-# What `cleanup_cloud` deletes: the audio only (results stay downloadable), or every object of the batch.
-type CleanupScope = Literal["audio", "everything"]
 # The jobs of a retry: at least one, each once.
 type RetryJobs = Annotated[tuple[RetryJob, ...], Field(min_length=1), AfterValidator(check_distinct)]
 # Where `create_retry_batch` left the retry batch: as `run_upload` (`ready`, or `held` during a run),

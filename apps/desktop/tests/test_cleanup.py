@@ -16,6 +16,7 @@ from support.cleanup import (
     EVERYTHING,
     PODCAST_ID,
     cleanup_document,
+    cleanup_pending,
     confirmed,
     flags,
     keys_under,
@@ -140,6 +141,15 @@ def test_leftover_manifest_waits_for_the_run(uploading: RunsWorld) -> None:
     assert (flags(uploading), open_uploads()) == (("uploading", False), 1)
 
 
+def test_cleaned_batch_with_a_leftover_manifest_waits(uploading: RunsWorld) -> None:
+    """A batch already `cleaned` whose manifest is still in R2 (an interrupted cleanup): `run_active`."""
+    with uploading.ports.state.session() as session:
+        write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID))
+    set_phase(uploading, "cleaned")
+    assert error_code(send(uploading, confirmed(EVERYTHING))) == "run_active"
+    assert manifest_key(FIRST_BATCH_ID) in keys_under(uploading.store)
+
+
 def test_scopes_refused_in_the_wrong_phase(uploading: RunsWorld) -> None:
     """`audio` needs a published batch; a batch in review is deleted, not cleaned up."""
     assert error_code(send(uploading, confirmed(AUDIO))) == "wrong_phase"
@@ -163,6 +173,7 @@ def _killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wire: 
             return False
         _cleaned(world, confirmed(EVERYTHING))
         assert (keys_under(world.store), flags(world)) == ([], ("cleaned", True)), wire
+        assert cleanup_pending(world) is None, wire
     return True
 
 

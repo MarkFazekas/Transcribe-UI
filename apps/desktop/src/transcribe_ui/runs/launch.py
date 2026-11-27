@@ -1,7 +1,8 @@
 """`launch_worker`: start one worker for every pending manifest (architecture §3.7).
 
 Everything runs under the runs lock, so no manifest step, cleanup or other launch can change the
-run activity or the scope in between: the activity check (a live run or straggler refuses), the
+run activity or the scope in between: an interrupted cloud cleanup refuses (`cleanup_pending`), as
+does the activity check (a live run or straggler), then the
 cloud setup check, the plan and its fingerprint (a plan other than the confirmed one asks for
 confirmation again), `publish_held_manifests` (which also finishes pending withdrawals of leftover
 manifests; one left pending because its batch is busy refuses the launch), the run row (committed
@@ -17,7 +18,7 @@ from transcribe_ui.runs.classes import LaunchWorkerRequest
 from transcribe_ui.runs.cloud import open_cloud_client
 from transcribe_ui.runs.creating import request_pod
 from transcribe_ui.runs.errors import NothingToLaunchError, RunActiveError
-from transcribe_ui.runs.guards import require_no_run, require_withdrawals_done
+from transcribe_ui.runs.guards import require_no_pending_cleanup, require_no_run, require_withdrawals_done
 from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.runs.planning import confirmation, current_plan
 from transcribe_ui.runs.pod_body import Decided, NewRun, create_body, name_run
@@ -30,6 +31,7 @@ def launch_worker(request: LaunchWorkerRequest, context: RequestContext) -> Laun
     """Start the worker on the confirmed scope, or ask for confirmation of the current one.
 
     Raises:
+        CleanupPendingError: A cloud cleanup was interrupted; it must be repeated first.
         RunActiveError: A run is active or a straggler pod exists (`run_active`; nothing changed).
         ActivityUnknownError: The run activity cannot be checked (`cloud_unreachable`).
         BatchBusyError: A leftover manifest's withdrawal stays pending (its batch is busy); no
@@ -41,6 +43,7 @@ def launch_worker(request: LaunchWorkerRequest, context: RequestContext) -> Laun
     state = context.ports.state
     runs_lock = state.locks.runs(context.cancel.is_cancelled)
     with runs_lock, open_cloud_client(context) as (cloud, client):
+        require_no_pending_cleanup(state)
         require_no_run(context, cloud)
         setup = require_cloud_setup(client)
         plan = current_plan(state, cloud.store, client.catalog, test_mode=request.test_mode)

@@ -115,7 +115,7 @@ def test_launch_waiting_for_a_cleanup_finds_nothing(ready: RunsWorld, monkeypatc
     assert pause.reached.wait(THREAD_TIMEOUT_S)
     launched = send(ready, document(LAUNCH, confirm_fingerprint=fingerprint))
     assert cleanup.join().status == "ok"
-    assert error_code(launched) in {"nothing_to_launch", "runs_busy"}
+    assert error_code(launched) in {"cleanup_pending", "nothing_to_launch", "runs_busy"}
     again = send(ready, document(LAUNCH, confirm_fingerprint=fingerprint))
     assert (error_code(again), posts(ready)) == ("nothing_to_launch", 0)
     assert (flags(ready), keys_under(ready.store)) == (("cleaned", True), [])

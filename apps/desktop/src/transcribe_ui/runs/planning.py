@@ -13,6 +13,7 @@ from transcribe_ui.runs.classes import LaunchPlan, PlanLaunchRequest
 from transcribe_ui.runs.cloud import open_cloud_client
 from transcribe_ui.runs.constants import SECONDS_PER_HOUR
 from transcribe_ui.runs.estimate import launch_plan
+from transcribe_ui.runs.guards import require_no_pending_cleanup
 from transcribe_ui.runs.responses import PlanLaunchResponse
 from transcribe_ui.runs.scope import read_launch_scope
 from transcribe_ui.state.store import LocalState
@@ -26,7 +27,11 @@ def plan_launch(request: PlanLaunchRequest, context: RequestContext) -> PlanLaun
     """Return what a worker started now would process, its runtime limit and its cost estimate.
 
     Reads only (no lock): `launch_worker` computes the plan again under the runs lock.
+
+    Raises:
+        CleanupPendingError: A cloud cleanup was interrupted; it must be repeated first.
     """
+    require_no_pending_cleanup(context.ports.state)
     with open_cloud_client(context) as (cloud, client):
         state = context.ports.state
         plan = current_plan(state, cloud.store, client.catalog, test_mode=request.test_mode)

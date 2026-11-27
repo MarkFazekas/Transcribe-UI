@@ -23,7 +23,7 @@ from transcribe_contracts.classes import JobStatus as ResultStatus
 from transcribe_contracts.layout import batch_prefix, manifest_key
 from transcribe_ui.api.classes import Response
 from transcribe_ui.api.ports import CancelFlag, RequestContext
-from transcribe_ui.batches.payloads import JobPayload
+from transcribe_ui.batches.payloads import BatchPayload, JobPayload
 from transcribe_ui.runs.cloud import CloudAccess, open_cloud
 from transcribe_ui.state.models import BatchRow, JobRow
 from transcribe_ui.state.store import LocalState
@@ -129,3 +129,11 @@ def patch_store(monkeypatch: pytest.MonkeyPatch, module: str, wrap: StoreWrap) -
 def _wrapped_cloud(wrap: StoreWrap, context: RequestContext) -> Iterator[CloudAccess]:
     with open_cloud(context) as cloud:
         yield CloudAccess(wrap(cloud.store), cloud.pods)
+
+
+def cleanup_pending(world: RunsWorld, batch_id: str = FIRST_BATCH_ID) -> str | None:
+    """Return the scope of the batch's interrupted cleanup (None: none)."""
+    with world.ports.state.session() as session:
+        row = session.get(BatchRow, batch_id)
+        assert row is not None
+        return BatchPayload.model_validate(row.payload).cleanup_pending

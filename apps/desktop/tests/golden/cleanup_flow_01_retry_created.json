@@ -18,6 +18,7 @@
       "hidden": false,
       "manifest_held": false,
       "audio_deleted": false,
+      "cleanup_pending": null,
       "extract_only": false
     },
     "outcome": "ready",

@@ -332,6 +332,16 @@
         "batch_id": {
           "$ref": "#/$defs/BatchId"
         },
+        "cleanup_pending": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CleanupScope"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "created_at": {
           "format": "date-time",
           "title": "Created At",
@@ -386,6 +396,7 @@
         "hidden",
         "manifest_held",
         "audio_deleted",
+        "cleanup_pending",
         "extract_only"
       ],
       "title": "BatchSummary",

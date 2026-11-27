@@ -23,6 +23,8 @@ change the batch between the checks and the last delete. A batch this database k
 `cleanup/unknown.py` (Q28). No R2 or Runpod call is made inside a database transaction.
 """
 
+from contextlib import ExitStack
+
 from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.cleanup.classes import (
@@ -34,7 +36,7 @@ from transcribe_ui.cleanup.classes import (
 from transcribe_ui.cleanup.known import cleanup_known
 from transcribe_ui.cleanup.origins import ExistingRetry, retry_target
 from transcribe_ui.cleanup.planning import origin_of
-from transcribe_ui.cleanup.retry import retry_batch_id, retry_response
+from transcribe_ui.cleanup.retry import retry_batch_id, retry_response, still_uploading
 from transcribe_ui.cleanup.targets import check_target, load_target, missing_confirmations
 from transcribe_ui.cleanup.unknown import cleanup_unknown
 from transcribe_ui.runs.cloud import open_cloud
@@ -64,6 +66,8 @@ def create_retry_batch(request: CreateRetryBatchRequest, context: RequestContext
         with open_cloud(context) as cloud:
             retry_id = retry_batch_id(context, cloud.store, target)
             with state.locks.batch(retry_id):
+                if not still_uploading(context, retry_id):
+                    return retry_response(context, request, retry_id, None, created=created)
                 report = continue_upload(context, cloud, retry_id, request.action)
     return retry_response(context, request, retry_id, report, created=created)
 
@@ -84,13 +88,15 @@ def cleanup_cloud(request: CleanupCloudRequest, context: RequestContext) -> Clea
     """
     state = context.ports.state
     locks = state.locks
-    with locks.runs(context.cancel.is_cancelled), locks.batch(request.batch_id):
-        with state.session() as session:
-            target = load_target(session, request.batch_id)
-        if target is None:
-            return cleanup_unknown(request, context)
-        check_target(request, target)
-        needed = missing_confirmations(request, target)
-        if needed:
-            return NeedsConfirmation(action=request.action, confirmations=needed)
-        return cleanup_known(request, context, target)
+    with ExitStack() as runs_held:
+        runs_held.enter_context(locks.runs(context.cancel.is_cancelled))
+        with locks.batch(request.batch_id):
+            with state.session() as session:
+                target = load_target(session, request.batch_id)
+            if target is None:
+                return cleanup_unknown(request, context)
+            check_target(request, target)
+            needed = missing_confirmations(request, target)
+            if needed:
+                return NeedsConfirmation(action=request.action, confirmations=needed)
+            return cleanup_known(request, context, target, runs_held.close)
