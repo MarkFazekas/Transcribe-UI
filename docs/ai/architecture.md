@@ -413,7 +413,7 @@ Termination layers, each sufficient on its own for the failures it covers:
    alone and fails the run; other pods are never touched or logged by name. List items are
    parsed leniently: any JSON value (or none) of `id`, `name`, `status` and `createdAt` is
    accepted, a non-string becoming null, so one odd entry or format change cannot fail the
-   list. Entries without a string name and status are foreign (never logged); app entries are
+   list. Entries without a string name are foreign (never logged); an app entry whose status is not a string fails the run but is still handled by its deadline; app entries are
    validated one by one. An app entry whose id is not a string fully matching
    `[A-Za-z0-9_-]{1,64}` is left alone and fails the run. A deadline not yet due that lies more
    than 32 days (`MAX_DEADLINE_SPAN`: Runpod's 30-day queue maximum + the 24 h `MAX_RUNTIME_S`

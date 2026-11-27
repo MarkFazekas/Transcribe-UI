@@ -58,6 +58,8 @@ Q_OVERDUE_PATH = f"{QUEUED_PODS}/{Q_OVERDUE}"
 P_OVERDUE_PATH = f"{PODS}/{P_OVERDUE}"
 TICK = timedelta(seconds=1)
 NUMERIC_JSON = 1764240000
+P_IN_TIME = "p_in_time"
+GARBAGE = "garbage"
 POD_ACTION_TAKES = QUEUED_PHASE_BUDGET + TICK
 ID_MAX_LENGTH = 64
 AUDIT_LINE = f"pod={P_OVERDUE} run={RUN_ID} deadline=2026-11-27T11:49:00+00:00 action=terminate outcome=done"
@@ -101,7 +103,7 @@ class FakeRunpod:
     requests: list[tuple[str, str, str]] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def add_pod(self, pod_id: object, name: str, status: str = RUNNING, created_at: object = CREATED_AT) -> None:
+    def add_pod(self, pod_id: object, name: str, status: object = RUNNING, created_at: object = CREATED_AT) -> None:
         """Add a pod (without `createdAt` if it is None); ids and createdAt may be any JSON value."""
         pod: dict[str, object] = {"id": pod_id, NAME: name, STATUS: status, "env": {"R2_SECRET": "x"}}
         if created_at is not None:
@@ -234,7 +236,7 @@ def _populate(state: FakeRunpod) -> None:
     for pod_id, name, status in (
         (P_OVERDUE, OVERDUE, RUNNING),
         ("p_exited", OVERDUE, "EXITED"),
-        ("p_in_time", IN_TIME, RUNNING),
+        (P_IN_TIME, IN_TIME, RUNNING),
         ("p_in_grace", IN_GRACE, RUNNING),
         ("p_foreign", FOREIGN, RUNNING),
     ):
@@ -256,7 +258,7 @@ def test_full_pass(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) ->
         ok = state.reap()
     assert (ok, state.deletes()) == (True, [f"{QUEUED_PODS}/{Q_OVERDUE}", f"{PODS}/{P_OVERDUE}", f"{PODS}/p_exited"])
     assert (set(state.pods), state.queued[Q_OVERDUE][STATUS]) == (
-        {"p_in_time", "p_in_grace", "p_foreign"},
+        {P_IN_TIME, "p_in_grace", "p_foreign"},
         "CANCELLED",
     )
     assert {request[2] for request in state.requests} == {f"Bearer {API_KEY}"}
@@ -526,12 +528,28 @@ def test_invalid_created_at_fails_but_is_handled(
 ) -> None:
     """A missing, unparseable, naive or non-string createdAt fails the pass; overdue pods are still terminated."""
     state = fake_runpod
-    checked = {P_OVERDUE: OVERDUE, "p_in_time": IN_TIME}
+    checked = {P_OVERDUE: OVERDUE, P_IN_TIME: IN_TIME}
     for pod_id, name in checked.items():
         state.add_pod(pod_id, name, created_at=created_at)
-    assert (state.reap(), state.deletes(), set(state.pods)) == (False, [P_OVERDUE_PATH], {"p_in_time"})
+    assert (state.reap(), state.deletes(), set(state.pods)) == (False, [P_OVERDUE_PATH], {P_IN_TIME})
     assert caplog.text.count("createdAt missing or not a date-time with offset") == len(checked)
     assert "not-a-date" not in caplog.text
+
+
+@pytest.mark.parametrize("status", [None, NUMERIC_JSON, {GARBAGE: True}])
+def test_app_pod_without_string_status_is_handled(
+    fake_runpod: FakeRunpod,
+    caplog: pytest.LogCaptureFixture,
+    status: object,
+) -> None:
+    """An app pod whose status is not a string fails the pass but is still terminated once overdue."""
+    state = fake_runpod
+    checked = {P_OVERDUE: OVERDUE, P_IN_TIME: IN_TIME}
+    for pod_id, name in checked.items():
+        state.add_pod(pod_id, name, status=status)
+    assert (state.reap(), state.deletes(), set(state.pods)) == (False, [P_OVERDUE_PATH], {P_IN_TIME})
+    assert caplog.text.count("status missing or not a string") == len(checked)
+    assert GARBAGE not in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -539,7 +557,7 @@ def test_invalid_created_at_fails_but_is_handled(
     [
         {"id": "foreign id\n", NAME: FOREIGN, STATUS: RUNNING, "createdAt": "foreign-garbage"},
         {"id": NUMERIC_JSON, NAME: None, STATUS: RUNNING, "createdAt": NUMERIC_JSON},
-        {"id": None, NAME: ["garbage"], STATUS: {"garbage": True}, "createdAt": {"garbage": 1}},
+        {"id": None, NAME: [GARBAGE], STATUS: {GARBAGE: True}, "createdAt": {GARBAGE: 1}},
         {},
     ],
 )
@@ -555,7 +573,7 @@ def test_foreign_entries_are_not_validated(
     with caplog.at_level(logging.INFO):
         assert state.reap()
     assert state.deletes() == [P_OVERDUE_PATH]
-    assert ("foreign" in caplog.text, "garbage" in caplog.text) == (False, False)
+    assert ("foreign" in caplog.text, GARBAGE in caplog.text) == (False, False)
 
 
 def test_names_cannot_inject_workflow_commands(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) -> None:

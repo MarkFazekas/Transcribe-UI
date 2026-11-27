@@ -1,7 +1,7 @@
 """One reaper pass: cancel overdue queued pods, then terminate overdue pods (§5.2, layer 4).
 
-Only names with the app prefix are considered; other pods are never touched, validated or
-logged. An app entry with an invalid id or a name that does not parse, or whose deadline is
+Only string names with the app prefix are considered; other pods are never touched,
+validated or logged. An app entry with an invalid id or a name that does not parse, or whose deadline is
 not yet due but lies implausibly far after its creation, is left alone and fails the pass, so
 GitHub notifies. A missing or invalid `createdAt` also fails the pass, but the entry is still
 handled, with the pass start as its creation time.
@@ -62,10 +62,11 @@ class _Kind:
 
 @dataclass(frozen=True)
 class _AppEntry:
-    """A listed entry with a string name carrying the app prefix and an active string status."""
+    """A listed entry with a string name carrying the app prefix, active or of unknown status."""
 
     pod_id: str | None
     name: str
+    status_known: bool
     created_at: str | None
 
 
@@ -158,13 +159,18 @@ def _reap_kind(kind: _Kind, state: _Pass) -> None:
 
 
 def _app_entry(kind: _Kind, entry: ListedPod) -> _AppEntry | None:
-    """Return the entry if it is an active app entry; None for anything else (never logged)."""
+    """Return the entry if it is an app entry not known to be inactive; None otherwise.
+
+    Only a string name with the app prefix makes an entry ours; anything else is foreign and
+    never logged. An app entry whose status is not a string is kept (it fails the pass later).
+    """
     name, status = entry.name, entry.status
-    if name is None or status is None:
+    if name is None or not is_app_pod_name(name):
         return None
-    if not (is_app_pod_name(name) and kind.is_active(status)):
+    if status is not None and not kind.is_active(status):
         return None
-    return _AppEntry(pod_id=entry.pod_id, name=name, created_at=entry.created_at)
+    status_known = status is not None
+    return _AppEntry(pod_id=entry.pod_id, name=name, status_known=status_known, created_at=entry.created_at)
 
 
 def _reap_entry(kind: _Kind, entry: _AppEntry, state: _Pass) -> None:
@@ -182,6 +188,9 @@ def _reap_entry(kind: _Kind, entry: _AppEntry, state: _Pass) -> None:
         state.fail()
         return
     context = _context(kind, pod_id, parsed)
+    if not entry.status_known:
+        logger.warning("%s status missing or not a string: handled by its deadline", context)
+        state.fail()
     created = _created_at(entry, state, context)
     if parsed.deadline >= state.started - GRACE:  # not `deadline + GRACE`: that may overflow
         _keep(parsed, created, state, context)
