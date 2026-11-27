@@ -163,16 +163,22 @@ docs/human/, docs/ai/     see CLAUDE.md
 Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
 
 - **Entry** (`gui/main.py`, Qt-free): before Qt is imported it checks for a display
-  (`gui/display.py`): Windows and macOS always have one; elsewhere `QT_QPA_PLATFORM` naming a
-  platform that needs no display server (`offscreen`, `minimal`, `minimalegl`, `eglfs`,
-  `linuxfb`, `vnc`, `vkkhrdisplay`; any entry of a `;` list) is enough, otherwise `DISPLAY` or
-  `WAYLAND_DISPLAY` must be set. Without one it logs the reason, writes the JSON `ErrorResponse`
+  (`gui/display.py`): Windows and macOS always have one. Elsewhere a forced `QT_QPA_PLATFORM`
+  (a `;` list) needs one entry that can start: `offscreen`, `minimal` or `vnc` always, `xcb`
+  with `DISPLAY`, `wayland*` with `WAYLAND_DISPLAY`; device platforms (`eglfs`, `linuxfb`, ...)
+  never count. Without `QT_QPA_PLATFORM`, `DISPLAY` or `WAYLAND_DISPLAY` must be set. Qt can
+  still abort on what the check cannot see (a display variable naming a server that is gone,
+  missing xcb libraries such as `libxcb-cursor0`); M8 documents those for Linux users and its
+  smoke run starts the build offscreen. Without a display it logs the reason, writes the JSON `ErrorResponse`
   with the code `display_unavailable` to stdout (when the process has one) and exits 1. Then it
   imports `gui/app.py` and runs `run_gui(make_backend)` (tests inject seeded ports) inside
   `log_to_file(transcribe-ui-gui.log)`. `run_gui` routes Qt's messages to the log
   (`qInstallMessageHandler`, logger `transcribe_ui.gui.qt`) and exceptions escaping a slot
-  (`sys.excepthook`) there too, never to stderr; it closes the backend's local state last
-  (`Backend.close`).
+  (`sys.excepthook`) there too, never to stderr. When the event loop ends (normally through the
+  close dialog, or without it, as when the session ends) it hides and deletes the window, runs
+  the executor's `shutdown` and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s);
+  requests still running then end the process through "Quit now". It closes the backend's
+  local state last (`Backend.close`).
 - **Package**: Qt-free modules `executor.py` (the `Executor` port, call handles, channels,
   `SyncExecutor`), `viewmodel.py` (the view-model base: an injected `Executor` and change
   listeners), `activity.py` (the activity panel's view-model), `feedback.py` (error and
@@ -181,10 +187,12 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   the start-up hooks), `shell.py` (main window, wiring), `pages.py` (navigation, pages, lock
   notice), `closing.py` (Q30), `dialogs.py`, `activity_view.py`, `messages.py`, `context.py`,
   `app.py`. A test imports the Qt-free modules in a subprocess and checks that PySide6 stays
-  unloaded. Areas (`settings/`, `selection/`, `jobs/`, `review/`, `cloud/`, `download/`,
+  unloaded; another parses every module outside `gui/` and refuses any import of `PySide6`,
+  `shiboken6` or `transcribe_ui.gui` at any nesting level. Areas (`settings/`, `selection/`, `jobs/`, `review/`, `cloud/`, `download/`,
   `cleanup/`) each get `viewmodel.py` and `view.py` in their part.
 - **Bridge** (`QtExecutor`): the GUI thread never calls `Backend.execute`. Each request runs as
-  a `QRunnable` (not auto-deleted; Python owns it) on one of three `QThreadPool`s, by the
+  a `QRunnable` (auto-deleted by its pool after `run` or on `clear()`; one taken off its queue
+  is deleted by the bridge, so finished calls are freed) on one of three `QThreadPool`s, by the
   presentation table `ACTION_POOLS` in `gui/constants.py`: `long` (3 threads: `scan_tree`,
   `review_batch`, `run_upload`, `run_download`, `import_custom_plan`, `create_retry_batch`,
   `cleanup_cloud`, `setup_cloud`), `poll` (1 reserved thread: `refresh_status`,
@@ -195,8 +203,11 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   in emission order, never inside the call that caused it. Requests, events and responses pass
   unchanged; views throttle repaints (`PROGRESS_REPAINT_MS` = 100). An observer sees every
   response first (the writer-lock notice).
-- **Handles and cancel** (`PooledCall`, thread-safe; state `queued`, `running`, `done`): `cancel`
-  sets the flag; a queued call is taken off its pool with `QThreadPool.tryTake` and completes
+- **Handles and cancel** (`PooledCall`, thread-safe; state `queued`, `running`, `done`). A call
+  that ran stays `running` until its answer is delivered on the GUI thread (marked before the
+  sender's `on_done`), so channels free a key only once its answer arrived; a call that never
+  ran (taken off, cleared, cancelled before it started) is `done` at once. `cancel` sets the
+  flag; a queued call is taken off its pool with `QThreadPool.tryTake` and completes
   at once as `cancelled` (the backend's `ErrorResponse`); a call dequeued but not started sees
   its flag in `begin` and completes as `cancelled` without calling `execute`; a running one
   stops between steps. `shutdown` (close) calls `clear()` on every pool, completes every call
@@ -212,6 +223,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   default the request's JSON); each row shows stage, `completed`/`total` and path, Cancel while
   queued or running, Resume (re-sends the same request) after `cancelled` ("Stopped; continue
   any time", never shown as a failure) or an error, Details for an error, Dismiss once done.
+  Each entry keeps its row: repaints update labels and button visibility in place, so a click
+  during progress always reaches its button.
 - **Bus** (`gui/signals.py`, declared whole by M6.2): navigation (`open_job`, `open_jobs`,
   `open_new_job`, `open_cloud`, `open_cloud_machines`, `open_settings(section)`), job actions
   (`edit_selection`, `open_review`, `run_upload`, `open_download`, `retry_jobs(batch_id, jobs)`,
@@ -232,15 +245,19 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   the code, the details as a key/value table and one table per detail that lists objects, "Open
   log folder"; `internal_error` adds "see the log"). `ERROR_FIXES` adds a button: credentials
   codes → Settings accounts, cloud setup codes → Settings cloud setup, `cleanup_pending` → the
-  first batch in `batch_ids`, `app_busy` → Retry; unknown codes render generically. One
-  confirmation dialog for every `needs_confirmation`; Confirm re-sends the same request with
-  each `field` set (`feedback.confirmed_request`; it sets `true` until M6.1's `set_to` lands).
+  first batch in `batch_ids`, `app_busy` → Retry (the failed action's re-send, or a new probe of
+  the writer lock where there is none); unknown codes render generically. One confirmation
+  dialog for every `needs_confirmation`; Confirm re-sends the same request with each `field`
+  set to true (`feedback.confirmed_request`). A field that is not a boolean of the request
+  shows why and disables Confirm. After M6.1 the value comes from `Confirmation.set_to`.
 - **Closing** (Q30): with calls pending or a run not final (`GuiContext.run_active`, set by the
   cloud page), the window asks "Stop and close?" (with the cloud-machine note while a run is not
   final). On Stop and close it runs `shutdown` and, while calls finish, a modal "Finishing the
-  current step" dialog whose "Quit now" flushes and closes the root log handlers and ends the
-  process with `os._exit(0)` (`sys.exit` would wait for pool threads; every step is
-  idempotent). The window closes once every call has delivered its answer.
+  current step" dialog (Esc does not close it) whose "Quit now" kills the running
+  ffmpeg/ffprobe processes (`media.runner.kill_running_tools`; on Windows their job object ends
+  them with the process), flushes and closes the root log handlers and ends the process with
+  `os._exit(0)` (`sys.exit` would wait for pool threads; every step is idempotent). The window
+  closes once every call has delivered its answer.
 
 ### 3.2 Discovery and selection
 
@@ -808,8 +825,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     together with everything it started (a package-manager shim such as Chocolatey's
     `ffmpeg.exe` runs the real ffmpeg as its own child):
     - POSIX: a new session (`start_new_session`; no `preexec_fn`, which is not thread-safe);
-      the kill is `killpg(SIGKILL)`. If the app itself dies, a running ffmpeg is orphaned and
-      runs to its end; this is accepted, since it writes only its own uniquely named partial
+      the kill is `killpg(SIGKILL)`. The runner tracks every running tool, so the GUI's "Quit
+      now" kills them before `os._exit` (`kill_running_tools`). If the app itself dies
+      otherwise, a running ffmpeg is orphaned and runs to its end; this is accepted, since it writes only its own uniquely named partial
       file, which the next `run_upload` of its batch removes when it empties the batch's temp
       folder (§3.3 "Upload");
     - Windows: `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, created suspended, put into a

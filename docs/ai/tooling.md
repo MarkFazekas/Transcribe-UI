@@ -122,10 +122,15 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
   CLI never imports `gui/` (tested). CI's Ubuntu desktop leg installs the libraries Qt loads
   even offscreen: `libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3` (apt); Windows
   needs nothing extra.
-- Qt overrides keep Qt's names (`closeEvent`, `run`, later `rowCount`, `data`, `index`) and
-  carry `@typing.override`, which mypy checks and both ruff's and pep8-naming's N802 honour.
-  WPS110 does not, so `.flake8` ignores only WPS110 in `*/gui/*/models.py` and
-  `*/gui/*/view.py`; ruff needs no per-file ignore.
+- Qt overrides keep Qt's names (`closeEvent`, `run`, `reject`, later `rowCount`, `data`,
+  `index`) and carry `@typing.override`, which mypy checks and both ruff's and pep8-naming's
+  N802 honour. WPS110 does not: the part that adds the first item model or view overriding
+  `data`/`index` adds a `.flake8` per-file ignore of WPS110 for `*/gui/*/models.py` and
+  `*/gui/*/view.py` (ruff needs none).
+- pytest-qt imports QtGui, QtWidgets and QtTest when pytest starts, which needs the system
+  libraries Qt loads. `scripts/check.py` therefore runs pytest with `-p no:pytest-qt` for every
+  target except `desktop` (the only one CI installs them for); run other members' tests by
+  hand the same way on a machine without them.
 - mypy runs on the worker without the `engine` extra: `[[tool.mypy.overrides]]` sets
   `ignore_missing_imports` for `whisperx`, `torch`, `torchaudio`, `ctranslate2` and
   `faster_whisper`; only the engine adapter modules (`engine/whisperx_engine.py`,

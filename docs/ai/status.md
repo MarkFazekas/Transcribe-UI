@@ -27,7 +27,10 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## In progress
 
 - M6.2 (GUI foundation) on `feat/m6.2-gui-foundation`, built and checked locally; it merges
-  after M6.1 and then switches `gui/feedback.confirming_value` to `Confirmation.set_to`.
+  after M6.1.
+- TODO when rebasing M6.2 onto M6.1: replace the boolean-only confirmation in
+  `gui/feedback.py` (`unconfirmable_fields`, the `True` in `confirmed_request`) with
+  `Confirmation.set_to`, and drop the "cannot be confirmed here" path.
 
 ## Waiting on humans
 
