@@ -1,65 +1,37 @@
-"""How request handlers reach Runpod: the injected credentials lookup and transport.
+"""How request handlers reach Runpod: the transport, the retry waits and the clock.
 
-The credentials lookup is the small interface this sub-package needs from the credential store
-(M5.5 implements it; `api/wiring.py` joins the two). Until then the lookup finds nothing and
-every Runpod request answers `credentials_missing`.
+The API key comes from the credential store (`Ports.credentials`: keyring first, then the
+environment), which answers `credentials_missing` or `credentials_invalid` itself.
 """
 
-from dataclasses import dataclass, field
-from typing import Protocol
+from dataclasses import dataclass, replace
 
 import httpx
 from pydantic import SecretStr
 
 from transcribe_ui.api.errors import DomainError
-from transcribe_ui.runpod.classes import R2Credentials
+from transcribe_ui.credentials.constants import CREDENTIAL_ORDER
+from transcribe_ui.credentials.store import CredentialStore
 from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.constants import (
-    CREDENTIAL_RUNPOD_API_KEY,
+    CHECK_ATTEMPTS,
+    CHECK_CONNECT_TIMEOUT_S,
+    CHECK_READ_TIMEOUT_S,
     ERROR_CLOUD_UNREACHABLE,
-    ERROR_CREDENTIALS_MISSING,
     ERROR_RUNPOD_KEY_REJECTED,
     ERROR_RUNPOD_KEY_SCOPE,
     HTTP_FORBIDDEN,
     HTTP_UNAUTHORIZED,
+    SECRET_FOR_ENV,
 )
 from transcribe_ui.runpod.errors import RunpodApiError
 from transcribe_ui.runpod.timing import Clock, Stopped, Timing, Wait, never_stopped, utc_now, wait_unless_stopped
 
 
-class CloudCredentials(Protocol):
-    """Lookup of the stored credentials the Runpod requests need; None when not stored."""
-
-    def runpod_api_key(self) -> SecretStr | None:
-        """Return the desktop's Runpod API key."""
-        ...
-
-    def r2_credentials(self) -> R2Credentials | None:
-        """Return the R2 credentials (endpoint, bucket, key id, secret)."""
-        ...
-
-
-@dataclass(frozen=True)
-class StaticCredentials:
-    """Credentials given up front; the default (nothing) until the credential store is wired in."""
-
-    api_key: SecretStr | None = None
-    r2: R2Credentials | None = None
-
-    def runpod_api_key(self) -> SecretStr | None:
-        """Return the Runpod API key given."""
-        return self.api_key
-
-    def r2_credentials(self) -> R2Credentials | None:
-        """Return the R2 credentials given."""
-        return self.r2
-
-
 @dataclass(frozen=True)
 class RunpodAccess:
-    """Port of the Runpod API: credentials lookup, transport, retry waits and clock."""
+    """Port of the Runpod API: transport, retry waits and clock."""
 
-    credentials: CloudCredentials = field(default_factory=StaticCredentials)
     # None: the network. Tests: an `httpx.MockTransport` over the fake API.
     transport: httpx.BaseTransport | None = None
     # Waits between attempts (tests record them instead of sleeping).
@@ -67,30 +39,29 @@ class RunpodAccess:
     # Clock that `Retry-After` dates are measured against.
     now: Clock = utc_now
 
-    def client(self, stopped: Stopped = never_stopped) -> RunpodClient:
-        """Return a client with the stored key (close it after use).
+    def client(self, api_key: SecretStr, stopped: Stopped = never_stopped) -> RunpodClient:
+        """Return a client with this key (close it after use).
 
         Args:
+            api_key: The desktop's Runpod API key (from the credential store).
             stopped: The request's cancel check; retry waits end early and no further
                 attempt starts once it returns True.
-
-        Raises:
-            DomainError: `credentials_missing` when no Runpod API key is stored.
         """
-        api_key = self.credentials.runpod_api_key()
-        if api_key is None:
-            raise missing_credentials([CREDENTIAL_RUNPOD_API_KEY])
         return RunpodClient(api_key, transport=self.transport, timing=self.timing(stopped))
+
+    def check_client(self, api_key: SecretStr) -> RunpodClient:
+        """Return a client with the credential check's short limits (2 attempts, 5 s / 10 s)."""
+        timing = replace(
+            self.timing(),
+            attempts=CHECK_ATTEMPTS,
+            connect_timeout_s=CHECK_CONNECT_TIMEOUT_S,
+            read_timeout_s=CHECK_READ_TIMEOUT_S,
+        )
+        return RunpodClient(api_key, transport=self.transport, timing=timing)
 
     def timing(self, stopped: Stopped = never_stopped) -> Timing:
         """Return the waits, clock and cancel check of a client."""
         return Timing(wait=self.wait, now=self.now, stopped=stopped)
-
-
-def missing_credentials(names: list[str]) -> DomainError:
-    """Return the `credentials_missing` error naming the missing credentials (never values)."""
-    message = f"Credentials missing: {', '.join(names)}. Store them first."
-    return DomainError(ERROR_CREDENTIALS_MISSING, message, {"missing": list(names)})
 
 
 def api_failure(error: RunpodApiError) -> DomainError:
@@ -105,3 +76,19 @@ def api_failure(error: RunpodApiError) -> DomainError:
         return DomainError(ERROR_RUNPOD_KEY_SCOPE, message, {"scope": error.scope})
     message = f"Runpod could not be reached or answered unexpectedly ({error.message}). Try again later."
     return DomainError(ERROR_CLOUD_UNREACHABLE, message)
+
+
+def setup_credentials(store: CredentialStore) -> tuple[SecretStr, dict[str, SecretStr]]:
+    """Return the Runpod API key and the values of the R2 secrets, by Runpod secret name.
+
+    Raises:
+        DomainError: `credentials_missing` naming every missing credential (all five are
+            checked first), or `credentials_invalid`.
+    """
+    store.lookup(CREDENTIAL_ORDER).require(CREDENTIAL_ORDER)
+    api_key = store.runpod_api_key()
+    r2 = store.r2()
+    endpoint = SecretStr(r2.endpoint_url)
+    parts = (endpoint, SecretStr(r2.bucket), r2.access_key_id, r2.secret_access_key)
+    names = [secret for _, secret in SECRET_FOR_ENV]
+    return api_key, dict(zip(names, parts, strict=True))

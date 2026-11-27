@@ -13,24 +13,32 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
 
+from support.credentials import NEVER_SHOWN, TEST_SECRET, store_request
 from support.golden import assert_golden
 from support.parity import Exchange, run_one, run_parity
-from support.runpod import FULL_CREDENTIALS, R2_BUCKET, R2_PRIVATE, SECRET_VALUES, Cloud, CloudLegs
+from support.runpod import (
+    FULL_CREDENTIALS,
+    NO_CREDENTIALS,
+    R2_BUCKET,
+    R2_PRIVATE,
+    RUNPOD_ONLY,
+    SECRET_VALUES,
+    Cloud,
+    CloudLegs,
+)
 from support.runpod_api import FAKE_API_KEY, Failure, FakeRunpodApi
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import CancelFlag, DiscardProgress, RequestContext
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_OK
-from transcribe_ui.runpod.access import StaticCredentials
-from transcribe_ui.runpod.check import check_runpod_key
+from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING
+from transcribe_ui.runpod.check import check_runpod
 from transcribe_ui.runpod.classes import SetupCloudRequest, SetupCloudResponse
 from transcribe_ui.runpod.constants import (
     ERROR_CLOUD_OBJECT_IN_USE,
     ERROR_CLOUD_SETUP_INTERRUPTED,
     ERROR_CLOUD_VOLUME_DUPLICATED,
-    ERROR_CREDENTIALS_MISSING,
     ERROR_RUNPOD_KEY_REJECTED,
     GLOBAL_VOLUME_NAME,
     MAX_ATTEMPTS,
@@ -312,7 +320,7 @@ def test_exact_secret_name_wins_over_a_case_variant(cloud: Cloud) -> None:
 
 def test_missing_credentials_are_named(tmp_path: Path) -> None:
     """Without credentials nothing is sent; the error names what is missing (never values)."""
-    legs = CloudLegs(credentials=StaticCredentials())
+    legs = CloudLegs(credentials=NO_CREDENTIALS)
     setup, status = run_parity(tmp_path, [SETUP, STATUS], ports=legs)
     assert (setup.exit_code, _error(setup)["code"], _error(status)["code"]) == (
         EXIT_ERROR,
@@ -325,13 +333,14 @@ def test_missing_credentials_are_named(tmp_path: Path) -> None:
 
 def test_missing_r2_credentials_alone(tmp_path: Path) -> None:
     """With only the Runpod key stored, the error names the R2 credentials."""
-    legs = CloudLegs(credentials=StaticCredentials(api_key=FULL_CREDENTIALS.api_key))
-    assert _error(run_one(tmp_path, SETUP, ports=legs))["details"] == {"missing": ["r2"]}
+    legs = CloudLegs(credentials=RUNPOD_ONLY)
+    details = _error(run_one(tmp_path, SETUP, ports=legs))["details"]
+    assert details["missing"] == ["r2_endpoint_url", "r2_bucket", "r2_access_key_id", "r2_secret_access_key"]
 
 
 def test_rejected_key(tmp_path: Path) -> None:
     """A key Runpod refuses gives `runpod_key_rejected`, not retried."""
-    legs = CloudLegs(credentials=StaticCredentials(api_key=SecretStr("rpa_WRONG"), r2=FULL_CREDENTIALS.r2))
+    legs = CloudLegs(credentials={**FULL_CREDENTIALS, "runpod_api_key": "rpa_WRONG"})
     exchange = run_one(tmp_path, SETUP, ports=legs)
     assert _error(exchange)["code"] == ERROR_RUNPOD_KEY_REJECTED
     assert len(legs.clouds[0].api.seen()) == 1
@@ -374,8 +383,9 @@ def test_secrets_never_leave(tmp_path: Path, caplog: pytest.LogCaptureFixture) -
     legs = CloudLegs(seed=_seed_leaky_pod)
     exchanges = run_parity(tmp_path, [STATUS, SETUP, SETUP, STATUS], ports=legs)
     shown = [exchange.response for exchange in exchanges]
-    for leg in legs.clouds:
-        checked = check_runpod_key(leg.access())
+    for index, leg in enumerate(legs.clouds):
+        context = RequestContext(leg.ports(tmp_path / f"check-{index}"), DiscardProgress(), CancelFlag())
+        checked = check_runpod(context)
         with leg.client() as client:
             shown.append(f"{checked!r} {client.pods.list_pods()!r}")
     shown.append(caplog.text)
@@ -416,3 +426,15 @@ def test_domain_errors_chain_nothing(tmp_path: Path, path: str, failure: Failure
     error = _domain_error(lambda: setup_cloud(SETUP_REQUEST, context))
     assert (error.__cause__, error.__context__) == (None, None)
     assert FAKE_API_KEY not in f"{error!r} {error.details!r}"
+
+
+def test_stored_credentials_reach_runpod(tmp_path: Path) -> None:
+    """`store_credentials`, then `setup_cloud`: the keyring's key and R2 values reach the fake."""
+    legs = CloudLegs(credentials=NO_CREDENTIALS)
+    stored, setup, status = run_parity(tmp_path, [store_request(), SETUP, STATUS], ports=legs)
+    assert (stored.exit_code, setup.exit_code, _response(status)["ready"]) == (EXIT_OK, EXIT_OK, True)
+    api = legs.clouds[-1].api
+    assert api.secrets.by_name("transcribe_ui_r2_secret_access_key") == [TEST_SECRET]
+    assert all(seen.authorised for seen in api.seen())
+    assert not any(secret in exchange.golden() for exchange in (stored, setup, status) for secret in NEVER_SHOWN)
+    assert_golden("setup_cloud_after_store.json", setup.golden())

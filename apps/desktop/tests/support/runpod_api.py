@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 
+from support.credentials import TEST_RUNPOD_KEY
 from transcribe_ui.runpod.constants import (
     HTTP_ACCEPTED,
     HTTP_CLIENT_ERROR,
@@ -34,8 +35,8 @@ from transcribe_ui.runpod.constants import (
 FAKE_API_HOST = "api.runpod.io"
 # Path prefix of every API path (the base URL's path).
 FAKE_API_PREFIX = "/v2/"
-# The key the fake accepts unless a test sets another.
-FAKE_API_KEY = "rpa_FAKE_KEY_FOR_TESTS"
+# The key the fake accepts unless a test sets another (the credential tests' sentinel key).
+FAKE_API_KEY = TEST_RUNPOD_KEY
 # GPU type the fake catalog lists.
 FAKE_GPU_ID = "NVIDIA RTX A5000"
 # Secure-cloud price of the fake catalog's GPU (dollars per hour).

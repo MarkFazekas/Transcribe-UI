@@ -1,33 +1,31 @@
-"""The Runpod half of `check_credentials`: does the stored key work? (`GET /v2/pods`).
+"""The Runpod half of `check_credentials`: does the stored key work? (`GET /v2/pods?limit=1`).
 
-The request itself belongs to the credential store (M5.5); whichever of the two parts merges
-second puts this result into its response.
+The check uses short limits (2 attempts, 5 s connect, 10 s read), like the R2 check, and never
+parses the pod list (pods carry secrets in their `env`).
 """
 
-from transcribe_ui.runpod.access import RunpodAccess
-from transcribe_ui.runpod.classes import RunpodKeyCheck
-from transcribe_ui.runpod.client import RunpodClient
-from transcribe_ui.runpod.constants import HTTP_FORBIDDEN, HTTP_UNAUTHORIZED
+from transcribe_ui.api.errors import DomainError
+from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.credentials.classes import ServiceCheck
+from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING
+from transcribe_ui.runpod.access import api_failure
+from transcribe_ui.runpod.constants import RUNPOD_CHECK_PASSED
 from transcribe_ui.runpod.errors import RunpodApiError
 
 
-def check_runpod_key(access: RunpodAccess) -> RunpodKeyCheck:
-    """Read one entry of the pod list with the stored key; the pod (and its env) is never parsed."""
-    api_key = access.credentials.runpod_api_key()
-    if api_key is None:
-        return RunpodKeyCheck(state="missing", message="No Runpod API key is stored.")
+def check_runpod(context: RequestContext) -> ServiceCheck:
+    """Read one entry of the pod list with the stored key."""
+    ports = context.ports
     try:
-        with RunpodClient(api_key, transport=access.transport, timing=access.timing()) as client:
+        api_key = ports.credentials.runpod_api_key()
+    except DomainError as error:
+        outcome = "missing" if error.code == ERROR_CREDENTIALS_MISSING else "failed"
+        return ServiceCheck(service="runpod", outcome=outcome, code=error.code, message=error.message)
+    try:
+        with ports.runpod.check_client(api_key) as client:
             client.pods.probe()
     except RunpodApiError as error:
-        return _failed(error)
-    return RunpodKeyCheck(state="ok", message="The Runpod API key works.")
-
-
-def _failed(error: RunpodApiError) -> RunpodKeyCheck:
-    if error.status == HTTP_UNAUTHORIZED:
-        return RunpodKeyCheck(state="rejected", message="Runpod rejected the API key.")
-    if error.status == HTTP_FORBIDDEN:
-        message = f"The Runpod API key lacks the permission {error.scope!r}."
-        return RunpodKeyCheck(state="missing_scope", message=message, scope=error.scope)
-    return RunpodKeyCheck(state="unreachable", message=f"Runpod could not be reached ({error.message}).")
+        failure = api_failure(error)
+    else:
+        return ServiceCheck(service="runpod", outcome="ok", message=RUNPOD_CHECK_PASSED)
+    return ServiceCheck(service="runpod", outcome="failed", code=failure.code, message=failure.message)

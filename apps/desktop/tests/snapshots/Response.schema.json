@@ -41,7 +41,10 @@
       "type": "string"
     },
     "CheckedService": {
-      "const": "r2",
+      "enum": [
+        "r2",
+        "runpod"
+      ],
       "type": "string"
     },
     "CloudObjectKind": {

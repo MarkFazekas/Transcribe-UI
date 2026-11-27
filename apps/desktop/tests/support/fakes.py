@@ -6,8 +6,11 @@ from datetime import datetime
 from pathlib import Path
 
 from support.credentials import memory_store
+from support.runpod_api import FakeRunpodApi
 from transcribe_ui.api.ports import Ports, UlidSource
 from transcribe_ui.media.fake import FakeMediaTools
+from transcribe_ui.runpod.access import RunpodAccess
+from transcribe_ui.runpod.timing import Stopped
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.client import r2_client
@@ -39,9 +42,10 @@ def app_paths_under(root: Path) -> AppPaths:
 
 
 def seeded_ports(root: Path, seed: int = ID_SEED) -> Ports:
-    """Return seeded test ports: fixed clock, seeded ULIDs, fake media tools, empty in-memory keyring.
+    """Return seeded test ports with fakes and fixed values.
 
-    The local state lives under `root`.
+    Fixed clock, seeded ULIDs, fake media tools, an empty in-memory keyring and a fake Runpod
+    API (never the real one). The local state lives under `root`.
 
     Close `ports.state` when done (it may hold the database and its writer lock).
     """
@@ -55,4 +59,10 @@ def seeded_ports(root: Path, seed: int = ID_SEED) -> Ports:
         state=state,
         credentials=memory_store(),
         r2_clients=r2_client,
+        # Never the real Runpod API: a fake account that accepts the test key.
+        runpod=RunpodAccess(transport=FakeRunpodApi(clock.now).transport(), wait=skip_wait),
     )
+
+
+def skip_wait(_seconds: float, _stopped: Stopped) -> None:
+    """Return at once instead of waiting between attempts."""

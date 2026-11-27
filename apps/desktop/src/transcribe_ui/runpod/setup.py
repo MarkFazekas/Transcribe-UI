@@ -16,27 +16,23 @@ from pydantic import SecretStr
 
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.runpod.access import RunpodAccess, api_failure, missing_credentials
+from transcribe_ui.runpod.access import api_failure, setup_credentials
 from transcribe_ui.runpod.bodies import SecretCreate
 from transcribe_ui.runpod.classes import (
     CloudObjectKind,
     CloudObjectOutcome,
     CloudSetupStatusRequest,
     CloudSetupStatusResponse,
-    R2Credentials,
     SetupCloudRequest,
     SetupCloudResponse,
 )
 from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.constants import (
-    CREDENTIAL_R2,
-    CREDENTIAL_RUNPOD_API_KEY,
     ERROR_CLOUD_OBJECT_IN_USE,
     ERROR_CLOUD_SETUP_INTERRUPTED,
     GLOBAL_VOLUME_NAME,
     HTTP_CLIENT_ERROR,
     HTTP_CONFLICT,
-    SECRET_FOR_ENV,
     TEMPLATE_NAME,
     WORKER_IMAGE,
 )
@@ -53,7 +49,8 @@ from transcribe_ui.runpod.wire import Template
 
 def cloud_setup_status(_request: CloudSetupStatusRequest, context: RequestContext) -> CloudSetupStatusResponse:
     """Report the state of every object of the setup."""
-    with context.ports.runpod.client(context.cancel.is_cancelled) as client:
+    api_key = context.ports.credentials.runpod_api_key()
+    with context.ports.runpod.client(api_key, context.cancel.is_cancelled) as client:
         statuses = read_statuses(client)
     ready = all(status.state == "ok" for status in statuses)
     return CloudSetupStatusResponse(ready=ready, worker_image=WORKER_IMAGE, cloud_objects=statuses)
@@ -61,11 +58,10 @@ def cloud_setup_status(_request: CloudSetupStatusRequest, context: RequestContex
 
 def setup_cloud(_request: SetupCloudRequest, context: RequestContext) -> SetupCloudResponse:
     """Create or update the setup's objects; duplicate secrets and templates are removed."""
-    access = context.ports.runpod
-    r2 = _require_credentials(access)
-    with access.client(context.cancel.is_cancelled) as client:
+    api_key, secret_values = setup_credentials(context.ports.credentials)
+    with context.ports.runpod.client(api_key, context.cancel.is_cancelled) as client:
         try:
-            cloud_objects = _set_up(client, r2, context)
+            cloud_objects = _set_up(client, secret_values, context)
         except RunpodApiError as error:
             failure = api_failure(error)
         else:
@@ -74,22 +70,16 @@ def setup_cloud(_request: SetupCloudRequest, context: RequestContext) -> SetupCl
     raise failure
 
 
-def _require_credentials(access: RunpodAccess) -> R2Credentials:
-    r2 = access.credentials.r2_credentials()
-    missing = [CREDENTIAL_RUNPOD_API_KEY] if access.credentials.runpod_api_key() is None else []
-    if r2 is None:
-        missing.append(CREDENTIAL_R2)
-    if r2 is None or missing:
-        raise missing_credentials(missing)
-    return r2
-
-
-def _set_up(client: RunpodClient, r2: R2Credentials, context: RequestContext) -> tuple[CloudObjectOutcome, ...]:
+def _set_up(
+    client: RunpodClient,
+    secret_values: dict[str, SecretStr],
+    context: RequestContext,
+) -> tuple[CloudObjectOutcome, ...]:
     inventory = Inventory.read(client)
     context.check_cancelled()
     volume = _set_up_volume(client, inventory.volume_ids)
     context.check_cancelled()
-    secrets = _set_up_secrets(client, inventory.secret_ids, r2)
+    secrets = _set_up_secrets(client, inventory.secret_ids, secret_values)
     context.check_cancelled()
     template = _set_up_template(client, inventory.templates)
     return (volume, *secrets, template)
@@ -106,19 +96,13 @@ def _set_up_volume(client: RunpodClient, found: tuple[str, ...]) -> CloudObjectO
     return CloudObjectOutcome(kind=kind, name=GLOBAL_VOLUME_NAME, object_id=created.volume_id, outcome="created")
 
 
-def _secret_values(r2: R2Credentials) -> dict[str, SecretStr]:
-    parts = (r2.endpoint_url, r2.bucket, r2.access_key_id, r2.secret_access_key)
-    names = [secret for _, secret in SECRET_FOR_ENV]
-    return dict(zip(names, parts, strict=True))
-
-
 def _set_up_secrets(
     client: RunpodClient,
     found: dict[str, tuple[str, ...]],
-    r2: R2Credentials,
+    secret_values: dict[str, SecretStr],
 ) -> list[CloudObjectOutcome]:
     outcomes = []
-    for name, secret_value in _secret_values(r2).items():
+    for name, secret_value in secret_values.items():
         existing = found.get(name, ())
         if existing:
             keep, removed = _keep_first(existing, client.secrets.delete)

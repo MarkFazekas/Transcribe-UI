@@ -11,6 +11,7 @@ from transcribe_ui.api.ports import Ports, SystemClock, UlidSource
 from transcribe_ui.credentials.store import CredentialStore
 from transcribe_ui.media.adapter import FfmpegMediaTools
 from transcribe_ui.media.tools import ToolLocator, ToolOverrides, bundle_dir
+from transcribe_ui.runpod.access import RunpodAccess
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.settings import SettingsStore
 from transcribe_ui.state.store import LocalState
@@ -33,6 +34,7 @@ def build_backend(paths: AppPaths | None = None) -> Backend:
         state=state,
         credentials=credentials,
         r2_clients=r2_client,
+        runpod=RunpodAccess(),
     )
     return Backend(ports)
 

@@ -5,25 +5,25 @@ No test talks to the real Runpod API: every request goes to `support.runpod_api`
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import timedelta
 from email.utils import format_datetime
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
 
 from support.fakes import FIXED_NOW
-from support.runpod import R2_PRIVATE, Cloud, WaitRecorder
+from support.runpod import FULL_CREDENTIALS, NO_CREDENTIALS, R2_PRIVATE, Cloud, WaitRecorder
 from support.runpod_api import FAKE_API_KEY, FAKE_GPU_ID, Failure, FakeSettings
 from transcribe_ui.api.errors import CancelledError
-from transcribe_ui.api.ports import CancelFlag
-from transcribe_ui.runpod.access import StaticCredentials
+from transcribe_ui.api.ports import CancelFlag, DiscardProgress, RequestContext
 from transcribe_ui.runpod.bodies import CreatePod, GlobalMount, GpuRequest, Mounts, QueueRequest, SecretCreate
 from transcribe_ui.runpod.calls import Call
-from transcribe_ui.runpod.check import check_runpod_key
-from transcribe_ui.runpod.classes import RunpodKeyState
+from transcribe_ui.runpod.check import check_runpod
 from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.constants import (
+    CHECK_ATTEMPTS,
     MAX_ATTEMPTS,
     POD_TERMINATED,
     QUEUED_POD_CANCELLED,
@@ -396,21 +396,27 @@ def test_catalog_price() -> None:
 
 
 @pytest.mark.parametrize(
-    ("credentials", "failures", "state"),
+    ("credentials", "failures", "expected"),
     [
-        (None, (), "ok"),
-        (StaticCredentials(), (), "missing"),
-        (StaticCredentials(api_key=SecretStr("rpa_WRONG")), (), "rejected"),
-        (None, (Failure(status=FORBIDDEN),), "missing_scope"),
-        (None, _failing(SERVICE_UNAVAILABLE), "unreachable"),
+        (FULL_CREDENTIALS, (), ("ok", None, 1)),
+        (NO_CREDENTIALS, (), ("missing", "credentials_missing", 0)),
+        ({"runpod_api_key": "rpa_WRONG"}, (), ("failed", "runpod_key_rejected", 1)),
+        (FULL_CREDENTIALS, (Failure(status=FORBIDDEN),), ("failed", "runpod_key_missing_scope", 1)),
+        (FULL_CREDENTIALS, _failing(SERVICE_UNAVAILABLE), ("failed", "cloud_unreachable", CHECK_ATTEMPTS)),
     ],
+    ids=["ok", "missing", "rejected", "missing-scope", "unreachable"],
 )
-def test_key_check(credentials: StaticCredentials | None, failures: tuple[Failure, ...], state: RunpodKeyState) -> None:
-    """The Runpod half of `check_credentials`: one pod-list entry read, never parsed."""
-    cloud = Cloud() if credentials is None else Cloud(credentials=credentials)
+def test_key_check(
+    tmp_path: Path,
+    credentials: Mapping[str, str],
+    failures: tuple[Failure, ...],
+    expected: tuple[str, str | None, int],
+) -> None:
+    """The Runpod half of `check_credentials`: one pod-list entry read (never parsed), at most 2 attempts."""
+    cloud = Cloud(credentials=credentials)
     cloud.api.fail(GET, PODS, *failures)
-    checked = check_runpod_key(cloud.access())
-    assert checked.state == state
-    expected_scope = SCOPE_PODS_READ if state == "missing_scope" else None
-    assert checked.scope == expected_scope
+    context = RequestContext(cloud.ports(tmp_path), DiscardProgress(), CancelFlag())
+    checked = check_runpod(context)
+    outcome = (checked.outcome, checked.code, cloud.api.count(GET, PODS))
+    assert (checked.service, outcome) == ("runpod", expected)
     assert all(seen.query == "limit=1" for seen in cloud.api.seen())

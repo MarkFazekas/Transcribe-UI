@@ -12,6 +12,7 @@ from transcribe_ui.credentials.classes import (
     StoreCredentialsResponse,
 )
 from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING, R2_CHECK_PASSED
+from transcribe_ui.runpod.check import check_runpod
 from transcribe_ui.storage.client import CHECK_LIMITS, open_object_store
 
 
@@ -28,9 +29,11 @@ def credentials_status(_request: CredentialsStatusRequest, context: RequestConte
 
 
 def check_credentials(_request: CheckCredentialsRequest, context: RequestContext) -> CheckCredentialsResponse:
-    """Try the credentials: R2 lists one key of the bucket (short timeouts, 2 attempts)."""
+    """Try the credentials: R2 lists one key of the bucket, Runpod one pod (short timeouts, 2 attempts)."""
     context.check_cancelled()
-    return CheckCredentialsResponse(checks=(_check_r2(context),))
+    r2 = _check_r2(context)
+    context.check_cancelled()
+    return CheckCredentialsResponse(checks=(r2, check_runpod(context)))
 
 
 def _check_r2(context: RequestContext) -> ServiceCheck:

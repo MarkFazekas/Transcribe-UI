@@ -1,11 +1,11 @@
-"""How the Runpod client waits between attempts, tells the time and notices a cancel."""
+"""Timing of the Runpod client: waits between attempts, limits, clock and cancel check."""
 
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from transcribe_ui.runpod.constants import WAIT_SLICE_S
+from transcribe_ui.runpod.constants import CONNECT_TIMEOUT_S, MAX_ATTEMPTS, READ_TIMEOUT_S, WAIT_SLICE_S
 
 # The current time, timezone-aware (dates in `Retry-After` are measured against it).
 type Clock = Callable[[], datetime]
@@ -37,8 +37,12 @@ def wait_unless_stopped(seconds: float, stopped: Stopped) -> None:
 
 @dataclass(frozen=True)
 class Timing:
-    """How the client waits between attempts, tells the time and notices a cancel."""
+    """How the client waits between attempts, its limits, its clock and its cancel check."""
 
     wait: Wait = wait_unless_stopped
     now: Clock = utc_now
     stopped: Stopped = never_stopped
+    # Attempts per call, the first included.
+    attempts: int = MAX_ATTEMPTS
+    connect_timeout_s: float = CONNECT_TIMEOUT_S
+    read_timeout_s: float = READ_TIMEOUT_S

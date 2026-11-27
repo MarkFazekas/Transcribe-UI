@@ -19,12 +19,9 @@ from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.runpod.calls import Call, check_base_url, check_request
 from transcribe_ui.runpod.constants import (
     API_BASE_URL,
-    CONNECT_TIMEOUT_S,
     CURSOR_PARAMETER,
     HTTP_NOT_FOUND,
-    MAX_ATTEMPTS,
     MAX_PAGES,
-    READ_TIMEOUT_S,
 )
 from transcribe_ui.runpod.errors import RunpodApiError
 from transcribe_ui.runpod.parsing import parse_body
@@ -63,7 +60,7 @@ class RunpodHttp:
         self._client = httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Bearer {api_key.get_secret_value()}"},
-            timeout=httpx.Timeout(READ_TIMEOUT_S, connect=CONNECT_TIMEOUT_S),
+            timeout=httpx.Timeout(self._timing.read_timeout_s, connect=self._timing.connect_timeout_s),
             follow_redirects=False,
             transport=transport,
             trust_env=transport is None,
@@ -107,7 +104,7 @@ class RunpodHttp:
                 call.label,
                 outcome.reason,
                 attempt,
-                MAX_ATTEMPTS,
+                self._timing.attempts,
                 outcome.delay_s,
             )
             self._timing.wait(outcome.delay_s, self._timing.stopped)
@@ -157,7 +154,7 @@ class RunpodHttp:
         raise RunpodApiError(msg, scope=call.scope)
 
     def _attempt(self, call: Call, attempt: int) -> httpx.Response | Retry | None:
-        last = attempt >= MAX_ATTEMPTS
+        last = attempt >= self._timing.attempts
         request = call.request(self._client)
         try:
             response = self._client.send(request)

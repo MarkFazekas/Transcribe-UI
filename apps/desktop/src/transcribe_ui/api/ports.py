@@ -16,15 +16,11 @@ from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.discovery.cache import ScanCache
 from transcribe_ui.discovery.rules import PathRules, host_rules
-from transcribe_ui.runpod.access import RunpodAccess
 from transcribe_ui.state.store import LocalState
 
 if TYPE_CHECKING:
-    # For type checking only: `media.ports` uses `CancelToken` from here, and importing the
-    # ports must not load keyring and boto3.
-    from transcribe_ui.credentials.store import CredentialStore
-    from transcribe_ui.media.ports import MediaTools
-    from transcribe_ui.storage.client import R2ClientFactory
+    # For type checking only (see `api/adapters.py`).
+    from transcribe_ui.api.adapters import CredentialsPort, MediaPort, R2ClientsPort, RunpodPort
 
 # Returns that many random bits (`random.Random.getrandbits` signature).
 type RandomBits = Callable[[int], int]
@@ -113,19 +109,19 @@ class Ports:
 
     clock: Clock
     ids: IdSource
-    media: "MediaTools"
+    media: "MediaPort"
     # Settings, locks and the lazily opened database, under injectable directories.
     state: LocalState
     # Keyring entries with the environment as fallback (tests: in-memory keyring, empty environment).
-    credentials: "CredentialStore"
+    credentials: "CredentialsPort"
     # Builds the S3 client for R2 from the credentials (tests: the same settings, served by moto).
-    r2_clients: "R2ClientFactory"
+    r2_clients: "R2ClientsPort"
+    # Runpod API: transport, retry waits and clock (tests: the fake API, never the real one).
+    runpod: "RunpodPort"
     # How the host's file system compares names; tests inject the Windows or macOS rule.
     path_rules: PathRules = field(default_factory=host_rules)
     # The latest scans, reused by `preview_selection` (process-local).
     scan_cache: ScanCache = field(default_factory=ScanCache)
-    # Runpod API: credentials lookup and transport (tests: the fake API).
-    runpod: RunpodAccess = field(default_factory=RunpodAccess)
 
 
 @dataclass(frozen=True)

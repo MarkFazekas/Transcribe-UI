@@ -25,6 +25,14 @@ RETRY_INITIAL_DELAY_S: Final = 1.0
 RETRY_MAX_DELAY_S: Final = 30.0
 # Upper bound of a 429 `Retry-After` the client honours (a longer one is cut to this).
 RETRY_AFTER_MAX_S: Final = 60.0
+# Attempts of the credential check (short, like the R2 check, so a hanging API reports soon).
+CHECK_ATTEMPTS: Final = 2
+# Connect timeout of the credential check.
+CHECK_CONNECT_TIMEOUT_S: Final = 5.0
+# Read timeout of the credential check.
+CHECK_READ_TIMEOUT_S: Final = 10.0
+# Message of a passed Runpod credential check.
+RUNPOD_CHECK_PASSED: Final = "Runpod accepted the API key and the pod list can be read."
 # Longest single sleep while waiting to retry, so a cancel is noticed within this time.
 WAIT_SLICE_S: Final = 0.5
 # Transport failures raised before anything was sent: a create may be retried after them.
@@ -134,8 +142,6 @@ SECRET_FOR_ENV: Final = (
 # Template env value referencing a Runpod secret; Runpod fills it in when the pod starts.
 ENV_REFERENCE_FORMAT: Final = "{{{{ RUNPOD_SECRET_{name} }}}}"
 
-# Error code: a credential the request needs is not stored (details name which, never values).
-ERROR_CREDENTIALS_MISSING: Final = "credentials_missing"
 # Error code: Runpod refused the API key (HTTP 401).
 ERROR_RUNPOD_KEY_REJECTED: Final = "runpod_key_rejected"
 # Error code: the API key lacks a scope the call needs (HTTP 403; details name the scope).
@@ -152,8 +158,3 @@ ERROR_CLOUD_OBJECT_IN_USE: Final = "cloud_object_in_use"
 ERROR_CLOUD_NOT_SET_UP: Final = "cloud_not_set_up"
 # Error code: a cloud object is outdated or duplicated (run `setup_cloud`).
 ERROR_CLOUD_SETUP_OUTDATED: Final = "cloud_setup_outdated"
-
-# Credential name of the Runpod API key in `credentials_missing` details.
-CREDENTIAL_RUNPOD_API_KEY: Final = "runpod_api_key"
-# Credential name of the R2 credentials (endpoint, bucket, key id, secret) in those details.
-CREDENTIAL_R2: Final = "r2"
