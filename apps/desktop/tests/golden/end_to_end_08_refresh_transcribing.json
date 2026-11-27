@@ -1,0 +1,63 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "refresh_status",
+    "runs": [
+      {
+        "run": {
+          "run_id": "01M8EE0VG0SF0HC9WMQZPAKEPH",
+          "status": "running",
+          "pod_name": "transcribe-ui-01M8EE0VG0SF0HC9WMQZPAKEPH-until-20261127T1450Z",
+          "pod_id": "pod7919",
+          "queued_pod_id": null,
+          "test_mode": false,
+          "max_runtime_s": 5976,
+          "queue_expires_at": "2026-11-27T13:00:00Z",
+          "name_deadline": "2026-11-27T14:50:00Z",
+          "covered_batch_ids": [
+            "batch_20261127_130000"
+          ],
+          "created_at": "2026-11-27T12:00:00Z"
+        },
+        "stage": "transcribing",
+        "pod_status": "RUNNING",
+        "worker": {
+          "state": "transcribing",
+          "updated_at": "2026-11-27T12:00:00Z",
+          "current": {
+            "batch_id": "batch_20261127_130000",
+            "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
+            "language": "en"
+          },
+          "done_jobs": 0,
+          "total_jobs": 2,
+          "error": null
+        },
+        "first_running_at": "2026-11-27T12:00:00Z",
+        "deadline": "2026-11-27T13:49:36Z",
+        "elapsed_s": 1200.0,
+        "price_per_hour_usd": 0.27,
+        "cost_so_far_usd": 0.09,
+        "ended_at": null,
+        "end_reason": null,
+        "stop_error": null,
+        "worker_log": null
+      }
+    ],
+    "batches": [
+      {
+        "batch_id": "batch_20261127_130000",
+        "phase": "ready",
+        "ok": 0,
+        "no_speech": 0,
+        "failed": 0,
+        "pending": 6
+      }
+    ],
+    "busy": [],
+    "published": [],
+    "held": []
+  },
+  "events": []
+}

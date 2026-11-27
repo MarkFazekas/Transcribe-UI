@@ -1,0 +1,139 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "run_download",
+    "batch": {
+      "batch_id": "batch_20261127_130000",
+      "phase": "downloaded",
+      "created_at": "2026-11-27T12:00:00Z",
+      "updated_at": "2026-11-27T12:21:00Z",
+      "items": 4,
+      "jobs": 7,
+      "languages": [
+        "en",
+        "hu"
+      ],
+      "hidden": false,
+      "manifest_held": false,
+      "audio_deleted": false,
+      "cleanup_pending": null,
+      "extract_only": false
+    },
+    "download": {
+      "placements": [
+        {
+          "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
+          "language": "en",
+          "source_path": "<root>/media/Audio/Episode.mkv",
+          "target_path": "<root>/out/Audio/Episode.en.srt",
+          "outcome": "skip_failed",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
+          "language": "hu",
+          "source_path": "<root>/media/Audio/Episode.mkv",
+          "target_path": "<root>/out/Audio/Episode.hu.srt",
+          "outcome": "place",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01M8EE0VG05AY2BAYRKFB7WKCJ",
+          "language": "en",
+          "source_path": "<root>/media/Audio/podcast.mp3",
+          "target_path": "<root>/out/Audio/podcast.en.srt",
+          "outcome": "skip_empty",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01M8EE0VG05AY2BAYRKFB7WKCJ",
+          "language": "hu",
+          "source_path": "<root>/media/Audio/podcast.mp3",
+          "target_path": "<root>/out/Audio/podcast.hu.srt",
+          "outcome": "place",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01M8EE0VG07JXP9GC4Z94AFJ15",
+          "language": "en",
+          "source_path": "<root>/media/Movies/Film.mkv",
+          "target_path": "<root>/out/Movies/Film.en.srt",
+          "outcome": "place",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01M8EE0VG07JXP9GC4Z94AFJ15",
+          "language": "hu",
+          "source_path": "<root>/media/Movies/Film.mkv",
+          "target_path": "<root>/out/Movies/Film.hu.srt",
+          "outcome": "place",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01M8EE0VG08JFF2Q77C3SY8MQJ",
+          "language": "hu",
+          "source_path": "<root>/media/Movies/Silent.mkv",
+          "target_path": "<root>/out/Movies/Silent.hu.srt",
+          "outcome": "place",
+          "renamed_by": []
+        }
+      ],
+      "failures": [],
+      "written": 5,
+      "skipped": 2,
+      "not_finished": 0
+    }
+  },
+  "events": [
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 1,
+      "total": 7,
+      "path": "<root>/out/Audio/Episode.en.srt"
+    },
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 2,
+      "total": 7,
+      "path": "<root>/out/Audio/Episode.hu.srt"
+    },
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 3,
+      "total": 7,
+      "path": "<root>/out/Audio/podcast.en.srt"
+    },
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 4,
+      "total": 7,
+      "path": "<root>/out/Audio/podcast.hu.srt"
+    },
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 5,
+      "total": 7,
+      "path": "<root>/out/Movies/Film.en.srt"
+    },
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 6,
+      "total": 7,
+      "path": "<root>/out/Movies/Film.hu.srt"
+    },
+    {
+      "action": "run_download",
+      "stage": "download",
+      "completed": 7,
+      "total": 7,
+      "path": "<root>/out/Movies/Silent.hu.srt"
+    }
+  ]
+}

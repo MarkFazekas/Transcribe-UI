@@ -1,0 +1,79 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "plan_launch",
+    "plan": {
+      "scope": {
+        "batches": [
+          {
+            "batch_id": "batch_20261127_130000",
+            "known": true,
+            "held": false,
+            "files": 3,
+            "pending_jobs": [
+              {
+                "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
+                "language": "en",
+                "mode": "normal",
+                "duration_s": 60.0
+              },
+              {
+                "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
+                "language": "hu",
+                "mode": "normal",
+                "duration_s": 60.0
+              },
+              {
+                "item_id": "01M8EE0VG05AY2BAYRKFB7WKCJ",
+                "language": "en",
+                "mode": "normal",
+                "duration_s": 60.0
+              },
+              {
+                "item_id": "01M8EE0VG05AY2BAYRKFB7WKCJ",
+                "language": "hu",
+                "mode": "normal",
+                "duration_s": 60.0
+              },
+              {
+                "item_id": "01M8EE0VG07JXP9GC4Z94AFJ15",
+                "language": "en",
+                "mode": "normal",
+                "duration_s": 5400.0
+              },
+              {
+                "item_id": "01M8EE0VG07JXP9GC4Z94AFJ15",
+                "language": "hu",
+                "mode": "normal",
+                "duration_s": 5400.0
+              }
+            ],
+            "pending_duration_s": 11040.0
+          }
+        ],
+        "unreadable": [],
+        "pending_jobs": 6,
+        "pending_duration_s": 11040.0,
+        "fingerprint": "8761016f0fd13a1f73b8087ada14638ac936b9f644e6e6347fce7640f32fab3e"
+      },
+      "test_mode": false,
+      "weighted_duration_s": 11040.0,
+      "max_runtime_s": 5976,
+      "cost": {
+        "low_usd": 0.06,
+        "high_usd": 0.26,
+        "price_per_hour_usd": 0.27,
+        "price_source": "catalog",
+        "note": null
+      },
+      "fingerprint": "55b28396774f17ecc66c6967828be39f5a70590a6d506fe821c70a549d7d7916",
+      "wait": {
+        "default_s": 3600,
+        "min_s": 300,
+        "max_s": 86400
+      }
+    }
+  },
+  "events": []
+}

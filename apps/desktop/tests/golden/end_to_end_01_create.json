@@ -1,0 +1,152 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "create_batch",
+    "batch": {
+      "summary": {
+        "batch_id": "batch_20261127_130000",
+        "phase": "composing",
+        "created_at": "2026-11-27T12:00:00Z",
+        "updated_at": "2026-11-27T12:00:00Z",
+        "items": 4,
+        "jobs": 7,
+        "languages": [
+          "en",
+          "hu"
+        ],
+        "hidden": false,
+        "manifest_held": false,
+        "audio_deleted": false,
+        "cleanup_pending": null,
+        "extract_only": false
+      },
+      "scan_root": "<root>/media",
+      "path_flavor": "<flavor>",
+      "items": [
+        {
+          "item_id": "01M8EE0VG0HA1MTS2ZMV8KRM9T",
+          "path": "<root>/media/Audio/Episode.mkv",
+          "name": "Episode.mkv",
+          "kind": "video",
+          "size_bytes": 0,
+          "phase": "composing",
+          "subtitle_languages": [],
+          "problem": null,
+          "jobs": [
+            {
+              "language": "en",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            },
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            }
+          ]
+        },
+        {
+          "item_id": "01M8EE0VG05AY2BAYRKFB7WKCJ",
+          "path": "<root>/media/Audio/podcast.mp3",
+          "name": "podcast.mp3",
+          "kind": "audio",
+          "size_bytes": 208,
+          "phase": "composing",
+          "subtitle_languages": [],
+          "problem": null,
+          "jobs": [
+            {
+              "language": "en",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            },
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            }
+          ]
+        },
+        {
+          "item_id": "01M8EE0VG07JXP9GC4Z94AFJ15",
+          "path": "<root>/media/Movies/Film.mkv",
+          "name": "Film.mkv",
+          "kind": "video",
+          "size_bytes": 0,
+          "phase": "composing",
+          "subtitle_languages": [
+            "en"
+          ],
+          "problem": null,
+          "jobs": [
+            {
+              "language": "en",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            },
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            }
+          ]
+        },
+        {
+          "item_id": "01M8EE0VG08JFF2Q77C3SY8MQJ",
+          "path": "<root>/media/Movies/Silent.mkv",
+          "name": "Silent.mkv",
+          "kind": "video",
+          "size_bytes": 0,
+          "phase": "composing",
+          "subtitle_languages": [],
+          "problem": null,
+          "jobs": [
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": false,
+              "result_error": null
+            }
+          ]
+        }
+      ]
+    },
+    "warnings": []
+  },
+  "events": []
+}
