@@ -16,8 +16,8 @@ def forget_uploads(session: Session, batch_id: str, item_ids: Collection[str]) -
     """Delete the items' `audio_objects` and `extracted_subtitles` rows (only rows of the batch).
 
     Done in the transaction that clears `manifest_held`, before any object is deleted: a held
-    manifest is then never published with audio that is gone, and the objects an interruption
-    leaves behind are found by listing the item's prefix (`delete_item_objects`).
+    manifest is then never published with audio that is gone; the objects an interruption
+    leaves behind stay under the item's audio prefix until something deletes that prefix.
     """
     wanted = list(item_ids)
     jobs = (JobRow.batch_id == batch_id, JobRow.item_id.in_(wanted))
@@ -38,7 +38,7 @@ def object_store(ports: Ports) -> ObjectStore:
 
 
 def delete_item_objects(store: ObjectStore, batch_id: str, item_id: str, check_cancelled: Callable[[], None]) -> int:
-    """Delete every audio object under the item's prefix; return how many existed.
+    """Abort the item's open multipart uploads, then delete every audio object under its prefix; return how many existed.
 
     The listing finds the recorded objects and any whose upload finished but was not recorded
     (a crash between the upload and its database row), so the rows are not needed. Missing
@@ -48,7 +48,9 @@ def delete_item_objects(store: ObjectStore, batch_id: str, item_id: str, check_c
     Raises:
         CancelledError: If cancelled between two deletes (the objects deleted so far stay gone).
     """
-    listed = [found.key for found in store.list_objects(audio_prefix(batch_id, item_id))]
+    prefix = audio_prefix(batch_id, item_id)
+    store.abort_uploads(prefix)
+    listed = [found.key for found in store.list_objects(prefix)]
     for key in listed:
         check_cancelled()
         store.delete(key)

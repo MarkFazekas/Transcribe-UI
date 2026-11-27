@@ -332,18 +332,21 @@ docs/human/, docs/ai/     see CLAUDE.md
     the unfiltered views.
   - **Leaving the upload.** The database forgets an item's upload before R2 does, so no
     interruption leaves a held manifest that lists deleted audio. `exclude_items` (batch in
-    `reviewing` or `uploading`, never the last item: `last_item`) first clears `manifest_held`
-    and deletes the excluded items' `audio_objects` and `extracted_subtitles` rows in one
-    transaction, then deletes every object under each item's audio prefix (the listing also
-    finds objects that were uploaded but not recorded; only an `uploading` batch touches R2,
-    so a batch in review needs no credentials), then deletes the item rows. An interruption
-    in between leaves the items without upload rows; re-sending the request finishes it.
-    `deleted_objects` counts the objects the request found and deleted. `batches/rereview.py`
-    `return_item_to_review` is the upload's way to send an item whose source changed back to
-    review (caller holds the batch lock; the item must belong to the batch): one transaction
-    sets the item `reviewing`, deletes its audio and extracted-subtitle rows, sets its jobs
-    pending and clears `manifest_held`; then its objects are deleted. Objects an interruption
-    leaves behind stay under the item's prefix, where a later exclusion, re-upload (M5.10) or
+    `reviewing` or `uploading`, never the last item: `last_item`) opens the object store first
+    when the batch is `uploading` (a credentials error changes nothing; a batch in review needs
+    no credentials), then in one transaction clears `manifest_held` and deletes the excluded
+    items with their `audio_objects` and `extracted_subtitles` rows, so the exclusion itself
+    cannot be lost. Then, per item, it aborts the open multipart uploads under the item's
+    audio prefix and deletes every object there (the listing also finds objects that were
+    uploaded but not recorded). Objects an interruption leaves behind belong to no item: the
+    batch's cloud cleanup, or the orphan sweep at the start of the next `run_upload` (M5.10),
+    removes them. `deleted_objects` counts the objects the request found and deleted.
+    `batches/rereview.py` `return_item_to_review` is the upload's way to send an item whose
+    source changed back to review (caller holds the batch lock; the item must belong to the
+    batch): one transaction sets the item `reviewing`, deletes its audio and
+    extracted-subtitle rows, sets its jobs pending and clears `manifest_held`; then its open
+    multipart uploads are aborted and its objects deleted. Objects an interruption leaves
+    behind stay under the item's prefix, where a later exclusion, re-upload (M5.10) or
     cleanup removes them. A batch with only `extract` jobs left shows `extract_only` in its
     summary; the upload takes it to `transcribed` without a manifest.
   - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;

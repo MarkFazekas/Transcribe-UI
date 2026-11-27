@@ -67,6 +67,10 @@ def _listed(store: R2ObjectStore) -> list[str]:
     return [found.key for found in store.list_objects(BATCH_PREFIX)]
 
 
+def _manifest_held(leg: Leg) -> bool:
+    return batch_row(leg).manifest_held
+
+
 def _recorded(leg: Leg) -> list[str]:
     """Return the object keys of the `audio_objects` rows."""
     with leg.ports.state.session() as session:
@@ -142,16 +146,26 @@ def test_review_and_resolve_serve_the_returned_item(batch_leg: Leg, batch_store:
     assert error_of(refused) == ("choice_invalid", {"choice": 0, "reason": "item_not_in_review"})
 
 
+def _open_uploads(prefix: str) -> list[str]:
+    """Return the keys of the unfinished multipart uploads under the prefix."""
+    listed = store_client().list_multipart_uploads(Bucket=TEST_BUCKET, Prefix=prefix)
+    return [upload.get("Key", "") for upload in listed.get("Uploads", [])]
+
+
 def test_exclusion_deletes_the_audio_of_the_item(batch_leg: Leg, batch_store: R2ObjectStore) -> None:
-    """Excluding an item deletes its recorded and unrecorded audio objects and clears `manifest_held`."""
+    """Excluding an item deletes its audio objects (recorded or not), aborts its open uploads, clears `manifest_held`."""
     ids, keys = _seeded(batch_leg, batch_store)
-    unrecorded = f"{audio_prefix(FIRST_BATCH_ID, ids[FILM])}{UNRECORDED_SUFFIX}"
+    film_prefix = audio_prefix(FIRST_BATCH_ID, ids[FILM])
+    unrecorded = f"{film_prefix}{UNRECORDED_SUFFIX}"
     _upload(batch_store, [unrecorded])
+    store_client().create_multipart_upload(Bucket=TEST_BUCKET, Key=f"{film_prefix}a2.mka")
+    opened = _open_uploads(film_prefix)
     deleted = run_ok(batch_leg, batch_request(EXCLUDE, item_ids=[ids[FILM]]))["deleted_objects"]
     row = batch_row(batch_leg)
     film_keys = [unrecorded, *(key for key in keys if ids[FILM] in key)]
     assert (deleted, _listed(batch_store)) == (len(film_keys), [key for key in keys if ids[PODCAST] in key])
     assert (row.phase, row.manifest_held, list(ids_of(batch_leg))) == ("uploading", False, [PODCAST])
+    assert (len(opened), _open_uploads(film_prefix)) == (1, [])
 
 
 def test_excluding_the_last_item_is_refused(batch_leg: Leg, batch_store: R2ObjectStore) -> None:
@@ -160,7 +174,7 @@ def test_excluding_the_last_item_is_refused(batch_leg: Leg, batch_store: R2Objec
     every = run(batch_leg, batch_request(EXCLUDE, item_ids=list(ids.values())))
     unknown = run(batch_leg, batch_request(EXCLUDE, item_ids=["01JDZZZZZZZZZZZZZZZZZZZZ99"]))
     assert (error_code(every), error_code(unknown)) == ("last_item", "item_not_found")
-    assert (_listed(batch_store), batch_row(batch_leg).manifest_held) == (keys, True)
+    assert (_listed(batch_store), _manifest_held(batch_leg)) == (keys, True)
 
 
 def test_last_transcribe_item_excluded_leaves_extracts(batch_leg: Leg) -> None:
@@ -212,17 +226,29 @@ def test_interrupted_exclusion_forgets_the_audio_first(
     cancel: bool,
     code: str,
 ) -> None:
-    """After the first object is deleted, nothing lists the audio any more; re-sending finishes the exclusion."""
+    """An interrupted object delete leaves the item excluded; its leftover object stays under its prefix."""
     film, podcast_keys = _film_with_unrecorded(batch_leg, batch_store)
     token = CancelFlag()
     _interrupt_with(monkeypatch, "exclusion", InterruptingStore(token if cancel else None))
     request = batch_request(EXCLUDE, item_ids=[film])
     interrupted = batch_leg.backend.execute_json(batch_leg.document(request), DiscardProgress(), token)
-    held, recorded, members = batch_row(batch_leg).manifest_held, _recorded(batch_leg), ids_of(batch_leg)
-    monkeypatch.undo()
-    done = run_ok(batch_leg, request)
-    assert (error_code(interrupted), held, recorded, sorted(members)) == (code, False, podcast_keys, [FILM, PODCAST])
-    assert (done["deleted_objects"], _listed(batch_store), list(ids_of(batch_leg))) == (1, podcast_keys, [PODCAST])
+    held, recorded = _manifest_held(batch_leg), _recorded(batch_leg)
+    leftover = [key for key in _listed(batch_store) if film in key]
+    assert (error_code(interrupted), held, recorded, list(ids_of(batch_leg))) == (code, False, podcast_keys, [PODCAST])
+    assert (len(leftover), error_code(run(batch_leg, request))) == (1, "item_not_found")
+
+
+def test_exclusion_without_credentials_changes_nothing(batch_leg: Leg) -> None:
+    """In an `uploading` batch the object store is opened first: a credentials error leaves the batch as it was."""
+    film = seed_uploading_batch(batch_leg.ports.state, batch_leg.root)[FILM]
+    keys = _recorded(batch_leg)
+    refused = run(batch_leg, batch_request(EXCLUDE, item_ids=[film]))
+    assert (error_code(refused), _manifest_held(batch_leg), sorted(ids_of(batch_leg))) == (
+        "credentials_missing",
+        True,
+        [FILM, PODCAST],
+    )
+    assert _recorded(batch_leg) == keys
 
 
 def test_interrupted_rereview_forgets_the_audio_first(
@@ -235,7 +261,7 @@ def test_interrupted_rereview_forgets_the_audio_first(
     _interrupt_with(monkeypatch, "rereview", InterruptingStore())
     with batch_leg.ports.state.locks.batch(FIRST_BATCH_ID), pytest.raises(StorageError):
         return_item_to_review(context_of(batch_leg), FIRST_BATCH_ID, film)
-    state = (batch_row(batch_leg).manifest_held, item_phase(batch_leg, film), _recorded(batch_leg))
+    state = (_manifest_held(batch_leg), item_phase(batch_leg, film), _recorded(batch_leg))
     leftover = [key for key in _listed(batch_store) if film in key]
     done = run_ok(batch_leg, batch_request(EXCLUDE, item_ids=[film]))
     assert (state, len(leftover)) == ((False, "reviewing", podcast_keys), 1)
@@ -249,7 +275,7 @@ def test_rereview_refuses_an_item_of_another_batch(batch_leg: Leg) -> None:
     stranger = other["items"][0]["item_id"]
     with batch_leg.ports.state.locks.batch(FIRST_BATCH_ID), pytest.raises(ItemNotFoundError):
         return_item_to_review(context_of(batch_leg), FIRST_BATCH_ID, stranger)
-    assert (item_phase(batch_leg, stranger), batch_row(batch_leg).manifest_held) == ("composing", True)
+    assert (item_phase(batch_leg, stranger), _manifest_held(batch_leg)) == ("composing", True)
 
 
 def _started_upload(leg: Leg, item_id: str, *, extracted: bool) -> None:
