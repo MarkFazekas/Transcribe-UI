@@ -107,3 +107,27 @@ def test_runs_lock_wait_stops_on_cancel() -> None:
         pytest.fail("the runs lock was taken while held")
     assert time.monotonic() - started < THREAD_TIMEOUT_S / 2
     holder.join(THREAD_TIMEOUT_S)
+
+
+def test_try_batch_skips_a_busy_batch() -> None:
+    """`try_batch` takes a free batch lock and yields False for a held one, which it leaves held."""
+    locks = LockRegistry()
+    with locks.try_batch(BATCH_ID) as first:
+        with locks.try_batch(BATCH_ID) as second:
+            assert (first, second) == (True, False)
+        with locks.try_batch(BATCH_ID) as third:
+            assert third is False
+    with locks.try_batch(BATCH_ID) as again:
+        assert again is True
+
+
+def test_holds_runs_is_per_thread() -> None:
+    """Only the thread holding the runs lock is told it holds it."""
+    locks = LockRegistry()
+    seen: list[bool] = []
+    with locks.runs():
+        other = threading.Thread(target=lambda: seen.append(locks.holds_runs()))
+        other.start()
+        other.join(THREAD_TIMEOUT_S)
+        assert (locks.holds_runs(), seen) == (True, [False])
+    assert locks.holds_runs() is False

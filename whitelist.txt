@@ -81,6 +81,7 @@ frontends
 fsdecode
 fsencode
 fstat
+fsum
 fsync
 fullmatch
 fullwidth

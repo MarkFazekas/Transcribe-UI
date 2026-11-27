@@ -15,10 +15,13 @@ from support.trees import build_tree
 from transcribe_contracts.layout import audio_key
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, JobPayload
+from transcribe_ui.discovery.rules import host_rules
 from transcribe_ui.media.classes import AudioTrack, ProbeResult, SubtitleStream
 from transcribe_ui.media.fake import FakeMediaTools
 from transcribe_ui.state.models import AudioObjectRow, BatchRow, ItemRow, JobRow
 from transcribe_ui.state.store import LocalState
+from transcribe_ui.upload.constants import AUDIO_VERIFIED
+from transcribe_ui.upload.payloads import AudioObjectPayload
 
 # Scanned folder inside each leg's root.
 MEDIA = "media"
@@ -51,6 +54,8 @@ BATCH_TREE = (
 )
 # Size of the fake audio objects seeded into an uploading batch.
 SEEDED_OBJECT_BYTES = 16
+# Extension of the audio objects seeded into an uploading batch.
+SEEDED_EXTENSION = "mka"
 # Length of `FILM` in the fake probe (90 minutes).
 FILM_SECONDS = 5400
 # Length of `SILENT` in the fake probe.
@@ -164,7 +169,7 @@ def seed_uploading_batch(state: LocalState, root: Path, *, manifest_held: bool =
     Each item has one recorded audio object; the caller uploads the objects if it needs them.
     """
     media = media_dir(root)
-    payload = BatchPayload(scan_root=str(media), path_flavor="posix", languages=("en",))
+    payload = BatchPayload(scan_root=str(media), path_flavor=host_rules().flavor, languages=("en",))
     ids = {FILM: "01JDZZZZZZZZZZZZZZZZZZZZ01", PODCAST: "01JDZZZZZZZZZZZZZZZZZZZZ02"}
     with state.session() as session:
         session.add(
@@ -207,7 +212,7 @@ def _seed_item(session: Session, item_id: str, position: int, path: Path, probe:
     )
     session.flush()
     track = 1 if kind == "video" else None
-    key = audio_key(FIRST_BATCH_ID, item_id, "mka", track)
+    key = audio_key(FIRST_BATCH_ID, item_id, SEEDED_EXTENSION, track)
     job = JobPayload(mode="normal", track_index=track)
     session.add(
         JobRow(
@@ -219,7 +224,20 @@ def _seed_item(session: Session, item_id: str, position: int, path: Path, probe:
             payload=job.model_dump(mode="json"),
         ),
     )
-    session.add(AudioObjectRow(object_key=key, batch_id=FIRST_BATCH_ID, item_id=item_id, status="verified", payload={}))
+    codec = "mp3" if track is None else found.audio_tracks[track].codec
+    audio = AudioObjectPayload(
+        track_index=track,
+        extension=SEEDED_EXTENSION,
+        codec=codec,
+        duration_s=found.duration_s or 0,
+        size_bytes=SEEDED_OBJECT_BYTES,
+    )
+    stored_audio = audio.model_dump(mode="json")
+    session.add(
+        AudioObjectRow(
+            object_key=key, batch_id=FIRST_BATCH_ID, item_id=item_id, status=AUDIO_VERIFIED, payload=stored_audio
+        )
+    )
 
 
 def seeded_keys(state: LocalState) -> list[str]:

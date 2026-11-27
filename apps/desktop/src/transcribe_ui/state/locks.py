@@ -132,6 +132,8 @@ class LockRegistry:
         self._guard = threading.Lock()
         self._busy_batches: set[str] = set()
         self._runs = threading.Lock()
+        # Thread id of the runs lock's holder (None while free), for `holds_runs`.
+        self._runs_owner: int | None = None
 
     @contextmanager
     def batch(self, batch_id: str) -> Iterator[None]:
@@ -152,6 +154,23 @@ class LockRegistry:
                 self._busy_batches.discard(batch_id)
 
     @contextmanager
+    def try_batch(self, batch_id: str) -> Iterator[bool]:
+        """Hold the batch's lock while the block runs if it is free; yield whether it was taken.
+
+        For work that skips a busy batch instead of failing (`publish_held_manifests`).
+        """
+        self._check_order()
+        with self._guard:
+            taken = batch_id not in self._busy_batches
+            self._busy_batches.add(batch_id)
+        try:
+            yield taken
+        finally:
+            if taken:
+                with self._guard:
+                    self._busy_batches.discard(batch_id)
+
+    @contextmanager
     def runs(self, cancelled: CancelCheck | None = None) -> Iterator[None]:
         """Hold the runs lock while the block runs, waiting for it at most the bounded wait.
 
@@ -165,10 +184,16 @@ class LockRegistry:
         """
         self._check_order()
         self._acquire_runs(cancelled)
+        self._runs_owner = threading.get_ident()
         try:
             yield
         finally:
+            self._runs_owner = None
             self._runs.release()
+
+    def holds_runs(self) -> bool:
+        """Return whether the calling thread holds the runs lock."""
+        return self._runs_owner == threading.get_ident()
 
     def _check_order(self) -> None:
         if self._in_transaction is not None and self._in_transaction():
