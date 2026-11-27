@@ -177,7 +177,8 @@ def _check_base_url(base_url: str) -> None:
     secure = parts.scheme == "https" and host.endswith(API_HOST_SUFFIX)
     local = parts.scheme == "http" and host == LOCAL_TEST_HOST
     if parts.username or parts.password or not (secure or local):
-        msg = f"refusing API base URL {base_url!r}"
+        # Scheme and host only: the full URL may carry credentials (user, password, query).
+        msg = f"refusing API base URL (scheme {parts.scheme!r}, host {host!r})"
         raise ValueError(msg)
 
 
