@@ -44,6 +44,7 @@ GET = "GET"
 RUNNING = "RUNNING"
 QUEUED = "QUEUED"
 STATUS = "status"
+NAME = "name"
 PODS = "/v2/pods"
 QUEUED_PODS = "/v2/queued-pods"
 HTTP_OK = 200
@@ -56,6 +57,7 @@ P_BROKEN = "p_broken"
 Q_OVERDUE_PATH = f"{QUEUED_PODS}/{Q_OVERDUE}"
 P_OVERDUE_PATH = f"{PODS}/{P_OVERDUE}"
 TICK = timedelta(seconds=1)
+NUMERIC_JSON = 1764240000
 POD_ACTION_TAKES = QUEUED_PHASE_BUDGET + TICK
 ID_MAX_LENGTH = 64
 AUDIT_LINE = f"pod={P_OVERDUE} run={RUN_ID} deadline=2026-11-27T11:49:00+00:00 action=terminate outcome=done"
@@ -99,18 +101,18 @@ class FakeRunpod:
     requests: list[tuple[str, str, str]] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def add_pod(self, pod_id: str, name: str, status: str = RUNNING, created_at: str | None = CREATED_AT) -> None:
-        """Add a pod (without `createdAt` if it is None)."""
-        pod: dict[str, object] = {"id": pod_id, "name": name, STATUS: status, "env": {"R2_SECRET": "x"}}
+    def add_pod(self, pod_id: object, name: str, status: str = RUNNING, created_at: object = CREATED_AT) -> None:
+        """Add a pod (without `createdAt` if it is None); ids and createdAt may be any JSON value."""
+        pod: dict[str, object] = {"id": pod_id, NAME: name, STATUS: status, "env": {"R2_SECRET": "x"}}
         if created_at is not None:
             pod["createdAt"] = created_at
-        self.pods[pod_id] = pod
+        self.pods[str(pod_id)] = pod
 
     def add_queued(self, queued_id: str, name: str, status: str = QUEUED) -> None:
         """Add a queued pod."""
         self.queued[queued_id] = {
             "id": queued_id,
-            "name": name,
+            NAME: name,
             STATUS: status,
             "podId": None,
             "createdAt": CREATED_AT,
@@ -299,7 +301,7 @@ def test_dry_run_sends_no_delete(fake_runpod: FakeRunpod, caplog: pytest.LogCapt
 def test_unexpected_list_shape_fails(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) -> None:
     """A list response that does not match the spec fails the pass; its content is not logged."""
     state = fake_runpod
-    state.list_body = b'{"pods": [{"name": "leaked-secret-value"}]}'
+    state.list_body = b'{"pods": [{NAME: "leaked-secret-value"}]}'
     assert not state.reap()
     assert not state.deletes()
     assert "unexpected response shape" in caplog.text
@@ -498,23 +500,31 @@ def test_implausible_deadline_is_left_alone(
     assert ("implausibly far after creation" in caplog.text) != plausible
 
 
-@pytest.mark.parametrize("item_id", ["../escape", "id with space", "p" * (ID_MAX_LENGTH + 1), "", "p_bad\n"])
-def test_invalid_app_id_is_left_alone(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture, item_id: str) -> None:
-    """An app entry with an id outside the strict pattern is left alone and logged escaped; the rest is handled."""
+@pytest.mark.parametrize(
+    "item_id",
+    ["../escape", "id with space", "p" * (ID_MAX_LENGTH + 1), "", "p_bad\n", NUMERIC_JSON, None],
+)
+def test_invalid_app_id_is_left_alone(
+    fake_runpod: FakeRunpod,
+    caplog: pytest.LogCaptureFixture,
+    item_id: object,
+) -> None:
+    """An app entry without a valid string id is left alone and logged escaped; the rest is handled."""
     state = fake_runpod
     state.add_pod(item_id, OVERDUE)
     state.add_overdue_pod()
     assert (state.reap(), state.deletes()) == (False, [P_OVERDUE_PATH])
-    assert f"id={item_id!r} has the app prefix but an invalid id" in caplog.text
+    logged = item_id if isinstance(item_id, str) else None
+    assert f"id={logged!r} has the app prefix but an invalid id" in caplog.text
 
 
-@pytest.mark.parametrize("created_at", [None, "not-a-date", "2026-11-27T11:00:00"])
+@pytest.mark.parametrize("created_at", [None, "not-a-date", "2026-11-27T11:00:00", NUMERIC_JSON])
 def test_invalid_created_at_fails_but_is_handled(
     fake_runpod: FakeRunpod,
     caplog: pytest.LogCaptureFixture,
-    created_at: str | None,
+    created_at: object,
 ) -> None:
-    """A missing, unparseable or naive createdAt fails the pass; overdue pods are still terminated."""
+    """A missing, unparseable, naive or non-string createdAt fails the pass; overdue pods are still terminated."""
     state = fake_runpod
     checked = {P_OVERDUE: OVERDUE, "p_in_time": IN_TIME}
     for pod_id, name in checked.items():
@@ -524,10 +534,23 @@ def test_invalid_created_at_fails_but_is_handled(
     assert "not-a-date" not in caplog.text
 
 
-def test_foreign_entries_are_not_validated(fake_runpod: FakeRunpod, caplog: pytest.LogCaptureFixture) -> None:
-    """A foreign pod with an odd id and createdAt neither fails the list nor shows up in the log."""
+@pytest.mark.parametrize(
+    "foreign",
+    [
+        {"id": "foreign id\n", NAME: FOREIGN, STATUS: RUNNING, "createdAt": "foreign-garbage"},
+        {"id": NUMERIC_JSON, NAME: None, STATUS: RUNNING, "createdAt": NUMERIC_JSON},
+        {"id": None, NAME: ["garbage"], STATUS: {"garbage": True}, "createdAt": {"garbage": 1}},
+        {},
+    ],
+)
+def test_foreign_entries_are_not_validated(
+    fake_runpod: FakeRunpod,
+    caplog: pytest.LogCaptureFixture,
+    foreign: dict[str, object],
+) -> None:
+    """A foreign entry with any JSON values (or none) neither fails the list nor shows up in the log."""
     state = fake_runpod
-    state.add_pod("foreign id\n", FOREIGN, created_at="foreign-garbage")
+    state.pods["foreign"] = foreign
     state.add_overdue_pod()
     with caplog.at_level(logging.INFO):
         assert state.reap()

@@ -55,9 +55,18 @@ class _Kind:
     budget: timedelta
     min_window: timedelta
     list_entries: Callable[[], list[ListedPod]]
-    is_active: Callable[[ListedPod], bool]
+    is_active: Callable[[str], bool]
     remove: Callable[[str], None]
     removed: Callable[[str], bool]
+
+
+@dataclass(frozen=True)
+class _AppEntry:
+    """A listed entry with a string name carrying the app prefix and an active string status."""
+
+    pod_id: str | None
+    name: str
+    created_at: str | None
 
 
 @dataclass
@@ -83,7 +92,7 @@ def reap(api: ReaperApi, ports: ReaperPorts, *, dry_run: bool) -> bool:
 
     Queued pods go first: a queue entry that deploys while it is being cancelled then shows
     up in the pod list read afterwards. The queued phase starts no new action after
-    `QUEUED_PHASE_BUDGET`; the pod phase always runs and keeps starting actions until
+    `QUEUED_PHASE_BUDGET` from the pass start (its list included); the pod phase always runs and keeps starting actions until
     `PASS_BUDGET`, or for `POD_PHASE_MIN_WINDOW` from its own start if that is later, so a slow
     queued phase cannot starve it.
 
@@ -120,12 +129,12 @@ def reap(api: ReaperApi, ports: ReaperPorts, *, dry_run: bool) -> bool:
     return state.ok
 
 
-def _waits_in_queue(entry: ListedPod) -> bool:
-    return entry.status == QUEUED_STATUS
+def _waits_in_queue(status: str) -> bool:
+    return status == QUEUED_STATUS
 
 
-def _not_terminated(entry: ListedPod) -> bool:
-    return entry.status != TERMINATED_STATUS
+def _not_terminated(status: str) -> bool:
+    return status != TERMINATED_STATUS
 
 
 def _reap_kind(kind: _Kind, state: _Pass) -> None:
@@ -137,7 +146,8 @@ def _reap_kind(kind: _Kind, state: _Pass) -> None:
         logger.error("list %ss failed: %s", kind.label, error)  # noqa: TRY400 - message only, no traceback
         state.fail()
         return
-    ours = [entry for entry in listed if _is_ours(kind, entry)]
+    candidates = (_app_entry(kind, entry) for entry in listed)
+    ours = [entry for entry in candidates if entry is not None]
     logger.info("%d %ss listed, %d active with the app prefix", len(listed), kind.label, len(ours))
     for entry in ours:
         if state.out_of_time(stop_at):
@@ -147,34 +157,41 @@ def _reap_kind(kind: _Kind, state: _Pass) -> None:
         _reap_entry(kind, entry, state)
 
 
-def _is_ours(kind: _Kind, entry: ListedPod) -> bool:
-    return is_app_pod_name(entry.name) and kind.is_active(entry)
+def _app_entry(kind: _Kind, entry: ListedPod) -> _AppEntry | None:
+    """Return the entry if it is an active app entry; None for anything else (never logged)."""
+    name, status = entry.name, entry.status
+    if name is None or status is None:
+        return None
+    if not (is_app_pod_name(name) and kind.is_active(status)):
+        return None
+    return _AppEntry(pod_id=entry.pod_id, name=name, created_at=entry.created_at)
 
 
-def _reap_entry(kind: _Kind, entry: ListedPod, state: _Pass) -> None:
+def _reap_entry(kind: _Kind, entry: _AppEntry, state: _Pass) -> None:
     # Untrusted values are logged truncated and escaped (%r), so they cannot start a log line.
-    if re.fullmatch(ITEM_ID_PATTERN, entry.pod_id) is None:
-        shown = entry.pod_id[:LOGGED_VALUE_MAX_LENGTH]
+    pod_id = entry.pod_id
+    if pod_id is None or re.fullmatch(ITEM_ID_PATTERN, pod_id) is None:
+        shown = None if pod_id is None else pod_id[:LOGGED_VALUE_MAX_LENGTH]
         logger.warning("%s id=%r has the app prefix but an invalid id: left alone", kind.label, shown)
         state.fail()
         return
     parsed = parse_pod_name(entry.name)
     if parsed is None:
         shown = entry.name[:LOGGED_VALUE_MAX_LENGTH]
-        logger.warning("%s=%s name=%r has the app prefix but is malformed: left alone", kind.label, entry.pod_id, shown)
+        logger.warning("%s=%s name=%r has the app prefix but is malformed: left alone", kind.label, pod_id, shown)
         state.fail()
         return
-    context = _context(kind, entry, parsed)
+    context = _context(kind, pod_id, parsed)
     created = _created_at(entry, state, context)
     if parsed.deadline >= state.started - GRACE:  # not `deadline + GRACE`: that may overflow
         _keep(parsed, created, state, context)
     elif state.dry_run:
         logger.info("%s action=%s outcome=skipped (dry run)", context, kind.action)
-    elif not _remove(kind, entry.pod_id, state.ports, context):
+    elif not _remove(kind, pod_id, state.ports, context):
         state.fail()
 
 
-def _created_at(entry: ListedPod, state: _Pass, context: str) -> datetime:
+def _created_at(entry: _AppEntry, state: _Pass, context: str) -> datetime:
     """Return the entry's creation time, capped at the pass start (clock skew only loosens)."""
     created = _parse_aware(entry.created_at)
     if created is None:
@@ -204,9 +221,9 @@ def _keep(parsed: PodName, created: datetime, state: _Pass, context: str) -> Non
         state.fail()
 
 
-def _context(kind: _Kind, entry: ListedPod, parsed: PodName) -> str:
+def _context(kind: _Kind, pod_id: str, parsed: PodName) -> str:
     deadline = parsed.deadline.isoformat()
-    return f"{kind.label}={entry.pod_id} run={parsed.run_id} deadline={deadline}"
+    return f"{kind.label}={pod_id} run={parsed.run_id} deadline={deadline}"
 
 
 def _remove(kind: _Kind, entry_id: str, ports: ReaperPorts, context: str) -> bool:

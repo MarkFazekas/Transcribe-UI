@@ -18,12 +18,15 @@ RUNPOD_MAX_QUEUE_WAIT_DAYS: Final = 30
 RUNPOD_MAX_QUEUE_WAIT: Final = timedelta(days=RUNPOD_MAX_QUEUE_WAIT_DAYS)
 # Longest plausible span from creation to deadline (queue wait + runtime ceiling + a day of margins).
 MAX_DEADLINE_SPAN: Final = RUNPOD_MAX_QUEUE_WAIT + timedelta(seconds=MAX_RUNTIME_CEILING_S) + timedelta(days=1)
-# Time budgets. Worst case with one-page lists and the 30 s HTTP timeout: a list takes
+# Time budgets. The hard bound is the workflow's 15-minute job timeout; the figures below
+# assume one-page lists and that the 30 s HTTP timeout bounds every operation (it is a socket
+# timeout, so a trickling response or a slow DNS lookup can take longer). A list then takes
 # 3 x 30 + 2 + 4 = 96 s; an action takes 96 s (DELETE with retries) + 4 x 30 + 3 x 5 = 135 s
 # (confirmation) = 231 s. The last cancel starts by 60 s and ends by 291 s; the pod phase then
 # starts no terminate after max(240 s, 291 + 120 s) = 411 s, and the last ends by 642 s
-# (10.7 min), inside the workflow's 15-minute timeout together with checkout and install.
-# The queued phase starts no new cancel after this long (measured from the pass start).
+# (10.7 min), leaving room for checkout and install.
+# The queued phase starts no new cancel after this long from the pass start (its list included;
+# a slow list fails the pass loudly, and a queued pod that deploys is caught by the pod phase).
 QUEUED_PHASE_BUDGET: Final = timedelta(minutes=1)
 # The pod phase starts no new terminate after this long from the pass start ...
 PASS_BUDGET: Final = timedelta(minutes=4)

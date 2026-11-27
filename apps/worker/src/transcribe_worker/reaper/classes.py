@@ -4,7 +4,9 @@ Only the fields the reaper needs are declared; everything else (including pod `e
 can hold secrets) is ignored and never logged.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 
 class ApiModel(BaseModel):
@@ -20,17 +22,27 @@ class Pagination(ApiModel):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+def _text_or_none(raw: object) -> str | None:
+    return raw if isinstance(raw, str) else None
+
+
+# A field kept only if it is a JSON string; any other value (or none) becomes None.
+type LenientText = Annotated[str | None, BeforeValidator(_text_or_none)]
+
+
 class ListedPod(ApiModel):
     """A pod or a queued pod as the list endpoints return it (id, name, status, createdAt).
 
-    Parsed leniently: the list also holds foreign pods, and one odd entry must not fail the
-    whole list. Id and `createdAt` of app entries are validated per entry (`reap`).
+    Parsed leniently: the list also holds foreign pods, and no value of these four fields
+    (missing, null, a number, an object, ...) can fail the list; a non-string becomes None.
+    Entries without a string name and status are foreign; the id and `createdAt` of app
+    entries are validated per entry (`reap`).
     """
 
-    pod_id: str = Field(alias="id")
-    name: str
-    status: str
-    created_at: str | None = Field(default=None, alias="createdAt")
+    pod_id: LenientText = Field(default=None, alias="id")
+    name: LenientText = None
+    status: LenientText = None
+    created_at: LenientText = Field(default=None, alias="createdAt")
 
 
 class Page(ApiModel):
