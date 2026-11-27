@@ -380,37 +380,52 @@ requests wire it in M5.13):
 - Strategy names: `next_to_media`, `mirror`, `flat`, `flat_with_folders` (the same names as
   the placement settings). `flat_with_folders` takes `folder_count` (X) or explicit
   `folder_levels` counted from the scan root (1 = the first folder below it; levels a file
-  does not have are skipped). `mirror` and both flat strategies need an absolute
-  `output_folder` (`output_not_absolute`); a source outside the scan root is
-  `outside_scan_root` for `mirror` and `flat_with_folders` (`flat` places it without folder
-  names).
+  does not have are skipped), not both (levels with a `folder_count` other than 1 are
+  refused). `mirror` and both flat strategies need an absolute `output_folder`
+  (`output_not_absolute`); `next_to_media` ignores one, so settings pre-filled with an output
+  folder still apply. The scan root and every source path must be absolute without `..`
+  parts (`scan_root_invalid`, `source_path_invalid`), so no target leaves its folder. A
+  source outside the scan root is `outside_scan_root` for `mirror` and `flat_with_folders`
+  (`flat` places it without folder names).
 - Names are worked out for every job, whatever its subtitle state, so a partial download (Q24)
   names files as a later one does. Collisions compare under the path-flavour rule
   (case-insensitive on Windows and macOS). In both flat strategies the colliding files get the
   names of their closest folders added (on top of the strategy's chosen ones), one level at a
   time until files of different folders differ; files that still collide (same folder) all get
   their source extension (`movie_mkv.hu.srt` and `movie_mp4.hu.srt`, also next to the media and
-  in `mirror`). The entry lists the reasons (`folders`, `source_extension`). What still
-  collides (folder names containing `_`, such as `A_B` and `A/B`) is `duplicate_target`.
+  in `mirror`). The steps repeat in rounds (at most 64) while a new name meets another file's
+  (`movie_mkv.hu.srt` and a source `movie_mkv.avi`; `A_movie.hu.srt` and a root file
+  `A_movie.mp4`). The entry lists the reasons (`folders`, `source_extension`). What still
+  collides when no step changes a name is `duplicate_target` for every job on that target,
+  whatever its outcome (names are fixed per job, so the collision is real before both
+  subtitles exist). By then each name holds all its folders below the scan root, its stem and
+  its extension, so this needs a `_` inside one of those names (from the source or a replaced
+  character): `A_B/m.mkv` and `A/B/m.mkv`, or a root `A_movie.mkv` and `A/movie.mkv`.
 - Generated names are made valid: forbidden characters (Windows `<>:"/\|?*` and control
   characters; POSIX `/` and NUL) become `_`; on Windows trailing dots and spaces become `_`
-  and a reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`, the
+  and a reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`, `LPT0`-`LPT9`, the
   superscript-digit forms, `CONIN$`, `CONOUT$`; also with an extension) gets `_` after its base
   (`CON_.hu.srt`). Name length is counted as the file system does: UTF-8 bytes on POSIX, UTF-16
-  units on Windows; over 255 is `name_too_long`. A Windows target path over 259 UTF-16 units
-  (MAX_PATH) is `path_too_long`, since a long path may fail on a system without long-path
-  support.
+  units on Windows. The limits leave room for the `.tmp` suffix of the temp file the subtitle
+  is first written to (`run_download`, M5.13, must use exactly that suffix in the target
+  folder): a name over 255 with it is `name_too_long`; on Windows a temp file path over 259
+  UTF-16 units (MAX_PATH) or a target folder path over 247 (the 248 that folder creation
+  allows, minus the NUL) is `path_too_long`, since long paths may fail on a system without
+  long-path support. These name errors are reported for every job, whatever its outcome.
 - Outcomes: `pending` → `not_finished` (Q24), `failed` → `skip_failed`, `empty` →
   `skip_empty` unless `include_empty`; next to the media a missing original folder gives
   `skip_folder_missing` for that file while the others are placed (Q23's proposed default); an
   existing file → `skip_existing`, or `overwrite` when asked; a folder in the way is skipped,
-  and asking to overwrite it is `target_not_a_file`. Errors are reported only for entries
-  that would write. Error messages name files by file name and language only (no folders), so
+  and asking to overwrite it is `target_not_a_file`; a target that cannot be checked (no
+  permission) is `target_unreadable`, never a skip. These target errors are reported only for
+  entries that would write. `PlanError.code` is a `Literal` of every code. Error messages name files by file name and language only (no folders), so
   golden files need no normalisation of messages.
 - Custom plan: the export (`CustomPlan`, `version` 1) lists every job with `item_id`,
   `language`, `source_path`, `original_folder`, and `output_folder` (relative to the output
   folder chosen at import; pre-filled with the `mirror` folders) and `output_file_name`
-  (pre-filled with the default name). Import errors, each with a message naming what is wrong:
+  (pre-filled with the default name). A source `mirror` cannot place (outside the scan root,
+  or not absolute without `..`) gets an empty `output_folder` (the output folder itself) for
+  the user to fill in. Import errors, each with a message naming what is wrong:
   `custom_plan_schema` (invalid JSON, unknown fields, wrong version; locations and messages
   only, never input values), `custom_plan_duplicate_job`, `custom_plan_unknown_job`,
   `custom_plan_missing_job`, `custom_plan_source_changed` (`source_path` or
