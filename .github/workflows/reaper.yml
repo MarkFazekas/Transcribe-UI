@@ -48,6 +48,8 @@ jobs:
       - if: steps.key.outputs.present == 'true'
         uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
         with:
+          # Pinned (the local uv version), so the job does not pick up a new uv unreviewed.
+          version: "0.11.8"
           # No cache in a job that holds a deployment secret.
           enable-cache: false
       - if: steps.key.outputs.present == 'true'
