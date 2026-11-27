@@ -33,7 +33,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - Architect: schedule the M4 approved Runpod run.
 - Architect: A21 (fixed run scope across computers), A22 (no absolute paths in the
   manifest) in `questions-for-architect.md`; they gate M6.13.
-- Product: Q30 (closing the app with work in progress), Q31 (steps the app
+- Product: Q31 (steps the app
   starts on its own), Q32 (language of the app's texts), Q33 (main window layout), Q34 (stopping
   the cloud machine while it transcribes), Q35 (deleting subtitles several computers download) in `questions-for-product.md`. M5 is built and M6 is
   planned on the proposed defaults; an answer that differs changes the part that implements it.

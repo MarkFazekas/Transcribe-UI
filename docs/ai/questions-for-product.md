@@ -10,19 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q30. Closing the app while work is in progress
-
-The app may be converting and uploading files, downloading subtitles or cleaning up the cloud
-when the user closes the window, or a cloud machine may be waiting or transcribing.
-
-Proposed default: if a step is running, the app asks "Stop and close? The work continues from
-where it stopped the next time you start it." On yes, it stops the step cleanly (this can take a
-few seconds; a "Quit now" button ends at once, still without losing finished work). If a cloud
-machine is waiting or working, the close question also says that the machine keeps working
-without the app, stops itself when the work is done or at its time limit, and that the app
-shows its results the next time it starts. Closing never cancels the cloud machine; cancelling
-is a separate button on the Cloud page.
-
 ### Q31. Steps the app starts on its own
 
 Several steps could follow each other automatically: the upload after the review step, the start

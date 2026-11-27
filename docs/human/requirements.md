@@ -96,6 +96,14 @@ folder, another for another folder).
   5. Subtitles downloaded: they can be deleted from storage.
   6. Manual confirmation of deleting the subtitles and the input audio files.
 - Every step must be interruptible and resumable, both during and between steps.
+- Closing the app while work is in progress *(Q30, accepted default)*: if a step is running
+  (converting and uploading, downloading subtitles, cleaning up the cloud), the app asks "Stop
+  and close? The work continues from where it stopped the next time you start it." On yes, it
+  stops the step cleanly (this can take a few seconds; a "Quit now" button ends at once, still
+  without losing finished work). If a cloud machine is waiting or working, the close question
+  also says that the machine keeps working without the app, stops itself when the work is done
+  or at its time limit, and that the app shows its results the next time it starts. Closing
+  never cancels the cloud machine; cancelling is a separate button on the Cloud page.
 - Job history is kept forever, with an option to hide finished and cleaned-up jobs. History
   only contains file names, paths and statuses (no audio) *(accepted proposal)*.
 
