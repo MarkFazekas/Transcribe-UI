@@ -63,8 +63,12 @@ docs/human/, docs/ai/     see CLAUDE.md
   `run_download`, `cleanup_cloud`, `export_custom_plan`, `import_custom_plan`). `Response` is a
   union discriminated on `status`:
   - `ok`: the request's own response model (discriminated on `action`);
-  - `needs_confirmation`: nothing was changed; it lists the request fields to set
-    (confirmations are data, so GUI, CLI and MCP behave the same);
+  - `needs_confirmation`: nothing was changed; it lists the request fields to set, each with
+    the value that confirms it (`set_to`: `true` for a flag, the plan's fingerprint for
+    `confirm_fingerprint`), so every frontend confirms by re-sending the same request with each
+    `field` set to its `set_to` (confirmations are data, so GUI, CLI and MCP behave the same).
+    Every request that deletes or replaces something the user made asks this way, including
+    `delete_batch` and `exclude_items` (`confirm`);
   - `error`: `{"status": "error", "action": ..., "error": {"code", "message", "details"}}`
     (§6). Handlers raise `DomainError(code, ...)`; an unexpected exception becomes
     `internal_error` with a generic message (the traceback goes to the log only).
@@ -296,6 +300,11 @@ docs/human/, docs/ai/     see CLAUDE.md
     language the file already has a sidecar subtitle in (forced ones do not count) needs
     `confirm_existing_languages`; the confirmation lists the files by their `/`-separated path
     below the scan root (details are not path-normalised). Items are listed in scan order.
+    Both keep the selection in the batch payload (`StoredComposition`: the `ScanSpec`, the
+    operations, `languages`, `item_languages`; not `scan_id` or the confirmation), and
+    `BatchDetail.composition` returns it, so a frontend reopens "Edit selection" by sending it
+    back as an `edit_batch`. A retry batch (and a batch stored before the Alembic revision
+    `composition_and_run_report`) has none (`null`).
   - **Ids and locks.** The batch id comes from the injected clock in `Ports.local_zone` (None:
     this computer's zone, read at each use, so DST applies); the free id is picked inside the
     transaction that inserts the batch (`BEGIN IMMEDIATE` serialises two creations in one
@@ -340,7 +349,9 @@ docs/human/, docs/ai/     see CLAUDE.md
     the unfiltered views.
   - **Leaving the upload.** The database forgets an item's upload before R2 does, so no
     interruption leaves a held manifest that lists deleted audio. `exclude_items` (batch in
-    `reviewing` or `uploading`, never the last item: `last_item`) opens the object store first
+    `reviewing` or `uploading`, never the last item: `last_item`; after these checks, without
+    `confirm` it answers `needs_confirmation` with the item count and whether uploaded audio is
+    deleted, and changes nothing) opens the object store first
     when the batch is `uploading` (a credentials error changes nothing; a batch in review needs
     no credentials), then in one transaction clears `manifest_held` and deletes the excluded
     items with their `audio_objects` and `extracted_subtitles` rows, so the exclusion itself
@@ -359,10 +370,25 @@ docs/human/, docs/ai/     see CLAUDE.md
     summary; the upload takes it to `transcribed` without a manifest.
   - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
     `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
-    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade). Every job
+    `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade; without
+    `confirm` it answers `needs_confirmation` with the item count and changes nothing). Every job
     in `get_batch` (and the other batch details) shows its `status` and, for a failed job, its
     `result_error` (the result's error, `unreadable result` or `missing result`): the "failed: …"
     reason of the job view (requirements "Failure handling").
+  - **Allowed actions** (`batches/actions.py`, table `ACTION_RULES` in `batches/constants.py`).
+    Every `BatchSummary` lists in `actions` the batch requests whose local conditions hold now,
+    so frontends build their buttons from it instead of re-deriving rules: per action, the
+    phases its handler accepts and further conditions on the batch (more than one item for
+    `exclude_items`; every item `reviewed` for `run_upload` from `reviewing`; no pending result
+    for `cleanup_audio`; a failed or no-speech job and audio kept for `create_retry_batch`; no
+    retry batch still copying for both cleanups). `cleanup_cloud` is listed per scope
+    (`cleanup_audio`, `cleanup_everything`), `set_batch_hidden` per direction (`hide_batch`,
+    `show_batch`). The table restates the handlers' guards, which stay where they are; a drift
+    test sends every action to seeded batches in every phase and state and checks that a listed
+    action passes its guard and an unlisted one is refused by it. Conditions outside the batch
+    (a run active, a lock busy, the cloud unreachable, the request's own fields) are not in the
+    table: a listed action can still be refused. A pending cleanup is repeated with the action
+    of its scope, which is always listed while `cleanup_pending` is set.
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
   own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
   `refresh_status` call `publish_held_manifests`).
@@ -1216,15 +1242,28 @@ database):
      recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
      heartbeat no longer counts.
 
-  The response lists every run that was not final before the refresh (`RunProgress`: the run,
-  `stage` (`launching`, `waiting` for a machine, `starting`, `transcribing`, `stopping` while
-  the worker is done and its pod still exists, or the final status), the pod status as last
-  read, the worker report (state, current job, done/total, error), `first_running_at`, the
-  desktop `deadline`, `elapsed_s` and `cost_so_far_usd` (from the pod's creation until the
-  end or now, at its price; a display estimate), `ended_at`, `end_reason`, `stop_error`, the
-  kept `worker_log` path, and three progress fields below), the checked `ready` batches with their job counts and phase, the
-  `busy` ones, and the manifests `published` or still `held`. `cancel_worker` records
-  `ended_at` too.
+  Each followed run stores what the refresh saw in its payload (`runs/refreshing.py`): the
+  refresh time (`refreshed_at`), the deadline stop's error (`stop_error`, cleared by a refresh
+  without one) and, when R2 was read, the worker report (`worker`, as `WorkerProgress`; a
+  report not read this time keeps the last one). The collection of a final run stores the
+  report it reads too.
+
+  The response lists every run that was not final before the refresh (`RunProgress`, built from
+  the stored run only (`runs/progress.py`): the run, `stage` (`launching`, `waiting` for a
+  machine, `starting`, `transcribing`, `stopping` while the worker is done and its pod still
+  exists, or the final status), the pod status as last read, the stored worker report (state,
+  current job with its file `name` from this database (None for a batch or item it does not
+  know), done/total, error), `first_running_at`, the desktop `deadline`, `elapsed_s` and
+  `cost_so_far_usd` (from the pod's creation until `elapsed_until`: the run's end, else its
+  `refreshed_at`, never the moment of the request; at its price; a display estimate),
+  `ended_at`, `end_reason`, `stop_error`, the kept `worker_log` path, and three progress fields
+  below), the checked `ready` batches with their job counts and phase, the `busy` ones, and the manifests `published` or
+  still `held`. `cancel_worker` records `ended_at` too.
+- **Run list** (`runs/listing.py`; request `list_runs`, field `limit` 1-1000, default 20; DB
+  only: no lock, no Runpod or R2 call): the latest runs, newest first, as the same stored
+  `RunProgress`, so the cloud page shows the last run's outcome, end reason, worker report and
+  kept log after a restart, which `refresh_status` (open runs only) cannot. A run never
+  refreshed has no elapsed time until it ends.
 
   Progress fields (`RunProgress`, backend logic, so every frontend shows the same values;
   `runs/progress.py`, the factors in `runs/constants.py`):
@@ -1261,8 +1300,9 @@ directories, the settings store, the locks and the lazily opened database.
   columns (phase, status, outcome, flags) plus a JSON `payload` column, so most later changes
   touch payload classes, not tables. Timestamps come from the injected clock and are stored as
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
-  Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
-  (developers delete their local database); from then on every change is a new revision,
+  Revisions (`state/migrations/versions/`): `initial_schema` (frozen since M5 was built) and
+  `composition_and_run_report` (M6.1: adds `composition` to batch payloads and `worker`,
+  `stop_error`, `refreshed_at` to run payloads as null). Every change is a new revision,
   including a change of a stored payload's shape (a field removed, renamed or retyped, a
   literal value dropped): the revision rewrites the stored JSON, since readers do not migrate
   it (only the probe cache treats an unreadable row as a miss). A test asserts that the
