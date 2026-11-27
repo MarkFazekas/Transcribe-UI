@@ -439,10 +439,41 @@ requests wire it in M5.13):
 ### 3.6 Credentials
 
 - R2 access key/secret, R2 endpoint/bucket and the Runpod API key are stored with `keyring`
-  (Windows Credential Locker, macOS Keychain, Linux Secret Service). Non-secret settings live in
-  a JSON config file in the user config dir.
-- Fallback when no keyring backend exists (headless Linux, WSL): environment variables, with
-  a clear error message. Development uses an uncommitted `.env`.
+  (Windows Credential Locker, macOS Keychain, Linux Secret Service) under the service
+  `transcribe-ui`, one entry per credential (`r2_endpoint_url`, `r2_bucket`,
+  `r2_access_key_id`, `r2_secret_access_key`, `runpod_api_key`). Non-secret settings live in a
+  JSON config file in the user config dir. (`credentials/store.py`; the backend is injected:
+  `keyring.get_keyring`, created on first use; tests use an in-memory one.)
+- Environment fallback, per credential: the keyring entry wins when it is set; otherwise the
+  environment variable of the same name as in `.env` and the worker (`R2_ENDPOINT_URL`,
+  `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `RUNPOD_API_KEY`) is used. Values
+  are stripped of surrounding white space; empty means unset. A keyring that is missing
+  (`NoKeyringError`: headless Linux, WSL) or fails (locked, D-Bus or Windows API errors) is
+  reported and skipped, so the environment still serves. Development uses an uncommitted
+  `.env`. The optional pods-only terminate key (plan m5 §1 "Runpod keys") is added only if M4
+  shows the pod-scoped key cannot delete its own pod.
+- Requests (all DB-free):
+  - `store_credentials`: any subset of the five, keys and secrets as `SecretStr`, at least
+    one. Endpoint: an `https` URL with only a host (and port), stored without a trailing
+    slash; bucket: R2's naming rule; keys: no white space or control characters, at most 1024
+    characters (fits the Windows Credential Manager limit). The response names what was
+    stored. No keyring → `keyring_unavailable`, whose message names the environment variables
+    to set instead; a backend failure → `keyring_failed`; both list what was written before.
+  - `credentials_status`: the keyring state (`available`, `unavailable`, `failed`) and, per
+    credential, its environment variable and source (`keyring`, `environment`, `missing`).
+  - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
+    code and message (a failed check is a success response). R2 lists one key of the bucket
+    (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
+    `r2_failed`); M5.6 adds the Runpod check.
+  - Operations that need credentials get `credentials_missing` (names the credentials and
+    their variables) or `credentials_invalid` (names the credentials and their sources) from
+    the store.
+- Values never leave the store except to the client that uses them: no response, error
+  message, error detail, exception message or log record contains one (the endpoint and
+  bucket included). Validator messages are fixed texts; the request union and the credential
+  models set `hide_input_in_errors`, so even `str(ValidationError)` omits the input; SDK error
+  texts are never passed on (§6). Regression tests feed sentinel values through every
+  validator and every flow and search responses and DEBUG-level logs for them.
 
 ### 3.7 Launching the worker
 
@@ -865,7 +896,24 @@ the image and the pod-create request never contain credentials.
   never logs its environment (it contains `RUNPOD_API_KEY` and the R2 secrets).
 - R2 client: boto3 with `request_checksum_calculation="when_required"` and
   `response_checksum_validation="when_required"` (botocore ≥ 1.36 default checksums are not
-  reliably supported by R2), region `auto`, multipart ≥ 64 MiB parts.
+  reliably supported by R2), region `auto`, multipart ≥ 64 MiB parts; 5 attempts (botocore
+  `standard` retries), 10 s connect and 30 s read timeouts. The worker and the desktop each
+  have their own adapter (apps share only contracts) with the same settings.
+  - Desktop (`storage/`): `ObjectStore` protocol with `check_access`, `head`, `list_objects`,
+    `read`, `write`, `write_new` (`If-None-Match: *`), `copy` (server side; multipart copy
+    from 64 MiB), `delete` (missing = success), `abort_uploads` (every unfinished multipart
+    upload under a prefix) and `upload_file`. The client factory is injected; each client
+    gets its own boto3 session (the default session is not thread-safe).
+  - `upload_file`: below 64 MiB one PUT, else a multipart upload whose parts are sent one
+    after the other, with progress after each part and the cancel token checked before each.
+    A cancelled or failed multipart upload is aborted (a failed abort is only logged; the next
+    `run_upload` aborts stale uploads); parts are never resumed across requests, an
+    interrupted object is uploaded again from its start.
+  - SDK failures become `StorageError` (a `DomainError`) with a fixed message per code and
+    only the operation and the S3 error code or exception type as details; the SDK's own
+    texts (URLs, bucket, parameters) are never passed on. The SDK's loggers (`boto3`,
+    `botocore`, `s3transfer`, `urllib3`) are held at WARNING: their debug records carry
+    request headers with the access key id.
 
 ## 7. Testing strategy
 
@@ -979,7 +1027,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.4 and M5.7 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.5 and M5.7 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
