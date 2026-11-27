@@ -44,7 +44,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. Check the release-worker run on `main` pushed the image tags `sha-<short>`, `latest` and
-   `schema-1` to `markfazekasgh/transcribe-ui-worker`.
-3. M5 part by part per `docs/ai/plans/m5.md` §3-4, starting with M5.1 (desktop package
+2. M5 part by part per `docs/ai/plans/m5.md` §3-4, starting with M5.1 (desktop package
    bootstrap and façade); M4 runs whenever the architect is available.
