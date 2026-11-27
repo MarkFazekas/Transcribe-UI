@@ -169,16 +169,20 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   never count. Without `QT_QPA_PLATFORM`, `DISPLAY` or `WAYLAND_DISPLAY` must be set. Qt can
   still abort on what the check cannot see (a display variable naming a server that is gone,
   missing xcb libraries such as `libxcb-cursor0`); M8 documents those for Linux users and its
-  smoke run starts the build offscreen. Without a display it logs the reason, writes the JSON `ErrorResponse`
-  with the code `display_unavailable` to stdout (when the process has one) and exits 1. Then it
+  smoke run starts the build offscreen. Without a display it logs the reason
+  (`display_problem`: no display variable, or the forced platforms that cannot start), writes
+  it as the JSON `ErrorResponse` with the code `display_unavailable` to stdout (when the
+  process has one) and exits 1. Then it
   imports `gui/app.py` and runs `run_gui(make_backend)` (tests inject seeded ports) inside
   `log_to_file(transcribe-ui-gui.log)`. `run_gui` routes Qt's messages to the log
   (`qInstallMessageHandler`, logger `transcribe_ui.gui.qt`) and exceptions escaping a slot
   (`sys.excepthook`) there too, never to stderr. When the event loop ends (normally through the
-  close dialog, or without it, as when the session ends) it hides and deletes the window, runs
-  the executor's `shutdown` and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s);
-  requests still running then end the process through "Quit now". It closes the backend's
-  local state last (`Backend.close`).
+  close dialog, or without it, as when the session ends) it hides the window, runs the
+  executor's `shutdown`, closes it (answers still on their way are dropped, no callback runs
+  any more) and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s, one deadline for
+  all pools); requests still running then end the process through "Quit now". It then deletes
+  the window (`deleteLater` would never run without a loop) and closes the backend's local
+  state last (`Backend.close`).
 - **Package**: Qt-free modules `executor.py` (the `Executor` port, call handles, channels,
   `SyncExecutor`), `viewmodel.py` (the view-model base: an injected `Executor` and change
   listeners), `activity.py` (the activity panel's view-model), `feedback.py` (error and
@@ -218,8 +222,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   send is refused with None), `LatestChannel` (a new send cancels the key's previous call and
   drops its stale answer by sequence number) and `SingleFlightChannel` (the poll: no tick while
   the previous one is `queued` or `running`; its `state` shows queued as "waiting" and running
-  as "refreshing"; a cancelled queued tick frees it at once). The backend's locks still guard
-  everything (§3.8).
+  as "refreshing"; a cancelled queued tick frees it at once). Every channel numbers its sends
+  per key, so the posted `cancelled` answer of a call taken off its queue never reaches a newer
+  send. The backend's locks still guard everything (§3.8).
 - **Activity panel**: areas start long requests through `Activity.start` (exclusive per key,
   default the request's JSON); each row shows stage, `completed`/`total` and path, Cancel while
   queued or running, Resume (re-sends the same request) after `cancelled` ("Stopped; continue
@@ -246,14 +251,15 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   the code, the details as a key/value table and one table per detail that lists objects, "Open
   log folder"; `internal_error` adds "see the log"). `ERROR_FIXES` adds a button: credentials
   codes → Settings accounts, cloud setup codes → Settings cloud setup, `cleanup_pending` → the
-  first batch in `batch_ids`, `app_busy` → Retry (the failed action's re-send, or a new probe of
-  the writer lock where there is none); unknown codes render generically. One confirmation
+  first batch in `batch_ids`, `app_busy` → Retry (re-sends the failed action, if any, and
+  probes the writer lock, so the notice clears too); unknown codes render generically. One confirmation
   dialog for every `needs_confirmation`; Confirm re-sends the same request with each `field`
   set to true (`feedback.confirmed_request`). A field that is not a boolean of the request
   shows why and disables Confirm. After M6.1 the value comes from `Confirmation.set_to`.
 - **Closing** (Q30): with calls pending or a run not final (`GuiContext.run_active`, set by the
   cloud page), the window asks "Stop and close?" (with the cloud-machine note while a run is not
-  final). On Stop and close it runs `shutdown` and, while calls finish, a modal "Finishing the
+  final). On Stop and close it runs `shutdown` and, while calls are still running (queued ones
+  are cancelled at once), a modal "Finishing the
   current step" dialog (Esc does not close it) whose "Quit now" kills the running
   ffmpeg/ffprobe processes (`media.runner.kill_running_tools`; on Windows their job object ends
   them with the process), flushes and closes the root log handlers and ends the process with
@@ -829,10 +835,10 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
       the kill is `killpg(SIGKILL)`. The runner tracks every running tool, so the GUI's "Quit
       now" kills them before `os._exit` (`kill_running_tools`). A tool killed that way, or one
       that ends while the cancel token is set, gives `cancelled`, never a result (so no
-      `media_tool_failed` is stored). If the app itself dies
-      otherwise, a running ffmpeg is orphaned and runs to its end; this is accepted, since it writes only its own uniquely named partial
-      file, which the next `run_upload` of its batch removes when it empties the batch's temp
-      folder (§3.3 "Upload");
+      `media_tool_failed` is stored). If the app itself dies otherwise, a running ffmpeg is
+      orphaned and runs to its end; this is accepted, since it writes only its own uniquely
+      named partial file, which the next `run_upload` of its batch removes when it empties the
+      batch's temp folder (§3.3 "Upload");
     - Windows: `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, created suspended, put into a
       job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, then resumed (ctypes, no
       dependency); the kill is `TerminateJobObject`, and when the app dies the OS closes the
