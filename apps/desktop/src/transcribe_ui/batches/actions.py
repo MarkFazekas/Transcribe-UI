@@ -1,12 +1,13 @@
 """The batch requests a batch allows now (`BatchSummary.actions`, architecture §3.3 "Allowed actions").
 
-One table (`constants.ACTION_RULES`) names, per action, the phases its handler accepts and the
-further local conditions: item and job states, flags, a retry batch still copying the audio. The
-handlers keep their own guards; the table restates them for the frontends, which build their
-buttons from it instead of re-deriving the rules, and a drift test sends every action against
-seeded batches so the two cannot diverge silently. Conditions outside the batch (a run is active,
-a lock is busy, the cloud cannot be reached, the request's own fields) are not in the table: a
-listed action can still be refused.
+One table (`constants.ACTION_RULES`) names, per action, the phases its handler accepts, the
+further guard conditions (item and job states, flags, a retry batch still copying the audio) and
+the no-op conditions (leaving out what the handler would accept but that would change nothing,
+such as showing a batch that is not hidden). The handlers keep their own guards; the table
+restates them for the frontends, which build their buttons from the list alone, and a drift test
+sends every action against seeded batches so the two cannot diverge silently. Conditions outside
+the batch (a run is active, a lock is busy, the cloud cannot be reached, the request's own
+fields) are not in the table: a listed action can still be refused.
 """
 
 from collections.abc import Sequence
@@ -16,18 +17,10 @@ from typing import cast
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from transcribe_ui.batches.constants import (
-    ACTION_RULES,
-    CONDITION_AUDIO_KEPT,
-    CONDITION_FLAGGED_JOBS,
-    CONDITION_NO_COPYING_RETRY,
-    CONDITION_RESULTS_IN,
-    CONDITION_REVIEW_COMPLETE,
-    CONDITION_SEVERAL_ITEMS,
-    JOB_PENDING,
-)
+from transcribe_ui.batches import constants as rules
+from transcribe_ui.batches.payloads import CleanupScope
 from transcribe_ui.batches.responses import BatchAction
-from transcribe_ui.cleanup.constants import FLAGGED_STATUSES, RETRY_SOURCE_PATH
+from transcribe_ui.cleanup.constants import CLEANED, FLAGGED_STATUSES, RETRY_SOURCE_PATH
 from transcribe_ui.state.models import BatchRow, ItemRow
 from transcribe_ui.upload.constants import ITEM_REVIEWED, ITEM_UPLOADED, REVIEWED_BATCH, UPLOADING_BATCH
 
@@ -36,32 +29,70 @@ type JobKey = tuple[str, str, str]
 
 
 @dataclass(frozen=True)
+class ItemCounts:
+    """How many items a batch has, how many are not `reviewed`, and how many are in review."""
+
+    total: int = 0
+    not_reviewed: int = 0
+    in_review: int = 0
+
+    @classmethod
+    def of_phases(cls, phases: Sequence[str]) -> "ItemCounts":
+        """Return the counts of a batch whose items' phases are read."""
+        not_reviewed = sum(1 for phase in phases if phase != ITEM_REVIEWED)
+        in_review = sum(1 for phase in phases if phase in rules.ITEM_REVIEW_PHASES)
+        return cls(total=len(phases), not_reviewed=not_reviewed, in_review=in_review)
+
+
+@dataclass(frozen=True)
+class JobCounts:
+    """How many transcribe jobs wait for a result or are flagged, and how many jobs extract."""
+
+    pending_results: int
+    flagged: int
+    extract: int
+
+    @classmethod
+    def of_jobs(cls, jobs: Sequence[JobKey]) -> "JobCounts":
+        """Return the counts of a batch's jobs."""
+        transcribing = [status for _language, kind, status in jobs if kind == "transcribe"]
+        return cls(
+            pending_results=transcribing.count(rules.JOB_PENDING),
+            flagged=sum(1 for status in transcribing if status in FLAGGED_STATUSES),
+            extract=sum(1 for job in jobs if job[1] == "extract"),
+        )
+
+
+@dataclass(frozen=True)
 class BatchFacts:
     """What the table's conditions read of a batch."""
 
     phase: str
     audio_deleted: bool
-    items: int  # noqa: WPS110 -- the count of items, as in `BatchSummary`
-    # Items not `reviewed` (in a `reviewing` batch: not probed, unresolved or with a problem).
-    items_not_reviewed: int
-    # Transcribe jobs without a result.
-    pending_results: int
-    # Transcribe jobs that failed or found no speech.
-    flagged_jobs: int
+    hidden: bool
+    cleanup_pending: CleanupScope | None
+    item_counts: ItemCounts
+    job_counts: JobCounts
     # A retry batch of this batch is `uploading` with an item not copied yet.
     copying_retry: bool
 
 
-def batch_facts(row: BatchRow, item_phases: Sequence[str], jobs: Sequence[JobKey], *, copying: bool) -> BatchFacts:
-    """Return the facts of a batch from its row, its items' phases and its jobs."""
-    transcribing = [status for _language, kind, status in jobs if kind == "transcribe"]
+def stored_cleanup_pending(row: BatchRow) -> CleanupScope | None:
+    """Return the batch payload's pending cleanup scope, read without validating the whole payload."""
+    payload = row.payload
+    found = payload.get("cleanup_pending") if isinstance(payload, dict) else None
+    return cast("CleanupScope", found) if found in rules.CLEANUP_SCOPES else None
+
+
+def batch_facts(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], *, copying: bool) -> BatchFacts:
+    """Return the facts of a batch from its row, its item counts and its jobs."""
     return BatchFacts(
         phase=row.phase,
         audio_deleted=row.audio_deleted,
-        items=len(item_phases),
-        items_not_reviewed=sum(1 for phase in item_phases if phase != ITEM_REVIEWED),
-        pending_results=transcribing.count(JOB_PENDING),
-        flagged_jobs=sum(1 for status in transcribing if status in FLAGGED_STATUSES),
+        hidden=row.hidden,
+        cleanup_pending=stored_cleanup_pending(row),
+        item_counts=item_counts,
+        job_counts=JobCounts.of_jobs(jobs),
         copying_retry=copying,
     )
 
@@ -69,7 +100,7 @@ def batch_facts(row: BatchRow, item_phases: Sequence[str], jobs: Sequence[JobKey
 def allowed_actions(facts: BatchFacts) -> tuple[BatchAction, ...]:
     """Return the actions whose phase and conditions hold for the batch, in the table's order."""
     allowed: list[BatchAction] = []
-    for action, (phases, conditions) in ACTION_RULES.items():
+    for action, (phases, conditions) in rules.ACTION_RULES.items():
         if facts.phase not in phases:
             continue
         held = [_holds(condition, facts) for condition in conditions]
@@ -80,13 +111,24 @@ def allowed_actions(facts: BatchFacts) -> tuple[BatchAction, ...]:
 
 def _holds(condition: str, facts: BatchFacts) -> bool:
     """Return whether a condition of the table holds (an unknown one is a programming error: `KeyError`)."""
+    counted = facts.item_counts
+    jobs = facts.job_counts
+    pending = facts.cleanup_pending
+    cleaned = facts.phase == CLEANED
     checks = {
-        CONDITION_SEVERAL_ITEMS: facts.items > 1,
-        CONDITION_REVIEW_COMPLETE: facts.phase != REVIEWED_BATCH or facts.items_not_reviewed == 0,
-        CONDITION_RESULTS_IN: facts.pending_results == 0,
-        CONDITION_FLAGGED_JOBS: facts.flagged_jobs > 0,
-        CONDITION_AUDIO_KEPT: not facts.audio_deleted,
-        CONDITION_NO_COPYING_RETRY: not facts.copying_retry,
+        rules.CONDITION_SEVERAL_ITEMS: counted.total > 1,
+        rules.CONDITION_REVIEW_COMPLETE: facts.phase != REVIEWED_BATCH or counted.not_reviewed == 0,
+        rules.CONDITION_RESULTS_IN: jobs.pending_results == 0,
+        rules.CONDITION_FLAGGED_JOBS: jobs.flagged > 0,
+        rules.CONDITION_AUDIO_KEPT: not facts.audio_deleted,
+        rules.CONDITION_NO_COPYING_RETRY: not facts.copying_retry,
+        rules.CONDITION_REVIEW_NOT_STARTED: facts.phase == rules.COMPOSING,
+        rules.CONDITION_ITEMS_IN_REVIEW: counted.in_review > 0,
+        rules.CONDITION_VISIBLE: not facts.hidden,
+        rules.CONDITION_HIDDEN: facts.hidden,
+        rules.CONDITION_AUDIO_LEFT: not facts.audio_deleted or pending == "audio",
+        rules.CONDITION_CLOUD_DATA_LEFT: not cleaned or pending == "everything",
+        rules.CONDITION_SUBTITLES_LEFT: not cleaned or jobs.extract > 0,
     }
     return checks[condition]
 

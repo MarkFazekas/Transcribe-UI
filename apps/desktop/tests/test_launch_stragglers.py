@@ -20,10 +20,20 @@ from support.launch import (
 from support.runs import RUN_ID, RunsWorld, app_pod_name, seed_uploaded
 from transcribe_ui.runpod.constants import QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import DEPLOY_SETTLE_S, ERROR_NOT_APP_POD, ERROR_POD_NOT_FOUND, ERROR_STOP_UNVERIFIED
-from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
+from transcribe_ui.runs.responses import (
+    CancelQueuedPodResponse,
+    ListRunsResponse,
+    RefreshStatusResponse,
+    TerminatePodResponse,
+)
 
 # A pod that is not one of the app's.
 FOREIGN_POD = "somebody-elses-pod"
+
+# Run status and end reason of a run the user stopped.
+CANCELLED = "cancelled"
+# Minutes between the refresh and the terminate of the run.
+TERMINATED_AFTER_MIN = 50
 
 
 def _cancel(world: RunsWorld, queued_id: str) -> CancelQueuedPodResponse:
@@ -85,3 +95,25 @@ def test_stray_pod_with_run_name_keeps_the_run(runs_world: RunsWorld) -> None:
         "running",
         [run.pod_id],
     )
+
+
+def test_terminated_run_lists_up_to_its_end(runs_world: RunsWorld) -> None:
+    """Refreshed, then terminated 50 minutes later: the run ends then, and its time and cost stop there."""
+    set_up_cloud(runs_world)
+    seed_uploaded(runs_world, held=True)
+    run = launch_run(runs_world)
+    refreshed = ok_as(send(runs_world, "refresh_status"), RefreshStatusResponse).runs[0]
+    assert refreshed.elapsed_s is not None
+    runs_world.cloud.clock.advance(timedelta(minutes=TERMINATED_AFTER_MIN))
+    stopped = ok_as(send(runs_world, TERMINATE, pod_id=str(run.pod_id), confirm=True), TerminatePodResponse)
+    assert stopped.local_status == CANCELLED
+    ended_at = runs_world.now()
+    runs_world.cloud.clock.advance(timedelta(hours=1))
+    listed = ok_as(send(runs_world, "list_runs"), ListRunsResponse).runs[0]
+    assert (listed.stage, listed.ended_at, listed.end_reason, listed.stop_error) == (
+        CANCELLED,
+        ended_at,
+        CANCELLED,
+        None,
+    )
+    assert (listed.elapsed_until, listed.elapsed_s) == (ended_at, refreshed.elapsed_s + TERMINATED_AFTER_MIN * 60)

@@ -3,10 +3,17 @@
 from sqlalchemy.orm import Session
 
 from transcribe_ui.api.ports import IdSource
-from transcribe_ui.batches.classes import BatchComposition
+from transcribe_ui.batches.classes import BatchComposition, ItemLanguages
 from transcribe_ui.batches.composition import Composition, Languages
 from transcribe_ui.batches.constants import COMPOSING, DEFAULT_MODE, JOB_PENDING
-from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, ItemPhase, JobPayload, StoredComposition
+from transcribe_ui.batches.payloads import (
+    BatchPayload,
+    ItemPayload,
+    ItemPhase,
+    JobPayload,
+    StoredComposition,
+    StoredItemLanguages,
+)
 from transcribe_ui.state.models import ItemRow, JobRow, Payload
 
 
@@ -16,14 +23,25 @@ def batch_payload(composition: Composition, request: BatchComposition) -> dict[s
         scan_root=composition.scan_root,
         path_flavor="windows" if composition.path_flavor == "windows" else "posix",
         languages=request.languages,
-        composition=StoredComposition(
-            scan=request.scan,
-            operations=request.operations,
-            languages=request.languages,
-            item_languages=request.item_languages,
-        ),
+        composition=_stored_composition(request),
     )
     return payload.model_dump(mode="json")
+
+
+def _stored_languages(entry: ItemLanguages) -> StoredItemLanguages:
+    return StoredItemLanguages(path=entry.path, languages=entry.languages)
+
+
+def _stored_composition(request: BatchComposition) -> StoredComposition:
+    """Return the request's selection as the batch payload keeps it."""
+    operations = tuple(operation.model_dump(mode="json") for operation in request.operations)
+    per_file = [_stored_languages(entry) for entry in request.item_languages]
+    return StoredComposition(
+        scan=request.scan.model_dump(mode="json"),
+        operations=operations,
+        languages=request.languages,
+        item_languages=tuple(per_file),
+    )
 
 
 def add_items(session: Session, batch_id: str, composition: Composition, ids: IdSource) -> None:

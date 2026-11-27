@@ -22,7 +22,7 @@ from transcribe_contracts.constants import RUNS_PREFIX
 from transcribe_contracts.layout import run_log_key
 from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.runs.records import read_payload, uncollected_runs, update_run
-from transcribe_ui.runs.worker import read_worker, worker_progress
+from transcribe_ui.runs.worker import read_worker, stored_report
 from transcribe_ui.runs.worker_logs import keep_log
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.errors import StorageError
@@ -82,7 +82,7 @@ def _collect(state: LocalState, store: ObjectStore, run_id: str, now: datetime) 
         report = read_worker(store, run_id)
         if report is not None:
             # Kept before anything is deleted: the last report, and its content when readable.
-            changes: dict[str, object] = {"worker": worker_progress(state, report)}
+            changes: dict[str, object] = {"worker": stored_report(state, report)}
             if report.status is not None:
                 changes["final_status"] = report.status
             update_run(state, run_id, now, changes=changes)

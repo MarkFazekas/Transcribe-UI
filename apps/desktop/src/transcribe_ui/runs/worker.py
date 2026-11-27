@@ -6,9 +6,8 @@ from transcribe_contracts.classes import RunStatus as WorkerStatus
 from transcribe_contracts.errors import ContractError
 from transcribe_contracts.layout import run_status_key
 from transcribe_contracts.reading import read_run_status
-from transcribe_ui.batches.payloads import ItemPayload
 from transcribe_ui.runs.constants import UNREADABLE_STATE
-from transcribe_ui.runs.responses import CurrentJob, WorkerProgress
+from transcribe_ui.runs.payloads import StoredCurrentJob, StoredWorkerReport
 from transcribe_ui.state.models import ItemRow
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
@@ -25,14 +24,18 @@ class WorkerReport:
         """Return the worker state (`unreadable` for a report that cannot be read)."""
         return UNREADABLE_STATE if self.status is None else self.status.state
 
-    def progress(self) -> WorkerProgress:
-        """Return the report as the frontends show it."""
+    def stored(self, name: str | None) -> StoredWorkerReport:
+        """Return the report as the run payload keeps it, the current job named `name`."""
         status = self.status
         if status is None:
-            return WorkerProgress(state=UNREADABLE_STATE)
+            return StoredWorkerReport(state=UNREADABLE_STATE)
         current = status.current
-        job = None if current is None else CurrentJob(**current.model_dump())
-        return WorkerProgress(
+        job = None
+        if current is not None:
+            job = StoredCurrentJob(
+                batch_id=current.batch_id, item_id=current.item_id, language=current.language, name=name
+            )
+        return StoredWorkerReport(
             state=status.state,
             updated_at=status.updated_at,
             current=job,
@@ -42,19 +45,22 @@ class WorkerReport:
         )
 
 
-def worker_progress(state: LocalState, report: WorkerReport) -> WorkerProgress:
-    """Return the report as the frontends show it, the current job named by its file (own transaction)."""
-    progress = report.progress()
-    current = progress.current
+def stored_report(state: LocalState, report: WorkerReport) -> StoredWorkerReport:
+    """Return the report to store, its current job named by its item's file (own transaction).
+
+    Best effort: an item this database does not know (or of another batch), or a stored item
+    payload without a readable name, gives no name; it never fails the refresh.
+    """
+    status = report.status
+    current = None if status is None else status.current
     if current is None:
-        return progress
+        return report.stored(None)
     with state.session() as session:
         row = session.get(ItemRow, current.item_id)
-        name = None
-        if row is not None and row.batch_id == current.batch_id:
-            name = ItemPayload.model_validate(row.payload).name
-    named = current.model_copy(update={"name": name})
-    return progress.model_copy(update={"current": named})
+        of_batch = row is not None and row.batch_id == current.batch_id
+        found = row.payload if of_batch and row is not None else None
+    name = found.get("name") if isinstance(found, dict) else None
+    return report.stored(name if isinstance(name, str) else None)
 
 
 def read_worker(store: ObjectStore, run_id: str) -> WorkerReport | None:

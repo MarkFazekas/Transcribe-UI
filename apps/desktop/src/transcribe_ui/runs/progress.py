@@ -11,16 +11,18 @@ Runpod's own bill is what counts.
 from collections.abc import Sequence
 from datetime import datetime
 
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from transcribe_ui.runs.constants import (
     COST_SO_FAR_DECIMALS,
     SECONDS_PER_HOUR,
+    UNREADABLE_STATE,
     WORKER_STARTING,
     WORKER_TRANSCRIBING,
 )
 from transcribe_ui.runs.ending import desktop_deadline
-from transcribe_ui.runs.payloads import RunPayload
+from transcribe_ui.runs.payloads import RunPayload, StoredWorkerReport
 from transcribe_ui.runs.records import load_run, payload_of, run_info
 from transcribe_ui.runs.responses import RunInfo, RunProgress, RunStage, WorkerProgress
 from transcribe_ui.runs.worker_logs import worker_log_path
@@ -62,7 +64,7 @@ def _progress(state: LocalState, run: RunInfo, payload: RunPayload) -> RunProgre
         run=run,
         stage=_stage(run, payload.worker),
         pod_status=payload.pod_status,
-        worker=payload.worker,
+        worker=_shown(payload.worker),
         first_running_at=payload.first_running_at,
         deadline=desktop_deadline(payload),
         elapsed_s=elapsed,
@@ -75,6 +77,16 @@ def _progress(state: LocalState, run: RunInfo, payload: RunPayload) -> RunProgre
         stop_error=payload.stop_error,
         worker_log=str(log) if kept_log else None,
     )
+
+
+def _shown(stored: StoredWorkerReport | None) -> WorkerProgress | None:
+    """Return the stored report as the frontends show it; one that no longer fits shows as unreadable."""
+    if stored is None:
+        return None
+    try:
+        return WorkerProgress.model_validate(stored.model_dump())
+    except ValidationError:
+        return WorkerProgress(state=UNREADABLE_STATE)
 
 
 def _elapsed_s(payload: RunPayload, until: datetime | None) -> float | None:
@@ -90,7 +102,7 @@ def _cost(elapsed_s: float | None, price_per_hour: float | None) -> float | None
     return round(price_per_hour * elapsed_s / SECONDS_PER_HOUR, COST_SO_FAR_DECIMALS)
 
 
-def _stage(run: RunInfo, worker: WorkerProgress | None) -> RunStage:
+def _stage(run: RunInfo, worker: StoredWorkerReport | None) -> RunStage:
     status = run.status
     if status == "queued":
         return "waiting"

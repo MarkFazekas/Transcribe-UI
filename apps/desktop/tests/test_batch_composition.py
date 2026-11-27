@@ -12,7 +12,9 @@ from support.batch_backend import ids_of, run, run_ok
 from support.batches import FILM, FIRST_BATCH_ID, MEDIA_ROOT, PODCAST, batch_request, composition, create_request
 from support.confirm import confirmed_document
 from support.parity import Leg
-from transcribe_ui.batches.payloads import StoredComposition
+from transcribe_ui.batches.payloads import BatchPayload
+from transcribe_ui.batches.responses import BatchSelection
+from transcribe_ui.state.models import BatchRow
 
 # Languages of the batch.
 EN = "en"
@@ -28,17 +30,17 @@ def _confirmed(leg: Leg, document: str) -> dict[str, object]:
     return run_ok(leg, confirmed_document(document, asked))
 
 
-def _stored(leg: Leg) -> StoredComposition:
+def _stored(leg: Leg) -> BatchSelection:
     batch = run_ok(leg, batch_request("get_batch"))["batch"]
     assert isinstance(batch, dict)
-    return StoredComposition.model_validate(batch["composition"])
+    return BatchSelection.model_validate(batch["composition"])
 
 
-def _selection(leg: Leg, fields: dict[str, object]) -> StoredComposition:
+def _selection(leg: Leg, fields: dict[str, object]) -> BatchSelection:
     """Return the selection of a request's composition fields (`<root>` replaced), as it is stored."""
     document = json.loads(leg.document(json.dumps(fields)))
     kept = {key: document[key] for key in ("scan", "operations", "languages")}
-    return StoredComposition.model_validate({**kept, "item_languages": document.get("item_languages", [])})
+    return BatchSelection.model_validate({**kept, "item_languages": document.get("item_languages", [])})
 
 
 def test_create_and_edit_keep_the_composition(batch_leg: Leg) -> None:
@@ -82,3 +84,20 @@ def test_exclusion_asks_then_excludes(batch_leg: Leg) -> None:
     assert FILM in ids_of(batch_leg)
     run_ok(batch_leg, confirmed_document(document, asked))
     assert FILM not in ids_of(batch_leg)
+
+
+def test_unreadable_composition_is_left_out(batch_leg: Leg) -> None:
+    """A stored selection with a language no longer known still lists; its detail has no composition."""
+    _confirmed(batch_leg, create_request(EN, HU))
+    with batch_leg.ports.state.session() as session:
+        row = session.get(BatchRow, FIRST_BATCH_ID)
+        assert row is not None
+        payload = BatchPayload.model_validate(row.payload)
+        assert payload.composition is not None
+        unknown = payload.composition.model_copy(update={"languages": ("xx",)})
+        row.payload = payload.model_copy(update={"composition": unknown}).model_dump(mode="json")
+    listed = run_ok(batch_leg, json.dumps({"action": "list_batches"}))["batches"]
+    assert [summary["batch_id"] for summary in listed] == [FIRST_BATCH_ID]
+    batch = run_ok(batch_leg, batch_request("get_batch"))["batch"]
+    assert isinstance(batch, dict)
+    assert batch["composition"] is None

@@ -107,6 +107,9 @@ def update_run(
         if recorded is not None and recorded != earlier.pod_id:
             # The settle anchor of a pod first known from its queued pod without `resolvedAt`.
             updates.setdefault("pod_recorded_at", now)
+        if status in FINAL_RUN_STATUSES:
+            # A final run has no stop left to retry.
+            updates["stop_error"] = None
         payload = earlier.model_copy(update=updates)
         # Validated again, so a wrong field type fails here rather than when read back.
         row.payload = RunPayload.model_validate(payload.model_dump()).model_dump(mode="json")
@@ -153,7 +156,8 @@ def cancel_local_run(state: LocalState, run_id: str | None, now: datetime, chang
         return None
     if status in FINAL_RUN_STATUSES or not _stopped_is_recorded(read_payload(state, run_id), changes):
         return read_run(state, run_id).status
-    known = {field: change for field, change in changes.items() if change}
+    known: dict[str, object] = {field: change for field, change in changes.items() if change}
+    known.update({"ended_at": now, "end_reason": "cancelled"})
     cancelled = update_run(state, run_id, now, "cancelled", known)
     return cancelled.status
 

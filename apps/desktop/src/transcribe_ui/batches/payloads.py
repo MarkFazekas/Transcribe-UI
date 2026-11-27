@@ -2,12 +2,10 @@
 
 from typing import Literal
 
-from pydantic import NonNegativeInt
+from pydantic import BaseModel, ConfigDict, JsonValue, NonNegativeInt
 
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel
-from transcribe_ui.batches.classes import ItemLanguages, TargetLanguages
-from transcribe_ui.discovery.classes import ScanSpec, SelectionOperation
 from transcribe_ui.media.classes import ProbeResult
 from transcribe_ui.upload.payloads import CopySource
 
@@ -36,16 +34,30 @@ class RetryOrigin(FrozenModel):
     jobs: tuple[RetryJob, ...]
 
 
-class StoredComposition(FrozenModel):
+class StoredItemLanguages(BaseModel):
+    """Other target languages of one file, as stored (plain values, unknown keys ignored)."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    path: str
+    languages: tuple[str, ...]
+
+
+class StoredComposition(BaseModel):
     """The selection a batch was composed from (`create_batch`, `edit_batch`), kept so it can be reopened.
 
-    The request's fields without `scan_id` (a scan this process kept) and the confirmation flag.
+    The request's fields without `scan_id` (a scan this process kept) and the confirmation flag,
+    as plain stored values: the scan options and the operations as their JSON, languages as
+    strings, unknown keys ignored, so a later change of the request models never makes a stored
+    batch unreadable. `BatchDetail.composition` maps it to the request models when it still fits.
     """
 
-    scan: ScanSpec
-    operations: tuple[SelectionOperation, ...]
-    languages: TargetLanguages
-    item_languages: tuple[ItemLanguages, ...]
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    scan: dict[str, JsonValue]
+    operations: tuple[dict[str, JsonValue], ...]
+    languages: tuple[str, ...]
+    item_languages: tuple[StoredItemLanguages, ...] = ()
 
 
 class BatchPayload(FrozenModel):

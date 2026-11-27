@@ -137,7 +137,7 @@
         "composition": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StoredComposition"
+              "$ref": "#/$defs/BatchSelection"
             },
             {
               "type": "null"
@@ -351,6 +351,41 @@
         "unresolved"
       ],
       "title": "BatchReview",
+      "type": "object"
+    },
+    "BatchSelection": {
+      "additionalProperties": false,
+      "description": "The selection a batch was composed from: send it back as an `edit_batch` to reopen it.",
+      "properties": {
+        "item_languages": {
+          "items": {
+            "$ref": "#/$defs/ItemLanguages"
+          },
+          "title": "Item Languages",
+          "type": "array"
+        },
+        "languages": {
+          "$ref": "#/$defs/TargetLanguages"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/SelectionOperation"
+          },
+          "minItems": 1,
+          "title": "Operations",
+          "type": "array"
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanSpec"
+        }
+      },
+      "required": [
+        "scan",
+        "operations",
+        "languages",
+        "item_languages"
+      ],
+      "title": "BatchSelection",
       "type": "object"
     },
     "BatchSummary": {
@@ -1423,7 +1458,8 @@
         "worker_failed",
         "pod_gone",
         "deadline",
-        "queue_ended"
+        "queue_ended",
+        "cancelled"
       ],
       "type": "string"
     },
@@ -3983,40 +4019,6 @@
         "stored"
       ],
       "title": "StoreCredentialsResponse",
-      "type": "object"
-    },
-    "StoredComposition": {
-      "additionalProperties": false,
-      "description": "The selection a batch was composed from (`create_batch`, `edit_batch`), kept so it can be reopened.\n\nThe request's fields without `scan_id` (a scan this process kept) and the confirmation flag.",
-      "properties": {
-        "item_languages": {
-          "items": {
-            "$ref": "#/$defs/ItemLanguages"
-          },
-          "title": "Item Languages",
-          "type": "array"
-        },
-        "languages": {
-          "$ref": "#/$defs/TargetLanguages"
-        },
-        "operations": {
-          "items": {
-            "$ref": "#/$defs/SelectionOperation"
-          },
-          "title": "Operations",
-          "type": "array"
-        },
-        "scan": {
-          "$ref": "#/$defs/ScanSpec"
-        }
-      },
-      "required": [
-        "scan",
-        "operations",
-        "languages",
-        "item_languages"
-      ],
-      "title": "StoredComposition",
       "type": "object"
     },
     "SubtitleFilter": {

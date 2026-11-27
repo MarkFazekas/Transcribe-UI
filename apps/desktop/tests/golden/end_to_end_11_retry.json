@@ -25,8 +25,7 @@
         "run_download",
         "export_custom_plan",
         "import_custom_plan",
-        "cleanup_everything",
-        "show_batch"
+        "cleanup_everything"
       ]
     },
     "outcome": "ready",
