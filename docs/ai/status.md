@@ -3,9 +3,9 @@
 Current state of the work, so a new session can continue from "continue" alone. Only the
 present state and the plan: no history (git has it), no design and no milestone list (both
 live in `architecture.md`; milestones in §10). Update this file in every PR that changes the
-state (an item done, a new blocker, a changed plan). Before an orderly stop, commit and push the status change on the
-current branch. On a merge conflict in this file, re-derive it from `gh pr list` and
-architecture §10 rather than merging line by line.
+state (an item done, a new blocker, a changed plan). Before an orderly stop, commit and push
+the status change on the current branch. On a merge conflict in this file, re-derive it from
+`gh pr list` and architecture §10 rather than merging line by line.
 
 ## Resuming a session
 
