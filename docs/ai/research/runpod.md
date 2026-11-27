@@ -115,6 +115,32 @@ Also useful: `POST /v2/pods/{id}/exec` (run argv in container without SSH; 1-25 
 - [V] Catalog (read-only key, 2026-11-26): A5000 overall availability NONE; per data center CA-MTL-1 LOW, US-IL-1 LOW; price secure $0.27/h, community $0.16/h, serverless $0.75/h; `maxCount` 10; pool `AMPERE_24`. Availability changes by the minute: this is one sample, not a rate. [I] Community has more A5000 stock but cannot use `queue` and may lack a public IP (SSH).
 - 60 GB container disk: ~$0.20/day-equivalent negligible (disk billed only while running).
 
+## 9. Listing, terminating and cancelling (used by the reaper)
+All from https://api.runpod.io/v2/openapi.json (fetched 2026-11-27) unless marked otherwise.
+- [V] `GET /v2/pods` and `GET /v2/queued-pods`: cursor-paginated newest-first; `limit` 1-1000,
+  default 1000; response `{"pods": [...]}` / `{"queuedPods": [...]}` plus
+  `pagination: {nextCursor: string|null, hasNextPage: bool}`; follow `nextCursor` (query
+  parameter `cursor`, opaque, 422 if malformed) while `hasNextPage`. `GET /v2/pods` excludes
+  cluster member pods unless `includeClusterPods=true`; it also takes a `filters` query
+  parameter (URL-encoded JSON, by tags). Confirmed with the read-only key on 2026-11-27: both
+  return 200 with exactly these top-level keys (the account had no pods then, so item shapes
+  were not seen live).
+- [V] Pod (required fields include) `id`, `name`, `status`, `createdAt` (date-time),
+  `startedAt`, `env`, `cost`. There is no `desiredStatus` in v2. `PodStatus`: PROVISIONING,
+  STARTING, RUNNING, EXITED, ERROR, TERMINATED.
+- [V] QueuedPod (required) `id`, `name` ("the name the pod will carry"), `status`, `podId`
+  (null until deployed), `failureReason`, `createdAt`, `resolvedAt`, `queue`, `gpu`, ...
+  `QueuedPodStatus`: QUEUED, DEPLOYED, FAILED, EXPIRED, CANCELLED; every queued pod is listed
+  whatever its status.
+- [V] `DELETE /v2/pods/{id}`: 204; irreversible; the pod "no longer appears in `listPods`";
+  404 unknown; 409 for a cluster member. `DELETE /v2/queued-pods/{id}`: 204, also when the
+  queued pod already deployed, failed or expired (changes nothing then); a pod it already
+  created is not touched.
+- [V] Pod name on create: `CreatePodRequest.name` is a required string with `minLength: 1`
+  and no `maxLength` or pattern (other resources, e.g. volumes and registries, declare
+  `maxLength: 191`). Our names are 61 characters; the builder caps them at 63 (a DNS label) as
+  a conservative bound. [?] Whether the server enforces a limit the spec does not declare.
+
 ## Items to test with a real key (cheap)
 1. Pod-scoped RUNPOD_API_KEY can DELETE its own pod (204)?
 2. `{{ RUNPOD_SECRET_x }}` in direct-create `env`.

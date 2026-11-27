@@ -1,4 +1,4 @@
-"""Pydantic models of the JSON objects stored in R2 (architecture §4).
+"""Pydantic models of the JSON objects stored in R2 (architecture §4) and of pod names (§3.7).
 
 Compatibility rule: a minor schema version may only add optional fields and new values of
 open sets (such as language codes). Readers therefore ignore unknown fields and accept any
@@ -267,3 +267,10 @@ class RunStatus(ContractModel):
         if self.state in {"finished", "failed"} and self.current is not None:
             _fail(f"a {self.state!r} run has no current job")
         return self
+
+
+class PodName(ContractModel):
+    """Parts of a pod name `transcribe-ui-<run_id>-until-<deadline>` (`transcribe_contracts.pods`)."""
+
+    run_id: Ulid
+    deadline: AwareDatetime = Field(description="UTC moment after which the pod may be terminated from outside.")

@@ -2,8 +2,10 @@ a15
 a6
 addfile
 asr
+astimezone
 backoff
 base32
+caplog
 casefold
 chunksize
 cjk
@@ -15,8 +17,10 @@ copyfile
 crockford
 ctranslate2
 cuda
+delenv
 devnull
 divmod
+dns
 e2e
 enospc
 exc
@@ -66,6 +70,7 @@ preprocess
 pyannote
 pydantic
 q10
+qs
 r2
 randbits
 recv
@@ -94,6 +99,7 @@ strerror
 symtype
 tmp
 tokenizer
+ui
 ulid
 unicodedata
 unittest
