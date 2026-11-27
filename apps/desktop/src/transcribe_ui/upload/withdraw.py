@@ -1,17 +1,18 @@
-"""Withdrawing a leftover manifest (architecture §3.3 "Order and interruption").
+"""Withdrawing a leftover manifest (architecture §3.3 "Withdrawing a leftover manifest").
 
 An `uploading` batch has a manifest in R2 only when the manifest step was interrupted between
 writing it and moving the batch to `ready`. Before exclusion or re-review changes such a batch,
-`withdrawal_guard` checks whether the object at its manifest key is this database's manifest
-(the same bytes `build_manifest` gives, or the ones a pending withdrawal recorded); another
-computer's batch with the same id is never touched. If it is ours, the guard takes the runs lock
-(bounded wait: the caller holds the batch lock) and lets the change go ahead only while no run
-is active, so no worker reads the batch during the withdrawal. The change records a
-`PendingWithdrawal` in its own transaction; `finish_withdrawal` (`upload/steps.py`) then
-deletes the results of the affected items, `_done.json` and the manifest last, and clears the
-record. A failure leaves the
-record, and the next manifest step (or `publish_held_manifests`) finishes it first. Results of
-the other items stay, so the worker redoes only the jobs whose result is gone.
+`withdrawal_guard` checks whether the object at its manifest key is this database's
+(`upload/leftover.py`); another computer's batch with the same id is never touched. If it is
+ours, the guard takes the runs lock (bounded wait: the caller holds the batch lock) and lets the
+change go ahead only while no run is active. The change records a `PendingWithdrawal` in its own
+transaction, then `upload/steps.py` `finish_after_change` carries it out (`finish_withdrawal`:
+the affected items' results, `_done.json`, the manifest last, then the record is cleared). If
+that fails, the request still succeeds (`withdrawal_pending`) and the withdrawal is finished,
+always under the runs lock with no run active, by whichever comes first: the next
+`manifest_step` of the batch, or `publish_held_manifests` (called by `launch_worker` before it
+launches, and by `refresh_status`), which finishes every pending withdrawal. Results of the
+other items stay, so the worker redoes only the jobs whose result is gone.
 """
 
 from collections.abc import Collection, Iterator
@@ -27,10 +28,9 @@ from transcribe_ui.batches.phases import load_batch
 from transcribe_ui.runs.activity import check_activity
 from transcribe_ui.runs.cloud import open_cloud
 from transcribe_ui.runs.errors import RunActiveError
+from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.storage.r2 import ObjectStore
-from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
-from transcribe_ui.upload.manifest import build_manifest, manifest_body
-from transcribe_ui.upload.steps import manifest_digest
+from transcribe_ui.upload.leftover import manifest_digest, own_manifest
 
 
 @contextmanager
@@ -46,17 +46,20 @@ def withdrawal_guard(context: RequestContext, store: ObjectStore, batch_id: str)
         RunsBusyError: The runs lock stayed held for the whole wait (nothing was changed).
     """
     state = context.ports.state
+    if state.locks.holds_runs():
+        msg = "The withdrawal guard takes the runs lock itself; it must not be held already."
+        raise LockOrderError(msg)
     with state.session() as session:
-        expected = _expected_digest(session, batch_id)
-    body = None if expected is None else store.read(manifest_key(batch_id))
-    if body is None or manifest_digest(body) != expected:
+        own = own_manifest(session, batch_id)
+    body = store.read(manifest_key(batch_id))
+    if body is None or not own.owns(body):
         yield None
         return
     with state.locks.runs(context.cancel.is_cancelled), open_cloud(context) as cloud:
         activity = check_activity(state, cloud, context.ports.clock.now())
         if activity.active:
             raise RunActiveError(activity.sources)
-        yield expected
+        yield manifest_digest(body)
 
 
 def recorded_withdrawal(session: Session, batch_id: str, digest: str, item_ids: Collection[str]) -> JsonValue:
@@ -65,15 +68,3 @@ def recorded_withdrawal(session: Session, batch_id: str, digest: str, item_ids: 
     earlier = () if stored is None else PendingWithdrawal.model_validate(stored).item_ids
     affected = tuple(sorted({*earlier, *item_ids}))
     return PendingWithdrawal(manifest_sha256=digest, item_ids=affected).model_dump(mode="json")
-
-
-def _expected_digest(session: Session, batch_id: str) -> str | None:
-    """Return the digest of the manifest this database would have written, or None if it could write none."""
-    stored = load_batch(session, batch_id).pending_withdrawal
-    if stored is not None:
-        return PendingWithdrawal.model_validate(stored).manifest_sha256
-    try:
-        manifest = build_manifest(session, batch_id)
-    except (UploadIncompleteError, NothingToTranscribeError):
-        return None
-    return manifest_digest(manifest_body(manifest))

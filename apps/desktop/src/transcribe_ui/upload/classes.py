@@ -29,4 +29,6 @@ class HeldPublication(FrozenModel):
     busy: tuple[str, ...] = ()
     # Skipped because the upload is not complete (an item back in review); the upload publishes it.
     incomplete: tuple[str, ...] = ()
+    # Batches whose pending withdrawal of a leftover manifest was finished.
+    withdrawn: tuple[str, ...] = ()
     activity: tuple[ActivitySource, ...] = ()

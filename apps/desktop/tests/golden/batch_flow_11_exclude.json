@@ -87,7 +87,8 @@
         }
       ]
     },
-    "deleted_objects": 0
+    "deleted_objects": 0,
+    "withdrawal_pending": false
   },
   "events": []
 }

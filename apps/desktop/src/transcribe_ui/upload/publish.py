@@ -28,8 +28,8 @@ from transcribe_ui.storage.errors import StorageError
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.classes import HeldPublication, ManifestStep
 from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
-from transcribe_ui.upload.manifest import build_manifest, held_batch_ids
-from transcribe_ui.upload.steps import move_to_ready, publish_manifest
+from transcribe_ui.upload.manifest import build_manifest, held_batch_ids, withdrawing_batch_ids
+from transcribe_ui.upload.steps import finish_withdrawal, move_to_ready, publish_manifest
 
 # What happened to one held batch: published, skipped as incomplete, or no longer held (moved on).
 type HeldOutcome = Literal["published", "incomplete", "moved"]
@@ -81,15 +81,18 @@ def manifest_step(context: RequestContext, cloud: CloudAccess, batch_id: str) ->
 
 
 def publish_held_manifests(context: RequestContext, cloud: CloudAccess) -> HeldPublication:
-    """Upload the held manifests (→ `ready`) if no run is active; the caller holds the runs lock.
+    """Finish pending withdrawals, then upload the held manifests (→ `ready`), if no run is active.
 
-    Each held batch's lock is only tried (lock order runs → batch, never waiting): a busy batch
-    is skipped until the next call. Each manifest is built from the database at publish time
-    and published only when the upload is complete (no item in review, every object verified).
+    The caller holds the runs lock. Each batch's lock is only tried (lock order runs → batch,
+    never waiting): a busy batch is skipped until the next call. First every `uploading` batch
+    with a pending withdrawal of a leftover manifest gets it finished (held or not), so no
+    worker the caller launches can see a leftover. Then each held manifest is built from the
+    database and published only when the upload is complete (no item in review, every object
+    verified).
 
     Raises:
         ActivityUnknownError: The Runpod lists or R2 could not be read (nothing was published).
-        StorageError: A manifest could not be written (the ones before it are published).
+        StorageError: A withdrawal or a manifest write failed (what came before it is done).
         LockOrderError: The calling thread does not hold the runs lock (a programming error).
     """
     state = context.ports.state
@@ -98,21 +101,34 @@ def publish_held_manifests(context: RequestContext, cloud: CloudAccess) -> HeldP
         raise LockOrderError(msg)
     with state.session() as session:
         held = held_batch_ids(session)
-    if not held:
+        withdrawing = withdrawing_batch_ids(session)
+    if not held and not withdrawing:
         return HeldPublication()
     activity = check_activity(state, cloud, context.ports.clock.now())
     if activity.active:
         return HeldPublication(held=tuple(held), activity=activity.sources)
-    outcomes: dict[str, list[str]] = {"published": [], "incomplete": [], "moved": [], "busy": []}
+    outcomes: dict[str, list[str]] = {"published": [], "incomplete": [], "moved": [], "busy": [], "withdrawn": []}
+    for batch_id in withdrawing:
+        outcomes[_withdraw(context, cloud.store, batch_id)].append(batch_id)
     for batch_id in held:
         with state.locks.try_batch(batch_id) as taken:
             outcome = _publish_held(context, cloud.store, batch_id) if taken else "busy"
         outcomes[outcome].append(batch_id)
     return HeldPublication(
         published=tuple(outcomes["published"]),
-        busy=tuple(outcomes["busy"]),
+        busy=tuple(sorted(set(outcomes["busy"]))),
         incomplete=tuple(outcomes["incomplete"]),
+        withdrawn=tuple(outcomes["withdrawn"]),
     )
+
+
+def _withdraw(context: RequestContext, store: ObjectStore, batch_id: str) -> str:
+    """Finish the batch's pending withdrawal if its lock is free; return `withdrawn` or `busy`."""
+    with context.ports.state.locks.try_batch(batch_id) as taken:
+        if not taken:
+            return "busy"
+        finish_withdrawal(context, store, batch_id)
+    return "withdrawn"
 
 
 def _publish_held(context: RequestContext, store: ObjectStore, batch_id: str) -> HeldOutcome:

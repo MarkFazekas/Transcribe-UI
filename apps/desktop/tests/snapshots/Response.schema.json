@@ -777,13 +777,19 @@
           "default": "ok",
           "title": "Status",
           "type": "string"
+        },
+        "withdrawal_pending": {
+          "default": false,
+          "title": "Withdrawal Pending",
+          "type": "boolean"
         }
       },
       "required": [
         "status",
         "action",
         "batch",
-        "deleted_objects"
+        "deleted_objects",
+        "withdrawal_pending"
       ],
       "title": "ExcludeItemsResponse",
       "type": "object"

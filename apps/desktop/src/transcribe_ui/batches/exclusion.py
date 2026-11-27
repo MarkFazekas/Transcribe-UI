@@ -27,7 +27,7 @@ from transcribe_ui.batches.records import load_detail, stored_items
 from transcribe_ui.batches.responses import BatchDetail, ExcludeItemsResponse
 from transcribe_ui.state.models import ItemRow
 from transcribe_ui.storage.r2 import ObjectStore
-from transcribe_ui.upload.steps import finish_withdrawal
+from transcribe_ui.upload.steps import finish_after_change
 from transcribe_ui.upload.withdraw import recorded_withdrawal, withdrawal_guard
 
 
@@ -92,7 +92,6 @@ def exclude_items(request: ExcludeItemsRequest, context: RequestContext) -> Excl
         store = object_store(context.ports)
         with withdrawal_guard(context, store, request.batch_id) as leftover:
             detail = _remove_items(request, context, phase, leftover)
-            if leftover is not None:
-                finish_withdrawal(context, store, request.batch_id)
+            pending = leftover is not None and finish_after_change(context, store, request.batch_id)
         deleted = _delete_objects(request, context, store)
-    return ExcludeItemsResponse(batch=detail, deleted_objects=deleted)
+    return ExcludeItemsResponse(batch=detail, deleted_objects=deleted, withdrawal_pending=pending)

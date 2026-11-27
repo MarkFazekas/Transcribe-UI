@@ -18,11 +18,12 @@ from sqlalchemy.orm import Session
 from transcribe_contracts.classes import Manifest
 from transcribe_ui.runs.classes import LaunchScope, PendingJob, ScopeBatch
 from transcribe_ui.runs.constants import FINGERPRINT_DURATION_DECIMALS
-from transcribe_ui.runs.manifests import published_batches, scope_batch, total_duration
+from transcribe_ui.runs.manifests import LocalBatches, published_batches, scope_batch, total_duration
 from transcribe_ui.state.models import BatchRow
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
+from transcribe_ui.upload.leftover import withdrawing_digests
 from transcribe_ui.upload.manifest import build_manifest, held_batch_ids
 
 
@@ -31,13 +32,15 @@ def read_launch_scope(state: LocalState, store: ObjectStore) -> LaunchScope:
 
     The database is read first (one transaction), then R2 (outside any transaction). A held
     batch whose manifest is in R2 already (an interrupted manifest step) is counted from R2 when
-    it is pending or finished there; an unreadable or vanished copy counts the held version.
+    it is pending or finished there; an unreadable or vanished copy, or a leftover a pending
+    withdrawal will delete (`publish_held_manifests` does so before a launch), counts the held
+    version.
 
     Raises:
         StorageError: R2 could not be read.
     """
-    known, held = _local_view(state)
-    published = published_batches(store, known)
+    local, held = _local_view(state)
+    published = published_batches(store, local)
     waiting = [scope_batch(manifest, (), known=True, held=True) for manifest in held]
     in_r2 = {batch.batch_id for batch in published.batches} | published.finished_ids
     fresh = [batch for batch in waiting if batch.batch_id not in in_r2]
@@ -75,12 +78,13 @@ def _batch_id(batch: ScopeBatch) -> str:
     return batch.batch_id
 
 
-def _local_view(state: LocalState) -> tuple[frozenset[str], list[Manifest]]:
-    """Return the ids of every batch this database knows and the manifests held back."""
+def _local_view(state: LocalState) -> tuple[LocalBatches, list[Manifest]]:
+    """Return what the database knows about the batches in R2, and the manifests held back."""
     with state.session() as session:
         known = frozenset(session.scalars(select(BatchRow.batch_id)))
         built = [_held_manifest(session, batch_id) for batch_id in held_batch_ids(session)]
-    return known, [manifest for manifest in built if manifest is not None]
+        local = LocalBatches(known, withdrawing_digests(session))
+    return local, [manifest for manifest in built if manifest is not None]
 
 
 def _held_manifest(session: Session, batch_id: str) -> Manifest | None:

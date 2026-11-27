@@ -9,11 +9,11 @@ from transcribe_ui.batches.errors import ItemNotFoundError
 from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.state.models import ItemRow, JobRow
-from transcribe_ui.upload.steps import finish_withdrawal
+from transcribe_ui.upload.steps import finish_after_change
 from transcribe_ui.upload.withdraw import recorded_withdrawal, withdrawal_guard
 
 
-def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) -> None:
+def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) -> bool:
     """Send an item of an `uploading` batch back to review (its source changed, plan m5 §1).
 
     The caller holds the batch lock and not the runs lock. A leftover manifest of ours (an
@@ -24,7 +24,8 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
     `manifest_held` (the held manifest would list the old audio) and records the pending
     withdrawal; then the withdrawal is carried out and the item's objects are deleted. Objects
     an interruption leaves behind stay under the item's audio prefix, where a later exclusion
-    or upload of the item (or the batch's cleanup) removes them.
+    or upload of the item (or the batch's cleanup) removes them. Returns whether a withdrawal
+    stays pending (R2 failed after the change was saved; logged, not an error).
 
     Raises:
         WrongPhaseError: If the batch is not `uploading`.
@@ -38,9 +39,9 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
     store = object_store(context.ports)
     with withdrawal_guard(context, store, batch_id) as leftover:
         _send_back(context, batch_id, item_id, leftover)
-        if leftover is not None:
-            finish_withdrawal(context, store, batch_id)
+        pending = leftover is not None and finish_after_change(context, store, batch_id)
     delete_item_objects(store, batch_id, item_id, context.check_cancelled)
+    return pending
 
 
 def _send_back(context: RequestContext, batch_id: str, item_id: str, leftover: str | None) -> None:

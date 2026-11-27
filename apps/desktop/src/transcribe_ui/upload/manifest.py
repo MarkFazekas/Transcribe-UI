@@ -68,6 +68,13 @@ def write_manifest(store: ObjectStore, manifest: Manifest) -> None:
     store.write(manifest_key(manifest.batch_id), manifest_body(manifest), MANIFEST_CONTENT_TYPE)
 
 
+def withdrawing_batch_ids(session: Session) -> list[str]:
+    """Return the ids of the `uploading` batches with a pending withdrawal of a leftover manifest, sorted."""
+    pending = (BatchRow.phase == "uploading", BatchRow.pending_withdrawal.is_not(None))
+    query = select(BatchRow.batch_id).where(*pending)
+    return list(session.scalars(query.order_by(BatchRow.batch_id)))
+
+
 def held_batch_ids(session: Session) -> list[str]:
     """Return the ids of the batches whose manifest is held back (`uploading` with `manifest_held`), sorted."""
     is_held = (BatchRow.phase == "uploading", BatchRow.manifest_held.is_(True))
