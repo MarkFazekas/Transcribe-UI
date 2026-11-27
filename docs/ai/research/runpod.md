@@ -124,7 +124,11 @@ All from https://api.runpod.io/v2/openapi.json (fetched 2026-11-27) unless marke
   cluster member pods unless `includeClusterPods=true`; it also takes a `filters` query
   parameter (URL-encoded JSON, by tags). Confirmed with the read-only key on 2026-11-27: both
   return 200 with exactly these top-level keys (the account had no pods then, so item shapes
-  were not seen live).
+  were not seen live). The reaper reads only `id`, `name`, `status` and `createdAt` of each
+  item; `nextCursor` may be absent. [?] The exact live format of `createdAt` and of ids
+  (pod ids look alphanumeric; queued-pod ids unseen): the reaper fails the list loudly if an
+  id falls outside `^[A-Za-z0-9_-]{1,64}$` or `createdAt` is not an RFC 3339 date-time with
+  offset, so a deviation shows up at the first run with pods.
 - [V] Pod (required fields include) `id`, `name`, `status`, `createdAt` (date-time),
   `startedAt`, `env`, `cost`. There is no `desiredStatus` in v2. `PodStatus`: PROVISIONING,
   STARTING, RUNNING, EXITED, ERROR, TERMINATED.

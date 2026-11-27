@@ -1,13 +1,14 @@
 """One reaper pass: cancel overdue queued pods, then terminate overdue pods (§5.2, layer 4).
 
-Only names with the app prefix are considered. A name with the prefix that does not parse is
-left alone and fails the pass, so GitHub notifies; other pods are never touched or logged.
+Only names with the app prefix are considered. A name with the prefix that does not parse, or
+whose deadline is not yet due but lies implausibly far after the entry's creation, is left
+alone and fails the pass, so GitHub notifies; other pods are never touched or logged.
 """
 
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 
 from transcribe_contracts.classes import PodName
@@ -22,7 +23,9 @@ from transcribe_worker.reaper.constants import (
     CONFIRM_DELAY_S,
     GRACE,
     LOGGED_NAME_MAX_LENGTH,
+    MAX_DEADLINE_SPAN,
     PASS_BUDGET,
+    QUEUED_PHASE_BUDGET,
     QUEUED_STATUS,
     RETRY_INITIAL_DELAY_S,
 )
@@ -44,6 +47,7 @@ class _Kind:
 
     label: str
     action: str
+    budget: timedelta
     list_entries: Callable[[], list[ListedPod]]
     is_active: Callable[[ListedPod], bool]
     remove: Callable[[str], None]
@@ -63,16 +67,17 @@ class _Pass:
         """Mark the pass as failed (it continues with the other items)."""
         self.ok = False
 
-    def out_of_time(self) -> bool:
-        """Return True once the pass has used up its budget."""
-        return self.ports.now() - self.started > PASS_BUDGET
+    def out_of_time(self, budget: timedelta) -> bool:
+        """Return True once the pass has run longer than the given budget."""
+        return self.ports.now() - self.started > budget
 
 
 def reap(api: ReaperApi, ports: ReaperPorts, *, dry_run: bool) -> bool:
     """Run one pass; return True if nothing failed and no malformed app name was found.
 
     Queued pods go first: a queue entry that deploys while it is being cancelled then shows
-    up in the pod list read afterwards.
+    up in the pod list read afterwards. The queued phase starts no new action after
+    `QUEUED_PHASE_BUDGET`, so the pod phase keeps time until `PASS_BUDGET`.
 
     Args:
         api: The Runpod API.
@@ -83,6 +88,7 @@ def reap(api: ReaperApi, ports: ReaperPorts, *, dry_run: bool) -> bool:
     queued = _Kind(
         label="queued pod",
         action="cancel",
+        budget=QUEUED_PHASE_BUDGET,
         list_entries=api.list_queued_pods,
         is_active=_waits_in_queue,
         remove=api.cancel_queued_pod,
@@ -91,6 +97,7 @@ def reap(api: ReaperApi, ports: ReaperPorts, *, dry_run: bool) -> bool:
     pods = _Kind(
         label="pod",
         action="terminate",
+        budget=PASS_BUDGET,
         list_entries=api.list_pods,
         is_active=_not_terminated,
         remove=api.terminate_pod,
@@ -112,6 +119,10 @@ def _not_terminated(entry: ListedPod) -> bool:
 
 
 def _reap_kind(kind: _Kind, state: _Pass) -> None:
+    if state.out_of_time(kind.budget):
+        logger.error("pass budget used up; %ss are left for the next run", kind.label)
+        state.fail()
+        return
     try:
         listed = _with_retries(kind.list_entries, state.ports, f"list {kind.label}s")
     except PodApiError as error:
@@ -121,7 +132,7 @@ def _reap_kind(kind: _Kind, state: _Pass) -> None:
     ours = [entry for entry in listed if _is_ours(kind, entry)]
     logger.info("%d %ss listed, %d active with the app prefix", len(listed), kind.label, len(ours))
     for entry in ours:
-        if state.out_of_time():
+        if state.out_of_time(kind.budget):
             logger.error("pass budget used up; the remaining %ss are left for the next run", kind.label)
             state.fail()
             return
@@ -140,12 +151,24 @@ def _reap_entry(kind: _Kind, entry: ListedPod, state: _Pass) -> None:
         state.fail()
         return
     context = _context(kind, entry, parsed)
-    if state.started <= parsed.deadline + GRACE:
-        logger.info("%s action=keep outcome=within deadline and grace", context)
+    if parsed.deadline >= state.started - GRACE:  # not `deadline + GRACE`: that may overflow
+        # Only a deadline still ahead can disable this layer, so only it is checked.
+        if _plausible(entry, parsed, state.started):
+            logger.info("%s action=keep outcome=within deadline and grace", context)
+        else:
+            logger.warning("%s action=keep outcome=deadline implausibly far after creation: left alone", context)
+            state.fail()
     elif state.dry_run:
         logger.info("%s action=%s outcome=skipped (dry run)", context, kind.action)
     elif not _remove(kind, entry.pod_id, state.ports, context):
         state.fail()
+
+
+def _plausible(entry: ListedPod, parsed: PodName, started: datetime) -> bool:
+    # A creation time after the pass start (missing, or clock skew) is replaced by the pass
+    # start, which only loosens the check. A difference of two moments cannot overflow.
+    created = started if entry.created_at is None else min(entry.created_at, started)
+    return parsed.deadline - created <= MAX_DEADLINE_SPAN
 
 
 def _context(kind: _Kind, entry: ListedPod, parsed: PodName) -> str:

@@ -256,7 +256,8 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
   `MAX_RUNTIME_S` + margin; for a queued launch, the queue's `expiresAt` + start-up margin +
   `MAX_RUNTIME_S` + margin, because the pod may deploy just before the queue expires. The
   external reaper (§5.2, layer 4) relies on this name alone; the parser returns nothing for
-  any other shape.
+  any other shape. A deadline must lie at most 32 days after the creation of the pod or
+  queued pod (the reaper's plausibility cap, §5.2).
 - Single worker at a time: `launch_worker` refuses while a live pod (any status but
   `TERMINATED`) or a `QUEUED` queued pod named `transcribe-ui-*` exists, so two workers never
   process the same batch (result writes are also conditional, see §4).
@@ -410,11 +411,19 @@ Termination layers, each sufficient on its own for the failures it covers:
    queued pod no longer `QUEUED`). Queued pods go first, so one that deploys while being
    cancelled shows up in the pod list read afterwards. A name with the prefix that does not
    parse is left alone and fails the run; other pods are never touched or logged by name.
-   Each call is retried a few times within the pass; a pass starts no new action after 4
-   minutes; any failure exits 1 while the other pods are still handled. `--dry-run` sends no
-   DELETE. Covers failures before Python starts (image pull failure, crash loop) and queued
-   pods that start while the desktop app is closed. The HTTP layer is the entry's
-   `ApiSession` (same URL, redirect and error-message rules).
+   A deadline not yet due that lies more than 32 days (`MAX_DEADLINE_SPAN`: Runpod's 30-day
+   queue maximum + the 24 h `MAX_RUNTIME_S` ceiling + a day of margins) after the entry's
+   `createdAt` (or after the pass start if `createdAt` is missing or later) is treated the
+   same way, so a wrong deadline cannot silently disable this layer; deadline arithmetic
+   cannot overflow (year 9999 included). List entries must have an id matching
+   `^[A-Za-z0-9_-]{1,64}$` and a parseable `createdAt`, otherwise the whole list fails; names
+   are logged truncated and escaped (`%r`), so they cannot inject workflow commands.
+   Each call is retried a few times within the pass. The queued phase starts no new cancel
+   after 1 minute and the pass starts no new action (nor list) after 4 minutes, so the pod
+   phase always gets time; any failure exits 1 while the other pods are still handled.
+   `--dry-run` sends no DELETE. Covers failures before Python starts (image pull failure,
+   crash loop) and queued pods that start while the desktop app is closed. The HTTP layer is
+   the entry's `ApiSession` (same URL, redirect and error-message rules).
 5. Account spend limit and low-balance alert (a zero balance stops pods instead of
    terminating them, which still bills volume storage).
 
