@@ -88,6 +88,7 @@ getsignal
 gettempdir
 groupby
 hhmmss
+hu
 ident
 ign
 ignorecase
@@ -100,6 +101,7 @@ isalpha
 isdecimal
 isfinite
 islice
+islnk
 islower
 isreg
 isspace
@@ -118,6 +120,7 @@ lk
 localhost
 lpcwstr
 lseek
+lstat
 m2ts
 m5
 macos
@@ -131,6 +134,7 @@ mktemp
 mkv
 moto
 mov
+mp4
 msvcrt
 multitrack
 muxer
@@ -141,6 +145,8 @@ normcase
 normpath
 nowait
 ntdll
+ntpath
+nul
 nullable
 ondelete
 onnx
@@ -196,6 +202,7 @@ sigterm
 silero
 skipif
 snakers4
+splitext
 sqlalchemy
 sqlite3
 srt
