@@ -1433,8 +1433,11 @@ implements it.
     `refresh_status` and downloaded like any batch, again any number of times (Q25).
   - The manifest is untrusted input. Each item's path below the scan root is split with the
     manifest's `path_flavor`; adoption refuses the manifest (`manifest_path_invalid`) when a
-    part is empty, `.` or `..`, or carries a drive or an anchor. The placement planner applies
-    the same refusal to every relative part it uses, for any batch. The contract's own check
+    part is empty, `.` or `..`, contains `/`, `\` or NUL, or reads as a drive or an anchor in
+    either the manifest's flavour or this computer's (a POSIX part `..\..\x` or `C:evil` is
+    refused). The placement planner applies the same refusal, under the injected path-flavour
+    rule, to every relative part it uses for any batch, including the folder names `mirror` and
+    `flat_with_folders` copy into a target. The contract's own check
     (`classes.py` `Manifest._check_paths`, a lexical `is_relative_to`, which lets `..` through)
     also refuses `.` and `..` parts in `scan_root` and `original_path` (an M6.13 code item;
     the desktop never writes such paths, so no schema version changes).
