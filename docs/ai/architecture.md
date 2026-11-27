@@ -931,13 +931,13 @@ database):
   (400) stops with `cloud_object_in_use`. Global Volumes are never deleted (they may hold
   result backups): several with the app's name stop `setup_cloud` with
   `cloud_volume_duplicated`, listing their ids, and the user removes the unwanted ones in the
-  Runpod console (open Q29). An ambiguous create, or a 409 on a secret name the list does not
-  show yet, stops with `cloud_setup_interrupted`; a re-run adopts the object, or (during list
+  Runpod console (Storage page) and runs the setup again (Q29; no other handling). An
+  ambiguous create, or a 409 on a secret name the list does not show yet, stops with `cloud_setup_interrupted`; a re-run adopts the object, or (during list
   lag) creates a second one that the run after removes (for a volume: reported as duplicated).
   `cloud_setup_status` reports each object as `ok`, `missing`, `outdated` (with field names) or
   `duplicated`; `require_cloud_setup` gives `launch_worker` the template and volume ids, or
-  refuses with `cloud_volume_duplicated`, `cloud_not_set_up` or `cloud_setup_outdated`
-  (duplicates included), so no pod mounts an arbitrary volume.
+  refuses with `cloud_volume_duplicated` (the same message with the ids), `cloud_not_set_up` or
+  `cloud_setup_outdated` (duplicates included), so no pod mounts an arbitrary volume.
 - `runpod/check.py` is the Runpod check of `check_credentials` (§3.6; `GET /v2/pods?limit=1`,
   body not parsed, 2 attempts, 5 s connect and 10 s read timeouts).
 - `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}` (excludes

@@ -209,6 +209,12 @@ Naming and conflicts:
 - Model weights are baked into the Docker image so the pod starts faster.
 - No SSH server in the image: SSH goes through Runpod's own system.
 - R2 credentials reach the pod as Runpod secrets.
+- Several cloud backup volumes with the app's name *(Q29, accepted default; architect: "This
+  is over-engineering an edge case.")*: the app keeps one backup volume on Runpod for the cloud
+  machine's result backups. If Runpod holds two or more with the app's name, the app never
+  deletes one itself and refuses to start a cloud machine until only one is left. The cloud
+  setup and the start show an error listing the volumes' ids; the user deletes the unwanted
+  volume in the Runpod console (Storage page) and runs the setup again.
 - Docker Hub repository: `markfazekasgh/transcribe-ui-worker` (public). CI pushes with a
   token kept in a GitHub environment that only the `main` branch can use.
 - In the first test period the pod is not stopped automatically; the architect will SSH in.

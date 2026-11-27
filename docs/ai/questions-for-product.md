@@ -10,16 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q29. Several cloud backup volumes with the app's name
-
-The app keeps one backup volume on Runpod for the cloud machine's result backups. If Runpod ever
-holds two or more with the app's name (a setup interrupted at the wrong moment, or one created by
-hand), the app cannot tell which holds backups that matter, so it never deletes one itself and
-refuses to start a cloud machine until only one is left.
-
-Proposed default: the cloud setup and the start show an error listing the volumes' ids; the user
-deletes the unwanted volume in the Runpod console (Storage page) and runs the setup again.
-
 ### Q30. Closing the app while work is in progress
 
 The app may be converting and uploading files, downloading subtitles or cleaning up the cloud

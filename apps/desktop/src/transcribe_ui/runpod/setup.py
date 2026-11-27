@@ -88,7 +88,7 @@ def _set_up(
 def _set_up_volume(client: RunpodClient, found: tuple[str, ...]) -> CloudObjectOutcome:
     kind: CloudObjectKind = "global_volume"
     if len(found) > 1:
-        # Volumes may hold result backups: never deleted automatically (open Q29).
+        # Volumes may hold result backups: never deleted automatically (Q29).
         raise volume_duplicated(found)
     if found:
         return CloudObjectOutcome(kind=kind, name=GLOBAL_VOLUME_NAME, object_id=found[0], outcome="unchanged")
