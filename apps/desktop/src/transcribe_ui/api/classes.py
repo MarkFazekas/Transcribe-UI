@@ -13,6 +13,7 @@ from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveI
 from transcribe_ui.api.base import FrozenModel, LocalPath, SetPath, ToolPath, WhisperLanguage, check_distinct
 from transcribe_ui.batches import classes as batch_requests
 from transcribe_ui.batches import responses as batch_responses
+from transcribe_ui.cleanup import classes as cleanup_models
 from transcribe_ui.credentials.classes import (
     CheckCredentialsRequest,
     CheckCredentialsResponse,
@@ -158,7 +159,9 @@ type Request = Annotated[
     | placement_models.PlanDownloadRequest
     | placement_models.RunDownloadRequest
     | placement_models.ExportCustomPlanRequest
-    | placement_models.ImportCustomPlanRequest,
+    | placement_models.ImportCustomPlanRequest
+    | cleanup_models.CreateRetryBatchRequest
+    | cleanup_models.CleanupCloudRequest,
     Field(discriminator="action"),
 ]
 
@@ -260,7 +263,9 @@ type SuccessResponse = Annotated[
     | placement_models.PlanDownloadResponse
     | placement_models.RunDownloadResponse
     | placement_models.ExportCustomPlanResponse
-    | placement_models.ImportCustomPlanResponse,
+    | placement_models.ImportCustomPlanResponse
+    | cleanup_models.CreateRetryBatchResponse
+    | cleanup_models.CleanupCloudResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

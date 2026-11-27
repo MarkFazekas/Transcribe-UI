@@ -71,6 +71,47 @@
       "title": "CheckCredentialsRequest",
       "type": "object"
     },
+    "CleanupCloudRequest": {
+      "additionalProperties": false,
+      "description": "Delete a batch's audio, or all its data, from the cloud; needs `confirm`.\n\n`everything` on a batch whose results may not be downloaded yet also needs\n`confirm_not_downloaded`. A batch this database does not know (another computer's, Q28)\ncan be cleaned up with `everything` once its manifest reads.",
+      "properties": {
+        "action": {
+          "const": "cleanup_cloud",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "confirm": {
+          "default": false,
+          "title": "Confirm",
+          "type": "boolean"
+        },
+        "confirm_not_downloaded": {
+          "default": false,
+          "title": "Confirm Not Downloaded",
+          "type": "boolean"
+        },
+        "scope": {
+          "$ref": "#/$defs/CleanupScope"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id",
+        "scope"
+      ],
+      "title": "CleanupCloudRequest",
+      "type": "object"
+    },
+    "CleanupScope": {
+      "enum": [
+        "audio",
+        "everything"
+      ],
+      "type": "string"
+    },
     "CloudSetupStatusRequest": {
       "additionalProperties": false,
       "description": "Report which Runpod objects of the setup are missing, outdated or duplicated; changes nothing.",
@@ -146,6 +187,30 @@
         "action"
       ],
       "title": "CreateBatchRequest",
+      "type": "object"
+    },
+    "CreateRetryBatchRequest": {
+      "additionalProperties": false,
+      "description": "Retry failed or no-speech jobs of a batch in a new batch (mode `careful`, the audio copied in R2).\n\nRepeating the request with the same batch and jobs returns that retry batch and resumes it.",
+      "properties": {
+        "action": {
+          "const": "create_retry_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "jobs": {
+          "$ref": "#/$defs/RetryJobs"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id",
+        "jobs"
+      ],
+      "title": "CreateRetryBatchRequest",
       "type": "object"
     },
     "CredentialsStatusRequest": {
@@ -828,6 +893,32 @@
       ],
       "title": "ResolveReviewRequest",
       "type": "object"
+    },
+    "RetryJob": {
+      "additionalProperties": false,
+      "description": "A transcribe job of a batch, named by its item and language.",
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "language"
+      ],
+      "title": "RetryJob",
+      "type": "object"
+    },
+    "RetryJobs": {
+      "items": {
+        "$ref": "#/$defs/RetryJob"
+      },
+      "minItems": 1,
+      "type": "array"
     },
     "ReviewBatchRequest": {
       "additionalProperties": false,
@@ -1522,8 +1613,10 @@
       "cancel_queued_pod": "#/$defs/CancelQueuedPodRequest",
       "cancel_worker": "#/$defs/CancelWorkerRequest",
       "check_credentials": "#/$defs/CheckCredentialsRequest",
+      "cleanup_cloud": "#/$defs/CleanupCloudRequest",
       "cloud_setup_status": "#/$defs/CloudSetupStatusRequest",
       "create_batch": "#/$defs/CreateBatchRequest",
+      "create_retry_batch": "#/$defs/CreateRetryBatchRequest",
       "credentials_status": "#/$defs/CredentialsStatusRequest",
       "delete_batch": "#/$defs/DeleteBatchRequest",
       "edit_batch": "#/$defs/EditBatchRequest",
@@ -1650,6 +1743,12 @@
     },
     {
       "$ref": "#/$defs/ImportCustomPlanRequest"
+    },
+    {
+      "$ref": "#/$defs/CreateRetryBatchRequest"
+    },
+    {
+      "$ref": "#/$defs/CleanupCloudRequest"
     }
   ]
 }

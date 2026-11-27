@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import NonNegativeInt
 
-from transcribe_contracts.classes import MediaKind, TranscriptionMode
+from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.media.classes import ProbeResult
 from transcribe_ui.upload.payloads import CopySource
@@ -18,6 +18,20 @@ type JobKind = Literal["transcribe", "extract"]
 type ProblemCode = Literal["source_missing", "probe_failed", "source_changing"]
 
 
+class RetryJob(FrozenModel):
+    """A transcribe job of a batch, named by its item and language."""
+
+    item_id: Ulid
+    language: str
+
+
+class RetryOrigin(FrozenModel):
+    """What a retry batch retries: its source batch and the source's jobs (sorted), plan m5 §1 "Retry"."""
+
+    source_batch_id: BatchId
+    jobs: tuple[RetryJob, ...]
+
+
 class BatchPayload(FrozenModel):
     """What a batch row keeps besides its phase and flags."""
 
@@ -25,6 +39,8 @@ class BatchPayload(FrozenModel):
     path_flavor: Literal["windows", "posix"]
     # The batch's default target languages, as requested.
     languages: tuple[str, ...]
+    # Set on a retry batch (`create_retry_batch`): one retry batch per source and job set.
+    retry_of: RetryOrigin | None = None
 
 
 class PendingWithdrawal(FrozenModel):

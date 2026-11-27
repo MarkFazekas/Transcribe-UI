@@ -10,7 +10,7 @@
         "problems": [
           {
             "location": [],
-            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info', 'scan_tree', 'preview_selection', 'get_settings', 'update_settings', 'store_credentials', 'credentials_status', 'check_credentials', 'setup_cloud', 'cloud_setup_status', 'create_batch', 'edit_batch', 'delete_batch', 'start_review', 'review_batch', 'resolve_review', 'exclude_items', 'list_batches', 'get_batch', 'set_batch_hidden', 'run_upload', 'plan_launch', 'launch_worker', 'cancel_worker', 'refresh_status', 'reconcile_cloud', 'terminate_pod', 'cancel_queued_pod', 'plan_download', 'run_download', 'export_custom_plan', 'import_custom_plan'",
+            "message": "Input tag 'no_such_action' found using 'action' does not match any of the expected tags: 'get_app_info', 'scan_tree', 'preview_selection', 'get_settings', 'update_settings', 'store_credentials', 'credentials_status', 'check_credentials', 'setup_cloud', 'cloud_setup_status', 'create_batch', 'edit_batch', 'delete_batch', 'start_review', 'review_batch', 'resolve_review', 'exclude_items', 'list_batches', 'get_batch', 'set_batch_hidden', 'run_upload', 'plan_launch', 'launch_worker', 'cancel_worker', 'refresh_status', 'reconcile_cloud', 'terminate_pod', 'cancel_queued_pod', 'plan_download', 'run_download', 'export_custom_plan', 'import_custom_plan', 'create_retry_batch', 'cleanup_cloud'",
             "type": "union_tag_invalid"
           }
         ]

@@ -553,6 +553,68 @@
       ],
       "type": "string"
     },
+    "CleanupCloudResponse": {
+      "additionalProperties": false,
+      "description": "What the cleanup deleted, and the batch as stored now.",
+      "properties": {
+        "aborted_uploads": {
+          "minimum": 0,
+          "title": "Aborted Uploads",
+          "type": "integer"
+        },
+        "action": {
+          "const": "cleanup_cloud",
+          "default": "cleanup_cloud",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "deleted_objects": {
+          "minimum": 0,
+          "title": "Deleted Objects",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/CleanupScope"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch_id",
+        "scope",
+        "batch",
+        "deleted_objects",
+        "aborted_uploads"
+      ],
+      "title": "CleanupCloudResponse",
+      "type": "object"
+    },
+    "CleanupScope": {
+      "enum": [
+        "audio",
+        "everything"
+      ],
+      "type": "string"
+    },
     "CloudEntry": {
       "additionalProperties": false,
       "description": "A live `transcribe-ui-*` pod or queued pod on Runpod.",
@@ -886,6 +948,73 @@
         "warnings"
       ],
       "title": "CreateBatchResponse",
+      "type": "object"
+    },
+    "CreateRetryBatchResponse": {
+      "additionalProperties": false,
+      "description": "The retry batch of the source and job set, and how far its copy and manifest went.",
+      "properties": {
+        "action": {
+          "const": "create_retry_batch",
+          "default": "create_retry_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "activity": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ActivitySource"
+          },
+          "title": "Activity",
+          "type": "array"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "copied_objects": {
+          "minimum": 0,
+          "title": "Copied Objects",
+          "type": "integer"
+        },
+        "created": {
+          "title": "Created",
+          "type": "boolean"
+        },
+        "deleted_objects": {
+          "minimum": 0,
+          "title": "Deleted Objects",
+          "type": "integer"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RetryOutcome"
+        },
+        "source_batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "sweep_skipped": {
+          "title": "Sweep Skipped",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "source_batch_id",
+        "created",
+        "batch",
+        "outcome",
+        "copied_objects",
+        "deleted_objects",
+        "sweep_skipped",
+        "activity"
+      ],
+      "title": "CreateRetryBatchResponse",
       "type": "object"
     },
     "CredentialName": {
@@ -2443,6 +2572,17 @@
       "title": "ResolveReviewResponse",
       "type": "object"
     },
+    "RetryOutcome": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UploadOutcome"
+        },
+        {
+          "const": "past_upload",
+          "type": "string"
+        }
+      ]
+    },
     "ReviewBatchResponse": {
       "additionalProperties": false,
       "description": "The review views after probing.",
@@ -3596,8 +3736,10 @@
           "cancel_queued_pod": "#/$defs/CancelQueuedPodResponse",
           "cancel_worker": "#/$defs/CancelWorkerResponse",
           "check_credentials": "#/$defs/CheckCredentialsResponse",
+          "cleanup_cloud": "#/$defs/CleanupCloudResponse",
           "cloud_setup_status": "#/$defs/CloudSetupStatusResponse",
           "create_batch": "#/$defs/CreateBatchResponse",
+          "create_retry_batch": "#/$defs/CreateRetryBatchResponse",
           "credentials_status": "#/$defs/CredentialsStatusResponse",
           "delete_batch": "#/$defs/DeleteBatchResponse",
           "edit_batch": "#/$defs/EditBatchResponse",
@@ -3724,6 +3866,12 @@
         },
         {
           "$ref": "#/$defs/ImportCustomPlanResponse"
+        },
+        {
+          "$ref": "#/$defs/CreateRetryBatchResponse"
+        },
+        {
+          "$ref": "#/$defs/CleanupCloudResponse"
         }
       ]
     },

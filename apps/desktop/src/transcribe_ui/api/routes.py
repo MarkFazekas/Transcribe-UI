@@ -6,15 +6,12 @@ from types import MappingProxyType
 from typing import Any
 
 from transcribe_ui.api.classes import Response
-from transcribe_ui.api.info import get_app_info
+from transcribe_ui.api.local_handlers import RequestRunner, local_handlers
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches import exclusion, listing, review, services
-from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
-from transcribe_ui.discovery.services import preview_selection, scan_tree
+from transcribe_ui.cleanup.services import cleanup_cloud, create_retry_batch
 from transcribe_ui.placement import services as downloads
-from transcribe_ui.runpod.setup import cloud_setup_status, setup_cloud
 from transcribe_ui.runs import cancel, launch, monitor, planning, reconcile, stragglers
-from transcribe_ui.state.requests import get_settings, update_settings
 from transcribe_ui.upload.services import run_upload
 
 
@@ -32,20 +29,20 @@ class Route[RequestT]:
 type Routes = Mapping[str, Route[Any]]
 
 
+def _local_route(run: RequestRunner) -> Route[Any]:
+    return Route(run=run, needs_database=False)
+
+
 def default_routes() -> Routes:
-    """Return the production dispatch table; each part adds its requests here."""
+    """Return the production dispatch table; each part adds its requests here.
+
+    The requests that need no database are listed in `api/local_handlers.py`.
+    """
+    runners = local_handlers().items()
+    local = {action: _local_route(run) for action, run in runners}
     return MappingProxyType(
         {
-            "get_app_info": Route(run=get_app_info, needs_database=False),
-            "scan_tree": Route(run=scan_tree, needs_database=False),
-            "preview_selection": Route(run=preview_selection, needs_database=False),
-            "get_settings": Route(run=get_settings, needs_database=False),
-            "update_settings": Route(run=update_settings, needs_database=False),
-            "store_credentials": Route(run=store_credentials, needs_database=False),
-            "credentials_status": Route(run=credentials_status, needs_database=False),
-            "check_credentials": Route(run=check_credentials, needs_database=False),
-            "setup_cloud": Route(run=setup_cloud, needs_database=False),
-            "cloud_setup_status": Route(run=cloud_setup_status, needs_database=False),
+            **local,
             "create_batch": Route(run=services.create_batch, needs_database=True),
             "edit_batch": Route(run=services.edit_batch, needs_database=True),
             "delete_batch": Route(run=services.delete_batch, needs_database=True),
@@ -68,5 +65,7 @@ def default_routes() -> Routes:
             "run_download": Route(run=downloads.run_download, needs_database=True),
             "export_custom_plan": Route(run=downloads.export_custom_plan, needs_database=True),
             "import_custom_plan": Route(run=downloads.import_custom_plan, needs_database=True),
+            "create_retry_batch": Route(run=create_retry_batch, needs_database=True),
+            "cleanup_cloud": Route(run=cleanup_cloud, needs_database=True),
         },
     )
