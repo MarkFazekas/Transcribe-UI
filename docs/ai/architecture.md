@@ -165,7 +165,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
 - **Entry** (`gui/main.py`, Qt-free): before Qt is imported it checks for a display
   (`gui/display.py`): Windows and macOS always have one. Elsewhere a forced `QT_QPA_PLATFORM`
   (a `;` list) needs one entry that can start: `offscreen`, `minimal` or `vnc` always, `xcb`
-  with `DISPLAY`, `wayland*` with `WAYLAND_DISPLAY`; device platforms (`eglfs`, `linuxfb`, ...)
+  with `DISPLAY`, `wayland*` with a compositor socket where libwayland looks for one
+  (`WAYLAND_SOCKET`, `WAYLAND_DISPLAY`, else `wayland-0` in `XDG_RUNTIME_DIR`: Qt passes no
+  name to `wl_display_connect`); device platforms (`eglfs`, `linuxfb`, ...)
   never count. Without `QT_QPA_PLATFORM`, `DISPLAY` or `WAYLAND_DISPLAY` must be set. Qt can
   still abort on what the check cannot see (a display variable naming a server that is gone,
   missing xcb libraries such as `libxcb-cursor0`); M8 documents those for Linux users and its
@@ -197,7 +199,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
 - **Bridge** (`QtExecutor`): the GUI thread never calls `Backend.execute`. Each request runs as
   a `QRunnable` (auto-deleted by its pool after `run` or on `clear()`; one taken off its queue
   is deleted by the bridge, so finished calls are freed; `run` first waits until `start` has
-  returned, since PySide records the pool as parent only then) on one of three `QThreadPool`s, by the
+  returned, since PySide records the pool as parent only then, and is released even if
+  `start` fails, in which case the call is forgotten and the error raised) on one of three `QThreadPool`s, by the
   presentation table `ACTION_POOLS` in `gui/constants.py`: `long` (3 threads: `scan_tree`,
   `review_batch`, `run_upload`, `run_download`, `import_custom_plan`, `create_retry_batch`,
   `cleanup_cloud`, `setup_cloud`), `poll` (1 reserved thread: `refresh_status`,
@@ -224,11 +227,13 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   the previous one is `queued` or `running`; its `state` shows queued as "waiting" and running
   as "refreshing"; a cancelled queued tick frees it at once). Every channel numbers its sends
   per key, so the posted `cancelled` answer of a call taken off its queue never reaches a newer
-  send. The backend's locks still guard everything (§3.8).
+  send; a key whose latest call answered is forgotten. The backend's locks still guard
+  everything (§3.8).
 - **Activity panel**: areas start long requests through `Activity.start` (exclusive per key,
   default the request's JSON); each row shows stage, `completed`/`total` and path, Cancel while
   queued or running, Resume (re-sends the same request) after `cancelled` ("Stopped; continue
-  any time", never shown as a failure) or an error, Details for an error, Dismiss once done.
+  any time", never shown as a failure) or an error, Details for an error (its `app_busy` Retry
+  resumes the entry), Dismiss once done.
   Each entry keeps its row: repaints update labels and button visibility in place, so a click
   during progress always reaches its button.
 - **Bus** (`gui/signals.py`, declared whole by M6.2): navigation (`open_job`, `open_jobs`,
