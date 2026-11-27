@@ -52,7 +52,7 @@ def test_a_crash_after_the_write_is_resumed(runs_world: RunsWorld, monkeypatch: 
     """A crash between the manifest write and the phase change: the step again publishes the same bytes."""
     seed_uploaded(runs_world)
     with monkeypatch.context() as patched:
-        patched.setattr("transcribe_ui.upload.publish._move_to_ready", _crash)
+        patched.setattr("transcribe_ui.upload.publish.move_to_ready", _crash)
         with pytest.raises(Crash):
             runs_world.step()
     written = read_back(runs_world)

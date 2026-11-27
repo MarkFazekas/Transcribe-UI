@@ -8,8 +8,8 @@ from transcribe_contracts.classes import RunState
 from transcribe_contracts.layout import run_log_key, run_status_key
 from transcribe_ui.runs.constants import HEARTBEAT_MARGIN_S, HEARTBEAT_STALE_S
 
-# How long a heartbeat counts after its `updated_at`.
-STALE = timedelta(seconds=HEARTBEAT_STALE_S)
+# How long a heartbeat counts after its `updated_at` (the margin covers a worker clock behind ours).
+STALE = timedelta(seconds=HEARTBEAT_STALE_S + HEARTBEAT_MARGIN_S)
 # Long enough after its last write that a heartbeat object never counts (a minute of slack: the
 # test clock starts at the real time, before moto stamps the object).
 LONG_AFTER = timedelta(seconds=HEARTBEAT_STALE_S + HEARTBEAT_MARGIN_S + 60)

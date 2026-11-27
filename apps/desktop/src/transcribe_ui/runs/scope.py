@@ -30,8 +30,8 @@ def read_launch_scope(state: LocalState, store: ObjectStore) -> LaunchScope:
     """Return the scope of the next run: the pending manifests in R2 plus the held ones.
 
     The database is read first (one transaction), then R2 (outside any transaction). A held
-    batch whose manifest is in R2 already (an interrupted manifest step) is counted from R2,
-    whether it is pending there, finished or unreadable.
+    batch whose manifest is in R2 already (an interrupted manifest step) is counted from R2 when
+    it is pending or finished there; an unreadable or vanished copy counts the held version.
 
     Raises:
         StorageError: R2 could not be read.
@@ -39,7 +39,8 @@ def read_launch_scope(state: LocalState, store: ObjectStore) -> LaunchScope:
     known, held = _local_view(state)
     published = published_batches(store, known)
     waiting = [scope_batch(manifest, (), known=True, held=True) for manifest in held]
-    fresh = [batch for batch in waiting if batch.batch_id not in published.manifest_ids]
+    in_r2 = {batch.batch_id for batch in published.batches} | published.finished_ids
+    fresh = [batch for batch in waiting if batch.batch_id not in in_r2]
     batches = sorted((*published.batches, *fresh), key=_batch_id)
     durations = [job.duration_s for batch in batches for job in batch.pending_jobs]
     return LaunchScope(

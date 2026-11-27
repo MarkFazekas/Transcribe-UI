@@ -18,8 +18,15 @@ from transcribe_contracts.reading import read_manifest
 from transcribe_ui.runs.classes import PendingJob, ScopeBatch, UnreadableManifest
 from transcribe_ui.storage.r2 import ObjectStore
 
-# What one object under `batch_metadata/` adds to the scope; None for a finished batch.
-type ScopeEntry = ScopeBatch | UnreadableManifest | None
+
+class FinishedBatch(NamedTuple):
+    """A manifest whose batch has `_done.json`: not in the scope."""
+
+    batch_id: str
+
+
+# What one object under `batch_metadata/` adds to the scope; None for one deleted since the listing.
+type ScopeEntry = ScopeBatch | UnreadableManifest | FinishedBatch | None
 
 
 class PublishedView(NamedTuple):
@@ -29,33 +36,22 @@ class PublishedView(NamedTuple):
     batches: list[ScopeBatch]
     # The objects the worker skips, by key.
     unreadable: list[UnreadableManifest]
-    # The batch id of every manifest key listed, finished and unreadable ones included.
-    manifest_ids: frozenset[str]
+    # The batches whose manifest has `_done.json`.
+    finished_ids: frozenset[str]
 
 
 def published_batches(store: ObjectStore, known: Collection[str]) -> PublishedView:
-    """Return the pending batches in R2, the unreadable objects under `batch_metadata/` and every manifest's id.
+    """Return the pending batches in R2, the unreadable objects under `batch_metadata/` and the finished batches.
 
     Raises:
         StorageError: R2 could not be listed or read.
     """
-    batches: list[ScopeBatch] = []
-    unreadable: list[UnreadableManifest] = []
-    listed = store.list_objects(BATCH_METADATA_PREFIX)
-    for found in listed:
-        entry = _published_entry(store, found.key, known)
-        if isinstance(entry, ScopeBatch):
-            batches.append(entry)
-        elif entry is not None:
-            unreadable.append(entry)
-    keys = [stored.key for stored in listed]
-    ids = frozenset(_batch_ids(keys))
-    return PublishedView(batches, unreadable, ids)
-
-
-def _batch_ids(keys: Iterable[str]) -> list[str]:
-    ids = [batch_id_from_manifest_key(key) for key in keys]
-    return [batch_id for batch_id in ids if batch_id is not None]
+    keys = [found.key for found in store.list_objects(BATCH_METADATA_PREFIX)]
+    entries = [_published_entry(store, key, known) for key in keys]
+    batches = [entry for entry in entries if isinstance(entry, ScopeBatch)]
+    unreadable = [entry for entry in entries if isinstance(entry, UnreadableManifest)]
+    finished = frozenset(entry.batch_id for entry in entries if isinstance(entry, FinishedBatch))
+    return PublishedView(batches, unreadable, finished)
 
 
 def scope_batch(manifest: Manifest, finished: Collection[str], *, known: bool, held: bool) -> ScopeBatch:
@@ -98,7 +94,7 @@ def _published_entry(store: ObjectStore, key: str, known: Collection[str]) -> Sc
     if batch_id is None:
         return UnreadableManifest(key=key, reason="not_a_manifest")
     if store.head(done_key(batch_id)) is not None:
-        return None
+        return FinishedBatch(batch_id)
     manifest = _read_manifest(store, key)
     if not isinstance(manifest, Manifest):
         return manifest

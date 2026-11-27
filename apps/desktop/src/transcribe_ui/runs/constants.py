@@ -15,8 +15,8 @@ FINAL_WORKER_STATES: Final = frozenset(("finished", "failed"))
 # worker writes it every ~30 s, and a stuck upload may take a few minutes of retries.
 HEARTBEAT_STALE_S: Final = 600
 # Seconds of clock difference (between R2 and this computer) and of upload delay tolerated on
-# top of `HEARTBEAT_STALE_S`: a heartbeat object written longer ago than both is never active,
-# readable or not, and an `updated_at` is never taken as later than the run's deadline plus this.
+# top of `HEARTBEAT_STALE_S`: a heartbeat object written, or updated, longer ago than both is
+# never active, and an `updated_at` is never taken as later than the run's deadline plus this.
 HEARTBEAT_MARGIN_S: Final = 300
 # Seconds after a queued pod's deploy (`resolvedAt`) by which its pod must show in the pod list;
 # before that, a pod missing from the list (or a 404 for it) may be list lag and counts as active.
@@ -27,3 +27,6 @@ STATUS_KEY_SUFFIX: Final = "/status.json"
 FINGERPRINT_DURATION_DECIMALS: Final = 3
 # Worker state recorded for a heartbeat object that cannot be read (it counts as active).
 UNREADABLE_STATE: Final = "unreadable"
+
+# Error code: a worker run is active, so the request was refused; nothing was changed.
+ERROR_RUN_ACTIVE: Final = "run_active"

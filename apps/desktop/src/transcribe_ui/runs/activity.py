@@ -5,14 +5,13 @@ always under the runs lock. A run is active when any of these holds:
 
 - a local run is not final (`launching`, `queued`, `running`, or a status this version does not
   know);
-- the Runpod lists hold a live `transcribe-ui-*` entry: a pod in any status but `TERMINATED`
-  (`EXITED` and `ERROR` pods still exist), or a queued pod in any status but `FAILED`,
-  `EXPIRED` and `CANCELLED`, where a `DEPLOYED` one counts until its pod is listed (the pod's
-  own entry decides then), reads `TERMINATED`, or has stayed out of the pod list for
-  `DEPLOY_SETTLE_S` after the deploy (or past its name deadline): a pod not listed (or 404)
-  sooner may be list lag;
-- a `runs/*/status.json` in R2 is unreadable, or not final with `updated_at` within
-  `HEARTBEAT_STALE_S` of the clock (or ahead of it).
+- the Runpod lists hold a live `transcribe-ui-*` entry (`runs/pods.py`): a pod in any status
+  but `TERMINATED`, or a queued pod in any status but `FAILED`, `EXPIRED` and `CANCELLED`. A
+  `DEPLOYED` one is over past its name deadline; before that its pod, found in the full list or
+  looked up by id, decides (a 404 counts until `DEPLOY_SETTLE_S` after the deploy), and one
+  without `podId` counts;
+- a `runs/*/status.json` written recently (`runs/heartbeats.py`, R2 `LastModified`) is
+  unreadable, or not final with a recent `updated_at` (capped at the run's deadline).
 
 The check fails closed: if the Runpod lists or R2 cannot be read, it raises
 `ActivityUnknownError` (`cloud_unreachable`) instead of answering "inactive".

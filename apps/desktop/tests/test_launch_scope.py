@@ -159,3 +159,12 @@ def test_held_batch_done_in_r2_is_not_counted(runs_world: RunsWorld) -> None:
     _write(runs_world, done_key(FIRST_BATCH_ID), b"{}")
     scope = runs_world.scope()
     assert (scope.batches, scope.pending_jobs) == ((), 0)
+
+
+def test_held_batch_counts_over_an_unreadable_copy(runs_world: RunsWorld) -> None:
+    """A held batch whose manifest key holds an unreadable object is counted from the database."""
+    seed_uploaded(runs_world, held=True)
+    _write(runs_world, manifest_key(FIRST_BATCH_ID), b"{broken")
+    scope = runs_world.scope()
+    held = [(batch.batch_id, batch.held) for batch in scope.batches]
+    assert (held, [entry.reason for entry in scope.unreadable]) == ([(FIRST_BATCH_ID, True)], ["invalid"])

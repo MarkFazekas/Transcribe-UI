@@ -11,7 +11,8 @@ the upload.
 Order: the manifest object is written first, then the batch moves to `ready` by compare-and-set.
 A crash in between leaves a complete manifest for an `uploading` batch (the worker may process
 it, which is correct); the next manifest step writes the same bytes again and moves the batch.
-Exclusion and re-review withdraw such a manifest before deleting audio.
+Exclusion and re-review withdraw such a manifest before deleting audio (`upload/withdraw.py`); a
+withdrawal left pending by a failure is finished here before a new manifest is written.
 """
 
 from typing import Literal
@@ -22,14 +23,13 @@ from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.runs.activity import check_activity
 from transcribe_ui.runs.cloud import CloudAccess
 from transcribe_ui.runs.errors import ActivityUnknownError
-from transcribe_ui.state.database import compare_and_set_phase
 from transcribe_ui.state.errors import LockOrderError
-from transcribe_ui.state.models import BatchRow
 from transcribe_ui.storage.errors import StorageError
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.classes import HeldPublication, ManifestStep
 from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
-from transcribe_ui.upload.manifest import build_manifest, held_batch_ids, write_manifest
+from transcribe_ui.upload.manifest import build_manifest, held_batch_ids
+from transcribe_ui.upload.steps import move_to_ready, publish_manifest
 
 # What happened to one held batch: published, skipped as incomplete, or no longer held (moved on).
 type HeldOutcome = Literal["published", "incomplete", "moved"]
@@ -72,11 +72,11 @@ def manifest_step(context: RequestContext, cloud: CloudAccess, batch_id: str) ->
             _hold(context, batch_id)
             return ManifestStep(batch_id=batch_id, outcome="held", activity=activity.sources)
         try:
-            write_manifest(cloud.store, manifest)
+            publish_manifest(context, cloud.store, manifest)
         except StorageError:
             _hold(context, batch_id)
             raise
-        _move_to_ready(context, batch_id, held_only=False)
+        move_to_ready(context, batch_id, held_only=False)
     return ManifestStep(batch_id=batch_id, outcome="published")
 
 
@@ -125,8 +125,8 @@ def _publish_held(context: RequestContext, store: ObjectStore, batch_id: str) ->
             manifest = build_manifest(session, batch_id)
         except (UploadIncompleteError, NothingToTranscribeError):
             return "incomplete"
-    write_manifest(store, manifest)
-    _move_to_ready(context, batch_id, held_only=True)
+    publish_manifest(context, store, manifest)
+    move_to_ready(context, batch_id, held_only=True)
     return "published"
 
 
@@ -134,13 +134,3 @@ def _hold(context: RequestContext, batch_id: str) -> None:
     with context.ports.state.session() as session:
         now = context.ports.clock.now()
         touch_batch(session, batch_id, UPLOADING_PHASES, now=now, also_set={"manifest_held": True})
-
-
-def _move_to_ready(context: RequestContext, batch_id: str, *, held_only: bool) -> None:
-    conditions = (BatchRow.manifest_held.is_(True),) if held_only else ()
-    with context.ports.state.session() as session:
-        now = context.ports.clock.now()
-        also_set = {"manifest_held": False}
-        compare_and_set_phase(
-            session, batch_id, "uploading", "ready", now=now, conditions=conditions, also_set=also_set
-        )

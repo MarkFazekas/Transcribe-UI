@@ -6,10 +6,10 @@ The worker overwrites its heartbeat every ~30 s. One counts as a live run when:
   clock: an older object is a dead worker's, even if it cannot be read, so nothing blocks for
   ever; and
 - it cannot be read (invalid, or another schema major version: fail closed), or its state is
-  not final and its `updated_at` lies within `HEARTBEAT_STALE_S` of the clock. An `updated_at`
-  ahead of the clock counts, but is taken as at most the run's `deadline_at` plus the margin and
-  `LastModified` plus `HEARTBEAT_STALE_S`, so a worker clock far in the future cannot block
-  either.
+  not final and its `updated_at` lies within `HEARTBEAT_STALE_S` + `HEARTBEAT_MARGIN_S` of the
+  clock (the margin covers a worker clock behind this one). An `updated_at` ahead of the clock
+  counts, but is taken as at most the run's `deadline_at` plus the margin; the `LastModified`
+  gate above already ends any heartbeat that stopped being written.
 """
 
 from datetime import datetime, timedelta
@@ -66,8 +66,6 @@ def _heartbeat(store: ObjectStore, found: ObjectInfo, now: datetime) -> Activity
     except ContractError:
         return ActivitySource(kind="heartbeat", name=key, status=UNREADABLE_STATE, run_id=_run_id(key))
     latest = min(status.updated_at, status.deadline_at + MARGIN)
-    if found.modified is not None:
-        latest = min(latest, found.modified + STALE)
-    if status.state in FINAL_WORKER_STATES or now - latest > STALE:
+    if status.state in FINAL_WORKER_STATES or now - latest > STALE + MARGIN:
         return None
     return ActivitySource(kind="heartbeat", name=key, status=status.state, run_id=status.run_id)

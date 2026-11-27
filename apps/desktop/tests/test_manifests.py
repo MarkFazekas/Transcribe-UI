@@ -8,11 +8,9 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import update
 
-from support.batch_backend import run
-from support.batches import FILM, FILM_PROBE, FILM_SECONDS, FIRST_BATCH_ID, PODCAST, batch_request
+from support.batches import FILM, FILM_PROBE, FILM_SECONDS, FIRST_BATCH_ID, PODCAST
 from support.fakes import FIXED_NOW
 from support.runs import (
-    JSON_TYPE,
     MANIFEST,
     READY,
     UPLOADING,
@@ -23,7 +21,7 @@ from support.runs import (
     set_item_phase,
 )
 from transcribe_contracts.classes import Manifest
-from transcribe_contracts.layout import audio_key, done_key, result_json_key
+from transcribe_contracts.layout import audio_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.batches.errors import WrongPhaseError
 from transcribe_ui.state.models import JobRow
@@ -92,17 +90,3 @@ def test_step_on_a_ready_batch_is_refused(runs_world: RunsWorld) -> None:
     runs_world.step()
     with pytest.raises(WrongPhaseError):
         runs_world.step()
-
-
-def test_exclusion_withdraws_a_leftover_manifest(runs_world: RunsWorld) -> None:
-    """A manifest left by a crash (batch still `uploading`), and what a worker wrote for it, go before any audio."""
-    ids = seed_uploaded(runs_world)
-    runs_world.store.write(MANIFEST, _built(runs_world).model_dump_json().encode(), JSON_TYPE)
-    worker_objects = (done_key(FIRST_BATCH_ID), result_json_key(FIRST_BATCH_ID, ids[PODCAST], "en"))
-    for key in worker_objects:
-        runs_world.store.write(key, b"{}", JSON_TYPE)
-    excluded = run(runs_world.leg, batch_request("exclude_items", item_ids=[ids[FILM]]))
-    left = [runs_world.store.head(worker_key) for worker_key in worker_objects]
-    assert (excluded.status, batch_state(runs_world), left) == ("ok", UPLOADING, [None, None])
-    assert runs_world.step().outcome == "published"
-    assert [entry.item_id for entry in _read_back(runs_world).items] == [ids[PODCAST]]

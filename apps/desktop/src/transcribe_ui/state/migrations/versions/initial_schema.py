@@ -69,6 +69,7 @@ def _create_batches_and_runs() -> None:
         _status("phase"),
         sa.Column("manifest_held", sa.Boolean(), nullable=False),
         sa.Column("audio_deleted", sa.Boolean(), nullable=False),
+        sa.Column("pending_withdrawal", sa.JSON(none_as_null=True), nullable=True),
         sa.Column("hidden", sa.Boolean(), nullable=False),
         _timestamp("created_at"),
         _timestamp("updated_at"),
