@@ -26,17 +26,19 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M5.14 (retry, cloud cleanup and the end-to-end flow; marks M5 **(built)**) on
-  `feat/m5.14-retry-cleanup`, ready for its PR.
+- None.
 
 ## Waiting on humans
 
-- Architect: schedule the M4 approved Runpod run.
+- Architect: schedule the M4 approved Runpod run; A20 (one executable for the GUI and the
+  CLI) in `questions-for-architect.md`; M6.2 builds on its proposed default.
 - Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
   gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
   before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud), Q29
-  (duplicate backup volumes) in `questions-for-product.md`. M5 is built on the proposed defaults;
-  an answer that differs changes the part that implements it.
+  (duplicate backup volumes), Q30 (closing the app with work in progress), Q31 (steps the app
+  starts on its own), Q32 (language of the app's texts), Q33 (main window layout), Q34 (stopping
+  the cloud machine while it transcribes) in `questions-for-product.md`. M5 is built and M6 is
+  planned on the proposed defaults; an answer that differs changes the part that implements it.
 
 ## Next
 
@@ -44,10 +46,12 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `runpod-reaper` environment (deployment branch policy: `main` only); its first real run on
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
-2. M5 is built. Next milestone: M6 (desktop frontends, architecture §10), which needs its plan
-   `docs/ai/plans/m6.md` first. M4 runs whenever the architect is available.
+2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Next: wave 1, M6.1 (backend
+   additions, high effort; includes a new Alembic revision) and M6.2 (GUI foundation, high
+   effort) in parallel, M6.1 merged first. Then wave 2 M6.4, M6.5, M6.6, followed by M6.3 and
+   M6.7; wave 3 M6.8, M6.9, M6.10; wave 4 M6.11 (marks M6 built). M4 runs whenever the
+   architect is available.
 3. From now on every database schema change, including a change of a stored payload's shape,
    is a new Alembic revision (architecture §3.8); the initial revision is no longer edited.
-4. Desktop follow-ups for M6: the GUI shows `BatchSummary.cleanup_pending` and offers to repeat
-   the cleanup (launches are refused with `cleanup_pending` until then), and runs
-   `reconcile_cloud` at start-up and `refresh_status` while a run is active (plan m5 §1).
+4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5) and the cleanup repeated
+   (M6.10); `reconcile_cloud` at start-up and `refresh_status` while a run is active (M6.6).
