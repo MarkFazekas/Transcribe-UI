@@ -20,7 +20,6 @@ from support.gui import window_over
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, NeedsConfirmation, Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
-from transcribe_ui.cleanup.classes import CleanupCloudRequest
 from transcribe_ui.gui.activity_view import ActivityRow
 from transcribe_ui.gui.closing import QuitNow, flush_log_handlers
 from transcribe_ui.gui.constants import (
@@ -167,22 +166,12 @@ def test_activity_retry_resumes_the_entry(qtbot: QtBot, tmp_path: Path) -> None:
 
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:
     """Confirm calls back the caller, which re-sends the confirmed request."""
-    asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(Confirmation(field="confirm", message="Delete?"),))
-    request = CleanupCloudRequest(action="cleanup_cloud", batch_id=BATCH, scope="audio")
+    confirmation = Confirmation(field="confirm", set_to=True, message="Delete?")
+    asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(confirmation,))
     confirmed: list[bool] = []
-    dialog = window.show_confirmation(confirmation_view(asked, request), lambda: confirmed.append(True))
-    assert dialog.problem is None
+    dialog = window.show_confirmation(confirmation_view(asked), lambda: confirmed.append(True))
     dialog.confirm_button.click()
     assert confirmed == [True]
-
-
-def test_an_unconfirmable_field_disables_confirm(window: MainWindow) -> None:
-    """A field the dialog cannot set shows the reason and leaves Confirm disabled."""
-    asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(Confirmation(field="unknown", message="Go?"),))
-    request = CleanupCloudRequest(action="cleanup_cloud", batch_id=BATCH, scope="audio")
-    dialog = window.show_confirmation(confirmation_view(asked, request), lambda: None)
-    assert dialog.problem is not None
-    assert not dialog.confirm_button.isEnabled()
 
 
 def _row(window: MainWindow) -> ActivityRow:

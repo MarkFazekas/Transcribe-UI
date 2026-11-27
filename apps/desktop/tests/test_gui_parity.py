@@ -66,7 +66,12 @@ def _chatty(_root: Path) -> Routes:
 def _ask_confirmation(root: Path, request: GetAppInfoRequest, context: RequestContext) -> Response:
     path = str(root / "media" / "clip.mkv")
     context.progress.emit(ProgressEvent(action=request.action, stage="probe", completed=1, total=2, path=path))
-    confirmation = Confirmation(field="confirmed", message="Overwrite the existing subtitle?", details={"count": 1})
+    confirmation = Confirmation(
+        field="confirmed",
+        set_to=True,
+        message="Overwrite the existing subtitle?",
+        details={"count": 1},
+    )
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))
 
 

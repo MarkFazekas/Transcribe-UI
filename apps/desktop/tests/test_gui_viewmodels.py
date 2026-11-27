@@ -6,8 +6,6 @@ from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
 
-import pytest
-
 from support.fakes import seeded_ports
 from support.gated import GatedRunner, upload
 from transcribe_ui.api.backend import Backend
@@ -28,8 +26,11 @@ from transcribe_ui.gui.executor import LatestChannel, SyncExecutor, cancelled_re
 from transcribe_ui.gui.feedback import Fix, confirmation_view, confirmed_request, error_view
 from transcribe_ui.gui.signals import StartupHooks, StartupSlot
 from transcribe_ui.gui.writer_lock import WriterLockGate
+from transcribe_ui.runs.classes import LaunchWorkerRequest
 
 SUBPROCESS_TIMEOUT_S = 60
+# A launch plan fingerprint as the backend names it in `set_to`.
+FINGERPRINT = "0123456789abcdef" * 4
 # Sends of the latest-wins channel test.
 SENDS = 3
 # Modules a view-model test imports; none of them may load Qt.
@@ -85,35 +86,32 @@ def test_details_render_lists_of_objects_as_tables() -> None:
 
 
 def test_confirming_sets_each_field() -> None:
-    """Accepting a confirmation re-sends the same request with every listed field set."""
+    """Accepting a confirmation re-sends the same request with every listed field set to its `set_to`."""
     request = CleanupCloudRequest(action="cleanup_cloud", batch_id="batch_20261127_120000", scope="everything")
     asked = NeedsConfirmation(
         action="cleanup_cloud",
         confirmations=(
-            Confirmation(field="confirm", message="Delete?"),
-            Confirmation(field="confirm_not_downloaded", message="Not downloaded yet.", details={"jobs": 3}),
+            Confirmation(field="confirm", set_to=True, message="Delete?"),
+            Confirmation(field="confirm_not_downloaded", set_to=True, message="Not downloaded.", details={"jobs": 3}),
         ),
     )
-    view = confirmation_view(asked, request)
-    assert [shown.message for shown in view.confirmations] == ["Delete?", "Not downloaded yet."]
-    assert view.problem is None
+    view = confirmation_view(asked)
+    assert [shown.message for shown in view.confirmations] == ["Delete?", "Not downloaded."]
     assert confirmed_request(request, asked) == request.model_copy(
         update={"confirm": True, "confirm_not_downloaded": True},
     )
 
 
-def test_a_field_the_dialog_cannot_set_is_refused() -> None:
-    """A confirmation field that is no boolean of the request disables Confirm with a reason."""
-    request = GetAppInfoRequest(action="get_app_info")
+def test_confirming_copies_a_fingerprint() -> None:
+    """A non-boolean confirmation (the launch's fingerprint) is copied from `set_to` as it is."""
+    request = LaunchWorkerRequest(action="launch_worker")
     asked = NeedsConfirmation(
-        action="get_app_info",
-        confirmations=(Confirmation(field="confirm_fingerprint", message="Start?"),),
+        action="launch_worker",
+        confirmations=(Confirmation(field="confirm_fingerprint", set_to=FINGERPRINT, message="Start?"),),
     )
-    view = confirmation_view(asked, request)
-    assert view.problem is not None
-    assert "confirm_fingerprint" in view.problem
-    with pytest.raises(ValueError, match="confirm_fingerprint"):
-        confirmed_request(request, asked)
+    confirmed = confirmed_request(request, asked)
+    assert isinstance(confirmed, LaunchWorkerRequest)
+    assert confirmed.confirm_fingerprint == FINGERPRINT
 
 
 class _CancelledFirst:

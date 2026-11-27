@@ -135,12 +135,7 @@ class ConfirmationDialog(QDialog):
         for confirmation in view.confirmations:
             layout.addWidget(wrapped_label(confirmation.message, self))
             add_details(layout, confirmation.details, self)
-        self.problem: QLabel | None = None
-        if view.problem is not None:
-            self.problem = wrapped_label(view.problem, self)
-            layout.addWidget(self.problem)
         buttons, confirm_button = accept_buttons(self, "Confirm")
-        confirm_button.setEnabled(view.problem is None)
         self.confirm_button = confirm_button
         layout.addWidget(buttons)
 

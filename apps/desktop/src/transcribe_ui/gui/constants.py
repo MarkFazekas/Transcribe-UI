@@ -173,11 +173,6 @@ CLEANUP_PENDING_BATCHES_KEY: Final = "batch_ids"
 DETAIL_KEY_HEADER: Final = "Detail"
 # Header of the value column of an error's or a confirmation's details table.
 DETAIL_VALUE_HEADER: Final = "Value"
-# Shown instead of a usable Confirm when the generic dialog cannot set a confirmation's field.
-UNCONFIRMABLE_TEXT: Final = (
-    "This step cannot be confirmed from this window ({fields}). "
-    "Please report it; the command line can send the request with the field set."
-)
 # Note added to `internal_error`.
 SEE_LOG_TEXT: Final = "See the log for what went wrong."
 
