@@ -3,8 +3,10 @@
 Once a run is final (its pod is gone, or it never had one), `refresh_status` keeps the worker's
 last `status.json` in the run row (if the run's end did not already), writes `worker.log` to the
 user log dir (`worker-<run_id>.log`), then deletes every object under `runs/<run_id>/` and marks
-the run collected. The worker is the only writer of these objects and is gone by then. A failure
-is logged and leaves the run uncollected: the next refresh tries again.
+the run collected (last). The worker is the only writer of these objects and is gone by then. A
+failure is logged and leaves the run uncollected: the next refresh tries again. A straggler pod
+carrying a collected run's name may write objects again; stopping it through `terminate_pod` or
+`cancel_queued_pod` marks the run uncollected (`reopen_collection`), so they are collected too.
 """
 
 import logging
@@ -68,11 +70,11 @@ def _collect(state: LocalState, store: ObjectStore, run_id: str, now: datetime) 
         StorageError: R2 failed.
         OSError: The log could not be written.
     """
-    changes: dict[str, object] = {"objects_collected": True}
     if read_payload(state, run_id).final_status is None:
         report = read_worker(store, run_id)
         if report is not None and report.status is not None:
-            changes["final_status"] = report.status
+            # Kept before anything is deleted.
+            update_run(state, run_id, now, changes={"final_status": report.status})
     log = store.read(run_log_key(run_id))
     if log is not None:
         target = worker_log_path(state.paths.log_dir, run_id)
@@ -80,4 +82,17 @@ def _collect(state: LocalState, store: ObjectStore, run_id: str, now: datetime) 
         target.write_bytes(log)
     for found in store.list_objects(f"{RUNS_PREFIX}{run_id}/"):
         store.delete(found.key)
-    update_run(state, run_id, now, changes=changes)
+    update_run(state, run_id, now, changes={"objects_collected": True})
+
+
+def reopen_collection(state: LocalState, run_id: str | None, now: datetime) -> None:
+    """Mark a final, collected run uncollected (a straggler carrying its name was stopped and may have written objects)."""
+    if run_id is None:
+        return
+    final = RunRow.status.in_(FINAL_RUN_STATUSES)
+    with state.session() as session:
+        query = select(RunRow).where(RunRow.run_id == run_id, final)
+        row = session.scalar(query)
+        collected = row is not None and payload_of(row).objects_collected
+    if collected:
+        update_run(state, run_id, now, changes={"objects_collected": False})
