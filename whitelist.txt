@@ -6,8 +6,10 @@ appname
 argtypes
 asr
 astimezone
+attrgetter
 autogenerate
 autoincrement
+autouse
 backends
 backoff
 base32
@@ -32,6 +34,7 @@ ctranslate2
 ctrl
 cuda
 dbapi
+defs
 delenv
 demuxes
 dest
@@ -86,6 +89,7 @@ getsampwidth
 getsid
 getsignal
 gettempdir
+gitignore
 groupby
 hhmmss
 hu
@@ -103,12 +107,14 @@ isfinite
 islice
 islnk
 islower
+isprintable
 isreg
 isspace
 iterdir
 jobobject
 joinpath
 kernel32
+keyring
 kibibytes
 killpg
 lavfi
@@ -186,6 +192,7 @@ retryable
 rfile
 rowcount
 runpod
+sdk
 serialises
 sessionmaker
 setenv
@@ -208,6 +215,7 @@ sqlite3
 srt
 stacklevel
 strerror
+stubber
 subparsers
 symlinks
 symtype
@@ -230,6 +238,8 @@ untimed
 untracked
 untrusted
 unwritable
+urllib
+usefixtures
 utf16
 util
 utils
