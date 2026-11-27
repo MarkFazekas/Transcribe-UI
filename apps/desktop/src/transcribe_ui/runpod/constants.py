@@ -120,6 +120,8 @@ QUEUED_POD_DEPLOYED: Final = "DEPLOYED"
 QUEUED_POD_CANCELLED: Final = "CANCELLED"
 # Queued-pod status after its `expiresAt` passed without a deploy.
 QUEUED_POD_EXPIRED: Final = "EXPIRED"
+# Queued-pod status when Runpod could not deploy it.
+QUEUED_POD_FAILED: Final = "FAILED"
 
 # Wire name of the id field of every Runpod object.
 ID_FIELD: Final = "id"

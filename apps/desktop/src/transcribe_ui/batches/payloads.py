@@ -26,6 +26,15 @@ class BatchPayload(FrozenModel):
     languages: tuple[str, ...]
 
 
+class PendingWithdrawal(FrozenModel):
+    """A leftover manifest of the batch to withdraw from R2, and the items whose results go with it."""
+
+    # SHA-256 (hex) of the manifest as this database built it: only that object is withdrawn.
+    manifest_sha256: str
+    # Items excluded or sent back to review since: their results are deleted, the others' kept.
+    item_ids: tuple[str, ...]
+
+
 class ItemProblem(FrozenModel):
     """Why an item cannot be resolved: it must be probed again or excluded."""
 

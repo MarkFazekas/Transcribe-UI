@@ -4,6 +4,7 @@ import logging
 import os
 from collections.abc import Iterator
 from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ from support.batches import batch_ports, build_batch_tree
 from support.credentials import NEVER_SHOWN, TEST_BUCKET, TEST_ENDPOINT, moto_bucket, store_request
 from support.discovery import large_tree_names, media_dir
 from support.parity import Leg
+from support.runpod import Cloud, ManualClock
+from support.runs import RunsWorld, runs_ports
 from support.storage import PART_BYTES, store_client
 from support.trees import build_tree
 from transcribe_ui.storage.r2 import R2ObjectStore
@@ -61,3 +64,15 @@ def batch_store(batch_leg: Leg) -> Iterator[R2ObjectStore]:
         stored = batch_leg.backend.execute_json(store_request())
         assert stored.status == "ok"
         yield R2ObjectStore(store_client(), TEST_BUCKET)
+
+
+@pytest.fixture
+def runs_world(tmp_path: Path) -> Iterator[RunsWorld]:
+    """Return a batch backend with every credential stored, over moto and a fake Runpod API (closed afterwards)."""
+    # Real time: the heartbeat rules compare the clock with the `LastModified` moto stamps.
+    cloud = Cloud(clock=ManualClock(datetime.now(UTC).replace(microsecond=0)))
+    created = Leg.create(tmp_path / "leg", None, build_batch_tree, runs_ports(cloud))
+    with closing(created), moto_bucket():
+        stored = created.backend.execute_json(store_request())
+        assert stored.status == "ok"
+        yield RunsWorld(created, cloud, R2ObjectStore(store_client(), TEST_BUCKET))

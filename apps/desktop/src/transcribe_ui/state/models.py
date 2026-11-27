@@ -84,6 +84,8 @@ class BatchRow(Base):
     manifest_held: Mapped[bool] = mapped_column(default=False)
     # The audio objects were cleaned up; results stay downloadable, retry is refused.
     audio_deleted: Mapped[bool] = mapped_column(default=False)
+    # A leftover manifest of this batch still to be withdrawn from R2 (`PendingWithdrawal`), or None.
+    pending_withdrawal: Mapped[Payload | None] = mapped_column(JSON(none_as_null=True), nullable=True, default=None)
     # Hidden from the default batch list.
     hidden: Mapped[bool] = mapped_column(default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)

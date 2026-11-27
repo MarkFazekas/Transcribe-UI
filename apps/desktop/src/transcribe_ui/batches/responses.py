@@ -157,6 +157,9 @@ class ExcludeItemsResponse(OkResponse):
     batch: BatchDetail
     # Audio objects found under the excluded items' prefixes and deleted.
     deleted_objects: NonNegativeInt
+    # A leftover manifest could not be withdrawn yet (R2 failed after the exclusion was saved);
+    # the next manifest publish of the batch, or the next launch, finishes it.
+    withdrawal_pending: bool = False
 
 
 class ListBatchesResponse(OkResponse):
