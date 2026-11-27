@@ -22,6 +22,7 @@ byref
 caplog
 casefold
 chdir
+checkable
 chunksize
 cjk
 cloudflarestorage
@@ -43,10 +44,13 @@ delenv
 deletable
 demuxes
 deque
+dequeued
+dequeuing
 desc
 dest
 devnull
 dfl
+dialogs
 dirs
 divmod
 dns
@@ -62,10 +66,12 @@ errnos
 errorcode
 ewouldblock
 exc
+excepthook
 exe
 executables
 exitcode
 extractall
+fallbacks
 fcntl
 fdopen
 fetchall
@@ -117,6 +123,7 @@ isalnum
 isalpha
 isascii
 isdecimal
+isdisjoint
 isfinite
 islice
 islnk
@@ -145,6 +152,7 @@ lseek
 lstat
 m2ts
 m5
+m6
 m7
 macos
 mako
@@ -171,6 +179,7 @@ ntdll
 ntpath
 nul
 nullable
+offscreen
 ondelete
 onnx
 openai
@@ -198,15 +207,23 @@ pyannote
 pydantic
 pysqlite
 pytestmark
+pytestqt
 q10
 q26
 q27
+q28
 q29
+q30
+q33
+qpa
 qs
+qt
+qtbot
 r2
 randbits
 rdonly
 rdwr
+readline
 recv
 removeprefix
 removesuffix
@@ -216,6 +233,7 @@ restype
 retryable
 rfile
 rowcount
+runnable
 runpod
 sdk
 serialises
@@ -225,6 +243,7 @@ setframerate
 setnchannels
 setsampwidth
 sha
+side6
 sig
 sighup
 sigint
@@ -261,6 +280,7 @@ unittest
 unlck
 unlink
 unspaced
+unsubscribes
 untagged
 untimed
 untracked
@@ -278,6 +298,7 @@ v3
 vad
 vads
 validator
+viewmodel
 virama
 vob
 watchdog

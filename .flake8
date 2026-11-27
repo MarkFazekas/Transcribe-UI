@@ -41,6 +41,10 @@ per-file-ignores =
     */migrations/versions/*: WPS226,WPS432
     # The smoke test's fake Runpod API overrides http.server handler names (`N802`, as in tests).
     scripts/smoke_fixtures.py: N802
+    # Qt item-model and view overrides keep Qt's names (`data`, `index`, `WPS110`). Each carries
+    # `@typing.override` (mypy checks that it overrides); pep8-naming and ruff honour it for N802.
+    */gui/*/models.py: WPS110
+    */gui/*/view.py: WPS110
 max_complexity = 8
 max_line_length = 120
 statistics = True

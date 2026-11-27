@@ -1,6 +1,7 @@
 """The backend façade: one `execute` for every request (architecture §3.1)."""
 
 import logging
+from pathlib import Path
 
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, Request, Response
 from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
@@ -19,6 +20,15 @@ class Backend:
         """Use these ports; `routes` is replaced only by tests."""
         self._ports = ports
         self._routes = default_routes() if routes is None else routes
+
+    @property
+    def log_dir(self) -> Path:
+        """Return the folder of the frontends' log files."""
+        return self._ports.state.paths.log_dir
+
+    def close(self) -> None:
+        """Close the database and give the writer lock up (the GUI, when its window closes)."""
+        self._ports.state.close()
 
     def needs_database(self, action: str) -> bool:
         """Return whether the request type opens the database."""
