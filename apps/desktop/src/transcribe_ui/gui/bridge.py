@@ -8,6 +8,7 @@ call that caused them. The bridge passes requests, events and responses on uncha
 """
 
 import logging
+import threading
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -78,6 +79,12 @@ class _CallRunnable(QRunnable):
     The pool deletes it after `run` (auto-delete, the default), and `clear()` deletes it while
     still queued, so finished calls do not pile up. `take_off` is used only while its call is
     queued; a runnable taken off is handed back by Qt and deleted here.
+
+    PySide's `QThreadPool.start` releases the GIL to start the runnable and only then records
+    the pool as its parent; a runnable that ran and was auto-deleted in between would keep that
+    parent reference (and its call) for good. So `run` waits for `handed_over`, which `submit`
+    sets once `start` has returned: the deletion always comes after the parent was recorded,
+    and removes it.
     """
 
     def __init__(self, backend: RequestRunner, relay: _Relay, pool: QThreadPool) -> None:
@@ -86,6 +93,7 @@ class _CallRunnable(QRunnable):
         self._relay = relay
         self._pool = pool
         self.call: PooledCall | None = None
+        self.handed_over = threading.Event()
 
     def take_off(self) -> bool:
         """Remove the runnable from its queue if it has not started; return whether it was."""
@@ -97,6 +105,7 @@ class _CallRunnable(QRunnable):
 
     @override
     def run(self) -> None:
+        self.handed_over.wait()
         call = self.call
         if call is None or not call.begin():
             return
@@ -198,6 +207,7 @@ class QtExecutor:
             call.abandon()
         else:
             pool.start(runnable)
+            runnable.handed_over.set()
         return call
 
     def pending(self) -> int:

@@ -12,6 +12,7 @@ from support.gated import DRAIN_MS, REFRESH, UPLOAD, GatedRunner, listing, refre
 from support.parity import RecordingProgress
 from transcribe_ui.api.classes import (
     ErrorResponse,
+    GetAppInfoRequest,
     Request,
     Response,
 )
@@ -23,6 +24,8 @@ from transcribe_ui.gui.executor import CallHandle, PooledCall
 
 # Timeout of the shared-deadline test, in milliseconds (three pools would take three times as long).
 WAIT_ONCE_MS = 500
+# Instant calls of the runnable stress test.
+STRESS_CALLS = 2000
 UPLOAD_LATER = "batch_20261127_130000"
 
 
@@ -186,3 +189,17 @@ def test_thread_wait_shares_one_deadline(qtbot: QtBot) -> None:
     wait_for(qtbot, lambda: executor.pending() == 0)
     assert executor.wait_for_threads(DRAIN_MS)
     assert elapsed_ms < WAIT_ONCE_MS * 2
+
+
+def test_many_instant_calls_free_their_runnables(qtbot: QtBot) -> None:
+    """Calls that end at once (racing `start` against the pool's auto-delete) leave no runnable behind."""
+    executor = QtExecutor(GatedRunner())
+    gc.collect()
+    before = _runnables()
+    answers: list[Response] = []
+    for _ in range(STRESS_CALLS):
+        executor.submit(GetAppInfoRequest(action="get_app_info"), answers.append)
+    wait_for(qtbot, lambda: len(answers) == STRESS_CALLS)
+    assert executor.wait_for_threads(DRAIN_MS)
+    gc.collect()
+    assert _runnables() == before

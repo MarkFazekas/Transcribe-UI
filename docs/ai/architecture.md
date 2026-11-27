@@ -192,7 +192,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   `cleanup/`) each get `viewmodel.py` and `view.py` in their part.
 - **Bridge** (`QtExecutor`): the GUI thread never calls `Backend.execute`. Each request runs as
   a `QRunnable` (auto-deleted by its pool after `run` or on `clear()`; one taken off its queue
-  is deleted by the bridge, so finished calls are freed) on one of three `QThreadPool`s, by the
+  is deleted by the bridge, so finished calls are freed; `run` first waits until `start` has
+  returned, since PySide records the pool as parent only then) on one of three `QThreadPool`s, by the
   presentation table `ACTION_POOLS` in `gui/constants.py`: `long` (3 threads: `scan_tree`,
   `review_batch`, `run_upload`, `run_download`, `import_custom_plan`, `create_retry_batch`,
   `cleanup_cloud`, `setup_cloud`), `poll` (1 reserved thread: `refresh_status`,
