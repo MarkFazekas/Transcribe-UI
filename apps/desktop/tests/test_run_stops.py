@@ -7,11 +7,8 @@ every user stop records the end (time and reason) and clears an earlier stop err
 stop whose Runpod call fails is recorded on the run.
 """
 
-from collections.abc import Callable
 from datetime import timedelta
-from functools import partial
 
-import httpx
 import pytest
 
 from support.launch import (
@@ -27,8 +24,9 @@ from support.launch import (
     set_up_cloud,
 )
 from support.monitor import LIST_RUNS, refreshed_run, write_status
-from support.runpod_api import Failure, QueuedPods, Record
+from support.runpod_api import Failure, Record
 from support.runs import RunsWorld, seed_uploaded
+from support.stops import forget_queued_on_cancel, queued_run
 from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_EXPIRED
 from transcribe_ui.runs.constants import ERROR_STOP_UNVERIFIED
 from transcribe_ui.runs.responses import (
@@ -43,8 +41,6 @@ from transcribe_ui.runs.responses import (
 RUNNING = "running"
 # Run status and end reason of a run the user stopped.
 CANCELLED = "cancelled"
-# The fake's delete of a queued pod.
-type Delete = Callable[[str], httpx.Response]
 # How long a new pod stays out of the pod list in the list-lag tests.
 LIST_LAG = timedelta(minutes=5)
 # A Runpod answer that refuses a request without retries.
@@ -59,31 +55,9 @@ def world(runs_world: RunsWorld) -> RunsWorld:
     return runs_world
 
 
-def _queued_run(world: RunsWorld, *, deploy: bool = True) -> tuple[str, str]:
-    """Launch with no capacity; let the queued pod deploy at the next request; return the run and queued-pod ids."""
-    world.cloud.settings.capacity = False
-    run = launch_run(world)
-    assert run.queued_pod_id is not None
-    if deploy:
-        world.cloud.api.queued_pods.schedule_deploy(run.queued_pod_id, world.now())
-    return run.run_id, run.queued_pod_id
-
-
 def _unlisted_from_now(world: RunsWorld) -> None:
     """Keep pods created from now on out of `GET /v2/pods` for a while (list lag after a deploy)."""
     world.cloud.settings.list_lag = LIST_LAG
-
-
-def _delete_and_forget(queued: QueuedPods, delete: Delete, object_id: str) -> httpx.Response:
-    response = delete(object_id)
-    queued.records.pop(object_id, None)
-    return response
-
-
-def _forget_queued_on_cancel(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make Runpod forget a queued pod once it is cancelled: the read after the cancel is a 404."""
-    queued = world.cloud.api.queued_pods
-    monkeypatch.setattr(queued, "delete", partial(_delete_and_forget, queued, queued.delete))
 
 
 def _pod_records(world: RunsWorld) -> dict[str, Record]:
@@ -109,11 +83,11 @@ def _pod_status(world: RunsWorld, pod_id: str) -> str | None:
 
 def test_queued_cancel_stops_its_pod(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
     """The queued pod reads deployed, then 404 after the cancel: its pod is terminated before the run ends."""
-    run_id, queued_id = _queued_run(world)
+    run_id, queued_id = queued_run(world)
     world.cloud.settings.keep_terminal = True
     # Not listed: only the pod the first read of the queued pod names can be found.
     _unlisted_from_now(world)
-    _forget_queued_on_cancel(world, monkeypatch)
+    forget_queued_on_cancel(world, monkeypatch)
     stopped = ok_as(send(world, CANCEL_QUEUED, queued_pod_id=queued_id, confirm=True), CancelQueuedPodResponse)
     pod_id = stopped.terminated_pod_id
     assert pod_id is not None
@@ -128,8 +102,8 @@ def test_queued_cancel_stops_its_pod(world: RunsWorld, monkeypatch: pytest.Monke
 
 def test_cancel_worker_finds_the_deployed_pod_by_name(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
     """The queued pod deploys during the cancel and is then gone: its pod, listed under the run's name, is stopped."""
-    run_id, _queued_id = _queued_run(world)
-    _forget_queued_on_cancel(world, monkeypatch)
+    run_id, _queued_id = queued_run(world)
+    forget_queued_on_cancel(world, monkeypatch)
     cancelled = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
     assert cancelled.terminated_pod_id is not None
     assert (cancelled.run.status, pods_of(world)) == (CANCELLED, [])
@@ -195,9 +169,9 @@ def test_failed_deadline_stop_is_recorded(world: RunsWorld) -> None:
 
 def test_vanished_queued_pod_with_unlisted_pod(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
     """Gone after the cancel, its new pod not listed yet: not cancelled until the pod shows, then it is stopped."""
-    run_id, _queued_id = _queued_run(world)
+    run_id, _queued_id = queued_run(world)
     _unlisted_from_now(world)
-    _forget_queued_on_cancel(world, monkeypatch)
+    forget_queued_on_cancel(world, monkeypatch)
     refused = send(world, CANCEL, run_id=run_id)
     assert (error_code(refused), run_row(world, run_id)[0]) == (ERROR_STOP_UNVERIFIED, "queued")
     world.cloud.clock.advance(LIST_LAG)
@@ -207,7 +181,7 @@ def test_vanished_queued_pod_with_unlisted_pod(world: RunsWorld, monkeypatch: py
 
 def test_sighting_during_a_queued_cancel_is_kept(world: RunsWorld) -> None:
     """A read shows the deployed pod but its terminate does not take: the run follows it as seen; a retry stops it."""
-    run_id, queued_id = _queued_run(world)
+    run_id, queued_id = queued_run(world)
     world.cloud.settings.terminate_effective = False
     refused = send(world, CANCEL_QUEUED, queued_pod_id=queued_id, confirm=True)
     status, payload = run_row(world, run_id)
@@ -224,7 +198,7 @@ def test_sighting_during_a_queued_cancel_is_kept(world: RunsWorld) -> None:
 
 def test_cancel_of_an_ended_pod_leaves_the_run(world: RunsWorld) -> None:
     """The queued pod deployed a pod that is terminated already: nothing live is stopped, the refresh ends the run."""
-    run_id, queued_id = _queued_run(world)
+    run_id, queued_id = queued_run(world)
     world.cloud.settings.keep_terminal = True
     world.cloud.api.queued_pods.advance()
     deployed = _queued_record(world, queued_id).body["podId"]
@@ -237,7 +211,7 @@ def test_cancel_of_an_ended_pod_leaves_the_run(world: RunsWorld) -> None:
 
 def test_cancel_of_an_ended_queue_leaves_the_run(world: RunsWorld) -> None:
     """The queued pod had expired without a pod: the cancel stops nothing, the run is left to the refresh."""
-    run_id, queued_id = _queued_run(world, deploy=False)
+    run_id, queued_id = queued_run(world, deploy=False)
     _queued_record(world, queued_id).body["status"] = QUEUED_POD_EXPIRED
     stopped = ok_as(send(world, CANCEL_QUEUED, queued_pod_id=queued_id, confirm=True), CancelQueuedPodResponse)
     assert (stopped.outcome, stopped.local_status) == (CANCELLED, "queued")
@@ -247,7 +221,7 @@ def test_cancel_of_an_ended_queue_leaves_the_run(world: RunsWorld) -> None:
 
 def test_terminating_the_deployed_pod_ends_the_run(world: RunsWorld) -> None:
     """The run knows only its queued pod, which deployed the pod `terminate_pod` stops: the run records it and ends."""
-    run_id, _queued_id = _queued_run(world)
+    run_id, _queued_id = queued_run(world)
     world.cloud.api.queued_pods.advance()
     pod_id = pods_of(world)[0][0]
     stopped = ok_as(send(world, TERMINATE, pod_id=pod_id, confirm=True), TerminatePodResponse)

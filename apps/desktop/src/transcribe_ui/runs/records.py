@@ -220,3 +220,11 @@ def reopen_collection(state: LocalState, run_id: str | None, now: datetime) -> N
         collected = row is not None and payload_of(row).objects_collected
     if collected:
         update_run(state, run_id, now, changes={"objects_collected": False})
+
+
+def open_run_id(state: LocalState, run_id: str | None) -> str | None:
+    """Return the id if it names a local run that is not final, else None."""
+    if run_id is None:
+        return None
+    status = run_statuses(state).get(run_id)
+    return run_id if status is not None and status not in FINAL_RUN_STATUSES else None

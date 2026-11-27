@@ -1155,17 +1155,27 @@ database):
   read or the deploy has settled. A run with only a
   queued-pod id: `DELETE` the queued pod, then `GET` it: a pod id in it means it deployed
   during the cancel, so the run records that pod (not seen) and becomes `running` (followed
-  from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED`, `FAILED` or a
-  404 verify the cancel. A queued pod that is gone (404) after the cancel may have deployed
-  just before it: the pod an earlier read of it named (`cancel_queued_pod`), else every live
-  pod listed under its name (the run's pod name), is terminated and verified the same way
-  (`stopping.QueuedTarget`; the first one is recorded on the run). With none of these the 404
-  counts as cancelled only when an earlier read showed the queued pod ended without a pod, or
-  `DEPLOY_SETTLE_S` after the queue's `expiresAt` (a pod deployed just before would be listed by
-  then, as `following` settles a vanished queued pod); before that it gives `stop_unverified`.
-  A pod the queued pod deployed is read before it is terminated: a read that shows it is a
-  sighting (recorded as seen on the run), and one that reads `TERMINATED` (or a 404 that
-  already counts as gone) means it had ended, so nothing live was stopped. So no run becomes
+  from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED` or `FAILED`
+  verify the cancel. A queued pod that is gone (404) after the cancel may have deployed just
+  before it: the pod an earlier read of it named (`cancel_queued_pod`), else every live pod
+  listed under its name (the run's pod name), is terminated and verified the same way
+  (`stopping.QueuedTarget`). Every one is stopped even when one fails; the first failure is
+  raised afterwards and the run follows the first pod whose stop did not show, so it stays open
+  until all are verified. With none of these pods the 404 counts as cancelled only by the settle
+  rule `refresh_status` uses for a vanished queued pod (`stopping.vanish_verdict`):
+  `DEPLOY_SETTLE_S` after the earlier of the queue's `expiresAt` and the cancel's
+  acknowledgement (`cancel_acknowledged_at`, recorded on the run only after the DELETE was
+  answered with success), and two empty lookups at least `LAUNCH_LOOKUP_GAP_S` apart (the first
+  recorded in `first_empty_lookup_at`); before that it gives `stop_unverified`. A queued pod an
+  earlier read showed ended without a pod needs none of this. Without a local run to record on
+  (a straggler), one empty lookup after the settle time counts, since nothing local becomes
+  final; a read without `expiresAt` takes the local run's, else the deadline in the pod name.
+  `expiresAt` is Runpod's clock and the acknowledgement this computer's: the rule assumes they
+  differ by much less than `DEPLOY_SETTLE_S`. A pod the queued pod deployed is read before it
+  is terminated: a read that shows it is a sighting (recorded as seen on the run), and one that
+  reads `TERMINATED` means it had ended, so nothing live was stopped and no DELETE is sent; a
+  404 still sends the DELETE (list and lookup lag may hide a live pod) and counts as nothing
+  live only when the 404 already means gone. So no run becomes
   final while its pod may still bill. The worker's report is read best effort from R2 before
   the stop (a cancel during that read leaves nothing stopped); once the stop is verified the
   run ends (`runs/stopped.py`): `cancelled` with `ended_at` and the end reason `cancelled`,
@@ -1192,8 +1202,10 @@ database):
   pod of `terminate_pod` was read, so it is seen; `runs/straggler_stops.py`). A pod a queued
   pod deployed is recorded on the open local run that recorded that queued pod and no pod yet,
   before it is terminated: by `cancel_queued_pod`, and by `terminate_pod` when the run's queued
-  pod names the pod being stopped; a pod read that shows the run's pod marks it seen there, so
-  a retry after an unverified stop does not wait for the deploy to settle. A local run of that
+  pod names the pod being stopped (best effort: a failed read of the queued pod skips this and
+  the pod is terminated anyway); a pod read that shows the run's pod marks it seen there, so
+  a retry after an unverified stop does not wait for the deploy to settle
+  (`runs/stop_records.py`). A local run of that
   id that is not final ends as `cancel_worker` ends it only when what was stopped (verified)
   includes the pod it recorded, or, without a recorded pod, its queued pod, or it recorded
   neither: a stray pod carrying the run's name, or a stop that missed the run's pod, leaves
@@ -1215,8 +1227,9 @@ database):
      queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
      `podId`: `running` with that pod not seen; `CANCELLED`: `cancelled`; `EXPIRED`, `FAILED`:
      `failed`). A queued pod Runpod no longer knows (404) with no pod under the run's name ends
-     the run (`failed`, `queue_ended`) only `DEPLOY_SETTLE_S` after the queue's `expiresAt`, when
-     a pod deployed just before it would be listed, and only after two such lookups at least
+     the run (`failed`, `queue_ended`) only `DEPLOY_SETTLE_S` after the earlier of the queue's
+     `expiresAt` and an acknowledged cancel (`cancel_acknowledged_at`), when a pod deployed just
+     before would be listed, and only after two such lookups at least
      `LAUNCH_LOOKUP_GAP_S` apart (the first recorded in `first_empty_lookup_at`, which a later
      sighting of the queued pod clears), as for a `launching` run. A run with a pod id follows that pod (listed, else read by
      id): a read is a sighting (`pod_seen`) and records the status, the price (`cost`, USD/h),

@@ -4,22 +4,29 @@ A terminate counts once the pod reads `TERMINATED`, or is unknown (404) after a 
 it or, for a pod known only from its queued pod, `DEPLOY_SETTLE_S` after the deploy (a 204 on
 the delete is no sighting).
 A cancel counts once the queued pod reads `CANCELLED`, `EXPIRED` or `FAILED` (none of them leads
-to a pod), or is unknown once that is settled (`QueuedTarget.vanish_settled`); every pod it
-deployed (named by it, by an earlier read, or listed under its name once it is gone) is read,
-then terminated and verified unless it had ended.
+to a pod), or is unknown (404) by the settle rule (`vanish_verdict`, shared with `refresh_status`);
+every pod it deployed (named by it, by an earlier read, or listed under its name once it is
+gone) is read, then terminated and verified unless it reads `TERMINATED`.
 """
 
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
+from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import Clock
 from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import QueuedPod
 from transcribe_ui.runs.classes import RunpodKind
-from transcribe_ui.runs.constants import DEPLOY_SETTLE_S, IGNORED_QUEUED_POD_STATUSES, POD_KIND, QUEUED_POD_KIND
+from transcribe_ui.runs.constants import (
+    DEPLOY_SETTLE_S,
+    IGNORED_QUEUED_POD_STATUSES,
+    LAUNCH_LOOKUP_GAP_S,
+    POD_KIND,
+    QUEUED_POD_KIND,
+)
 from transcribe_ui.runs.errors import StopUnverifiedError, runpod_call
 from transcribe_ui.runs.responses import QueuedStop
 
@@ -105,6 +112,63 @@ def terminate_verified(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSe
         raise StopUnverifiedError(POD_KIND, pod_id)
 
 
+# How a queued pod Runpod no longer knows (404) is judged: gone (no pod of it can still show up),
+# the first empty lookup after the settle time (to record), or too early.
+type VanishVerdict = Literal["gone", "record", "wait"]
+# Told the moment the queued pod's cancel was acknowledged (a success answer to its DELETE).
+type OnAcknowledged = Callable[[datetime], None]
+# Whether a pod stop found the pod live, or the error that kept the stop from showing.
+type StopOutcome = bool | DomainError
+# A pod whose stop did not show, with the error.
+type FailedStop = tuple["KnownPod", DomainError]
+# Told the moment of an empty lookup after the settle time (the first of the two the rule needs).
+type OnEmptyLookup = Callable[[datetime], None]
+
+
+def queue_settled_from(expires_at: datetime | None, acknowledged_at: datetime | None) -> datetime | None:
+    """Return when a pod the queued pod might have deployed is surely listed; None if unknown.
+
+    A queued pod deploys only before its queue's `expiresAt` and before its cancel took effect,
+    so the earlier of the two, plus `DEPLOY_SETTLE_S` (the list lag after a deploy), bounds it.
+    `expiresAt` is Runpod's clock and the acknowledgement this computer's: the rule assumes the
+    two differ by much less than `DEPLOY_SETTLE_S`.
+    """
+    known = [moment for moment in (expires_at, acknowledged_at) if moment is not None]
+    return min(known) + timedelta(seconds=DEPLOY_SETTLE_S) if known else None
+
+
+def vanish_verdict(
+    settled_from: datetime | None, first_empty_lookup_at: datetime | None, now: datetime
+) -> VanishVerdict:
+    """Return how a queued pod Runpod no longer knows, with no pod listed under its name, is judged.
+
+    Gone only after the settle time (`queue_settled_from`) and two empty lookups at least
+    `LAUNCH_LOOKUP_GAP_S` apart (one empty answer may be lag or a glitch); the first is recorded.
+    """
+    if settled_from is None or now < settled_from:
+        return "wait"
+    if first_empty_lookup_at is None or first_empty_lookup_at < settled_from:
+        return "record"
+    if now - first_empty_lookup_at < timedelta(seconds=LAUNCH_LOOKUP_GAP_S):
+        return "wait"
+    return "gone"
+
+
+@dataclass(frozen=True)
+class QueuedHooks:
+    """What a caller is told during a queued pod's stop, to record it on its local run.
+
+    `on_deployed`: the pod the run follows, before it is terminated (the first pod, or later the
+    first whose stop did not show); `on_seen`: a pod read showed a pod; `on_acknowledged`: the cancel
+    was acknowledged; `on_empty_lookup`: the first empty lookup after the settle time.
+    """
+
+    on_deployed: OnDeployed | None = None
+    on_seen: OnSeen | None = None
+    on_acknowledged: OnAcknowledged | None = None
+    on_empty_lookup: OnEmptyLookup | None = None
+
+
 @dataclass(frozen=True)
 class QueuedTarget:
     """A queued pod to cancel, with what is known of it and of a pod it may have deployed.
@@ -112,7 +176,10 @@ class QueuedTarget:
     `deployed` is the pod an earlier read named (None if none did); `name` is the queued pod's
     name, which a pod it deploys carries too, to look the pod up when the queued pod is gone
     (404) after the cancel; `expires_at` is the queue's `expiresAt` (a pod deploys only before
-    it); `ended` says an earlier read showed it ended without a pod.
+    it); `ended` says an earlier read showed it ended without a pod. `acknowledged_at` and
+    `first_empty_lookup_at` are what an earlier stop recorded on the local run; `tracked` says
+    there is such a run to record on (without one, a single empty lookup after the settle time
+    counts, since nothing local becomes final).
     """
 
     queued_pod_id: str
@@ -120,6 +187,9 @@ class QueuedTarget:
     deployed: KnownPod | None = None
     expires_at: datetime | None = None
     ended: bool = False
+    acknowledged_at: datetime | None = None
+    first_empty_lookup_at: datetime | None = None
+    tracked: bool = False
 
     @classmethod
     def read_from(cls, entry: QueuedPod) -> "QueuedTarget":
@@ -131,16 +201,16 @@ class QueuedTarget:
         expires_at = None if entry.queue is None else entry.queue.expires_at
         return cls(entry.queued_pod_id, entry.name, deployed, expires_at, ended=ended_without_pod(entry))
 
-    def vanish_settled(self, now: datetime) -> bool:
-        """Return whether a 404 with no pod listed under its name means it deployed none.
-
-        True when an earlier read showed it ended, or `DEPLOY_SETTLE_S` has passed since its queue
-        expired (a pod deployed just before then would be listed by now).
-        """
+    def vanish(self, acknowledged_at: datetime | None, now: datetime) -> VanishVerdict:
+        """Return how a 404 after the cancel with no pod listed under its name is judged (see `vanish_verdict`)."""
         if self.ended:
-            return True
-        expires = self.expires_at
-        return expires is not None and now - expires >= timedelta(seconds=DEPLOY_SETTLE_S)
+            return "gone"
+        known = [moment for moment in (self.acknowledged_at, acknowledged_at) if moment is not None]
+        settled_from = queue_settled_from(self.expires_at, min(known, default=None))
+        verdict = vanish_verdict(settled_from, self.first_empty_lookup_at, now)
+        if verdict == "record" and not self.tracked:
+            return "gone"
+        return verdict
 
 
 def ended_without_pod(entry: QueuedPod) -> bool:
@@ -152,40 +222,92 @@ def cancel_queued_verified(
     pods: PodsApi,
     target: QueuedTarget,
     clock: Clock,
-    on_deployed: OnDeployed | None = None,
-    on_seen: OnSeen | None = None,
+    hooks: QueuedHooks | None = None,
 ) -> QueuedStopped:
     """Cancel the queued pod and read it again; terminate (verified) every pod it deployed.
 
     The pods to terminate are the one the queued pod names now, else the one an earlier read
     named (`target.deployed`), else, when the queued pod is gone (404), every live pod listed
     under its name: a queued pod that deployed just before the cancel and then vanished must not
-    leave its pod running. With none of these, a 404 counts as cancelled only once it is settled
-    (`QueuedTarget.vanish_settled`): a pod just deployed may not be listed yet. `on_deployed` is
-    told the first pod (the run follows it should its stop not show).
+    leave its pod running. Every one is stopped even when one fails; the first failure is raised
+    afterwards, and the run is told to follow the first pod whose stop did not show. With none
+    of these pods, a 404 counts as cancelled only by the settle rule (`QueuedTarget.vanish`).
 
     Raises:
         StopUnverifiedError: It still reads waiting, reads deployed without naming its pod, is gone
-            too early to rule out a pod not listed yet, or a pod still reads live (or is missing
-            right after the deploy).
+            too early to rule out a pod not listed yet, or a pod's stop does not show.
         DomainError: A Runpod call failed.
     """
+    told = hooks or QueuedHooks()
     queued_pod_id = target.queued_pod_id
-    runpod_call(lambda: pods.cancel_queued(queued_pod_id))
+    acknowledged = runpod_call(lambda: pods.cancel_queued(queued_pod_id))
+    acknowledged_at = clock.now() if acknowledged else None
+    if acknowledged_at is not None and told.on_acknowledged is not None:
+        told.on_acknowledged(acknowledged_at)
     entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
     deployed = _deployed_pods(pods, target, entry)
     if deployed:
-        if on_deployed is not None:
-            on_deployed(deployed[0])
-        live = [_stop_pod(pods, pod, clock, on_seen) for pod in deployed]
-        pod_ids = tuple(pod.pod_id for pod in deployed)
-        return QueuedStopped("pod_terminated", pod_ids, stopped_live=any(live))
-    gone = entry is None and target.vanish_settled(clock.now())
-    if gone or (entry is not None and entry.status in IGNORED_QUEUED_POD_STATUSES):
-        return QueuedStopped("cancelled", stopped_live=not target.ended)
+        return _stop_deployed(pods, deployed, clock, told)
+    cancelled = QueuedStopped("cancelled", stopped_live=not target.ended)
+    if entry is None:
+        if _vanished(target, acknowledged_at, clock.now(), told):
+            return cancelled
+    elif entry.status in IGNORED_QUEUED_POD_STATUSES:
+        return cancelled
     # QUEUED (the cancel did not take effect), DEPLOYED without its pod's id, gone too early, or
     # an unknown status.
     raise StopUnverifiedError(QUEUED_POD_KIND, queued_pod_id)
+
+
+def _vanished(target: QueuedTarget, acknowledged_at: datetime | None, now: datetime, told: QueuedHooks) -> bool:
+    """Return whether a queued pod gone after the cancel counts as cancelled; record a first empty lookup."""
+    verdict = target.vanish(acknowledged_at, now)
+    if verdict == "record" and told.on_empty_lookup is not None:
+        told.on_empty_lookup(now)
+    return verdict == "gone"
+
+
+def _stop_deployed(pods: PodsApi, deployed: list[KnownPod], clock: Clock, told: QueuedHooks) -> QueuedStopped:
+    """Stop every pod the queued pod deployed; raise the first failure once all were tried.
+
+    Raises:
+        DomainError: A pod's stop did not show or a Runpod call failed (the run follows that pod).
+    """
+    if told.on_deployed is not None:
+        told.on_deployed(deployed[0])
+    on_seen = told.on_seen
+    outcomes = [_try_stop(pods, each, clock, on_seen) for each in deployed]
+    failed = _first_failure(deployed, outcomes)
+    if failed is not None:
+        failed_pod, error = failed
+        if told.on_deployed is not None and failed_pod is not deployed[0]:
+            told.on_deployed(failed_pod)
+        raise error
+    pod_ids = tuple(each.pod_id for each in deployed)
+    live = [outcome is True for outcome in outcomes]
+    return QueuedStopped("pod_terminated", pod_ids, stopped_live=any(live))
+
+
+def _first_failure(deployed: list[KnownPod], outcomes: list[StopOutcome]) -> FailedStop | None:
+    """Return the first pod whose stop did not show, with its error; None when all did."""
+    for pod, outcome in zip(deployed, outcomes, strict=True):
+        if isinstance(outcome, DomainError):
+            return pod, outcome
+    return None
+
+
+def _try_stop(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None) -> StopOutcome:
+    """Stop the pod (`_stop_pod`); return whether it was live, or the error that kept the stop from showing.
+
+    Raises:
+        CancelledError: The request was cancelled.
+    """
+    try:
+        return _stop_pod(pods, pod, clock, on_seen)
+    except CancelledError:
+        raise
+    except DomainError as error:
+        return error
 
 
 def _deployed_pods(pods: PodsApi, target: QueuedTarget, entry: QueuedPod | None) -> list[KnownPod]:
@@ -204,10 +326,12 @@ def _deployed_pods(pods: PodsApi, target: QueuedTarget, entry: QueuedPod | None)
 
 
 def _stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None) -> bool:
-    """Terminate the pod (verified) unless it had ended; return whether it read live before.
+    """Terminate the pod (verified) unless it reads `TERMINATED`; return whether it was live.
 
-    A read that returns the pod is a sighting (`on_seen` is told). A pod that reads `TERMINATED`,
-    or is missing once a 404 means gone, had ended: nothing to stop.
+    A read that returns the pod is a sighting (`on_seen` is told). A pod that reads `TERMINATED`
+    had ended: nothing to stop. A 404 still sends the DELETE (harmless when the pod is gone; list
+    and lookup lag may hide a live pod) and is verified as `terminate_verified` does; the pod
+    counts as live unless the 404 already meant gone.
 
     Raises:
         StopUnverifiedError: The pod still reads live, or is missing too early to count as gone.
@@ -215,15 +339,15 @@ def _stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None
     """
     pod_id = pod.pod_id
     found = runpod_call(lambda: pods.get_pod(pod_id))
-    if found is None and pod.gone_when_missing(clock.now()):
+    if found is None:
+        gone = pod.gone_when_missing(clock.now())
+        terminate_verified(pods, pod, clock, on_seen)
+        return not gone
+    if not pod.seen and on_seen is not None:
+        on_seen(pod_id)
+    if found.status == POD_TERMINATED:
         return False
-    if found is not None:
-        if not pod.seen and on_seen is not None:
-            on_seen(pod_id)
-        pod = KnownPod(pod_id, seen=True)
-        if found.status == POD_TERMINATED:
-            return False
-    terminate_verified(pods, pod, clock, on_seen)
+    terminate_verified(pods, KnownPod(pod_id, seen=True), clock, on_seen)
     return True
 
 

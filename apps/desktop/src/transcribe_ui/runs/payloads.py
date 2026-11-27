@@ -98,6 +98,9 @@ class RunPayload(FrozenModel):
     stop_error: str | None = None
     # When `refresh_status` last followed the run: elapsed time and cost are as of then (or `ended_at`).
     refreshed_at: AwareDatetime | None = None
+    # When a cancel of the run's queued pod was first acknowledged (recorded only after the success
+    # answer): no pod deploys after it, so a vanished queued pod settles from it (`stopping`).
+    cancel_acknowledged_at: AwareDatetime | None = None
 
     def known_pod(self) -> KnownPod | None:
         """Return the run's pod with what is known of its sightings (None without a pod id).

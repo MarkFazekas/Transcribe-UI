@@ -117,7 +117,8 @@ def test_old_payloads_get_the_new_keys(upgraded: tuple[Backend, Path]) -> None:
     batch = json.loads(_stored(database_file, "SELECT payload FROM batches"))
     run = json.loads(_stored(database_file, "SELECT payload FROM runs"))
     assert batch == {**OLD_BATCH_PAYLOAD, "composition": None}
-    assert run == {**OLD_RUN_PAYLOAD, "worker": None, "stop_error": None, "refreshed_at": None}
+    added = {"worker": None, "stop_error": None, "refreshed_at": None, "cancel_acknowledged_at": None}
+    assert run == {**OLD_RUN_PAYLOAD, **added}
 
 
 def test_upgraded_rows_read_as_before(upgraded: tuple[Backend, Path]) -> None:
