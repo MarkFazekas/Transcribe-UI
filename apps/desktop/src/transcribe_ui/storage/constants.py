@@ -6,8 +6,8 @@ from typing import Final
 
 # R2 region name (R2 ignores it, botocore needs one).
 R2_REGION: Final = "auto"
-# Attempts per S3 request, the first included (botocore "standard" retry mode, with backoff); the
-# worker's `max_attempts=5` means 5 retries, so the same 6 in all.
+# Attempts per S3 request, the first included (botocore "standard" retry mode, with backoff), as in
+# the worker.
 S3_TOTAL_ATTEMPTS: Final = 6
 # Seconds to wait for a connection to R2, as in the worker.
 S3_CONNECT_TIMEOUT_S: Final = 10
