@@ -44,7 +44,14 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Next
 
 1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
-2. M5 wave 3 per `docs/ai/plans/m5.md` §4 (M5.1-M5.8 are built): M5.9 (manifests and run
-   activity) next; M4 runs whenever the architect is available.
-3. M5.10 builds on item phase `uploaded` and `batches/rereview.py` `return_item_to_review`;
-   its scope includes the cross-computer batch id check (`plans/m5.md`).
+2. M5 wave 4 per `docs/ai/plans/m5.md` §4 (M5.1-M5.9 are built): M5.10 (conversion and
+   resumable upload) and M5.11 (worker launch and reconciliation) in parallel; M4 runs whenever
+   the architect is available.
+3. M5.10 builds on item phase `uploaded`, `batches/rereview.py` `return_item_to_review` and
+   the M5.9 manifest step (`upload/publish.py` `manifest_step`, opened with `runs/cloud.py`
+   `open_cloud`); it writes `audio_objects` rows with status `verified` and an
+   `AudioObjectPayload` (`upload/payloads.py`), which `build_manifest` reads. Its scope includes
+   the cross-computer batch id check (`plans/m5.md`).
+4. M5.11 uses `runs/activity.py` `check_activity`, `runs/scope.py` `read_launch_scope`
+   (fingerprint) and `publish_held_manifests`, all under the runs lock; the run row payload is
+   still `{}` (M5.11 defines it).

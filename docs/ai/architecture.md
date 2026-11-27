@@ -352,6 +352,40 @@ docs/human/, docs/ai/     see CLAUDE.md
   - **Listing.** `list_batches` lists newest first, hidden batches only with `include_hidden`;
     `set_batch_hidden` hides only `downloaded` or `cleaned` batches and shows any batch again.
     `delete_batch` removes the rows of a batch in `composing` or `reviewing` (cascade).
+- **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
+  own: `run_upload`, `create_retry_batch`, `launch_worker` and `refresh_status` call it).
+  - **Manifest from the database.** `build_manifest` lists every item with `transcribe` jobs,
+    in selection order, with the audio objects its jobs use (by key) and its jobs by language;
+    `scan_root` and `path_flavor` are the batch's (the flavour of the OS that scanned it). It is
+    built only for a complete upload: every item `uploaded` and every audio object a job uses
+    has a `verified` `audio_objects` row, whose payload (`upload/payloads.py`) holds the
+    manifest's audio entry (track, extension, codec, duration, size); otherwise
+    `upload_incomplete` (details: the item ids). A batch without `transcribe` jobs gets
+    `nothing_to_transcribe` (the extract-only path). `created_at` is the batch's creation time,
+    so the same database state always gives the same bytes and a manifest written again after
+    an interruption is the same object.
+  - **`manifest_step`** (caller holds the batch lock; the runs lock is taken through its bounded
+    wait, so a long launch gives `runs_busy` with nothing changed): checks that the batch is
+    `uploading`, builds the manifest, runs the activity check (§3.7). Inactive: the manifest is
+    written to `batch_metadata/<id>.json`, then the batch moves `uploading` → `ready` by
+    compare-and-set, clearing `manifest_held`. Active: `manifest_held` is set (outcome `held`
+    with the activity sources). The check failing (`cloud_unreachable`) also sets
+    `manifest_held`, then the error is raised; re-sending or the next `publish_held_manifests`
+    resumes. `manifest_held` is never set without the runs lock, so a launch that holds it
+    cannot see a batch become held (and published by its own `publish_held_manifests`) outside
+    the scope it confirmed.
+  - **`publish_held_manifests`** (caller holds the runs lock, checked): with no held batch it
+    does nothing (no cloud call); otherwise it runs its own activity check and, when no run is
+    active, try-locks each held batch (`LockRegistry.try_batch`; a busy batch is skipped, listed
+    as `busy`), rebuilds its manifest from the database (an incomplete one is skipped as
+    `incomplete`), writes it and moves the batch by compare-and-set on `phase = uploading AND
+    manifest_held`.
+  - **Order and interruption.** The manifest object is written before the phase change. A crash
+    in between leaves a complete manifest for an `uploading` batch (the worker may process it,
+    which is correct); the next step writes the same bytes and moves the batch. Exclusion and
+    re-review delete such a leftover manifest (`withdraw_manifest`) after their database
+    transaction and before any audio object, so the worker never sees a manifest listing audio
+    that is gone; the cleanup of an `uploading` batch (M5.14) deletes it too.
 
 ### 3.4 Conversion
 
@@ -674,6 +708,44 @@ requests wire it in M5.13):
   separately, open Q28). The app shows:
   waiting for a machine (cancellable), starting, transcribing (batch, file, elapsed time,
   cost so far), finished or failed.
+- **Run activity** (`transcribe_ui/runs/activity.py`, with `pods.py` and `heartbeats.py`;
+  `check_activity`): used by `launch_worker`, `cleanup_cloud`, the manifest step and
+  `publish_held_manifests`, always under the runs lock (checked: `LockRegistry.holds_runs`,
+  else `LockOrderError`). It returns every sign of a live run (`RunActivity.sources`: kind,
+  name, status), so a refusal can say why; none means inactive. A run is active when:
+  - a local run's status is not final (final: `finished`, `failed`, `cancelled`,
+    `launch_failed`; a status this version does not know counts as active);
+  - the Runpod lists hold a `transcribe-ui-*` pod in any status but `TERMINATED`, or a
+    `transcribe-ui-*` queued pod in any status but `FAILED`, `EXPIRED` and `CANCELLED` (an
+    unknown status counts). A `DEPLOYED` one (or one without `podId`) counts until its pod is
+    listed (the pod's own entry decides then), its pod reads `TERMINATED` by id, or the pod has
+    stayed out of the list for `DEPLOY_SETTLE_S` (10 min) after the deploy (`resolvedAt`) or
+    the name deadline has passed. Before that, a missing pod or a 404 for it may be list lag
+    and counts as active. The plan's "404 after the pod was seen" is implemented as this settle
+    time, which needs no memory of earlier sightings (a pod that ran while the app was closed
+    was never seen) and makes no lookup for the old `DEPLOYED` entries the queued-pod list
+    keeps;
+  - a `runs/*/status.json` cannot be read, or has a non-final state with `updated_at` at most
+    `HEARTBEAT_STALE_S` (10 min) before the clock (or after it; the worker writes every ~30 s).
+
+  The check fails closed: a Runpod list or lookup that fails (after the client's retries)
+  or an R2 list or read that fails raises `cloud_unreachable` (details `part`: `runpod` or
+  `r2`, `cause`: the error code, e.g. `runpod_key_rejected`), never "inactive". So the
+  manifest step needs the Runpod key too: `runs/cloud.py` `open_cloud` reads all five
+  credentials in one lookup and opens R2 and the Runpod pods API (no call yet, so a
+  credentials error changes nothing).
+- **Launch scope** (`transcribe_ui/runs/scope.py`, `manifests.py`; `read_launch_scope`): what
+  the next run processes, read the way the worker plans (§5.3). For each object under
+  `batch_metadata/`: a key that is not a manifest key is unreadable (`not_a_manifest`); a batch
+  with `_done.json` is skipped; a manifest of another major (`unsupported_schema`) or an invalid
+  one (`invalid`) is unreadable and not counted; otherwise every job whose result JSON is not
+  listed under `<id>/results/` is pending (with its mode and audio duration). Batches with a
+  held manifest are added from the database (`held`, every job pending) unless their manifest
+  is in R2 already. Each batch says whether this database knows it (`known`; unknown ones are
+  another computer's, Q28) and its file count. The fingerprint is the SHA-256 of the sorted
+  covered batch ids, the sorted pending job keys (`<batch>/<item>/<language>`) and the total
+  pending duration (3 decimals): publishing a held batch keeps it, a new result or another
+  batch changes it.
 - Progress and cost shown in the app come from `runs/<run_id>/status.json` and the pod's `cost`
   field (USD/h) from the Runpod API. After a run has ended and its pod is gone, the app keeps
   the final status and the worker log locally and deletes `runs/<run_id>/`.
@@ -720,10 +792,14 @@ directories, the settings store, the locks and the lazily opened database.
   request, while requests that need no database (app info, settings, credentials, scans,
   cloud setup) are served, so the CLI works while the GUI is open.
 - **Batch locks** (in-process, one per batch): every request that changes a batch takes its
-  lock; it is never waited for: a held lock gives `batch_busy`.
+  lock; it is never waited for: a held lock gives `batch_busy`. Work that skips a busy batch
+  instead of failing (`publish_held_manifests`) uses `try_batch`, which yields whether the
+  lock was taken.
 - **Runs lock** (in-process, one): taken by the requests that launch, follow or clean up runs
   and by the manifest steps; waited for at most `RUNS_LOCK_WAIT_S` (30 s, checking the cancel
-  token), then `runs_busy` (re-sending resumes).
+  token), then `runs_busy` (re-sending resumes). The registry records the holding thread, so
+  code that must run under it (the activity check, `publish_held_manifests`) checks
+  `holds_runs` and raises `LockOrderError` otherwise.
 - **Lock order** is runs → batch → database transaction (innermost). A request holding batch
   locks takes the runs lock only through the bounded wait, so no two requests can wait on each
   other. Never wait for a lock or do network I/O inside `state.session()`: asking for a batch or
@@ -1196,7 +1272,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.8 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.9 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
