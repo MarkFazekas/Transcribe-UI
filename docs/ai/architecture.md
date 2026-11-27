@@ -78,8 +78,8 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Frontends only build requests and render responses/progress events:
   - **CLI** (argparse): `transcribe-ui run request.json` validates the file into `Request`,
     prints the `Response` as indented JSON; progress events go to stderr as NDJSON; both UTF-8
-    with `\n` line ends on every OS. Nothing else reaches stderr (log records and warnings are
-    dropped until the M5.2 log file), and stdout gets a JSON response whatever fails: an
+    with `\n` line ends on every OS. Nothing else reaches stderr (log records and warnings go to
+    the log file, §3.8), and stdout gets a JSON response whatever fails: an
     unexpected exception outside the backend gives `internal_error` (exit 1), a Ctrl+C before a
     request was read gives `cancelled` (exit 130). The one exception is `--help`/`-h`: argparse's
     usage text, exit 0. The request file must be UTF-8; a UTF-8 byte order mark is stripped,
@@ -269,13 +269,10 @@ docs/human/, docs/ai/     see CLAUDE.md
 - **Readiness marker**: the manifest is uploaded last, after every audio object is verified.
   A manifest present in `batch_metadata/` therefore always means "ready"; the worker never sees
   half-uploaded batches.
-- **Local state**: SQLite (WAL mode, single file) in `platformdirs.user_data_dir("Transcribe-UI")`
-  through SQLAlchemy 2.0 ORM; Alembic migrations run at start-up, after taking the writer
-  lock. `alembic.ini`, `script.py.mako` and `versions/` are bundled as PyInstaller data;
-  migrations use `render_as_batch=True` (SQLite ALTER); a database newer than the app is
-  refused. One writer process at a time (lock file); requests that need no database never open
-  it. Rows store Pydantic models as JSON plus indexed status columns. Temp audio goes to
-  `user_cache_dir`, one file at a time. History is kept; finished batches can be hidden.
+- **Local state**: SQLite (WAL mode, single file) in the user data dir through SQLAlchemy 2.0
+  ORM, one writer process at a time; rows store Pydantic models as JSON plus indexed status
+  columns. Temp audio goes to `user_cache_dir`, one file at a time. History is kept; finished
+  batches can be hidden. Details: §3.8.
 
 ### 3.4 Conversion
 
@@ -425,6 +422,68 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
 - Progress and cost shown in the app come from `runs/<run_id>/status.json` and the pod's `cost`
   field (USD/h) from the Runpod API. After a run has ended and its pod is gone, the app keeps
   the final status and the worker log locally and deletes `runs/<run_id>/`.
+
+### 3.8 Local state, settings and concurrency
+
+Code: `transcribe_ui/state/`. One `LocalState` per backend (in the injected `Ports`) holds the
+directories, the settings store, the locks and the lazily opened database.
+
+- **Directories**: `platformdirs` with app name `Transcribe-UI` (no author folder): data
+  (`state.sqlite3`, `state.lock`), config (`settings.json`), cache (temp audio) and log
+  (`transcribe-ui.log`). Tests and other injected roots use `<root>/{data,config,cache,log}`.
+- **Schema**: every table lives in `state/models.py` (`batches`, `items`, `jobs`,
+  `audio_objects`, `extracted_subtitles`, `probe_cache`, `runs`, `placements`): indexed status
+  columns (phase, status, outcome, flags) plus a JSON `payload` column, so most later changes
+  touch payload classes, not tables. Timestamps come from the injected clock and are stored as
+  UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
+  Until M5 is marked **(built)** the schema is one initial Alembic revision edited in place
+  (developers delete their local database); from then on every change is a new revision. A
+  test asserts that the migrated schema equals the models (Alembic `compare_metadata`).
+- **Database**: WAL mode, `synchronous=NORMAL`, foreign keys enforced, pysqlite's own
+  transaction handling off and every transaction started with `BEGIN IMMEDIATE`, so threads
+  queue on SQLite's busy timeout (30 s) instead of failing on a read-to-write upgrade. One
+  session (one transaction) per unit of work; handlers keep transactions short.
+- **Opening**: the dispatch table marks which requests need the database; `Backend.execute`
+  opens it before such a request runs, the first time one arrives. Opening takes the writer
+  lock, then runs the migrations (`render_as_batch=True`, foreign keys off during migration) in
+  one transaction. The Alembic environment (`env.py`, `script.py.mako`, `versions/`) is package
+  data found through `importlib.resources`; there is no `alembic.ini` (the config is built in
+  code). A database carrying a revision this app does not know is refused unchanged with
+  `database_too_new`. A failed opening holds nothing; the next request tries again.
+- **Writer lock** (cross-process): an OS lock on `state.lock` (`fcntl.flock` on POSIX,
+  `msvcrt.locking` on Windows), never waited for; the OS releases it when the process ends.
+  Another process (or another backend in the same process) gets `app_busy` for any database
+  request, while requests that need no database (app info, settings, credentials, scans,
+  cloud setup) are served, so the CLI works while the GUI is open.
+- **Batch locks** (in-process, one per batch): every request that changes a batch takes its
+  lock; it is never waited for: a held lock gives `batch_busy`.
+- **Runs lock** (in-process, one): taken by the requests that launch, follow or clean up runs
+  and by the manifest steps; waited for at most `RUNS_LOCK_WAIT_S` (30 s, checking the cancel
+  token), then `runs_busy` (re-sending resumes). Lock order is runs → batch; a request holding
+  batch locks takes the runs lock only through this bounded wait, so no two requests can wait
+  on each other.
+- **Phase changes** are compare-and-set (`compare_and_set_phase`: one `UPDATE … WHERE phase =
+  :expected` plus optional conditions such as `manifest_held`): no row changed gives
+  `phase_conflict` (or `batch_not_found`), and the error rolls back the request's whole
+  transaction, so a request that lost a race changes nothing.
+- **Settings** (`get_settings`, `update_settings`; no database): enabled languages (default
+  `DEFAULT_LANGUAGES`, at least one, validated against `WHISPER_LANGUAGES`, no duplicates),
+  video and audio extensions (lower case, no dot, disjoint), include hidden entries, the
+  ffmpeg/ffprobe path override, and placement defaults (strategy, output folder, folder count,
+  overwrite). `update_settings` replaces the whole document; both responses list every Whisper
+  language with its switch and whether WhisperX has an alignment model for it. The file is
+  written atomically (temp file in the same folder, fsync, `os.replace`, retried briefly while
+  Windows reports the target as in use); the last writer wins. A missing file means the
+  defaults; an unreadable or invalid one gives `settings_invalid` until settings are saved
+  again; a failed write gives `settings_unwritable`. Request handling never reads the
+  settings: machine-dependent inputs (scan options, placement options, test mode) are request
+  fields that the GUI fills from them, and the composition root (`api/wiring.py`) reads the
+  adapter configuration (ffmpeg/ffprobe override) when it builds the adapters.
+- **Logging**: a frontend wraps its run in `log_to_file(log_dir)`: a human-readable rotating
+  file (1 MiB, 3 backups, UTF-8) in the user log dir, the app's loggers from INFO, other
+  libraries from WARNING, warnings captured. Nothing reaches stderr: a handler failure drops
+  the record. The log dir is created with the first record. An unexpected exception's
+  traceback goes only there (§3.1).
 
 ## 4. R2 object layout (contract)
 
@@ -701,8 +760,8 @@ the image and the pod-create request never contain credentials.
 - Typing: mypy strict with the pydantic plugin; Pydantic v2 models are frozen where possible.
 - Errors: domain exceptions per module; frontends map them to error responses
   (`{"error": {"code": ..., "message": ..., "details": ...}}`), never stack traces.
-- Logging: stdlib `logging`; JSON lines in the worker (uploaded per run), human-readable in the
-  desktop app plus a rotating file in the user log dir. Secrets are never logged; the worker
+- Logging: stdlib `logging`; JSON lines in the worker (uploaded per run), a human-readable
+  rotating file in the user log dir in the desktop app (§3.8). Secrets are never logged; the worker
   never logs its environment (it contains `RUNPOD_API_KEY` and the R2 secrets).
 - R2 client: boto3 with `request_checksum_calculation="when_required"` and
   `response_checksum_validation="when_required"` (botocore ≥ 1.36 default checksums are not
@@ -820,9 +879,9 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1, M5.3 and M5.4 built): Desktop backend: façade, discovery and selection,
-  batches, conversion and resumable R2 upload, credentials, worker launch and monitoring,
-  download and placement (§3.1-3.7).
+- **M5** (planned in `plans/m5.md`; M5.1-M5.4 built): Desktop backend: façade, discovery and
+  selection, batches, conversion and resumable R2 upload, credentials, worker launch and
+  monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` one-file builds for the four platforms (§8).
