@@ -30,8 +30,8 @@ Two parts:
   - B: top tabs.
   - C: a step-by-step wizard (1 Files → 2 Upload → 3 Transcription → 4 Download) with Back and
     next buttons.
-- The architect, with the answer: "During conversion to audio I can start another file
-  selection." (Answer: yes.)
+- During the conversion to audio, another file selection can be started (architect, with the
+  Q33 answer).
 
 ## UI app: file selection
 
