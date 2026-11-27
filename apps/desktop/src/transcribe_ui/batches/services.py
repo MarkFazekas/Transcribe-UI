@@ -25,6 +25,7 @@ from transcribe_ui.batches.constants import (
     DELETABLE_PHASES,
     EDITABLE_PHASES,
     REVIEWING,
+    START_REVIEW_PHASES,
 )
 from transcribe_ui.batches.ids import base_batch_id, free_batch_id
 from transcribe_ui.batches.item_rows import add_items, batch_payload
@@ -125,7 +126,7 @@ def start_review(request: StartReviewRequest, context: RequestContext) -> StartR
     batch_id = request.batch_id
     with state.locks.batch(batch_id), state.session() as session:
         row = load_batch(session, batch_id)
-        require_phase(row, frozenset((COMPOSING, REVIEWING)))
+        require_phase(row, START_REVIEW_PHASES)
         if row.phase == COMPOSING:
             compare_and_set_phase(session, batch_id, COMPOSING, REVIEWING, now=context.ports.clock.now())
             set_item_phases(session, batch_id, COMPOSING, REVIEWING)

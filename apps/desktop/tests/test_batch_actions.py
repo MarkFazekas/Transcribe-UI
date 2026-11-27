@@ -1,9 +1,12 @@
 """`BatchSummary.actions` (plan m6 M6.1): the table per phase and state, and its drift test against the guards.
 
-The drift test sends every action to a batch of every seeded scenario, each action on a database
-of its own (some requests change their batch). A listed action must pass its handler's local
-guard (it may still fail later, on missing credentials, a file that is not there, a confirmation
-it asks for); an unlisted one must be refused by that guard.
+The drift test sends every action to a batch of every seeded scenario (each action on a database
+of its own, since some requests change their batch) and checks each outcome against a closed
+list: a listed action, and an unlisted one the table leaves out only because it would change
+nothing (`NO_OPS`), must give one of the outcomes expected once its handler's guard passed
+(`AFTER_GUARD`: a success, a confirmation, missing credentials, a file that is not there, ...);
+any other unlisted action must be refused by a guard (`GUARD_CODES`). A new guard in a handler,
+or a table entry that lets through what the guard refuses, gives an outcome outside these lists.
 """
 
 import json
@@ -18,7 +21,10 @@ import pytest
 
 from support.actions import (
     COPIED_SOURCE,
+    COPYING_RETRY,
     LANGUAGE,
+    PAST_RETRY,
+    RETRIED_SOURCE,
     SCENARIOS,
     SEEDED_ROOT,
     retry_job,
@@ -29,12 +35,13 @@ from support.actions import (
 from support.fakes import FIXED_NOW, seeded_ports
 from transcribe_contracts.classes import JobRef, RunStatus
 from transcribe_ui.api.backend import Backend
+from transcribe_ui.api.classes import Response
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.batches.constants import ACTION_RULES
 from transcribe_ui.batches.responses import BatchAction
-from transcribe_ui.runs.worker import WorkerReport, worker_progress
+from transcribe_ui.runs.worker import WorkerReport, stored_report
 
-# Error codes of the batch guards the table restates (everything else comes after the guard).
+# Error codes of the batch guards the table restates.
 GUARD_CODES = frozenset(
     (
         "wrong_phase",
@@ -56,28 +63,88 @@ CLEAN_ALL = "cleanup_everything"
 RETRY = "create_retry_batch"
 UPLOAD = "run_upload"
 EXCLUDE = "exclude_items"
+START = "start_review"
+DELETE = "delete_batch"
+OK = "ok"
+ASKS = "needs_confirmation"
 # The downloads, allowed together from `ready` on.
 DOWNLOADS = ("plan_download", "run_download", "export_custom_plan", "import_custom_plan")
-# Review and choices, allowed together in `reviewing` and `uploading`.
+# The no-op of every shown batch: showing it.
+SHOWN = (SHOW,)
+# Review and choices, allowed together while an item is in review.
 REVIEW = ("review_batch", "resolve_review")
-# Before the upload: continue to review, or delete.
-BEFORE_UPLOAD = ("start_review", "delete_batch")
+# What each action may answer once its guard let it through (the seeded files do not exist, no
+# credentials are stored, confirmations are not sent, no audio object of a retry source is recorded).
+AFTER_GUARD = MappingProxyType(
+    {
+        "edit_batch": frozenset(("root_not_found",)),
+        START: frozenset((OK,)),
+        DELETE: frozenset((ASKS,)),
+        "review_batch": frozenset((OK,)),
+        "resolve_review": frozenset(("choice_invalid", OK)),
+        EXCLUDE: frozenset((ASKS,)),
+        UPLOAD: frozenset(("credentials_missing",)),
+        "plan_download": frozenset((OK,)),
+        "run_download": frozenset((OK, "credentials_missing")),
+        "export_custom_plan": frozenset((OK,)),
+        "import_custom_plan": frozenset(("custom_plan_unreadable",)),
+        RETRY: frozenset(("credentials_missing", "copy_source_missing", OK)),
+        CLEAN_AUDIO: frozenset((ASKS,)),
+        CLEAN_ALL: frozenset((ASKS,)),
+        HIDE: frozenset((OK,)),
+        SHOW: frozenset((OK,)),
+    },
+)
 # The actions each scenario lists, in the table's order.
 EXPECTED = MappingProxyType(
     {
-        "composing": ("edit_batch", *BEFORE_UPLOAD, SHOW),
-        "reviewing_open": (*BEFORE_UPLOAD, *REVIEW, EXCLUDE, SHOW),
-        "reviewing_done": (*BEFORE_UPLOAD, *REVIEW, EXCLUDE, UPLOAD, SHOW),
-        "reviewing_single": (*BEFORE_UPLOAD, *REVIEW, UPLOAD, SHOW),
-        "uploading": (*REVIEW, EXCLUDE, UPLOAD, CLEAN_ALL, SHOW),
-        "ready": (*DOWNLOADS, CLEAN_ALL, SHOW),
-        "transcribed_flagged": (*DOWNLOADS, RETRY, CLEAN_AUDIO, CLEAN_ALL, SHOW),
-        "transcribed_clean": (*DOWNLOADS, CLEAN_AUDIO, CLEAN_ALL, SHOW),
-        "downloaded_no_speech": (*DOWNLOADS, RETRY, CLEAN_AUDIO, CLEAN_ALL, HIDE, SHOW),
-        "downloaded_audio_deleted": (*DOWNLOADS, CLEAN_AUDIO, CLEAN_ALL, HIDE, SHOW),
-        "cleaned": (*DOWNLOADS, CLEAN_ALL, HIDE, SHOW),
-        COPIED_SOURCE: (*DOWNLOADS, RETRY, SHOW),
-        "copying_retry": (*REVIEW, UPLOAD, CLEAN_ALL, SHOW),
+        "composing": ("edit_batch", START, DELETE),
+        "reviewing_open": (DELETE, *REVIEW, EXCLUDE),
+        "reviewing_done": (DELETE, *REVIEW, EXCLUDE, UPLOAD),
+        "reviewing_single": (DELETE, *REVIEW, UPLOAD),
+        "uploading": (*REVIEW, EXCLUDE, UPLOAD, CLEAN_ALL),
+        "uploading_done": (EXCLUDE, UPLOAD, CLEAN_ALL),
+        "ready": (*DOWNLOADS, CLEAN_ALL),
+        "transcribed_flagged": (*DOWNLOADS, RETRY, CLEAN_AUDIO, CLEAN_ALL),
+        "transcribed_clean": (*DOWNLOADS, CLEAN_AUDIO, CLEAN_ALL),
+        "transcribed_audio_pending": (*DOWNLOADS, CLEAN_AUDIO, CLEAN_ALL),
+        "downloaded_no_speech": (*DOWNLOADS, RETRY, CLEAN_AUDIO, CLEAN_ALL, HIDE),
+        "downloaded_audio_deleted": (*DOWNLOADS, CLEAN_ALL, HIDE),
+        "downloaded_hidden": (*DOWNLOADS, CLEAN_AUDIO, CLEAN_ALL, SHOW),
+        "cleaned": (HIDE,),
+        "cleaned_pending": (*DOWNLOADS, CLEAN_ALL, HIDE),
+        COPIED_SOURCE: (*DOWNLOADS, RETRY),
+        COPYING_RETRY: (*REVIEW, UPLOAD, CLEAN_ALL),
+        RETRIED_SOURCE: (*DOWNLOADS, CLEAN_ALL, HIDE),
+        PAST_RETRY: (*DOWNLOADS, CLEAN_ALL),
+    },
+)
+# Unlisted actions whose guard lets them through although they would change nothing: showing a
+# batch that is shown (and hiding a hidden one), starting a review that started, reviewing with
+# nothing in review, deleting audio or cloud data already gone, downloading from a cleaned batch
+# without extracted subtitles, and a retry whose job set already has its retry batch (the
+# request returns that batch; with the source's audio deleted it is no new retry).
+NO_OPS = MappingProxyType(
+    {
+        "composing": SHOWN,
+        "reviewing_open": (START, SHOW),
+        "reviewing_done": (START, SHOW),
+        "reviewing_single": (START, SHOW),
+        "uploading": SHOWN,
+        "uploading_done": (*REVIEW, SHOW),
+        "ready": SHOWN,
+        "transcribed_flagged": SHOWN,
+        "transcribed_clean": SHOWN,
+        "transcribed_audio_pending": SHOWN,
+        "downloaded_no_speech": SHOWN,
+        "downloaded_audio_deleted": (CLEAN_AUDIO, SHOW),
+        "downloaded_hidden": (HIDE,),
+        "cleaned": (*DOWNLOADS, CLEAN_ALL, SHOW),
+        "cleaned_pending": SHOWN,
+        COPIED_SOURCE: SHOWN,
+        COPYING_RETRY: SHOWN,
+        RETRIED_SOURCE: (RETRY, CLEAN_AUDIO, SHOW),
+        PAST_RETRY: SHOWN,
     },
 )
 # The request action of an allowed action that is split by scope or direction.
@@ -153,15 +220,31 @@ def test_actions_per_phase_and_state(backend: Backend) -> None:
         assert (listed[batch_id], _detail_actions(backend, batch_id)) == (expected, expected), name
 
 
+def _outcome(response: Response) -> str:
+    return response.error.code if response.status == "error" else response.status
+
+
+def _expected_outcomes(action: str, name: str, listed: tuple[str, ...]) -> frozenset[str]:
+    """Return the outcomes the action may have on the scenario's batch."""
+    if action in listed or action in NO_OPS.get(name, ()):
+        return AFTER_GUARD[action]
+    return GUARD_CODES
+
+
+def test_no_ops_are_not_listed() -> None:
+    """An action the table leaves out as a no-op is not also expected in the list."""
+    for name, no_ops in NO_OPS.items():
+        assert not set(no_ops) & set(EXPECTED[name]), name
+
+
 @pytest.mark.parametrize("action", EVERY_ACTION)
 def test_listed_actions_pass_their_guard(backend: Backend, action: str) -> None:
-    """Drift test: for every scenario, the action is listed exactly when its handler's guard lets it through."""
+    """Drift test: every outcome is one the action's listing (or no-op) state allows."""
     listed = _listed(backend)
     for name in SCENARIOS:
         response = backend.execute_json(_request(action, name))
-        refused = response.status == "error" and response.error.code in GUARD_CODES
-        allowed = action in listed[scenario_batch_id(name)]
-        assert allowed != refused, (name, action, response)
+        expected = _expected_outcomes(action, name, listed[scenario_batch_id(name)])
+        assert _outcome(response) in expected, (name, action, response)
 
 
 def _current_name(ports: Ports, current: JobRef) -> str | None:
@@ -176,9 +259,9 @@ def _current_name(ports: Ports, current: JobRef) -> str | None:
         done_jobs=0,
         total_jobs=2,
     )
-    progress = worker_progress(ports.state, WorkerReport(status))
-    assert progress.current is not None
-    return progress.current.name
+    stored = stored_report(ports.state, WorkerReport(status))
+    assert stored.current is not None
+    return stored.current.name
 
 
 def test_current_job_is_named_by_its_file(ports: Ports) -> None:

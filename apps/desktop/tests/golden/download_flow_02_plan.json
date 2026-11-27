@@ -26,8 +26,7 @@
         "import_custom_plan",
         "create_retry_batch",
         "cleanup_audio",
-        "cleanup_everything",
-        "show_batch"
+        "cleanup_everything"
       ]
     },
     "plan": {

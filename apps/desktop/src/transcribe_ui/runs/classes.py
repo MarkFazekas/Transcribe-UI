@@ -28,9 +28,10 @@ type PriceSource = Literal["catalog", "fallback"]
 # Id of a Runpod pod or queued pod as the requests accept it.
 type RunpodId = Annotated[str, StringConstraints(pattern=RUNPOD_ID_PATTERN)]
 # Why a run ended (`refresh_status`): its pod went away after the worker reported `finished` or
-# `failed`, or without a final report; the desktop stopped it at its deadline; or its queued pod
-# ended (expired, failed, cancelled or vanished) without a pod.
-type EndReason = Literal["worker_finished", "worker_failed", "pod_gone", "deadline", "queue_ended"]
+# `failed`, or without a final report; the desktop stopped it at its deadline; its queued pod
+# ended (expired, failed, cancelled or vanished) without a pod; or the user stopped it
+# (`cancel_worker`, `terminate_pod`, `cancel_queued_pod`).
+type EndReason = Literal["worker_finished", "worker_failed", "pod_gone", "deadline", "queue_ended", "cancelled"]
 
 
 class ActivitySource(FrozenModel):

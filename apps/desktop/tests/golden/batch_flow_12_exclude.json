@@ -21,13 +21,11 @@
         "cleanup_pending": null,
         "extract_only": false,
         "actions": [
-          "start_review",
           "delete_batch",
           "review_batch",
           "resolve_review",
           "exclude_items",
-          "run_upload",
-          "show_batch"
+          "run_upload"
         ]
       },
       "scan_root": "<root>/media",

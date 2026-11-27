@@ -22,7 +22,7 @@ from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.following import follow_run
 from transcribe_ui.runs.records import open_runs, read_payload, update_run
 from transcribe_ui.runs.settling import Listed
-from transcribe_ui.runs.worker import WorkerReport, read_worker, worker_progress
+from transcribe_ui.runs.worker import WorkerReport, read_worker, stored_report
 from transcribe_ui.state.store import LocalState
 
 
@@ -69,7 +69,7 @@ def _record(state: LocalState, refreshed: Refreshed, now: datetime) -> None:
     changes: dict[str, object] = {"refreshed_at": now, "stop_error": refreshed.stop_error}
     if refreshed.read:
         worker = refreshed.worker
-        changes["worker"] = None if worker is None else worker_progress(state, worker)
+        changes["worker"] = None if worker is None else stored_report(state, worker)
     update_run(state, refreshed.run_id, now, changes=changes)
 
 

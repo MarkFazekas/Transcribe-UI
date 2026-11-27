@@ -1,12 +1,42 @@
 """Pydantic payload of the `runs` rows (the JSON column of `state/models.py`)."""
 
-from pydantic import AwareDatetime, NonNegativeFloat, PositiveInt
+from pydantic import AwareDatetime, BaseModel, ConfigDict, NonNegativeFloat, PositiveInt
 
 from transcribe_contracts.classes import RunStatus as WorkerStatus
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.runs.classes import CostEstimate, EndReason
-from transcribe_ui.runs.responses import WorkerProgress
 from transcribe_ui.runs.stopping import KnownPod
+
+
+class StoredCurrentJob(BaseModel):
+    """The job a stored worker report names, with its file name (None when unknown here).
+
+    Plain stored fields, unknown keys ignored: mapped to `CurrentJob` when shown.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    batch_id: str
+    item_id: str
+    language: str
+    name: str | None = None
+
+
+class StoredWorkerReport(BaseModel):
+    """The worker report a refresh read, as stored in the run payload (mapped to `WorkerProgress` when shown).
+
+    Plain stored fields, unknown keys ignored, so a later change of the response model does not
+    make stored runs unreadable.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    state: str
+    updated_at: AwareDatetime | None = None
+    current: StoredCurrentJob | None = None
+    done_jobs: int = 0
+    total_jobs: int = 0
+    error: str | None = None
 
 
 class RunPayload(FrozenModel):
@@ -63,7 +93,7 @@ class RunPayload(FrozenModel):
     objects_collected: bool = False
     # The worker's report as last read (by `refresh_status`, or by the collection of a final run),
     # as the frontends show it; None while none was read. `list_runs` shows it after a restart.
-    worker: WorkerProgress | None = None
+    worker: StoredWorkerReport | None = None
     # Error code of the deadline stop of the last refresh that did not show yet; None otherwise.
     stop_error: str | None = None
     # When `refresh_status` last followed the run: elapsed time and cost are as of then (or `ended_at`).

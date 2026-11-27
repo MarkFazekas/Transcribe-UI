@@ -21,13 +21,7 @@
       "cleanup_pending": null,
       "extract_only": false,
       "actions": [
-        "plan_download",
-        "run_download",
-        "export_custom_plan",
-        "import_custom_plan",
-        "cleanup_everything",
-        "hide_batch",
-        "show_batch"
+        "hide_batch"
       ]
     },
     "deleted_objects": 3,

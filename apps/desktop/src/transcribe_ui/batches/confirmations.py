@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.batches.classes import DeleteBatchRequest, ExcludeItemsRequest
-from transcribe_ui.batches.constants import CONFIRM_FIELD, UPLOADING_PHASES
+from transcribe_ui.batches.constants import CONFIRM_FIELD
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -22,14 +22,16 @@ def delete_confirmation(request: DeleteBatchRequest, phase: str, item_count: int
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))
 
 
-def exclude_confirmation(request: ExcludeItemsRequest, phase: str) -> NeedsConfirmation:
-    """Return the confirmation of excluding the items (details: whether their uploaded audio is deleted)."""
-    uploading = phase in UPLOADING_PHASES
+def exclude_confirmation(request: ExcludeItemsRequest, phase: str, *, uploaded_audio: bool) -> NeedsConfirmation:
+    """Return the confirmation of excluding the items.
+
+    Details: whether audio uploaded for them (recorded audio objects) is deleted from the cloud.
+    """
     count = len(request.item_ids)
     details: dict[str, JsonValue] = {"batch_id": request.batch_id, "phase": phase, "items": count}
-    details["deletes_uploaded_audio"] = uploading
+    details["deletes_uploaded_audio"] = uploaded_audio
     message = f"{count} file(s) will be removed from the batch."
-    if uploading:
+    if uploaded_audio:
         message = f"{message} Their audio already uploaded to the cloud is deleted."
     confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))

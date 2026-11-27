@@ -43,7 +43,8 @@ def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> Canc
             raise RunNotActiveError(run.run_id, run.status)
         terminated = stop_run(state, client.pods, run.run_id, ports.clock)
         now = ports.clock.now()
-        cancelled = update_run(state, run.run_id, now, "cancelled", {"ended_at": now})
+        ended = {"ended_at": now, "end_reason": "cancelled"}
+        cancelled = update_run(state, run.run_id, now, "cancelled", ended)
     return CancelWorkerResponse(run=cancelled, terminated_pod_id=terminated)
 
 

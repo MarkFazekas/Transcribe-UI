@@ -23,8 +23,7 @@
         "actions": [
           "edit_batch",
           "start_review",
-          "delete_batch",
-          "show_batch"
+          "delete_batch"
         ]
       },
       "scan_root": "<root>/media",

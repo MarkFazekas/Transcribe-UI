@@ -20,12 +20,10 @@
       "cleanup_pending": null,
       "extract_only": false,
       "actions": [
-        "start_review",
         "delete_batch",
         "review_batch",
         "resolve_review",
-        "exclude_items",
-        "show_batch"
+        "exclude_items"
       ]
     }
   },

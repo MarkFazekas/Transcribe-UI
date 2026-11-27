@@ -2,12 +2,13 @@
 
 from typing import Literal
 
-from pydantic import AwareDatetime, NonNegativeInt
+from pydantic import AwareDatetime, Field, NonNegativeInt
 
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath, PathFlavor
-from transcribe_ui.batches.payloads import CleanupScope, ItemPhase, ItemProblem, JobKind, StoredComposition
-from transcribe_ui.discovery.classes import ScanWarning
+from transcribe_ui.batches.classes import ItemLanguages, TargetLanguages
+from transcribe_ui.batches.payloads import CleanupScope, ItemPhase, ItemProblem, JobKind
+from transcribe_ui.discovery.classes import ScanSpec, ScanWarning, SelectionOperation
 from transcribe_ui.media.classes import AudioTrack, SubtitleStream
 from transcribe_ui.state.models import BatchPhase
 
@@ -96,6 +97,15 @@ class BatchSummary(FrozenModel):
     actions: tuple[BatchAction, ...]
 
 
+class BatchSelection(FrozenModel):
+    """The selection a batch was composed from: send it back as an `edit_batch` to reopen it."""
+
+    scan: ScanSpec
+    operations: tuple[SelectionOperation, ...] = Field(min_length=1)
+    languages: TargetLanguages
+    item_languages: tuple[ItemLanguages, ...]
+
+
 class BatchDetail(FrozenModel):
     """A batch with its items and jobs."""
 
@@ -104,7 +114,7 @@ class BatchDetail(FrozenModel):
     path_flavor: PathFlavor
     # The selection the batch was composed from, to reopen it ("Edit selection"); None for a retry
     # batch and for a batch created before the app kept it.
-    composition: StoredComposition | None
+    composition: BatchSelection | None
     items: tuple[BatchItem, ...]  # noqa: WPS110 -- the batch's items
 
 
