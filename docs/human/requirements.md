@@ -104,6 +104,13 @@ folder, another for another folder).
   also says that the machine keeps working without the app, stops itself when the work is done
   or at its time limit, and that the app shows its results the next time it starts. Closing
   never cancels the cloud machine; cancelling is a separate button on the Cloud page.
+- Steps the app starts on its own *(Q31, accepted default)*: the app starts none of these on
+  its own: the upload after the review step, the start of transcription after an upload, the
+  download after transcription, and continuing an interrupted upload or download when the app
+  starts again. Each is one button (Upload at the end of the review step, Start transcription
+  on the Cloud page, Download on the job page, Resume on an interrupted job). The app only
+  checks the cloud machines at start-up and follows a running one, and it shows clearly which
+  jobs are interrupted or have subtitles ready.
 - Job history is kept forever, with an option to hide finished and cleaned-up jobs. History
   only contains file names, paths and statuses (no audio) *(accepted proposal)*.
 

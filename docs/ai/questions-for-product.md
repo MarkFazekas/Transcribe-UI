@@ -10,17 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q31. Steps the app starts on its own
-
-Several steps could follow each other automatically: the upload after the review step, the start
-of transcription after an upload, the download after transcription, and continuing an
-interrupted upload or download when the app starts again.
-
-Proposed default: the app starts none of these on its own; each is one button (Upload at the end
-of the review step, Start transcription on the Cloud page, Download on the job page, Resume on an
-interrupted job). The app only checks the cloud machines at start-up and follows a running one,
-and it shows clearly which jobs are interrupted or have subtitles ready.
-
 ### Q32. Language of the app's texts
 
 The project is in English, the users are Hungarian and English speakers.
