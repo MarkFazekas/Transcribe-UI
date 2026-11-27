@@ -637,7 +637,7 @@ next step are in `docs/ai/status.md`.
   (§2, §4, §8).
 - **M2** (built): Worker: pipeline, subtitles, entry/watchdog self-termination, image with
   smoke test and Docker Hub release (§5).
-- **M3**: Cloud safety net: the external reaper (§5.2 layer 4, §8).
+- **M3** (built): Cloud safety net: the external reaper (§5.2 layer 4, §8).
 - **M4**: First approved Runpod run, worker only, with the architect present: the checks of
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of

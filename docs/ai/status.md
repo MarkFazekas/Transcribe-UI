@@ -26,12 +26,13 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M3 reaper on branch `feat/reaper` (design: architecture §5.2, §8).
+- None.
 
 ## Waiting on humans
 
 - Architect: create the pods-only Runpod key and store it as `RUNPOD_REAPER_API_KEY` in a
-  `runpod-reaper` GitHub environment restricted to `main`. Until then the reaper is inactive.
+  `runpod-reaper` GitHub environment restricted to `main`. Until then the reaper workflow only
+  warns "reaper disabled" and does nothing.
 - Architect: schedule the M4 approved Runpod run.
 - Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
   gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
@@ -42,7 +43,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## Next
 
-1. Merge the reaper; check its first scheduled run.
+1. Check the first scheduled reaper runs on `main` (expected: the "reaper disabled" warning).
 2. Check the release-worker run on `main` pushed the image tags `sha-<short>`, `latest` and
    `schema-1` to `markfazekasgh/transcribe-ui-worker`.
 3. M5 part by part per `docs/ai/plans/m5.md` §3-4, starting with M5.1 (desktop package
