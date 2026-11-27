@@ -129,17 +129,18 @@ docs/human/, docs/ai/     see CLAUDE.md
 
   Extracted subtitles are placed together with the transcribed ones. A batch with only
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
-  The phases are not a strict line (planned on the proposed defaults of Q24-Q27,
-  `plans/m5.md` §1): a batch in `composing` or `reviewing` can be deleted; finished subtitles
-  can already be downloaded in `ready` and again in `downloaded` (extracted ones even in
-  `cleaned`); a batch reaches `downloaded` once it has `_done.json` (or is extract-only) and
-  every job has a placement outcome (placed, or skipped as an existing file, a missing folder
-  or an empty result), in one download or several; an item whose source changed during
-  `uploading` goes back to review on its own (or is excluded) while the batch stays
-  `uploading`; a batch whose upload completes while a run is active keeps its manifest back and
-  stays `uploading` until the run ends, so a worker never gets work its deadline and estimate
-  did not include; cloud cleanup is possible from `uploading` on (below). `audio` cleanup sets
-  an "audio deleted" flag without changing the phase; `everything` ends in `cleaned`.
+  The phases are not a strict line (planned on the proposed defaults of Q24-Q27, `plans/m5.md` §1):
+  a batch in `composing` or `reviewing` can be deleted; finished subtitles can already be
+  downloaded in `ready` and again in `downloaded` (extracted ones even in `cleaned`); a batch
+  reaches `downloaded` once it has `_done.json` (or is extract-only) and every job has a placement
+  outcome (placed, or skipped as an existing file, a missing folder or an empty result), in one
+  download or several; an item whose source changed during `uploading` goes back to review on its
+  own (or is excluded) while the batch stays `uploading` (excluding the last item is refused); a
+  batch whose upload completes while a run is active keeps its manifest back and stays `uploading`
+  until the run ends (the held manifest is rebuilt from the database when it is published), so a
+  worker never gets work its deadline and estimate did not include; cloud cleanup is possible from
+  `uploading` on (below). `audio` cleanup sets an "audio deleted" flag without changing the phase;
+  `everything` ends in `cleaned`.
 
   Items that failed or produced no speech are flagged in `transcribed`/`downloaded` and can be
   sent to a new retry batch whose jobs use mode `careful` and the same language. The retry
@@ -165,6 +166,8 @@ docs/human/, docs/ai/     see CLAUDE.md
   - `audio` is refused while the batch has jobs without a result (the worker would fail them);
     after a crashed run, `everything` is the way out. Without audio, Retry is no longer
     possible (a retry request is refused); the UI says so before confirming.
+  - Both scopes are refused on a batch while one of its retry batches is still `uploading`
+    with copies pending (the error names the retry batch).
 - **Readiness marker**: the manifest is uploaded last, after every audio object is verified.
   A manifest present in `batch_metadata/` therefore always means "ready"; the worker never sees
   half-uploaded batches.
@@ -237,13 +240,13 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
 - `POST /v2/pods` with: `gpu {id: "NVIDIA RTX A5000", count: 1, minCudaVersion: "12.8"}` (excludes
   A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer exists),
   `disk: 60`, the Global Volume mount, the template (which alone pins the image tag), non-secret
-  env, and
-  `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the wait at every
-  start, 5 min to 24 h (open A19), default 1 hour. A 202 response means "queued"; the app shows the
-  queued state and can cancel it (a queued pod that deploys during the cancel is terminated).
-  Before starting, the app shows the total audio duration and an estimated cost range for
-  confirmation; there is no in-app spending limit (the account's own limit applies). SSH uses
-  Runpod's proxied basic SSH, so no port or sshd is configured.
+  env, and `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the
+  wait at every start, 5 min to 24 h (open A19), default 1 hour. A 202 response means "queued";
+  the app shows the queued state and can cancel it (a queued pod that deploys during the cancel
+  is terminated; the run counts as cancelled only once that is verified). Before starting, the
+  app shows the total audio duration and an estimated cost range for confirmation; there is no
+  in-app spending limit (the account's own limit applies). SSH uses Runpod's proxied basic SSH,
+  so no port or sshd is configured.
 - Single worker at a time: `launch_worker` refuses while a live pod (any status but
   `TERMINATED`) or a `QUEUED` queued pod named `transcribe-ui-*` exists, so two workers never
   process the same batch (result writes are also conditional, see §4).
