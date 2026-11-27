@@ -5,13 +5,15 @@
 - Both are refused while a retry batch of the batch still copies its audio (`retry_copying`,
   naming it), so the retry can resume.
 - `confirm` is needed, and for `everything` on a batch whose results may not be downloaded yet
-  (`ready`, `transcribed`, with transcribe jobs) also `confirm_not_downloaded`.
+  also `confirm_not_downloaded` when a transcribe job's subtitle may not be downloaded yet: the
+  batch is `ready` or `transcribed` and a job that did not fail has no placement outcome
+  (`placement/recording.py`, the rule that moves a batch to `downloaded`).
 """
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from transcribe_ui.api.classes import Confirmation
@@ -27,7 +29,9 @@ from transcribe_ui.cleanup.constants import (
 )
 from transcribe_ui.cleanup.errors import ResultsPendingError, RetryCopyingError
 from transcribe_ui.cleanup.origins import copying_retry
-from transcribe_ui.state.models import BatchRow, JobRow
+from transcribe_ui.placement.constants import RECORDED_OUTCOMES
+from transcribe_ui.runs.constants import JOB_FAILED
+from transcribe_ui.state.models import BatchRow, JobRow, PlacementRow
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -39,9 +43,10 @@ class CleanupTarget:
 
     batch_id: str
     phase: str
-    # Transcribe jobs of the batch, and how many of them have no result yet.
-    transcribe_jobs: int
+    # Transcribe jobs of the batch without a result yet.
     pending_jobs: int
+    # Transcribe jobs that did not fail and have no recorded placement outcome (not downloaded).
+    jobs_not_downloaded: int
     # A retry batch of this batch that still copies its audio, or None.
     copying_retry: str | None
 
@@ -57,10 +62,20 @@ def load_target(session: Session, batch_id: str) -> CleanupTarget | None:
     return CleanupTarget(
         batch_id=batch_id,
         phase=row.phase,
-        transcribe_jobs=len(statuses),
         pending_jobs=statuses.count(JOB_PENDING),
+        jobs_not_downloaded=_not_downloaded_jobs(session, batch_id),
         copying_retry=copying_retry(session, batch_id),
     )
+
+
+def _not_downloaded_jobs(session: Session, batch_id: str) -> int:
+    """Return how many transcribe jobs that did not fail have no recorded placement outcome."""
+    with_outcome = PlacementRow.outcome.in_(RECORDED_OUTCOMES)
+    recorded = select(PlacementRow.job_id).where(with_outcome)
+    transcribing = (JobRow.batch_id == batch_id, JobRow.kind == "transcribe")
+    waiting = (JobRow.status != JOB_FAILED, JobRow.job_id.not_in(recorded))
+    counted = select(func.count(JobRow.job_id))
+    return session.scalar(counted.where(*transcribing, *waiting)) or 0
 
 
 def check_target(request: CleanupCloudRequest, target: CleanupTarget) -> None:
@@ -93,7 +108,7 @@ def missing_confirmations(request: CleanupCloudRequest, target: CleanupTarget) -
 
 
 def _not_downloaded(target: CleanupTarget) -> bool:
-    return target.phase in NOT_DOWNLOADED_PHASES and target.transcribe_jobs > 0
+    return target.phase in NOT_DOWNLOADED_PHASES and target.jobs_not_downloaded > 0
 
 
 def _message(request: CleanupCloudRequest) -> str:
