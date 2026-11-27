@@ -55,7 +55,7 @@ class MainWindow(QMainWindow):
             fallback = partial(self._unhandled, signal_name)
             getattr(self.context.signals, signal_name).connect(fallback)
 
-    def show_error(self, view: ErrorView, retry: Callable[[], None] | None = None) -> ErrorDialog:
+    def show_error(self, view: ErrorView, retry: Callable[[], object] | None = None) -> ErrorDialog:
         """Open the error dialog; its fix opens a page, or (`app_busy`) calls `retry` and probes the lock."""
         fix = partial(self._apply_fix, retry)
         dialog = ErrorDialog(view, self.context.log_dir, fix, self)
@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
         if signal_name not in self._handled:
             self.statusBar().showMessage(constants.NOT_AVAILABLE_TEXT, constants.STATUS_MESSAGE_MS)
 
-    def _apply_fix(self, retry: Callable[[], None] | None, fix: Fix) -> None:
+    def _apply_fix(self, retry: Callable[[], object] | None, fix: Fix) -> None:
         signals = self.context.signals
         if fix.kind == "accounts":
             signals.open_settings.emit(constants.SECTION_ACCOUNTS)

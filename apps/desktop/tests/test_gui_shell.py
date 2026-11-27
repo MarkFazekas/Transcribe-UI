@@ -10,6 +10,7 @@ from contextlib import ExitStack, closing
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import QLabel
 from pytestqt.qtbot import QtBot
 
@@ -17,7 +18,8 @@ from support.fakes import seeded_ports
 from support.gated import HELD_STAGE, UPLOAD, GatedRunner, listing, upload, uploads, wait_for
 from support.gui import window_over
 from transcribe_ui.api.backend import Backend
-from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, NeedsConfirmation
+from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, NeedsConfirmation, Request, Response
+from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.cleanup.classes import CleanupCloudRequest
 from transcribe_ui.gui.activity_view import ActivityRow
 from transcribe_ui.gui.closing import QuitNow, flush_log_handlers
@@ -33,6 +35,7 @@ from transcribe_ui.gui.constants import (
     PAGES,
     PLACEHOLDER_TEXT,
 )
+from transcribe_ui.gui.dialogs import ErrorDialog
 from transcribe_ui.gui.feedback import confirmation_view, error_view
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.state.logs import log_to_file
@@ -130,6 +133,37 @@ def test_app_busy_without_a_retry_probes_the_lock(window: MainWindow, gated: Gat
     wait_for(qtbot, lambda: gated.started("list_batches") == 1)
 
 
+class _BusyFirst:
+    """Answers its first call `app_busy`, later ones with app info (another process let go)."""
+
+    def __init__(self) -> None:
+        self.sent: list[Request] = []
+
+    def execute(self, request: Request, progress: ProgressSink | None, cancel: CancelToken | None) -> Response:
+        self.sent.append(request)
+        if len(self.sent) == 1:
+            return _error("app_busy")
+        return GatedRunner().execute(request, progress, cancel)
+
+
+def test_activity_retry_resumes_the_entry(qtbot: QtBot, tmp_path: Path) -> None:
+    """An activity that failed with `app_busy`: Details, then Retry re-sends its request."""
+    runner = _BusyFirst()
+    window = window_over(qtbot, runner, tmp_path)
+    entry = window.context.activity.start(upload(), "Upload")
+    assert entry is not None
+    wait_for(qtbot, lambda: entry.state == "failed" and len(window.activity_panel.rows) == 1)
+    details = window.activity_panel.rows[0].details_button
+    wait_for(qtbot, lambda: details.isVisibleTo(window))
+    details.click()
+    dialog = window.dialog
+    assert isinstance(dialog, ErrorDialog)
+    assert dialog.fix_button is not None
+    dialog.fix_button.click()
+    wait_for(qtbot, lambda: entry.state == "finished")
+    assert [request.action for request in runner.sent] == [UPLOAD, UPLOAD, "list_batches"]
+
+
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:
     """Confirm calls back the caller, which re-sends the confirmed request."""
     asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(Confirmation(field="confirm", message="Delete?"),))
@@ -211,6 +245,24 @@ def test_close_stops_calls_and_waits_for_them(window: MainWindow, gated: GatedRu
     wait_for(qtbot, lambda: not window.isVisible())
     assert gated.cancelled == [UPLOAD for _ in range(LONG_POOL_THREADS)]
     assert gated.started(UPLOAD) == LONG_POOL_THREADS
+
+
+def _never_start(_pool: QThreadPool, _runnable: object) -> None:
+    """Keep every call queued: the pool never runs it."""
+
+
+def test_close_with_only_queued_calls_skips_the_wait(
+    window: MainWindow,
+    qtbot: QtBot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Calls that never left their queue are cancelled at once: no Finishing dialog, the window closes."""
+    monkeypatch.setattr(QThreadPool, "start", _never_start)
+    window.context.executor.submit(upload(), lambda _response: None)
+    monkeypatch.undo()
+    _stop_and_close(window)
+    wait_for(qtbot, lambda: not window.isVisible())
+    assert window.closing.finishing is None
 
 
 def test_close_during_a_run_adds_the_cloud_note(qtbot: QtBot, tmp_path: Path) -> None:

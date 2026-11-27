@@ -16,13 +16,14 @@ from transcribe_ui.gui.activity import Activity, ActivityEntry
 from transcribe_ui.gui.constants import PROGRESS_REPAINT_MS
 from transcribe_ui.gui.feedback import ErrorView
 
-# Shows the error of a failed entry (the generic error dialog).
-type ShowError = Callable[[ErrorView], object]
+# Shows the error of a failed entry (the generic error dialog) with the re-send its Retry uses.
+type ShowError = Callable[[ErrorView, Callable[[], object]], object]
 
 
-def _show_entry_error(show_error: ShowError, entry: ActivityEntry) -> None:
+def _show_entry_error(show_error: ShowError, activity: Activity, entry: ActivityEntry) -> None:
     if entry.error is not None:
-        show_error(entry.error)
+        # Retry (`app_busy`) resumes the entry: re-sending its request is the retry.
+        show_error(entry.error, partial(activity.resume, entry))
 
 
 class ActivityRow(QWidget):
@@ -42,7 +43,7 @@ class ActivityRow(QWidget):
         self._layout.addStretch()
         self.cancel_button = self._button("Cancel", partial(activity.cancel, entry))
         self.resume_button = self._button("Resume", partial(activity.resume, entry))
-        self.details_button = self._button("Details", partial(_show_entry_error, show_error, entry))
+        self.details_button = self._button("Details", partial(_show_entry_error, show_error, activity, entry))
         self.dismiss_button = self._button("Dismiss", partial(activity.dismiss, entry))
         self.refresh()
 
