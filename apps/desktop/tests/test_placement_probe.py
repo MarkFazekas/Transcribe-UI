@@ -8,6 +8,11 @@ import pytest
 
 from transcribe_ui.placement.probe import OsPlacementProbe
 
+# Mode of a folder nobody may search.
+LOCKED_MODE = 0
+# Mode restored before the temp tree is removed.
+OPEN_MODE = 0o700
+
 
 def test_target_kinds(tmp_path: Path) -> None:
     """A missing path, a file and a folder are told apart; a path below a file is not usable."""
@@ -46,3 +51,21 @@ def test_links_are_followed(tmp_path: Path) -> None:
     assert probe.target_kind(str(tmp_path / "dangling.srt")) == "other"
     resolved = probe.resolve(str(link / "new.srt"))
     assert resolved == str(Path(os.path.realpath(real)) / "new.srt")
+
+
+def _unprivileged_posix() -> bool:
+    if sys.platform == "win32":
+        return False
+    return os.geteuid() != 0
+
+
+@pytest.mark.skipif(not _unprivileged_posix(), reason="needs POSIX permissions that apply (not Windows, not root)")
+def test_unsearchable_folder_is_unreadable(tmp_path: Path) -> None:
+    """A target in a folder that cannot be searched is unreadable, not existing."""
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(LOCKED_MODE)
+    try:
+        assert OsPlacementProbe().target_kind(str(locked / "a.srt")) == "unreadable"
+    finally:
+        locked.chmod(OPEN_MODE)

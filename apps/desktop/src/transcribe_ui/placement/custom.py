@@ -1,7 +1,9 @@
 """Custom placement plans: export for the user (or an LLM) to edit, validated import (architecture §3.5).
 
 The export lists every job once, pre-filled with the mirror strategy's folders (relative to the
-output folder chosen at import) and the default names. The import checks the schema, every job
+output folder chosen at import) and the default names. A source the mirror strategy cannot
+place (outside the scan root, or not an absolute path without `..`) is pre-filled with an empty
+folder (the output folder itself), for the user to fill in. The import checks the schema, every job
 exactly once with its source unchanged, the names against the target OS's rules, the `.srt`
 extension, and that every target, after resolving `..` and symbolic links, lies inside the
 chosen output folder; then it gives the same plan as the other strategies.
@@ -37,6 +39,7 @@ from transcribe_ui.placement.naming import PathKey, TargetNames, has_subtitle_ex
 from transcribe_ui.placement.planner import (
     duplicate_errors,
     job_error,
+    name_errors,
     output_error,
     result_outcome,
     target_errors,
@@ -119,7 +122,7 @@ def _listing_errors(plan: CustomPlan, jobs: Mapping[JobKey, PlacementJob], names
     return errors
 
 
-def _name_errors(entry: CustomPlanEntry, job: PlacementJob, names: TargetNames) -> list[PlanError]:
+def _entry_name_errors(entry: CustomPlanEntry, job: PlacementJob, names: TargetNames) -> list[PlanError]:
     folder = names.pure(entry.output_folder)
     skipped = frozenset((".", "..", folder.anchor))
     checked = [part for part in folder.parts if part not in skipped]
@@ -153,10 +156,10 @@ class _Importer:
 
     def add(self, entry: CustomPlanEntry, job: PlacementJob) -> None:
         """Validate one entry and add its placement."""
-        name_errors = _name_errors(entry, job, self._names)
-        self.errors.extend(name_errors)
+        invalid = _entry_name_errors(entry, job, self._names)
+        self.errors.extend(invalid)
         target = None
-        if name_errors:
+        if invalid:
             self._keys.append(None)
         else:
             target = self._target(entry, job)
@@ -172,12 +175,13 @@ class _Importer:
             # Without a target the plan has an error, so "place" is never carried out.
             outcome=outcome or "place",
         )
-        self.errors.extend(target_errors(placed, job, self._names, self._probe))
+        self.errors.extend(name_errors(target, job, self._names))
+        self.errors.extend(target_errors(placed, job, self._probe))
         self.entries.append(placed)
 
     def plan(self, jobs: Sequence[PlacementJob]) -> PlacementPlan:
         """Return the plan with duplicate targets reported."""
-        duplicates = duplicate_errors(self.entries, jobs, self._keys)
+        duplicates = duplicate_errors(jobs, self._keys)
         errors = (*self.errors, *duplicates)
         return PlacementPlan(entries=tuple(self.entries), errors=errors)
 

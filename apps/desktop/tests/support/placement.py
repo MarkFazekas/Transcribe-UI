@@ -39,6 +39,10 @@ POSIX_OUTPUT = "/out"
 WINDOWS_ROOT = "C:/A"
 # Output folder of the Windows cases (written with `/`).
 WINDOWS_OUTPUT = "D:/subs"
+# The common source of the single-file cases (below the POSIX root).
+MOVIE = "A/movie.mkv"
+# Its target next to it.
+MOVIE_TARGET = f"{POSIX_ROOT}/A/movie.hu.srt"
 # Separates the paths of a case written as one string.
 CASE_SEPARATOR = ","
 
@@ -130,6 +134,12 @@ def outcomes(plan: PlacementPlan) -> list[str]:
 def error_codes(plan: PlacementPlan) -> list[str]:
     """Return the plan's error codes in order."""
     return [error.code for error in plan.errors]
+
+
+def only_error(plan: PlacementPlan) -> str | None:
+    """Return the code of the plan's only error, or None when it has none or several."""
+    codes = error_codes(plan)
+    return codes[0] if len(codes) == 1 else None
 
 
 def has_error(plan: PlacementPlan, code: str, message: str) -> bool:

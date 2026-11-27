@@ -8,8 +8,9 @@ import stat
 from pathlib import Path
 from typing import Literal, Protocol
 
-# What is at a target path: nothing, a file (or a link to one), or something else (a folder).
-type TargetKind = Literal["missing", "file", "other"]
+# What is at a target path: nothing, a file (or a link to one), something else (a folder, or a
+# file where a folder of the path should be), or it cannot be checked (no permission).
+type TargetKind = Literal["missing", "file", "other", "unreadable"]
 
 
 class PlacementProbe(Protocol):
@@ -41,9 +42,11 @@ class OsPlacementProbe:
             mode = Path(path).lstat().st_mode
         except FileNotFoundError:
             return "missing"
-        except OSError:
-            # A file where a folder of the path should be, or no permission: nothing can go there.
+        except NotADirectoryError:
+            # A file where a folder of the path should be: nothing can go there.
             return "other"
+        except OSError:
+            return "unreadable"
         if stat.S_ISREG(mode):
             return "file"
         is_link = stat.S_ISLNK(mode)

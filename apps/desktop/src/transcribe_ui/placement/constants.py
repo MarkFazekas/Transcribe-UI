@@ -15,10 +15,20 @@ MAX_NAME_LENGTH: Final = 255
 UTF16_UNIT_BYTES: Final = 2
 # Longest full target path on Windows (UTF-16 code units): MAX_PATH 260 minus the final NUL.
 WINDOWS_MAX_PATH_LENGTH: Final = 259
+# Longest folder path Windows creates (UTF-16 code units): 248 (MAX_PATH minus an 8.3 name)
+# minus the final NUL.
+WINDOWS_MAX_FOLDER_LENGTH: Final = 247
+# Suffix of the temp file a subtitle is written to before `os.replace` moves it into place
+# (`run_download`); name and path limits keep room for it.
+TEMP_SUFFIX: Final = ".tmp"
+# Most rounds of collision renaming; each round changes at least one name, so it ends earlier.
+MAX_COLLISION_ROUNDS: Final = 64
 # Outcomes of a placement that write a file.
 WRITING_OUTCOMES: Final = frozenset(("place", "overwrite"))
 # Strategies that tell colliding files of different folders apart by folder names.
 FLAT_STRATEGIES: Final = frozenset(("flat", "flat_with_folders"))
+# Folders closest to the file joined into the name by flat_with_folders unless given (X).
+DEFAULT_FOLDER_COUNT: Final = 1
 # Version of the exported custom plan format.
 CUSTOM_PLAN_VERSION: Final = 1
 
@@ -40,8 +50,8 @@ WINDOWS_RESERVED_NAMES: Final = frozenset(
         "NUL",
         "CONIN$",
         "CONOUT$",
-        *(f"COM{number}" for number in "123456789¹²³"),
-        *(f"LPT{number}" for number in "123456789¹²³"),
+        *(f"COM{number}" for number in "0123456789¹²³"),
+        *(f"LPT{number}" for number in "0123456789¹²³"),
     ),
 )
 
@@ -51,6 +61,12 @@ ERROR_NAME_TOO_LONG: Final = "name_too_long"
 ERROR_PATH_TOO_LONG: Final = "path_too_long"
 # Plan error: two jobs would be placed at the same target.
 ERROR_DUPLICATE_TARGET: Final = "duplicate_target"
+# Plan error: what is at the target cannot be read (no permission), so it cannot be planned for.
+ERROR_TARGET_UNREADABLE: Final = "target_unreadable"
+# Plan error: the scan root is not an absolute path or contains `..`.
+ERROR_SCAN_ROOT_INVALID: Final = "scan_root_invalid"
+# Plan error: a source path is not an absolute path or contains `..`.
+ERROR_SOURCE_PATH_INVALID: Final = "source_path_invalid"
 # Plan error: the target exists and is not a file, so it cannot be overwritten or skipped as one.
 ERROR_TARGET_NOT_A_FILE: Final = "target_not_a_file"
 # Plan error: a source file is not below the scan root the strategy counts folders from.

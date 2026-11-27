@@ -11,17 +11,21 @@ Collisions (two names equal under the path-flavour rule in one target folder):
 - files that still collide (same folder, e.g. `movie.mkv` and `movie.mp4`, in every strategy)
   each get their source extension added to the stem (`movie_mkv.hu.srt`, `movie_mp4.hu.srt`).
 
-What collides after that (folder names that contain `_`, such as `A_B` and `A/B`) is a plan
-error; nothing is numbered.
+The steps repeat, round by round, while a rename makes a new collision (`movie_mkv.hu.srt`
+meeting the source `movie_mkv.avi`, or `A_movie.hu.srt` meeting a root file `A_movie.mp4`).
+What still collides when no step changes a name is a plan error; nothing is numbered. Every
+name then holds all its folders below the scan root, its stem and its extension joined by
+`_`, so this needs a `_` inside one of those names (from the source, or from an invalid
+character replaced): `A_B/m.mkv` and `A/B/m.mkv`, or a root `A_movie.mkv` and `A/movie.mkv`.
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import PurePath
 
 from transcribe_ui.placement.classes import PlacementJob, RenameReason
-from transcribe_ui.placement.constants import NAME_JOINER
-from transcribe_ui.placement.naming import PathKey, TargetNames, split_name, subtitle_name
+from transcribe_ui.placement.constants import MAX_COLLISION_ROUNDS, NAME_JOINER
+from transcribe_ui.placement.naming import PathKey, TargetNames, is_clean_absolute, split_name, subtitle_name
 
 # Rule keys of a target folder and a file name: equal keys are the same target.
 type TargetKey = tuple[PathKey, str]
@@ -38,7 +42,9 @@ class Source:
     # Without the dot; empty when the file has none.
     extension: str
     # Folder names from the scan root down to the file's folder; None when outside the root.
-    relative: tuple[str, ...] | None
+    relative: tuple[str, ...] | None = None
+    # Whether the source path is absolute without `..` parts (else nothing is placed for it).
+    valid: bool = False
 
     @property
     def depth(self) -> int:
@@ -49,13 +55,21 @@ class Source:
 def source_of(job: PlacementJob, scan_root: PurePath, names: TargetNames) -> Source:
     """Return a job's source, with its folders below the scan root."""
     path = names.pure(job.source_path)
+    folder = path.parent
+    stem, extension = split_name(path.name)
+    source = Source(job=job, folder=folder, stem=stem, extension=extension)
+    if not is_clean_absolute(path):
+        return source
+    return replace(source, relative=_below(folder, scan_root, names), valid=True)
+
+
+def _below(folder: PurePath, scan_root: PurePath, names: TargetNames) -> tuple[str, ...] | None:
+    # The folder's parts below the scan root, or None when it is not at or below it.
     root_key = names.key(scan_root)
     depth = len(root_key)
-    inside = names.key(path.parent)[:depth] == root_key
-    relative = path.parent.parts[depth:] if inside else None
-    stem, extension = split_name(path.name)
-    folder = path.parent
-    return Source(job=job, folder=folder, stem=stem, extension=extension, relative=relative)
+    if names.key(folder)[:depth] != root_key:
+        return None
+    return folder.parts[depth:]
 
 
 def closest_levels(depth: int, count: int) -> frozenset[int]:
@@ -114,19 +128,36 @@ def colliding(drafts: Iterable[Draft], names: TargetNames) -> list[list[Draft]]:
 
 
 def resolve_collisions(drafts: Sequence[Draft], names: TargetNames, *, by_folders: bool) -> None:
-    """Rename colliding drafts: by folder names (flat strategies), then by source extension."""
-    for group in colliding(drafts, names):
-        if by_folders:
-            _add_folders(group, names)
-        for same_folder in colliding(group, names):
-            _add_extensions(same_folder)
+    """Rename colliding drafts until no rename helps: by folder names (flat strategies), then by source extension.
+
+    Rounds repeat because a new name can collide with a draft outside its group (`A/movie.mkv`
+    becomes `A_movie.hu.srt`, which a root file `A_movie.mkv` already has). Each round changes
+    at least one draft's state, which only grows, so the rounds end.
+    """
+    rounds = 0
+    while rounds < MAX_COLLISION_ROUNDS:
+        groups = colliding(drafts, names)
+        changed = [_separate(group, names, by_folders=by_folders) for group in groups]
+        if not any(changed):
+            return
+        rounds += 1
 
 
-def _add_extensions(drafts: Iterable[Draft]) -> None:
+def _separate(group: Sequence[Draft], names: TargetNames, *, by_folders: bool) -> bool:
+    # One renaming step for a group of drafts with the same target; whether a draft changed.
+    if by_folders and _add_folders(group, names):
+        return True
+    return _add_extensions(group)
+
+
+def _add_extensions(drafts: Iterable[Draft]) -> bool:
+    changed = False
     for draft in drafts:
-        if draft.source.extension:
+        if draft.source.extension and not draft.with_extension:
             draft.with_extension = True
             draft.renamed_by.append("source_extension")
+            changed = True
+    return changed
 
 
 def _separated(group: Sequence[Draft], names: TargetNames) -> bool:
@@ -139,17 +170,30 @@ def _separated(group: Sequence[Draft], names: TargetNames) -> bool:
     return all(len(folders) == 1 for folders in folders_by_name.values())
 
 
-def _add_folders(group: Sequence[Draft], names: TargetNames) -> None:
+def _add_folders(group: Sequence[Draft], names: TargetNames) -> bool:
+    # Raise the closest-folder count of the group until files of different folders differ;
+    # whether a name changed.
     source_folders = {names.key(draft.source.folder) for draft in group}
     if len(source_folders) == 1:
-        return
+        return False
     before = [draft.name(names) for draft in group]
+    starts = [draft.closest for draft in group]
     deepest = max(draft.source.depth for draft in group)
     for closest in range(1, deepest + 1):
-        for draft in group:
-            draft.closest = closest
+        for draft, start in zip(group, starts, strict=True):
+            draft.closest = max(start, closest)
         if _separated(group, names):
             break
-    for changed, name in zip(group, before, strict=True):
-        if changed.name(names) != name:
-            changed.renamed_by.append("folders")
+    return _mark_folders(group, before, names)
+
+
+def _mark_folders(group: Sequence[Draft], before: Sequence[str], names: TargetNames) -> bool:
+    # Add the `folders` reason to each draft whose name changed; whether one did.
+    renamed = False
+    for draft, name in zip(group, before, strict=True):
+        if draft.name(names) == name:
+            continue
+        renamed = True
+        if "folders" not in draft.renamed_by:
+            draft.renamed_by.append("folders")
+    return renamed

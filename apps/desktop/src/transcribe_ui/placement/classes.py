@@ -11,7 +11,7 @@ from pydantic import Field, PositiveInt, model_validator
 
 from transcribe_contracts.classes import LanguageCode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath
-from transcribe_ui.placement.constants import CUSTOM_PLAN_VERSION
+from transcribe_ui.placement.constants import CUSTOM_PLAN_VERSION, DEFAULT_FOLDER_COUNT
 
 # How a download places its subtitles (§3.5 strategies 1-4; custom plans are imported instead);
 # also what the placement settings pre-fill a download with (`api.classes.PlacementDefaults`).
@@ -28,6 +28,26 @@ type PlacementOutcome = Literal[
     "skip_empty",
     "skip_failed",
     "not_finished",
+]
+# Why a plan cannot be carried out (the `ERROR_*` codes of `placement/constants.py`).
+type PlanErrorCode = Literal[
+    "name_too_long",
+    "path_too_long",
+    "duplicate_target",
+    "target_unreadable",
+    "scan_root_invalid",
+    "source_path_invalid",
+    "target_not_a_file",
+    "outside_scan_root",
+    "output_not_absolute",
+    "custom_plan_schema",
+    "custom_plan_duplicate_job",
+    "custom_plan_unknown_job",
+    "custom_plan_missing_job",
+    "custom_plan_source_changed",
+    "custom_plan_invalid_name",
+    "custom_plan_not_srt",
+    "custom_plan_outside_root",
 ]
 # Why a target name differs from the default name and the strategy's chosen folders: folder
 # names were added to tell apart files of different folders, or the source extension was added
@@ -57,25 +77,23 @@ class PlacementOptions(OutcomeOptions):
     strategy: PlacementStrategy = "next_to_media"
     output_folder: LocalPath | None = Field(
         default=None,
-        description="Absolute target folder of the mirror and flat strategies.",
+        description="Absolute target folder of the mirror and flat strategies; ignored by next_to_media.",
     )
     folder_count: PositiveInt = Field(
-        default=1,
+        default=DEFAULT_FOLDER_COUNT,
         description="flat_with_folders: the number of folders closest to the file joined into the name.",
     )
     folder_levels: tuple[PositiveInt, ...] = Field(
         default=(),
         description=(
             "flat_with_folders: explicit folder levels joined into the name instead of the closest ones, "
-            "counted from the scan root (1 = the first folder below it)."
+            "counted from the scan root (1 = the first folder below it); not combined with folder_count."
         ),
     )
 
     @model_validator(mode="after")
     def _check_output_folder(self) -> Self:
-        if self.strategy == "next_to_media" and self.output_folder is not None:
-            msg = "next_to_media takes no output_folder"
-            raise ValueError(msg)
+        # next_to_media ignores an output folder, so settings pre-filled with one still apply.
         if self.strategy != "next_to_media" and self.output_folder is None:
             msg = f"{self.strategy} needs an output_folder"
             raise ValueError(msg)
@@ -88,6 +106,13 @@ class PlacementOptions(OutcomeOptions):
             raise ValueError(msg)
         if len(set(self.folder_levels)) != len(self.folder_levels):
             msg = "folder_levels lists a level more than once"
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _check_folder_choice(self) -> Self:
+        if self.folder_levels and self.folder_count != DEFAULT_FOLDER_COUNT:
+            msg = "give either folder_levels or folder_count, not both"
             raise ValueError(msg)
         return self
 
@@ -113,7 +138,7 @@ class PlannedPlacement(FrozenModel):
 class PlanError(FrozenModel):
     """A problem that stops the plan from being carried out; nothing is written while one exists."""
 
-    code: str
+    code: PlanErrorCode
     # Names files by their name only: messages are not path-normalised in golden files.
     message: str
     item_id: Ulid | None = None

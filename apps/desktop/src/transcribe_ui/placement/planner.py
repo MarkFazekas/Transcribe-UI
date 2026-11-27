@@ -17,6 +17,7 @@ from transcribe_ui.placement.classes import (
     PlacementOutcome,
     PlacementPlan,
     PlanError,
+    PlanErrorCode,
     PlannedPlacement,
 )
 from transcribe_ui.placement.constants import (
@@ -25,13 +26,17 @@ from transcribe_ui.placement.constants import (
     ERROR_OUTPUT_NOT_ABSOLUTE,
     ERROR_OUTSIDE_SCAN_ROOT,
     ERROR_PATH_TOO_LONG,
+    ERROR_SCAN_ROOT_INVALID,
+    ERROR_SOURCE_PATH_INVALID,
     ERROR_TARGET_NOT_A_FILE,
+    ERROR_TARGET_UNREADABLE,
     FLAT_STRATEGIES,
     MAX_NAME_LENGTH,
+    TEMP_SUFFIX,
     WRITING_OUTCOMES,
 )
 from transcribe_ui.placement.drafts import Draft, Source, closest_levels, resolve_collisions, source_of
-from transcribe_ui.placement.naming import TargetNames
+from transcribe_ui.placement.naming import TargetNames, is_clean_absolute
 from transcribe_ui.placement.probe import PlacementProbe
 
 
@@ -41,7 +46,7 @@ def job_label(job: PlacementJob) -> str:
     return f"{name} ({job.language})"
 
 
-def job_error(code: str, message: str, job: PlacementJob) -> PlanError:
+def job_error(code: PlanErrorCode, message: str, job: PlacementJob) -> PlanError:
     """Return a plan error about one job."""
     text = f"{job_label(job)}: {message}"
     return PlanError(code=code, message=text, item_id=job.item_id, language=job.language)
@@ -73,42 +78,55 @@ def target_outcome(
     """Return what a download does with a placeable subtitle's target."""
     if needs_folder and not probe.folder_exists(str(target.parent)):
         return "skip_folder_missing"
-    if probe.target_kind(str(target)) == "missing":
+    kind = probe.target_kind(str(target))
+    if kind in {"missing", "unreadable"}:
+        # An unreadable target is a plan error (`target_errors`), never a skip.
         return "place"
     return "overwrite" if options.overwrite else "skip_existing"
 
 
-def target_errors(
-    entry: PlannedPlacement, job: PlacementJob, names: TargetNames, probe: PlacementProbe
-) -> list[PlanError]:
-    """Return the problems of a writing entry's target: name and path length, a folder in the way."""
-    target = entry.target_path
-    if entry.outcome not in WRITING_OUTCOMES or target is None:
+def name_errors(target: str | None, job: PlacementJob, names: TargetNames) -> list[PlanError]:
+    """Return the problems of a target's name and path (its temp file's included), whatever the job's outcome.
+
+    Names are fixed per job (Q24), so a name that cannot be written now cannot be written later either.
+    """
+    if target is None:
         return []
     errors: list[PlanError] = []
     name = names.pure(target).name
-    if names.length(name) > MAX_NAME_LENGTH:
-        message = f"the name {name!r} is longer than {MAX_NAME_LENGTH}"
+    if names.length(name + TEMP_SUFFIX) > MAX_NAME_LENGTH:
+        message = f"the name {name!r} (with {TEMP_SUFFIX} while it is written) is longer than {MAX_NAME_LENGTH}"
         errors.append(job_error(ERROR_NAME_TOO_LONG, message, job))
     if names.path_too_long(target):
         errors.append(job_error(ERROR_PATH_TOO_LONG, "the target path is longer than Windows allows", job))
-    in_the_way = entry.outcome == "overwrite" and probe.target_kind(target) == "other"
-    if in_the_way:
-        errors.append(job_error(ERROR_TARGET_NOT_A_FILE, f"{name!r} exists and is not a file", job))
     return errors
 
 
+def target_errors(entry: PlannedPlacement, job: PlacementJob, probe: PlacementProbe) -> list[PlanError]:
+    """Return the problems of what is at a writing entry's target: unreadable, or a folder to overwrite."""
+    target = entry.target_path
+    if entry.outcome not in WRITING_OUTCOMES or target is None:
+        return []
+    kind = probe.target_kind(target)
+    if kind == "unreadable":
+        return [job_error(ERROR_TARGET_UNREADABLE, "the target cannot be checked (no permission)", job)]
+    if entry.outcome == "overwrite" and kind == "other":
+        return [job_error(ERROR_TARGET_NOT_A_FILE, "the target exists and is not a file", job)]
+    return []
+
+
 def duplicate_errors(
-    entries: Sequence[PlannedPlacement],
     jobs: Sequence[PlacementJob],
     keys: Sequence[object | None],
 ) -> list[PlanError]:
-    """Return an error for each writing entry whose target key another entry shares."""
+    """Return an error for each entry whose target key another entry shares, whatever its outcome.
+
+    Names are fixed per job (Q24), so two jobs on one target collide even before both have a subtitle.
+    """
     counts = Counter(key for key in keys if key is not None)
     errors: list[PlanError] = []
-    for entry, job, key in zip(entries, jobs, keys, strict=True):
-        shared = key is not None and counts[key] > 1
-        if shared and entry.outcome in WRITING_OUTCOMES:
+    for job, key in zip(jobs, keys, strict=True):
+        if key is not None and counts[key] > 1:
             errors.append(job_error(ERROR_DUPLICATE_TARGET, "another job has the same target", job))
     return errors
 
@@ -122,6 +140,8 @@ def _flat_levels(source: Source, options: PlacementOptions) -> frozenset[int]:
 
 
 def _draft(source: Source, options: PlacementOptions, output: PurePath | None, names: TargetNames) -> Draft:
+    if not source.valid:
+        return Draft(source=source, folder=None)
     if options.strategy == "next_to_media":
         return Draft(source=source, folder=source.folder)
     outside_root = source.relative is None and options.strategy != "flat"
@@ -153,10 +173,45 @@ def _entry(draft: Draft, options: PlacementOptions, names: TargetNames, probe: P
 
 def _entry_errors(draft: Draft, entry: PlannedPlacement, names: TargetNames, probe: PlacementProbe) -> list[PlanError]:
     job = draft.source.job
-    errors = target_errors(entry, job, names, probe)
-    if draft.folder is None and entry.outcome in WRITING_OUTCOMES:
-        errors.append(job_error(ERROR_OUTSIDE_SCAN_ROOT, "the file is not below the scan root", job))
+    if not draft.source.valid:
+        message = "the source path is not absolute or contains '..'"
+        return [job_error(ERROR_SOURCE_PATH_INVALID, message, job)]
+    if draft.folder is None:
+        return [job_error(ERROR_OUTSIDE_SCAN_ROOT, "the file is not below the scan root", job)]
+    errors = name_errors(entry.target_path, job, names)
+    errors.extend(target_errors(entry, job, probe))
     return errors
+
+
+def _plan_errors(
+    drafts: Sequence[Draft],
+    entries: Sequence[PlannedPlacement],
+    names: TargetNames,
+    probe: PlacementProbe,
+) -> tuple[PlanError, ...]:
+    errors: list[PlanError] = []
+    for planned, entry in zip(drafts, entries, strict=True):
+        errors.extend(_entry_errors(planned, entry, names, probe))
+    jobs = [draft.source.job for draft in drafts]
+    keys = [draft.key(names) for draft in drafts]
+    errors.extend(duplicate_errors(jobs, keys))
+    return tuple(errors)
+
+
+def _output(options: PlacementOptions, names: TargetNames) -> PurePath | None:
+    # next_to_media ignores an output folder.
+    if options.strategy == "next_to_media" or options.output_folder is None:
+        return None
+    return names.pure(options.output_folder)
+
+
+def _setup_error(output: PurePath | None, root: PurePath) -> PlanError | None:
+    if output is not None and not output.is_absolute():
+        return output_error()
+    if not is_clean_absolute(root):
+        message = "The scan root is not an absolute path or contains '..'."
+        return PlanError(code=ERROR_SCAN_ROOT_INVALID, message=message)
+    return None
 
 
 def plan_placement(
@@ -168,19 +223,14 @@ def plan_placement(
 ) -> PlacementPlan:
     """Return the plan of placing the jobs' subtitles with a strategy of §3.5 (one entry per job, in order)."""
     names = TargetNames(rules)
-    output = None
-    if options.output_folder is not None:
-        output = names.pure(options.output_folder)
-        if not output.is_absolute():
-            return PlacementPlan(entries=(), errors=(output_error(),))
+    output = _output(options, names)
     root = names.pure(scan_root)
-    sources = [source_of(job, root, names) for job in jobs]
+    setup_error = _setup_error(output, root)
+    if setup_error is not None:
+        return PlacementPlan(entries=(), errors=(setup_error,))
+    sources = (source_of(job, root, names) for job in jobs)
     drafts = [_draft(source, options, output, names) for source in sources]
     resolve_collisions(drafts, names, by_folders=options.strategy in FLAT_STRATEGIES)
     entries = [_entry(draft, options, names, probe) for draft in drafts]
-    errors: list[PlanError] = []
-    for planned, entry in zip(drafts, entries, strict=True):
-        errors.extend(_entry_errors(planned, entry, names, probe))
-    keys = [draft.key(names) for draft in drafts]
-    errors.extend(duplicate_errors(entries, jobs, keys))
-    return PlacementPlan(entries=tuple(entries), errors=tuple(errors))
+    errors = _plan_errors(drafts, entries, names, probe)
+    return PlacementPlan(entries=tuple(entries), errors=errors)

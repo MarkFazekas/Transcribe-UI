@@ -16,9 +16,11 @@ from transcribe_ui.placement.constants import (
     POSIX_FORBIDDEN_CHARACTERS,
     REPLACEMENT_CHARACTER,
     SUBTITLE_EXTENSION,
+    TEMP_SUFFIX,
     UTF16_UNIT_BYTES,
     WINDOWS_FORBIDDEN_CHARACTERS,
     WINDOWS_LAST_CONTROL_CHARACTER,
+    WINDOWS_MAX_FOLDER_LENGTH,
     WINDOWS_MAX_PATH_LENGTH,
     WINDOWS_RESERVED_NAMES,
     WINDOWS_TRAILING_CHARACTERS,
@@ -42,6 +44,11 @@ def subtitle_name(stem: str, language: str) -> str:
 def has_subtitle_extension(file_name: str) -> bool:
     """Return whether a file name ends with `.srt` (in any case)."""
     return file_name.lower().endswith(f".{SUBTITLE_EXTENSION}")
+
+
+def is_clean_absolute(path: PurePath) -> bool:
+    """Return whether a path is absolute and has no `..` part (so it cannot leave a folder)."""
+    return path.is_absolute() and ".." not in path.parts
 
 
 def _reserved(name: str) -> bool:
@@ -102,8 +109,12 @@ class TargetNames:
         return len(name.encode("utf-8", "surrogateescape"))
 
     def path_too_long(self, path: str) -> bool:
-        """Return whether a full path is longer than the target allows (Windows' MAX_PATH)."""
-        return self.windows and self.length(path) > WINDOWS_MAX_PATH_LENGTH
+        """Return whether Windows cannot write the file: its temp file's path over MAX_PATH, or its folder too long to create."""
+        if not self.windows:
+            return False
+        folder = str(self.pure(path).parent)
+        too_long = self.length(path + TEMP_SUFFIX) > WINDOWS_MAX_PATH_LENGTH
+        return too_long or self.length(folder) > WINDOWS_MAX_FOLDER_LENGTH
 
     def forbidden(self, character: str) -> bool:
         """Return whether the target does not allow the character in a name."""
