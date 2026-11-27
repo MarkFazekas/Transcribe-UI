@@ -99,15 +99,15 @@ Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are reg
 
 ## CI/CD
 
-`ci.yml` and `release-worker.yml` exist; the other release and reaper workflows are added with
-the apps they ship.
+`ci.yml`, `release-worker.yml` and `reaper.yml` exist; `release-desktop.yml` is added with the
+desktop app.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target) → `check` matrix running `scripts/check.py <target>` (desktop also on Windows once it exists); `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
 | `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke `--version`; upload only the executable with `actions/upload-artifact@v7` `archive: false` (unique file name per OS); then a release job (`needs:` all four builds, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the four executables, only if every build and smoke test passed |
 | `release-worker.yml` | pull requests and pushes to `main` touching `apps/worker/**`, `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `.dockerignore`, `scripts/smoke_*.py` or the workflow; manual dispatch | `build`: free runner disk, `docker buildx build -f apps/worker/Dockerfile`, `scripts/smoke_worker_image.py` (moto S3 in Docker, fake Runpod API on localhost, the image run as a pod with `TRANSCRIBE_ENGINE=fake`: result, `_done.json`, finished status, pod deleted, exit 0; then, inside the image, the CUDA libraries load and, with `--network none`, the GPU stack imports, the Whisper model resolves with `local_files_only` as the engine loads it, the baked hu/en aligners load, and WhisperX's Silero VAD is built from the baked copy and run on silence). On `main` only: the image is saved (`docker save` + zstd) as a one-day artifact (the repository is public, so artifact storage is free), and a separate `push` job in `environment: dockerhub` loads it and pushes `sha-<short>`, `schema-<major>` and `latest` to `markfazekasgh/transcribe-ui-worker`. The job holding the token never runs the image. |
-| `reaper.yml` | schedule, every 15 min | terminate overdue `transcribe-ui-*` pods with a pods-only key (`environment: runpod-reaper`) |
+| `reaper.yml` | schedule (`*/15 * * * *`); manual dispatch with a `dry-run` input | `reap` in `environment: runpod-reaper`: without the secret only a `::warning::` and success; otherwise `uv sync --locked --no-dev --package transcribe-worker` (no `engine` extra, no uv cache) and `transcribe-worker-reaper [--dry-run]`; concurrency group `reaper` (never cancelled), 12-minute timeout |
 
 Nothing is published from a pull request (`release-worker.yml` only builds and smoke-tests
 there). Concurrency groups cancel superseded pull request runs; a running workflow on `main` is not
@@ -119,7 +119,7 @@ Deployment credentials live in GitHub environments whose deployment branch polic
 | Environment | Variables | Secrets | Used by |
 |---|---|---|---|
 | `dockerhub` | `DOCKERHUB_USERNAME` | `DOCKERHUB_TOKEN` (Docker Hub personal access token, Read & Write) | `release-worker.yml` push job |
-| `runpod-reaper` (created with the reaper) | | pods-only Runpod key | `reaper.yml` |
+| `runpod-reaper` | | `RUNPOD_REAPER_API_KEY` (pods-only Runpod key) | `reaper.yml` |
 
 Set them from the repo root with `gh variable set NAME --env <env> --body <value>` and
 `gh secret set NAME --env <env>` (prompts for the value, so it never lands in shell history;

@@ -1,0 +1,66 @@
+name: reaper
+
+# Termination layer 4 (architecture §5.2): terminates overdue `transcribe-ui-*` pods and cancels
+# overdue queued pods with a pods-only Runpod key. Scheduled runs always use the default branch;
+# the key lives in the `runpod-reaper` environment, whose deployment branch policy allows only
+# main. Until the key exists, every run only warns and succeeds.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Only report what would be done (no DELETE)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # Passes never overlap; a pass that is still running is never cancelled by the next one.
+  group: reaper
+  cancel-in-progress: false
+
+jobs:
+  reap:
+    runs-on: ubuntu-24.04
+    # The pass stops starting new actions after 4 minutes (PASS_BUDGET); one in-flight action
+    # with its retries and confirmation checks needs at most about 4 more.
+    timeout-minutes: 12
+    environment: runpod-reaper
+    steps:
+      - id: key
+        name: Check the reaper key
+        env:
+          RUNPOD_REAPER_API_KEY: ${{ secrets.RUNPOD_REAPER_API_KEY }}
+        run: |
+          if [ -n "$RUNPOD_REAPER_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::reaper disabled: RUNPOD_REAPER_API_KEY not set"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.key.outputs.present == 'true'
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - if: steps.key.outputs.present == 'true'
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          # No cache in a job that holds a deployment secret.
+          enable-cache: false
+      - if: steps.key.outputs.present == 'true'
+        name: Install the worker package without the GPU stack
+        run: uv sync --locked --no-dev --package transcribe-worker
+      - if: steps.key.outputs.present == 'true'
+        name: Reap overdue pods
+        env:
+          RUNPOD_REAPER_API_KEY: ${{ secrets.RUNPOD_REAPER_API_KEY }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          uv run --no-sync transcribe-worker-reaper "${args[@]}"

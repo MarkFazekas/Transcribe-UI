@@ -30,7 +30,7 @@ pyproject.toml            workspace root: dev tools, ruff/mypy/pytest config (no
 .flake8, whitelist.txt    flake8 + plugins config, spellcheck whitelist
 packages/contracts/       transcribe_contracts: models shared by desktop and worker
 apps/desktop/             transcribe_ui: backend + frontends, PyInstaller spec
-apps/worker/              transcribe_worker: Runpod worker, Dockerfile
+apps/worker/              transcribe_worker: Runpod worker, Dockerfile; also the pod reaper
 scripts/                  dev tasks (parallel local checks)
 docs/human/, docs/ai/     see CLAUDE.md
 ```
@@ -43,8 +43,9 @@ docs/human/, docs/ai/     see CLAUDE.md
   models in `models.py`; Alembic migrations live in `apps/desktop/.../migrations/`. Logic
   modules (`services.py` and similar) import from these.
 - `transcribe_contracts` is the only code shared between the two apps. It holds the R2 object
-  layout, the batch manifest, the result models and the schema version. Both apps pin the same
-  workspace version, so a contract change is one PR that touches both sides and their tests.
+  layout, the batch manifest, the result models, the schema version and the pod name
+  convention. Both apps pin the same workspace version, so a contract change is one PR that
+  touches both sides and their tests.
 
 ## 3. Desktop app
 
@@ -247,6 +248,15 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
   app shows the total audio duration and an estimated cost range for confirmation; there is no
   in-app spending limit (the account's own limit applies). SSH uses Runpod's proxied basic SSH,
   so no port or sshd is configured.
+- Pod name (`transcribe_contracts.pods`): `transcribe-ui-<run_id>-until-<YYYYMMDDTHHMMZ>`,
+  the run's ULID and a UTC deadline rounded up to the whole minute (61 characters; the v2 spec
+  sets no maximum, the builder keeps to 63). A queued pod carries the same name as the pod it
+  deploys. The deadline is the moment after which nothing legitimate can still be running:
+  for a direct launch, launch time + start-up margin (image pull, model load) +
+  `MAX_RUNTIME_S` + margin; for a queued launch, the queue's `expiresAt` + start-up margin +
+  `MAX_RUNTIME_S` + margin, because the pod may deploy just before the queue expires. The
+  external reaper (§5.2, layer 4) relies on this name alone; the parser returns nothing for
+  any other shape.
 - Single worker at a time: `launch_worker` refuses while a live pod (any status but
   `TERMINATED`) or a `QUEUED` queued pod named `transcribe-ui-*` exists, so two workers never
   process the same batch (result writes are also conditional, see §4).
@@ -392,9 +402,19 @@ Termination layers, each sufficient on its own for the failures it covers:
 1. Entry `finally` after the child exits (normal end, crash, config error, missing GPU).
 2. Watchdog process, independent of the entry and the child: covers hangs and a blocked entry.
 3. Desktop app deadline and startup reconciliation (only while the app runs, §3.7).
-4. External reaper: a scheduled GitHub Actions workflow with a pods-only key terminates
-   any `transcribe-ui-*` pod older than its deadline. Covers failures before Python starts
-   (image pull failure, crash loop) and queued pods that start while the desktop app is closed.
+4. External reaper (`transcribe_worker.reaper`, CLI `transcribe-worker-reaper`, run by
+   `reaper.yml` every 15 minutes with a pods-only key): one pass lists `GET /v2/queued-pods`
+   and `GET /v2/pods` (all pages), cancels queued pods in status `QUEUED` and terminates pods
+   not yet `TERMINATED` whose name parses and whose deadline plus a 10-minute grace (so it
+   does not race layers 1-2) has passed, then confirms each by `GET` (404, `TERMINATED`, or a
+   queued pod no longer `QUEUED`). Queued pods go first, so one that deploys while being
+   cancelled shows up in the pod list read afterwards. A name with the prefix that does not
+   parse is left alone and fails the run; other pods are never touched or logged by name.
+   Each call is retried a few times within the pass; a pass starts no new action after 4
+   minutes; any failure exits 1 while the other pods are still handled. `--dry-run` sends no
+   DELETE. Covers failures before Python starts (image pull failure, crash loop) and queued
+   pods that start while the desktop app is closed. The HTTP layer is the entry's
+   `ApiSession` (same URL, redirect and error-message rules).
 5. Account spend limit and low-balance alert (a zero balance stops pods instead of
    terminating them, which still bills volume storage).
 
@@ -549,6 +569,9 @@ Few unit tests; mostly regression and flow tests:
   prefetch pipeline, resume after a kill, failure isolation (one failing file, one empty
   file), `_done.json`, and the supervisor always calling terminate (child crash, hang →
   watchdog, normal exit; `KEEP_POD_ALIVE`).
+- **Reaper flow tests**: a full pass against a fake Runpod API on 127.0.0.1 (pagination,
+  overdue / in-grace / in-time / foreign / malformed names, queued pods, a DELETE that fails
+  or does not take effect, dry run, pass budget, the command line).
 - **GPU smoke test** (marker `gpu`, only with the architect present): real WhisperX on a
   short Hungarian and English clip on the pod, started from an interactive SSH session (the
   proxied SSH has no SCP/SFTP; `POST /v2/pods/{id}/exec` is the non-interactive alternative).
@@ -581,8 +604,15 @@ Few unit tests; mostly regression and flow tests:
   separate job in the `dockerhub` environment (deployment branch policy: `main` only, so no
   other branch gets the token) loads the image from an artifact and pushes it; it never runs
   the image.
-- `reaper.yml` on a schedule: terminate overdue `transcribe-ui-*` pods, with the pods-only key
-  in a `runpod-reaper` environment restricted to `main` the same way.
+- `reaper.yml` every 15 minutes and on manual dispatch (with a dry-run input): runs the
+  reaper (§5.2, layer 4) with `RUNPOD_REAPER_API_KEY` from the `runpod-reaper` environment,
+  restricted to `main` the same way. It installs only the worker package without the `engine`
+  extra, never overlaps itself (concurrency group) and times out after 12 minutes. While the
+  secret is missing or empty the run only emits a `::warning::` and succeeds, so it does not
+  fail every 15 minutes before the key exists; with the key, any failure or a malformed
+  `transcribe-ui-*` name fails the run, and GitHub notifies. GitHub disables scheduled
+  workflows of a public repository after 60 days without repository activity: the reaper
+  then stops silently until it is re-enabled in the Actions tab (layer 5 still applies).
 - Nothing is published from a pull request.
 
 ## 9. Ideas for later (not planned)
