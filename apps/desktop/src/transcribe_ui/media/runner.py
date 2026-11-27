@@ -6,6 +6,8 @@ first Ctrl+C sets the cancel token. The adapter kills the process itself when th
 when the timeout passes, or when anything else interrupts the wait (a second Ctrl+C), together
 with anything it started: the whole session on POSIX, the whole job object on Windows (where the
 job also kills them if the app dies; on POSIX such orphans are accepted, see architecture §3.4).
+Every running tool is tracked, so the GUI's "Quit now" kills them before `os._exit`
+(`kill_running_tools`); on POSIX they would otherwise keep running.
 """
 
 import logging
@@ -13,6 +15,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -78,6 +81,45 @@ class _Child:
     group: _Group | None = None
 
 
+class _Running:
+    """The tools started by this process that have not been waited for yet; thread-safe."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._children: list[_Child] = []
+
+    def add(self, child: _Child) -> None:
+        with self._lock:
+            self._children.append(child)
+
+    def discard(self, child: _Child) -> None:
+        with self._lock:
+            if child in self._children:
+                self._children.remove(child)
+
+    def count(self) -> int:
+        with self._lock:
+            return len(self._children)
+
+    def kill_all(self) -> None:
+        with self._lock:
+            children = list(self._children)
+        for child in children:
+            # On Windows the kill-on-close job ends them when the process ends; on POSIX the
+            # session must be killed. The runner thread still waits for the process itself.
+            if child.group is None:
+                _kill_session(child.process)
+
+
+# Every tool `SubprocessRunner` started and still waits for.
+running_tools = _Running()
+
+
+def kill_running_tools() -> None:
+    """Kill every running tool and what it started, without waiting (before ending the process at once)."""
+    running_tools.kill_all()
+
+
 class SubprocessRunner:
     """`ProcessRunner` on `subprocess.Popen`, for Windows and POSIX."""
 
@@ -96,12 +138,14 @@ class SubprocessRunner:
             raise CancelledError
         deadline = time.monotonic() + timeout_s
         child = _start(argv)
+        running_tools.add(child)
         try:
             return self._wait(child.process, deadline, cancel)
         except BaseException:
             _kill(child, self._kill_wait_s)
             raise
         finally:
+            running_tools.discard(child)
             if child.group is not None:
                 child.group.close()
 

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from transcribe_ui.api.backend import Backend
 from transcribe_ui.gui.activity import Activity
 from transcribe_ui.gui.bridge import QtExecutor
 from transcribe_ui.gui.closing import QuitNow
@@ -29,3 +30,17 @@ class GuiContext:
     quit_now: QuitNow = field(default_factory=QuitNow)
     # Whether a run is not final (the cloud page sets it); the close question then adds the cloud note.
     run_active: Callable[[], bool] = _never_active
+
+
+def build_context(backend: Backend, quit_now: QuitNow | None = None) -> GuiContext:
+    """Return the executor, the bus and the shared view-models of a window over `backend`."""
+    executor = QtExecutor(backend)
+    return GuiContext(
+        executor=executor,
+        signals=GuiSignals(),
+        hooks=StartupHooks(),
+        activity=Activity(executor),
+        lock=WriterLockGate(executor),
+        log_dir=backend.log_dir,
+        quit_now=QuitNow() if quit_now is None else quit_now,
+    )

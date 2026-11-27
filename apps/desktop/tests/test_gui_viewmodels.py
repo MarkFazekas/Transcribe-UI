@@ -6,6 +6,8 @@ from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
 
+import pytest
+
 from support.fakes import seeded_ports
 from support.gated import GatedRunner, upload
 from transcribe_ui.api.backend import Backend
@@ -92,10 +94,26 @@ def test_confirming_sets_each_field() -> None:
             Confirmation(field="confirm_not_downloaded", message="Not downloaded yet.", details={"jobs": 3}),
         ),
     )
-    assert [shown.message for shown in confirmation_view(asked).confirmations] == ["Delete?", "Not downloaded yet."]
+    view = confirmation_view(asked, request)
+    assert [shown.message for shown in view.confirmations] == ["Delete?", "Not downloaded yet."]
+    assert view.problem is None
     assert confirmed_request(request, asked) == request.model_copy(
         update={"confirm": True, "confirm_not_downloaded": True},
     )
+
+
+def test_a_field_the_dialog_cannot_set_is_refused() -> None:
+    """A confirmation field that is no boolean of the request disables Confirm with a reason."""
+    request = GetAppInfoRequest(action="get_app_info")
+    asked = NeedsConfirmation(
+        action="get_app_info",
+        confirmations=(Confirmation(field="confirm_fingerprint", message="Start?"),),
+    )
+    view = confirmation_view(asked, request)
+    assert view.problem is not None
+    assert "confirm_fingerprint" in view.problem
+    with pytest.raises(ValueError, match="confirm_fingerprint"):
+        confirmed_request(request, asked)
 
 
 class _CancelledFirst:

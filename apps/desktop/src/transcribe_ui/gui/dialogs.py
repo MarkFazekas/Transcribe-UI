@@ -8,6 +8,7 @@ the confirmed request). Dialogs are opened with `open()` (window-modal, no neste
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
+from typing import override
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
@@ -134,7 +135,12 @@ class ConfirmationDialog(QDialog):
         for confirmation in view.confirmations:
             layout.addWidget(wrapped_label(confirmation.message, self))
             add_details(layout, confirmation.details, self)
+        self.problem: QLabel | None = None
+        if view.problem is not None:
+            self.problem = wrapped_label(view.problem, self)
+            layout.addWidget(self.problem)
         buttons, confirm_button = accept_buttons(self, "Confirm")
+        confirm_button.setEnabled(view.problem is None)
         self.confirm_button = confirm_button
         layout.addWidget(buttons)
 
@@ -156,7 +162,11 @@ class CloseQuestion(QDialog):
 
 
 class FinishingDialog(QDialog):
-    """Shown while running calls finish their current step; "Quit now" ends the process at once."""
+    """Shown while running calls finish their current step; "Quit now" ends the process at once.
+
+    Esc and the title bar's close do nothing (`reject` is a no-op), so "Quit now" stays
+    reachable until the calls have finished and the window closes.
+    """
 
     def __init__(self, text: str, on_quit_now: Action, parent: QWidget | None = None) -> None:
         """Show `text`; "Quit now" calls `on_quit_now`."""
@@ -167,3 +177,7 @@ class FinishingDialog(QDialog):
         self.quit_now_button = QPushButton("Quit now", self)
         self.quit_now_button.clicked.connect(on_quit_now)
         layout.addWidget(self.quit_now_button)
+
+    @override
+    def reject(self) -> None:
+        """Ignore Esc and the close button: the dialog ends only when the window closes."""

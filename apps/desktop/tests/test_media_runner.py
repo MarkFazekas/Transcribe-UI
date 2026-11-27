@@ -15,7 +15,7 @@ import pytest
 
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.api.ports import CancelFlag
-from transcribe_ui.media.runner import ProcessTimeoutError, SubprocessRunner
+from transcribe_ui.media.runner import ProcessTimeoutError, SubprocessRunner, kill_running_tools, running_tools
 
 # Child that appends a dot to the file named by its argument every 10 ms, forever.
 HEARTBEAT = "import sys, time\nwhile True:\n    with open(sys.argv[1], 'a') as beat:\n        beat.write('.')\n    time.sleep(0.01)\n"
@@ -171,3 +171,24 @@ def test_child_runs_in_its_own_session() -> None:
 
     child_session = int(completed.stdout)
     assert child_session != os.getsid(0)
+
+
+def _run_beating(beat: Path, outcome: list[int]) -> None:
+    outcome.append(SubprocessRunner().run(_python(HEARTBEAT, str(beat)), RUN_TIMEOUT_S, CancelFlag()).returncode)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows: the kill-on-close job ends the tools with the process")
+def test_quit_now_kills_running_tools(tmp_path: Path) -> None:
+    """`kill_running_tools` (the GUI's "Quit now") kills a tool another thread still waits for (POSIX)."""
+    beating = tmp_path / "heartbeat"
+    outcome: list[int] = []
+    waiter = threading.Thread(target=_run_beating, args=(beating, outcome))
+    waiter.start()
+    _wait_for_beat(beating)
+    assert running_tools.count() == 1
+    kill_running_tools()
+    waiter.join(KILL_BUDGET_S)
+    assert not waiter.is_alive()
+    _assert_stopped(beating)
+    # A negative return code: the tool ended by a signal (SIGKILL), not by itself.
+    assert ([code < 0 for code in outcome], running_tools.count()) == ([True], 0)

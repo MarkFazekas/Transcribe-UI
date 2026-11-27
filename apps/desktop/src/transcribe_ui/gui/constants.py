@@ -79,15 +79,23 @@ DEFAULT_POOL: Final[PoolName] = SHORT_POOL
 
 # Least time between two repaints of a view that shows progress events, in milliseconds.
 PROGRESS_REPAINT_MS: Final = 100
-# Interval at which a test or the close dialog checks whether every call has completed, in milliseconds.
-IDLE_CHECK_MS: Final = 50
+# How long the app waits for running requests after the event loop ended before ending the process, in milliseconds.
+SHUTDOWN_WAIT_MS: Final = 15_000
 
 # Environment variable naming the Qt platform plugin(s), `;`-separated, each with optional `:args`.
 QT_PLATFORM_VARIABLE: Final = "QT_QPA_PLATFORM"
-# Environment variables of which at least one names a display server on Linux and other non-macOS POSIX systems.
-DISPLAY_VARIABLES: Final = ("DISPLAY", "WAYLAND_DISPLAY")
-# Qt platform plugins that need no display server (a platform list naming one of them always starts).
-HEADLESS_PLATFORMS: Final = frozenset(("offscreen", "minimal", "minimalegl", "eglfs", "linuxfb", "vnc", "vkkhrdisplay"))
+# Environment variable naming the X11 display.
+X11_DISPLAY_VARIABLE: Final = "DISPLAY"
+# Environment variable naming the Wayland display.
+WAYLAND_DISPLAY_VARIABLE: Final = "WAYLAND_DISPLAY"
+# Environment variables of which the default Qt platform (xcb or Wayland) needs one, on non-macOS POSIX systems.
+DISPLAY_VARIABLES: Final = (X11_DISPLAY_VARIABLE, WAYLAND_DISPLAY_VARIABLE)
+# Qt platform plugin of X11, which needs `DISPLAY`.
+X11_PLATFORM: Final = "xcb"
+# Prefix of the Qt platform plugins of Wayland (`wayland`, `wayland-egl`, ...), which need `WAYLAND_DISPLAY`.
+WAYLAND_PLATFORM_PREFIX: Final = "wayland"
+# Qt platform plugins that need neither a display server nor a device, so they always start.
+HEADLESS_PLATFORMS: Final = frozenset(("offscreen", "minimal", "vnc"))
 # `sys.platform` values that always have a display for Qt (Windows, macOS).
 DESKTOP_PLATFORMS: Final = frozenset(("win32", "darwin"))
 # What the GUI executable logs (and writes to stderr, if it has one) when no display is available.
@@ -150,6 +158,11 @@ CLEANUP_PENDING_BATCHES_KEY: Final = "batch_ids"
 DETAIL_KEY_HEADER: Final = "Detail"
 # Header of the value column of an error's or a confirmation's details table.
 DETAIL_VALUE_HEADER: Final = "Value"
+# Shown instead of a usable Confirm when the generic dialog cannot set a confirmation's field.
+UNCONFIRMABLE_TEXT: Final = (
+    "This step cannot be confirmed from this window ({fields}). "
+    "Please report it; the command line can send the request with the field set."
+)
 # Note added to `internal_error`.
 SEE_LOG_TEXT: Final = "See the log for what went wrong."
 

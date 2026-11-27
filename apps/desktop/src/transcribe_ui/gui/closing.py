@@ -4,8 +4,9 @@ With calls queued or running, or a run that is not final, the user confirms firs
 close?", with the cloud note while a run is not final; the close sends no request). Then every
 pool is cleared (queued calls never start and complete as `cancelled`), running calls get their
 cancel flag, and a modal "Finishing the current step" dialog waits for them. Its "Quit now"
-flushes and closes the log, then ends the process with `os._exit` (`sys.exit` would wait for
-the pool threads); every step is idempotent, so nothing is lost.
+kills running ffmpeg/ffprobe processes, flushes and closes the log, then ends the process with
+`os._exit` (`sys.exit` would wait for the pool threads); every step is idempotent, so nothing
+is lost.
 """
 
 import logging
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import QWidget
 from transcribe_ui.gui.bridge import QtExecutor
 from transcribe_ui.gui.constants import CLOSE_CLOUD_NOTE, CLOSE_QUESTION, FINISHING_TEXT, QUIT_NOW_EXIT_CODE
 from transcribe_ui.gui.dialogs import CloseQuestion, FinishingDialog
+from transcribe_ui.media.runner import kill_running_tools
 
 
 def flush_log_handlers() -> None:
@@ -29,13 +31,19 @@ def flush_log_handlers() -> None:
 
 @dataclass(frozen=True)
 class QuitNow:
-    """Ends the process at once: flush and close the log, then `os._exit` (pool threads are not waited for)."""
+    """Ends the process at once: kill running tools, flush and close the log, then `os._exit`.
+
+    Pool threads are not waited for; ffmpeg/ffprobe children are killed first, since on POSIX
+    they would outlive the process.
+    """
 
     flush_logs: Callable[[], None] = flush_log_handlers
     exit_process: Callable[[int], object] = os._exit
+    kill_tools: Callable[[], None] = kill_running_tools
 
     def __call__(self) -> None:
-        """Flush the log, then end the process."""
+        """Kill the running tools, flush the log, then end the process."""
+        self.kill_tools()
         self.flush_logs()
         self.exit_process(QUIT_NOW_EXIT_CODE)
 

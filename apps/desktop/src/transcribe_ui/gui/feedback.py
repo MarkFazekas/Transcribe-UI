@@ -5,7 +5,7 @@ Qt-free. Every error renders with one layout: the backend's message, then collap
 adds a button for codes that have a fix in the GUI; that table is presentation, the decision
 stays the backend's, and an unknown code still renders. A `needs_confirmation` response renders
 as one dialog for every action; accepting re-sends the same request with each confirmation's
-field set.
+boolean field set to true (a field it cannot set disables Confirm and says why).
 """
 
 import json
@@ -13,11 +13,18 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from pydantic import JsonValue
+from pydantic.fields import FieldInfo
 
 from transcribe_ui.api.classes import Confirmation, ErrorResponse, NeedsConfirmation, Request
 from transcribe_ui.api.constants import ERROR_INTERNAL
 from transcribe_ui.api.schema import request_adapter
-from transcribe_ui.gui.constants import CLEANUP_PENDING_BATCHES_KEY, ERROR_FIXES, FIX_LABELS, FixKind
+from transcribe_ui.gui.constants import (
+    CLEANUP_PENDING_BATCHES_KEY,
+    ERROR_FIXES,
+    FIX_LABELS,
+    UNCONFIRMABLE_TEXT,
+    FixKind,
+)
 
 # One object of a detail that lists objects.
 type Record = Mapping[str, JsonValue]
@@ -75,6 +82,8 @@ class ConfirmationView:
     """A `needs_confirmation` response as the confirmation dialog shows it."""
 
     confirmations: tuple[ConfirmationItem, ...]
+    # Why this window cannot give the confirmation (Confirm is then disabled), or None.
+    problem: str | None = None
 
 
 def render_detail(detail: JsonValue) -> str:
@@ -158,28 +167,47 @@ def error_view(response: ErrorResponse) -> ErrorView:
     )
 
 
-def confirmation_view(response: NeedsConfirmation) -> ConfirmationView:
-    """Return how a `needs_confirmation` response is shown."""
-    return ConfirmationView(tuple(_confirmation_item(asked) for asked in response.confirmations))
+def confirmation_view(response: NeedsConfirmation, request: Request) -> ConfirmationView:
+    """Return how a `needs_confirmation` response to `request` is shown."""
+    shown = tuple(_confirmation_item(asked) for asked in response.confirmations)
+    blocked = unconfirmable_fields(request, response)
+    if blocked:
+        return ConfirmationView(shown, UNCONFIRMABLE_TEXT.format(fields=", ".join(blocked)))
+    return ConfirmationView(shown)
 
 
 def _confirmation_item(confirmation: Confirmation) -> ConfirmationItem:
     return ConfirmationItem(confirmation.message, details_view(confirmation.details))
 
 
-def confirming_value(_confirmation: Confirmation) -> JsonValue:
-    """Return the value that confirms a confirmation's field.
+def unconfirmable_fields(request: Request, response: NeedsConfirmation) -> tuple[str, ...]:
+    """Return the confirmation fields this dialog cannot set: not a boolean field of the request.
 
-    Every confirmation field of the current backend is a boolean (`confirm_*`); the launch's
-    `confirm_fingerprint` has its own dialog (the cloud page). The backend's
-    `Confirmation.set_to` (built in parallel) replaces this function after the rebase onto it.
+    The generic dialog confirms by setting a boolean field to true (`confirm_*`); the launch's
+    `confirm_fingerprint` has its own dialog (the cloud page). After the rebase onto M6.1 the
+    value comes from `Confirmation.set_to` and this check goes.
     """
-    return True
+    fields = type(request).model_fields
+    names = [confirmation.field for confirmation in response.confirmations]
+    return tuple(name for name in names if _blocked(fields, name))
+
+
+def _blocked(fields: Mapping[str, FieldInfo], name: str) -> bool:
+    field = fields.get(name)
+    return field is None or field.annotation is not bool
 
 
 def confirmed_request(request: Request, response: NeedsConfirmation) -> Request:
-    """Return the same request with each confirmation's field set to its confirming value (validated)."""
+    """Return the same request with each confirmation's boolean field set to true (validated).
+
+    Raises:
+        ValueError: If a field is not a boolean of the request (`unconfirmable_fields`).
+    """
+    blocked = unconfirmable_fields(request, response)
+    if blocked:
+        msg = f"cannot confirm these fields here: {blocked}"
+        raise ValueError(msg)
     document = request.model_dump(mode="json")
     for confirmation in response.confirmations:
-        document[confirmation.field] = confirming_value(confirmation)
+        document[confirmation.field] = True
     return request_adapter().validate_python(document)

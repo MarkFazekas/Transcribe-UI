@@ -61,6 +61,8 @@ e2e
 eacces
 eagain
 edeadlk
+egl
+eglfs
 enospc
 errnos
 errorcode
@@ -143,6 +145,7 @@ lavfi
 levelname
 levelno
 linkname
+linuxfb
 liveness
 lk
 localhost
@@ -159,6 +162,7 @@ mako
 matroska
 maxsplit
 metavar
+minimalegl
 misconfigured
 mkfifo
 mktemp
@@ -232,8 +236,10 @@ rereview
 restype
 retryable
 rfile
+rglob
 rowcount
 runnable
+runnables
 runpod
 sdk
 serialises
@@ -243,6 +249,7 @@ setframerate
 setnchannels
 setsampwidth
 sha
+shiboken6
 side6
 sig
 sighup
@@ -273,6 +280,7 @@ uf
 ui
 ulid
 ulonglong
+unconfirmable
 und
 unhiding
 unicodedata
@@ -300,15 +308,20 @@ vads
 validator
 viewmodel
 virama
+vkkhrdisplay
 vob
 watchdog
 wav
+wayland
+weakref
 wfile
 whisperx
 winjob
 wintypes
 writeframes
 wronly
+x11
+xcb
 yue
 yyyymmdd
 zoneinfo

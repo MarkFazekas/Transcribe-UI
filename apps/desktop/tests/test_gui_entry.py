@@ -1,5 +1,6 @@
 """The two executables (A20): the GUI entry point, its display check and log; the CLI never loads Qt."""
 
+import ast
 import io
 import subprocess
 import sys
@@ -10,12 +11,19 @@ from PySide6.QtCore import QTimer, qWarning
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
+import transcribe_ui
 from transcribe_ui.api.classes import ErrorResponse
 from transcribe_ui.api.constants import ERROR_DISPLAY_UNAVAILABLE
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.gui import main as gui_main
-from transcribe_ui.gui.constants import DISPLAY_UNAVAILABLE_MESSAGE, GUI_LOG_FILE_NAME, IDLE_CHECK_MS
+from transcribe_ui.gui.constants import (
+    DISPLAY_UNAVAILABLE_MESSAGE,
+    GUI_LOG_FILE_NAME,
+    QT_PLATFORM_VARIABLE,
+    WAYLAND_DISPLAY_VARIABLE,
+    X11_DISPLAY_VARIABLE,
+)
 from transcribe_ui.gui.display import display_available
 from transcribe_ui.gui.messages import qt_messages_to_log
 from transcribe_ui.gui.shell import MainWindow
@@ -23,7 +31,13 @@ from transcribe_ui.state.logs import log_to_file
 from transcribe_ui.state.paths import AppPaths
 
 SUBPROCESS_TIMEOUT_S = 60
+# The app's package; every module outside `gui/` must stay free of Qt.
+PACKAGE_DIR = Path(transcribe_ui.__file__).resolve().parent
+# Module names no module outside `gui/` may import (the CLI executable ships without Qt).
+GUI_ONLY = ("PySide6", "shiboken6", "transcribe_ui.gui")
 LINUX = "linux"
+# How often the test looks for an idle window to close, in milliseconds.
+IDLE_CHECK_MS = 50
 # Imports what the CLI executable runs, runs `schema` and a request that needs no database, then
 # fails if any Qt or GUI module was loaded on the way.
 CLI_WITHOUT_QT = """
@@ -44,23 +58,37 @@ assert not loaded, loaded
 """
 
 
+def _environ(forced: str, *, x11: bool, wayland: bool) -> dict[str, str]:
+    environ = {QT_PLATFORM_VARIABLE: forced} if forced else {}
+    if x11:
+        environ[X11_DISPLAY_VARIABLE] = ":0"
+    if wayland:
+        environ[WAYLAND_DISPLAY_VARIABLE] = "wayland-0"
+    return environ
+
+
 @pytest.mark.parametrize(
-    ("environ", "platform", "expected"),
+    ("forced", "x11", "wayland", "platform", "expected"),
     [
-        ({}, "win32", True),
-        ({}, "darwin", True),
-        ({}, LINUX, False),
-        ({"DISPLAY": ":0"}, LINUX, True),
-        ({"WAYLAND_DISPLAY": "wayland-0"}, LINUX, True),
-        ({"QT_QPA_PLATFORM": "offscreen"}, LINUX, True),
-        ({"QT_QPA_PLATFORM": "minimal:enable_fonts"}, "freebsd14", True),
-        ({"QT_QPA_PLATFORM": "wayland;xcb"}, LINUX, False),
-        ({"QT_QPA_PLATFORM": "xcb;offscreen"}, LINUX, True),
+        ("", False, False, "win32", True),
+        ("", False, False, "darwin", True),
+        ("", False, False, LINUX, False),
+        ("", True, False, LINUX, True),
+        ("", False, True, LINUX, True),
+        ("offscreen", False, False, LINUX, True),
+        ("minimal:enable_fonts", False, False, "freebsd14", True),
+        ("xcb", False, True, LINUX, False),
+        ("xcb", True, False, LINUX, True),
+        ("wayland-egl", True, False, LINUX, False),
+        ("wayland;xcb", True, False, LINUX, True),
+        ("eglfs", False, False, LINUX, False),
+        ("linuxfb", True, False, LINUX, False),
+        ("eglfs;offscreen", False, False, LINUX, True),
     ],
 )
-def test_display_check(environ: dict[str, str], platform: str, expected: bool) -> None:  # noqa: FBT001 -- pytest parameters
-    """Windows and macOS always have a display; elsewhere a display server or a headless Qt platform."""
-    assert display_available(environ, platform) is expected
+def test_display_check(forced: str, x11: bool, wayland: bool, platform: str, expected: bool) -> None:  # noqa: FBT001 -- pytest parameters
+    """Windows and macOS always have a display; elsewhere the forced platform needs what it uses."""
+    assert display_available(_environ(forced, x11=x11, wayland=wayland), platform) is expected
 
 
 def test_cli_never_loads_qt() -> None:
@@ -74,12 +102,44 @@ def test_cli_never_loads_qt() -> None:
     assert completed.returncode == 0, completed.stderr
 
 
+def _node_imports(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if isinstance(node, ast.ImportFrom):
+        return [] if node.module is None else [node.module]
+    if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
+        # A module named to `importlib.import_module` (or any call taking a constant first).
+        return [str(node.args[0].value)]
+    return []
+
+
+def _imported(tree: ast.AST) -> list[str]:
+    """Return every module the tree imports: statements at any depth and constant `import_module` names."""
+    return [name for node in ast.walk(tree) for name in _node_imports(node)]
+
+
+def _gui_only(name: str) -> bool:
+    return any(name == banned or name.startswith(f"{banned}.") for banned in GUI_ONLY)
+
+
+def test_no_module_outside_gui_imports_qt() -> None:
+    """No module outside `gui/` imports PySide6, shiboken6 or the GUI, at any nesting level."""
+    found: list[str] = []
+    for module in sorted(PACKAGE_DIR.rglob("*.py")):
+        relative = module.relative_to(PACKAGE_DIR)
+        if relative.parts[0] == "gui":
+            continue
+        tree = ast.parse(module.read_text(encoding="utf-8"), str(module))
+        found.extend(f"{relative}: {name}" for name in _imported(tree) if _gui_only(name))
+    assert not found
+
+
 def test_no_display_answers_display_unavailable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """No display on Linux: the GUI entry logs why, prints the `display_unavailable` JSON and exits 1."""
-    for name in ("DISPLAY", "WAYLAND_DISPLAY", "QT_QPA_PLATFORM"):
+    for name in (X11_DISPLAY_VARIABLE, WAYLAND_DISPLAY_VARIABLE, QT_PLATFORM_VARIABLE):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(sys, "platform", LINUX)
     stdout = io.BytesIO()

@@ -1,7 +1,9 @@
 """The activity panel: one row per long call with its progress, Cancel, Resume and Dismiss.
 
 Binds to the view-model of `gui/activity.py`. Progress events arrive one by one and unchanged;
-the panel repaints at most every `PROGRESS_REPAINT_MS` instead of once per event.
+the panel repaints at most every `PROGRESS_REPAINT_MS` instead of once per event. Each entry
+keeps its row: a repaint updates the labels and which buttons show in place, and adds or
+removes rows only when the entries change, so a click during progress is never lost.
 """
 
 from collections.abc import Callable
@@ -24,31 +26,38 @@ def _show_entry_error(show_error: ShowError, entry: ActivityEntry) -> None:
 
 
 class ActivityRow(QWidget):
-    """One entry: title, status, path and the buttons that apply."""
+    """One entry: title, status, path and the buttons that apply now."""
 
     def __init__(self, activity: Activity, entry: ActivityEntry, show_error: ShowError, parent: QWidget) -> None:
-        """Render `entry` of `activity`."""
+        """Render `entry` of `activity`; `refresh` updates the row in place."""
         super().__init__(parent)
+        self.entry = entry
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self.status = QLabel(entry.status, self)
-        title = QLabel(entry.title, self)
-        path = QLabel(entry.path, self)
-        for label in (title, self.status, path):
-            self._layout.addWidget(label)
+        self._layout.addWidget(QLabel(entry.title, self))
+        self.status = QLabel(self)
+        self._layout.addWidget(self.status)
+        self._path = QLabel(self)
+        self._layout.addWidget(self._path)
         self._layout.addStretch()
-        cancel = partial(activity.cancel, entry)
-        self.cancel_button = self._button("Cancel", cancel, visible=entry.can_cancel)
-        resume = partial(activity.resume, entry)
-        self.resume_button = self._button("Resume", resume, visible=entry.can_resume)
-        details = partial(_show_entry_error, show_error, entry)
-        self.details_button = self._button("Details", details, visible=entry.error is not None)
-        dismiss = partial(activity.dismiss, entry)
-        self.dismiss_button = self._button("Dismiss", dismiss, visible=not entry.can_cancel)
+        self.cancel_button = self._button("Cancel", partial(activity.cancel, entry))
+        self.resume_button = self._button("Resume", partial(activity.resume, entry))
+        self.details_button = self._button("Details", partial(_show_entry_error, show_error, entry))
+        self.dismiss_button = self._button("Dismiss", partial(activity.dismiss, entry))
+        self.refresh()
 
-    def _button(self, text: str, action: Callable[[], object], *, visible: bool) -> QPushButton:
+    def refresh(self) -> None:
+        """Show the entry's current status, path and buttons (the widgets stay the same)."""
+        entry = self.entry
+        self.status.setText(entry.status)
+        self._path.setText(entry.path)
+        self.cancel_button.setVisible(entry.can_cancel)
+        self.resume_button.setVisible(entry.can_resume)
+        self.details_button.setVisible(entry.error is not None)
+        self.dismiss_button.setVisible(not entry.can_cancel)
+
+    def _button(self, text: str, action: Callable[[], object]) -> QPushButton:
         button = QPushButton(text, self)
-        button.setVisible(visible)
         button.clicked.connect(action)
         self._layout.addWidget(button)
         return button
@@ -72,14 +81,26 @@ class ActivityPanel(QWidget):
         self.repaint_rows()
 
     def repaint_rows(self) -> None:
-        """Rebuild the rows from the view-model."""
-        for old_row in self.rows:
-            self._layout.removeWidget(old_row)
-            old_row.deleteLater()
-        self.rows = [self._row(entry) for entry in self._activity.entries]
-        for row in self.rows:
-            self._layout.addWidget(row)
-        self.setVisible(bool(self.rows))
+        """Match the rows to the entries (keeping existing rows), then refresh each in place.
+
+        Entries only leave the list or join it at the end, so kept rows stay in order and new
+        rows are appended.
+        """
+        kept = {id(row.entry): row for row in self.rows}
+        rows: list[ActivityRow] = []
+        for entry in self._activity.entries:
+            row = kept.pop(id(entry), None)
+            if row is None:
+                row = self._row(entry)
+                self._layout.addWidget(row)
+            rows.append(row)
+        for gone in kept.values():
+            self._layout.removeWidget(gone)
+            gone.deleteLater()
+        for row in rows:
+            row.refresh()
+        self.rows = rows
+        self.setVisible(bool(rows))
 
     def _row(self, entry: ActivityEntry) -> ActivityRow:
         return ActivityRow(self._activity, entry, self._show_error, self)

@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterable
 
 from pytestqt.qtbot import QtBot
 
-from transcribe_ui.api.classes import GetAppInfoResponse, Request, Response
+from transcribe_ui.api.classes import GetAppInfoResponse, ProgressEvent, Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.batches.classes import ListBatchesRequest
 from transcribe_ui.gui.executor import cancelled_response
@@ -18,6 +18,8 @@ POLL_S = 0.005
 WAIT_MS = 10_000
 # How long a test waits for the pool threads to end, in milliseconds.
 DRAIN_MS = 5000
+# Stage of the progress events a held call reports.
+HELD_STAGE = "held"
 # Action of the long upload request.
 UPLOAD = "run_upload"
 # Action of the poll request.
@@ -56,10 +58,14 @@ def listing() -> ListBatchesRequest:
 class GatedRunner:
     """`RequestRunner` whose gated actions run until released (or cancelled); thread-safe."""
 
-    def __init__(self, gated: Iterable[str] = (), *, honour_cancel: bool = True) -> None:
-        """Hold the calls of these actions (until released only, if `honour_cancel` is False)."""
+    def __init__(self, gated: Iterable[str] = (), *, honour_cancel: bool = True, report: bool = False) -> None:
+        """Hold the calls of these actions (until released only, if `honour_cancel` is False).
+
+        With `report`, a held call emits a progress event (stage `held`) at every look at its gate.
+        """
         self._gated = frozenset(gated)
         self._honour_cancel = honour_cancel
+        self._report = report
         self._lock = threading.Lock()
         self._release = threading.Event()
         # Actions in the order their calls reached `execute`.
@@ -77,7 +83,7 @@ class GatedRunner:
             self.calls.append(request.action)
             self.requests.append(request)
         if request.action in self._gated:
-            return self._hold(request, cancel)
+            return self._hold(request, progress, cancel)
         return _answer()
 
     def release(self) -> None:
@@ -89,8 +95,12 @@ class GatedRunner:
         with self._lock:
             return self.calls.count(action)
 
-    def _hold(self, request: Request, cancel: CancelToken) -> Response:
+    def _hold(self, request: Request, progress: ProgressSink, cancel: CancelToken) -> Response:
+        looks = 0
         while not self._release.wait(POLL_S):
+            if self._report:
+                progress.emit(ProgressEvent(action=request.action, stage=HELD_STAGE, completed=looks))
+                looks += 1
             if self._honour_cancel and cancel.is_cancelled():
                 with self._lock:
                     self.cancelled.append(request.action)

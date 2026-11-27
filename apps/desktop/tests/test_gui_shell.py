@@ -4,8 +4,9 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 from collections.abc import Iterator
-from contextlib import closing
+from contextlib import ExitStack, closing
 from pathlib import Path
 
 import pytest
@@ -13,10 +14,11 @@ from PySide6.QtWidgets import QLabel
 from pytestqt.qtbot import QtBot
 
 from support.fakes import seeded_ports
-from support.gated import UPLOAD, GatedRunner, upload, uploads, wait_for
+from support.gated import HELD_STAGE, UPLOAD, GatedRunner, upload, uploads, wait_for
 from support.gui import window_over
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, NeedsConfirmation
+from transcribe_ui.cleanup.classes import CleanupCloudRequest
 from transcribe_ui.gui.activity_view import ActivityRow
 from transcribe_ui.gui.closing import QuitNow, flush_log_handlers
 from transcribe_ui.gui.constants import (
@@ -116,13 +118,32 @@ def test_the_error_dialog_retries_app_busy(window: MainWindow) -> None:
     assert retried == [True]
 
 
+def test_app_busy_without_a_retry_probes_the_lock(window: MainWindow, gated: GatedRunner, qtbot: QtBot) -> None:
+    """With no request to re-send (an activity's Details), `app_busy`'s Retry probes the writer lock."""
+    dialog = window.show_error(error_view(_error("app_busy")))
+    assert dialog.fix_button is not None
+    dialog.fix_button.click()
+    wait_for(qtbot, lambda: gated.started("list_batches") == 1)
+
+
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:
     """Confirm calls back the caller, which re-sends the confirmed request."""
     asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(Confirmation(field="confirm", message="Delete?"),))
+    request = CleanupCloudRequest(action="cleanup_cloud", batch_id=BATCH, scope="audio")
     confirmed: list[bool] = []
-    dialog = window.show_confirmation(confirmation_view(asked), lambda: confirmed.append(True))
+    dialog = window.show_confirmation(confirmation_view(asked, request), lambda: confirmed.append(True))
+    assert dialog.problem is None
     dialog.confirm_button.click()
     assert confirmed == [True]
+
+
+def test_an_unconfirmable_field_disables_confirm(window: MainWindow) -> None:
+    """A field the dialog cannot set shows the reason and leaves Confirm disabled."""
+    asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(Confirmation(field="unknown", message="Go?"),))
+    request = CleanupCloudRequest(action="cleanup_cloud", batch_id=BATCH, scope="audio")
+    dialog = window.show_confirmation(confirmation_view(asked, request), lambda: None)
+    assert dialog.problem is not None
+    assert not dialog.confirm_button.isEnabled()
 
 
 def _row(window: MainWindow) -> ActivityRow:
@@ -147,6 +168,28 @@ def test_activity_panel_cancels_and_resumes(window: MainWindow, gated: GatedRunn
     gated.release()
     wait_for(qtbot, lambda: _status(window) == ACTIVITY_STATE_TEXTS["finished"])
     assert gated.requests[0] == gated.requests[1]
+
+
+def _progress_count(window: MainWindow) -> int:
+    status = _status(window)
+    if not status.startswith(HELD_STAGE):
+        return -1
+    return int(status.split()[-1])
+
+
+def test_activity_rows_survive_progress(qtbot: QtBot, tmp_path: Path) -> None:
+    """Progress repaints update the row in place: the Cancel button shown first is the one clicked."""
+    runner = GatedRunner((UPLOAD,), report=True)
+    window = window_over(qtbot, runner, tmp_path)
+    window.context.activity.start(upload(), "Upload")
+    wait_for(qtbot, lambda: _progress_count(window) >= 0)
+    cancel_button = _row(window).cancel_button
+    first = _progress_count(window)
+    wait_for(qtbot, lambda: _progress_count(window) > first + 1)
+    assert _row(window).cancel_button is cancel_button
+    cancel_button.click()
+    wait_for(qtbot, lambda: _status(window) == ACTIVITY_STATE_TEXTS["stopped"])
+    assert _row(window).cancel_button is cancel_button
 
 
 def test_close_with_nothing_in_flight_closes_at_once(window: MainWindow) -> None:
@@ -196,6 +239,9 @@ class _Recorder:
     def end(self, code: int) -> None:
         self.order.append(f"exit:{code}")
 
+    def kill(self) -> None:
+        self.order.append("killed")
+
 
 def _stop_and_close(window: MainWindow) -> None:
     window.close()
@@ -205,11 +251,11 @@ def _stop_and_close(window: MainWindow) -> None:
 
 
 def test_quit_now_flushes_the_log_then_exits(qtbot: QtBot, tmp_path: Path) -> None:
-    """While a call ignores its flag, "Quit now" flushes and closes the log, then exits with 0."""
+    """While a call ignores its flag, "Quit now" kills the tools, flushes and closes the log, then exits 0."""
     runner = GatedRunner((UPLOAD,), honour_cancel=False)
     log_file = tmp_path / "log" / "gui.log"
     recorder = _Recorder(log_file)
-    window = window_over(qtbot, runner, tmp_path, QuitNow(recorder.flush, recorder.end))
+    window = window_over(qtbot, runner, tmp_path, QuitNow(recorder.flush, recorder.end, recorder.kill))
     with log_to_file(log_file):
         logging.getLogger("transcribe_ui.test").warning("before quit")
         window.context.executor.submit(upload(), lambda _response: None)
@@ -218,24 +264,32 @@ def test_quit_now_flushes_the_log_then_exits(qtbot: QtBot, tmp_path: Path) -> No
         finishing = window.closing.finishing
         assert finishing is not None
         finishing.quit_now_button.click()
-    assert recorder.order == ["flushed:True", "exit:0"]
+    assert recorder.order == ["killed", "flushed:True", "exit:0"]
     runner.release()
     wait_for(qtbot, lambda: not window.isVisible())
+
+
+def _first_line(holder: subprocess.Popen[str]) -> str:
+    """Return the first stdout line of the holder, or "" if none came within the timeout."""
+    lines: list[str] = []
+    stream = holder.stdout
+    assert stream is not None
+    reader = threading.Thread(target=lambda: lines.append(stream.readline()), daemon=True)
+    reader.start()
+    reader.join(SUBPROCESS_TIMEOUT_S)
+    return lines[0].strip() if lines else ""
 
 
 def _hold_lock(root: Path) -> subprocess.Popen[str]:
     environment = dict(os.environ)
     environment["PYTHONPATH"] = os.pathsep.join(filter(None, [str(TESTS_DIR), environment.get("PYTHONPATH")]))
-    holder = subprocess.Popen(  # noqa: S603 -- runs this repo's test helper with the test interpreter
+    return subprocess.Popen(  # noqa: S603 -- runs this repo's test helper with the test interpreter
         [sys.executable, str(TESTS_DIR / "support" / "lock_holder.py"), str(root)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
         env=environment,
     )
-    assert holder.stdout is not None
-    assert holder.stdout.readline().strip() == "locked"
-    return holder
 
 
 def _notice_follows_the_page(window: MainWindow) -> None:
@@ -245,9 +299,7 @@ def _notice_follows_the_page(window: MainWindow) -> None:
     assert window.pages.notice_shown()
 
 
-def test_app_busy_notice_from_a_second_process(qtbot: QtBot, tmp_path: Path) -> None:
-    """Another process holds the writer lock: pages that need the database show the notice; Retry recovers."""
-    holder = _hold_lock(tmp_path)
+def _busy_then_retry(qtbot: QtBot, tmp_path: Path, holder: subprocess.Popen[str]) -> None:
     ports = seeded_ports(tmp_path)
     with closing(ports.state):
         window = window_over(qtbot, Backend(ports), tmp_path)
@@ -261,3 +313,14 @@ def test_app_busy_notice_from_a_second_process(qtbot: QtBot, tmp_path: Path) -> 
         wait_for(qtbot, lambda: window.context.lock.state == "held")
         assert (window.pages.notice_shown(), reloaded) == (False, [()])
         window.close()
+
+
+def test_app_busy_notice_from_a_second_process(qtbot: QtBot, tmp_path: Path) -> None:
+    """Another process holds the writer lock: pages that need the database show the notice; Retry recovers."""
+    holder = _hold_lock(tmp_path)
+    with ExitStack() as cleanup:
+        # The holder never outlives the test, whatever fails.
+        cleanup.callback(holder.wait, SUBPROCESS_TIMEOUT_S)
+        cleanup.callback(holder.kill)
+        assert _first_line(holder) == "locked"
+        _busy_then_retry(qtbot, tmp_path, holder)

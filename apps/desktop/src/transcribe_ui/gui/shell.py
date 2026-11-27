@@ -57,7 +57,9 @@ class MainWindow(QMainWindow):
 
     def show_error(self, view: ErrorView, retry: Callable[[], None] | None = None) -> ErrorDialog:
         """Open the error dialog; its fix opens a page, or calls `retry`."""
-        fix = partial(self._apply_fix, retry)
+        # `app_busy` offers Retry everywhere: without a request to re-send, it probes the lock again.
+        again = self.context.lock.retry if retry is None else retry
+        fix = partial(self._apply_fix, again)
         dialog = ErrorDialog(view, self.context.log_dir, fix, self)
         self.dialog = dialog
         dialog.open()
@@ -87,7 +89,7 @@ class MainWindow(QMainWindow):
         if signal_name not in self._handled:
             self.statusBar().showMessage(constants.NOT_AVAILABLE_TEXT, constants.STATUS_MESSAGE_MS)
 
-    def _apply_fix(self, retry: Callable[[], None] | None, fix: Fix) -> None:
+    def _apply_fix(self, retry: Callable[[], None], fix: Fix) -> None:
         signals = self.context.signals
         if fix.kind == "accounts":
             signals.open_settings.emit(constants.SECTION_ACCOUNTS)
@@ -95,7 +97,7 @@ class MainWindow(QMainWindow):
             signals.open_settings.emit(constants.SECTION_CLOUD_SETUP)
         elif fix.kind == "open_batch":
             signals.open_job.emit(fix.argument)
-        elif retry is not None:
+        else:
             retry()
 
 

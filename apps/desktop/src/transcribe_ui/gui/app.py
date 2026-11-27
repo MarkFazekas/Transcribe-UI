@@ -4,6 +4,7 @@ Imported by `gui/main.py` (the `transcribe-ui-gui` executable, A20) only after t
 check. Messages of Qt go to the GUI log through `qInstallMessageHandler`, never to stderr.
 """
 
+import logging
 from collections.abc import Callable
 from contextlib import closing
 
@@ -13,14 +14,13 @@ from PySide6.QtWidgets import QApplication
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.wiring import build_backend
 from transcribe_ui.constants import DISTRIBUTION_NAME
-from transcribe_ui.gui.activity import Activity
-from transcribe_ui.gui.bridge import QtExecutor
 from transcribe_ui.gui.closing import QuitNow
-from transcribe_ui.gui.context import GuiContext
+from transcribe_ui.gui.constants import SHUTDOWN_WAIT_MS
+from transcribe_ui.gui.context import build_context
 from transcribe_ui.gui.messages import exceptions_to_log, qt_messages_to_log
 from transcribe_ui.gui.shell import MainWindow, build_shell
-from transcribe_ui.gui.signals import GuiSignals, StartupHooks
-from transcribe_ui.gui.writer_lock import WriterLockGate
+
+logger = logging.getLogger(__name__)
 
 # Builds the backend of the GUI (tests: seeded ports).
 type BackendFactory = Callable[[], Backend]
@@ -36,20 +36,6 @@ def application() -> QApplication:
     return QApplication([DISTRIBUTION_NAME])
 
 
-def build_context(backend: Backend, quit_now: QuitNow | None = None) -> GuiContext:
-    """Return the executor, the bus and the shared view-models of a window over `backend`."""
-    executor = QtExecutor(backend)
-    return GuiContext(
-        executor=executor,
-        signals=GuiSignals(),
-        hooks=StartupHooks(),
-        activity=Activity(executor),
-        lock=WriterLockGate(executor),
-        log_dir=backend.log_dir,
-        quit_now=QuitNow() if quit_now is None else quit_now,
-    )
-
-
 def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHook | None) -> int:
     app = application()
     context = build_context(backend, quit_now)
@@ -59,7 +45,15 @@ def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHoo
     if on_window is not None:
         on_window(window)
     code = app.exec()
-    context.executor.wait_for_threads()
+    # The window is done whichever way the loop ended; it must not outlive `run_gui`.
+    window.hide()
+    window.deleteLater()
+    # The loop can also end without the close dialog, for example when the session ends. Stop
+    # what is still queued or running then, and wait for it only for a bounded time.
+    context.executor.shutdown()
+    if not context.executor.wait_for_threads(SHUTDOWN_WAIT_MS):
+        logger.error("Requests still running %s ms after the window closed; ending the process", SHUTDOWN_WAIT_MS)
+        context.quit_now()
     return code
 
 
