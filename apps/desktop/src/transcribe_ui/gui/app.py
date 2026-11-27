@@ -8,6 +8,7 @@ import logging
 from collections.abc import Callable
 from contextlib import closing
 
+import shiboken6
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
@@ -45,15 +46,17 @@ def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHoo
     if on_window is not None:
         on_window(window)
     code = app.exec()
-    # The window is done whichever way the loop ended; it must not outlive `run_gui`.
     window.hide()
-    window.deleteLater()
     # The loop can also end without the close dialog, for example when the session ends. Stop
     # what is still queued or running then, and wait for it only for a bounded time.
     context.executor.shutdown()
+    # Answers still on their way must not reach the window deleted below.
+    context.executor.close()
     if not context.executor.wait_for_threads(SHUTDOWN_WAIT_MS):
         logger.error("Requests still running %s ms after the window closed; ending the process", SHUTDOWN_WAIT_MS)
         context.quit_now()
+    # No event loop runs any more, so `deleteLater` would never happen: delete the window now.
+    shiboken6.delete(window)
     return code
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 import pytest
+import shiboken6
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
@@ -66,7 +67,9 @@ def _backend(root: Path, hold: _Hold) -> Backend:
     return Backend(seeded_ports(root), MappingProxyType(routes))
 
 
-def _quit_while_held(hold: _Hold, window: MainWindow) -> None:
+def _quit_while_held(hold: _Hold, window: MainWindow, shown: list[MainWindow] | None = None) -> None:
+    if shown is not None:
+        shown.append(window)
     window.context.executor.submit(GetAppInfoRequest(action="get_app_info"), lambda _response: None)
     hold.started.wait(HOLD_LIMIT_S)
     # The loop ends without the close dialog (`exit`, unlike `quit`, asks no window to close).
@@ -78,9 +81,12 @@ def test_loop_end_cancels_running_requests(qtbot: QtBot, tmp_path: Path) -> None
     assert qtbot is not None
     hold = _Hold(honour_cancel=True)
     quits = _Quits()
-    on_window = partial(_quit_while_held, hold)
+    shown: list[MainWindow] = []
+    on_window = partial(_quit_while_held, hold, shown=shown)
     code = run_gui(partial(_backend, tmp_path, hold), quit_now=QuitNow(quits.flush, quits.end), on_window=on_window)
     assert (code, quits.codes) == (0, [])
+    # The window was deleted before `run_gui` returned (no event loop would run `deleteLater`).
+    assert [shiboken6.isValid(window) for window in shown] == [False]
 
 
 def test_requests_outliving_the_wait_end_the_process(

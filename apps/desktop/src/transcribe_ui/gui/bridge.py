@@ -117,6 +117,8 @@ class _Dispatcher:
     def __init__(self) -> None:
         self.live: dict[PooledCall, _Callbacks] = {}
         self.observer: ResponseObserver | None = None
+        # Set by `QtExecutor.close`: events are dropped, no callback runs.
+        self.closed = False
         self._idle_listeners: list[Callable[[], None]] = []
 
     def when_idle(self, listener: Callable[[], None]) -> None:
@@ -126,20 +128,20 @@ class _Dispatcher:
             listener()
 
     def started(self, call: PooledCall) -> None:
-        callbacks = self.live.get(call)
+        callbacks = None if self.closed else self.live.get(call)
         if callbacks is not None and callbacks.on_started is not None:
             callbacks.on_started()
 
     def progressed(self, call: PooledCall, event: ProgressEvent) -> None:
-        callbacks = self.live.get(call)
+        callbacks = None if self.closed else self.live.get(call)
         if callbacks is not None and callbacks.on_progress is not None:
             callbacks.on_progress(event)
 
     def finished(self, call: PooledCall, response: Response) -> None:
         callbacks = self.live.pop(call, None)
-        if callbacks is None:
-            return
         call.mark_delivered()
+        if callbacks is None or self.closed:
+            return
         with ExitStack() as after:
             # Even when a callback fails (its exception reaches the log), the close dialog must hear that all is done.
             after.callback(self._notify_idle)
@@ -220,6 +222,15 @@ class QtExecutor:
             pool.clear()
         for call in list(self._dispatcher.live):
             call.abandon()
+
+    def close(self) -> None:
+        """Run no callback any more (the window is gone): answers still on their way are dropped.
+
+        Safe while calls still run: their threads keep emitting, and the GUI thread drops what
+        arrives instead of reaching views that were deleted.
+        """
+        self._shut = True
+        self._dispatcher.closed = True
 
     def wait_for_threads(self, timeout_ms: int = -1) -> bool:
         """Wait until every pool thread is idle, at most `timeout_ms` in all (-1: forever)."""
