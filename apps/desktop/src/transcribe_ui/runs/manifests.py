@@ -8,6 +8,7 @@ missing.
 
 import math
 from collections.abc import Collection, Iterable
+from typing import NamedTuple
 
 from transcribe_contracts.classes import Manifest, ManifestItem, TranscribeJob
 from transcribe_contracts.constants import BATCH_METADATA_PREFIX
@@ -21,25 +22,40 @@ from transcribe_ui.storage.r2 import ObjectStore
 type ScopeEntry = ScopeBatch | UnreadableManifest | None
 
 
-# The pending batches in R2 and the unreadable objects under `batch_metadata/`.
-type PublishedView = tuple[list[ScopeBatch], list[UnreadableManifest]]
+class PublishedView(NamedTuple):
+    """What `batch_metadata/` holds, as the launch scope needs it."""
+
+    # The pending batches, by batch id.
+    batches: list[ScopeBatch]
+    # The objects the worker skips, by key.
+    unreadable: list[UnreadableManifest]
+    # The batch id of every manifest key listed, finished and unreadable ones included.
+    manifest_ids: frozenset[str]
 
 
 def published_batches(store: ObjectStore, known: Collection[str]) -> PublishedView:
-    """Return the pending batches in R2 and the unreadable objects under `batch_metadata/` (by key).
+    """Return the pending batches in R2, the unreadable objects under `batch_metadata/` and every manifest's id.
 
     Raises:
         StorageError: R2 could not be listed or read.
     """
     batches: list[ScopeBatch] = []
     unreadable: list[UnreadableManifest] = []
-    for listed in store.list_objects(BATCH_METADATA_PREFIX):
-        entry = _published_entry(store, listed.key, known)
+    listed = store.list_objects(BATCH_METADATA_PREFIX)
+    for found in listed:
+        entry = _published_entry(store, found.key, known)
         if isinstance(entry, ScopeBatch):
             batches.append(entry)
         elif entry is not None:
             unreadable.append(entry)
-    return batches, unreadable
+    keys = [stored.key for stored in listed]
+    ids = frozenset(_batch_ids(keys))
+    return PublishedView(batches, unreadable, ids)
+
+
+def _batch_ids(keys: Iterable[str]) -> list[str]:
+    ids = [batch_id_from_manifest_key(key) for key in keys]
+    return [batch_id for batch_id in ids if batch_id is not None]
 
 
 def scope_batch(manifest: Manifest, finished: Collection[str], *, known: bool, held: bool) -> ScopeBatch:

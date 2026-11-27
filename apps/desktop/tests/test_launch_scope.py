@@ -9,6 +9,7 @@ from transcribe_contracts.classes import AudioObject, Manifest, ManifestItem, Tr
 from transcribe_contracts.layout import audio_key, done_key, manifest_key, result_json_key
 from transcribe_ui.runs.classes import ScopeBatch
 from transcribe_ui.runs.scope import scope_fingerprint
+from transcribe_ui.upload.manifest import build_manifest
 
 # A batch of another computer: its manifest is in R2, this database does not know it.
 UNKNOWN_BATCH_ID = "batch_20260101_090000"
@@ -127,7 +128,7 @@ def test_held_batches_count_with_the_same_fingerprint(runs_world: RunsWorld) -> 
 
 
 def test_fingerprint_follows_the_scope() -> None:
-    """A new result, another batch or another duration changes the fingerprint; the order does not."""
+    """A new result, another batch, duration or mode changes the fingerprint; the order does not."""
     job = {"item_id": FOREIGN_ITEM, "language": "de", "mode": "normal", "duration_s": FOREIGN_SECONDS}
     base = ScopeBatch.model_validate(
         {
@@ -142,7 +143,19 @@ def test_fingerprint_follows_the_scope() -> None:
     other = base.model_copy(update={"batch_id": NEWER_BATCH_ID})
     longer = base.model_copy(update={"pending_jobs": (base.pending_jobs[0].model_copy(update={"duration_s": 1.0}),)})
     finished = base.model_copy(update={"pending_jobs": ()})
-    scopes = ([base], [base, other], [longer], [finished])
+    careful = base.model_copy(update={"pending_jobs": (base.pending_jobs[0].model_copy(update={"mode": "careful"}),)})
+    scopes = ([base], [base, other], [longer], [finished], [careful])
     prints = {scope_fingerprint(batches) for batches in scopes}
     assert len(prints) == len(scopes)
     assert scope_fingerprint([base, other]) == scope_fingerprint([other, base])
+
+
+def test_held_batch_done_in_r2_is_not_counted(runs_world: RunsWorld) -> None:
+    """A held batch whose manifest is in R2 already is taken from R2, even when it is finished there."""
+    seed_uploaded(runs_world, held=True)
+    with runs_world.ports.state.session() as session:
+        manifest = build_manifest(session, FIRST_BATCH_ID)
+    _write(runs_world, manifest_key(FIRST_BATCH_ID), manifest.model_dump_json().encode())
+    _write(runs_world, done_key(FIRST_BATCH_ID), b"{}")
+    scope = runs_world.scope()
+    assert (scope.batches, scope.pending_jobs) == ((), 0)

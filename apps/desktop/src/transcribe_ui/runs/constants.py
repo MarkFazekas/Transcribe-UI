@@ -14,6 +14,10 @@ FINAL_WORKER_STATES: Final = frozenset(("finished", "failed"))
 # Seconds after its `updated_at` a non-final `status.json` still counts as a live worker; the
 # worker writes it every ~30 s, and a stuck upload may take a few minutes of retries.
 HEARTBEAT_STALE_S: Final = 600
+# Seconds of clock difference (between R2 and this computer) and of upload delay tolerated on
+# top of `HEARTBEAT_STALE_S`: a heartbeat object written longer ago than both is never active,
+# readable or not, and an `updated_at` is never taken as later than the run's deadline plus this.
+HEARTBEAT_MARGIN_S: Final = 300
 # Seconds after a queued pod's deploy (`resolvedAt`) by which its pod must show in the pod list;
 # before that, a pod missing from the list (or a 404 for it) may be list lag and counts as active.
 DEPLOY_SETTLE_S: Final = 600

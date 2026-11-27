@@ -11,33 +11,28 @@ from sqlalchemy import update
 from support.batch_backend import run
 from support.batches import FILM, FILM_PROBE, FILM_SECONDS, FIRST_BATCH_ID, PODCAST, batch_request
 from support.fakes import FIXED_NOW
-from support.runs import JSON_TYPE, MANIFEST, BatchState, RunsWorld, batch_state, seed_uploaded, set_item_phase
+from support.runs import (
+    JSON_TYPE,
+    MANIFEST,
+    READY,
+    UPLOADING,
+    RunsWorld,
+    batch_state,
+    read_back,
+    seed_uploaded,
+    set_item_phase,
+)
 from transcribe_contracts.classes import Manifest
-from transcribe_contracts.layout import audio_key
+from transcribe_contracts.layout import audio_key, done_key, result_json_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.batches.errors import WrongPhaseError
 from transcribe_ui.state.models import JobRow
 from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
 from transcribe_ui.upload.manifest import build_manifest
 
-# Seconds a test thread waits for an event at most.
-THREAD_TIMEOUT_S = 10
-# How long the simulated launch holds the runs lock: shorter than the test backends' wait (0.5 s).
-SHORT_HOLD_S = 0.2
-# How long the simulated launch holds the runs lock past that wait.
-LONG_HOLD_S = 2.0
-# Upload complete, no manifest yet.
-UPLOADING: BatchState = ("uploading", False, False)
-# Upload complete, manifest held back.
-HELD: BatchState = ("uploading", True, False)
-# Manifest published.
-READY: BatchState = ("ready", False, True)
-
 
 def _read_back(world: RunsWorld) -> Manifest:
-    body = world.store.read(MANIFEST)
-    assert body is not None
-    return read_manifest(MANIFEST, body)
+    return read_manifest(MANIFEST, read_back(world))
 
 
 def _built(world: RunsWorld) -> Manifest:
@@ -100,10 +95,14 @@ def test_step_on_a_ready_batch_is_refused(runs_world: RunsWorld) -> None:
 
 
 def test_exclusion_withdraws_a_leftover_manifest(runs_world: RunsWorld) -> None:
-    """A manifest written just before a crash (batch still `uploading`) is deleted before any audio."""
+    """A manifest left by a crash (batch still `uploading`), and what a worker wrote for it, go before any audio."""
     ids = seed_uploaded(runs_world)
     runs_world.store.write(MANIFEST, _built(runs_world).model_dump_json().encode(), JSON_TYPE)
+    worker_objects = (done_key(FIRST_BATCH_ID), result_json_key(FIRST_BATCH_ID, ids[PODCAST], "en"))
+    for key in worker_objects:
+        runs_world.store.write(key, b"{}", JSON_TYPE)
     excluded = run(runs_world.leg, batch_request("exclude_items", item_ids=[ids[FILM]]))
-    assert (excluded.status, batch_state(runs_world)) == ("ok", UPLOADING)
+    left = [runs_world.store.head(worker_key) for worker_key in worker_objects]
+    assert (excluded.status, batch_state(runs_world), left) == ("ok", UPLOADING, [None, None])
     assert runs_world.step().outcome == "published"
     assert [entry.item_id for entry in _read_back(runs_world).items] == [ids[PODCAST]]

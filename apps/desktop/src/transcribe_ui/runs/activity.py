@@ -61,7 +61,7 @@ def _local_runs(state: LocalState) -> list[ActivitySource]:
 
 
 def _local_source(run_id: str, status: str) -> ActivitySource:
-    return ActivitySource(kind="local_run", name=run_id, status=status)
+    return ActivitySource(kind="local_run", name=run_id, status=status, run_id=run_id)
 
 
 def _read_runpod(cloud: CloudAccess, now: datetime) -> list[ActivitySource]:

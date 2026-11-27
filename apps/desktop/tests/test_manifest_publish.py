@@ -9,10 +9,12 @@ import pytest
 
 from support.batches import FIRST_BATCH_ID, PODCAST
 from support.runs import (
+    HELD,
     MANIFEST,
     OUTAGE,
+    READY,
     RUN_ID,
-    BatchState,
+    UPLOADING,
     RunsWorld,
     app_pod_name,
     batch_state,
@@ -32,12 +34,6 @@ THREAD_TIMEOUT_S = 10
 SHORT_HOLD_S = 0.2
 # How long the simulated launch holds the runs lock past that wait.
 LONG_HOLD_S = 2.0
-# Upload complete, no manifest yet.
-UPLOADING: BatchState = ("uploading", False, False)
-# Upload complete, manifest held back.
-HELD: BatchState = ("uploading", True, False)
-# Manifest published.
-READY: BatchState = ("ready", False, True)
 
 
 def test_held_during_a_run_and_published_after_it(runs_world: RunsWorld) -> None:

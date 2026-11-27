@@ -45,6 +45,13 @@ OUTAGE = (Failure(status=httpx.codes.SERVICE_UNAVAILABLE),) * 5
 # A batch's phase, `manifest_held`, and whether its manifest is in R2.
 type BatchState = tuple[str, bool, bool]
 
+# Upload complete, no manifest yet.
+UPLOADING: BatchState = ("uploading", False, False)
+# Upload complete, manifest held back.
+HELD: BatchState = ("uploading", True, False)
+# Manifest published.
+READY: BatchState = ("ready", False, True)
+
 
 def app_pod_name(run_id: str, now: datetime) -> str:
     """Return the app's pod name of a run, with its deadline `NAME_DEADLINE` from now."""
@@ -116,6 +123,13 @@ def seed_uploaded(world: RunsWorld, *, held: bool = False) -> dict[str, str]:
     return ids
 
 
+def read_back(world: RunsWorld) -> bytes:
+    """Return the published manifest's bytes."""
+    body = world.store.read(MANIFEST)
+    assert body is not None
+    return body
+
+
 def batch_state(world: RunsWorld, batch_id: str = FIRST_BATCH_ID) -> BatchState:
     """Return the batch's phase and `manifest_held`, and whether its manifest is in R2."""
     with world.ports.state.session() as session:
@@ -156,16 +170,22 @@ def set_run_status(world: RunsWorld, status: str, run_id: str = RUN_ID) -> None:
         row.status = status
 
 
-def seed_heartbeat(world: RunsWorld, state: RunState, updated_at: datetime, run_id: str = RUN_ID) -> str:
-    """Write a worker `status.json` for the run; return its key."""
-    started = updated_at - timedelta(minutes=1)
+def seed_heartbeat(
+    world: RunsWorld,
+    state: RunState,
+    updated_at: datetime,
+    run_id: str = RUN_ID,
+    deadline_at: datetime | None = None,
+) -> str:
+    """Write a worker `status.json` for the run (deadline an hour after its start unless given); return its key."""
+    started = min(updated_at, deadline_at or updated_at) - timedelta(minutes=1)
     status = RunStatus(
         run_id=run_id,
         pod_id=HEARTBEAT_POD_ID,
         state=state,
         started_at=started,
         updated_at=updated_at,
-        deadline_at=started + timedelta(hours=1),
+        deadline_at=deadline_at or started + timedelta(hours=1),
         done_jobs=0,
         total_jobs=1,
         error="worker failed" if state == "failed" else None,

@@ -23,6 +23,9 @@ class ActivitySource(FrozenModel):
     name: str
     # The run's, pod's or queued pod's status, or the worker state (`unreadable` if it cannot be read).
     status: str
+    # The run it belongs to, so a frontend can name it: the local run, the run in the pod name
+    # (None for a name that does not parse) or the run of the heartbeat.
+    run_id: str | None = None
 
 
 class RunActivity(FrozenModel):

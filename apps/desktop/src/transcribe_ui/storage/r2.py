@@ -5,7 +5,8 @@ client with the worker's settings (architecture §6). Every method turns SDK fai
 `StorageError`s.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from operator import attrgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -26,17 +27,18 @@ from transcribe_ui.storage.multipart import (
 
 if TYPE_CHECKING:
     from types_boto3_s3.client import S3Client
-    from types_boto3_s3.type_defs import CopySourceTypeDef
+    from types_boto3_s3.type_defs import CopySourceTypeDef, ObjectTypeDef
 
     from transcribe_ui.api.ports import CancelToken
 
 
 @dataclass(frozen=True)
 class ObjectInfo:
-    """An object's key and size."""
+    """An object's key and size, and when it was last written (R2's clock; not compared)."""
 
     key: str
     size: int
+    modified: datetime | None = field(default=None, compare=False)
 
 
 class ObjectStore(Protocol):
@@ -129,7 +131,7 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
                 if is_missing(error):
                     return None
                 raise
-        return ObjectInfo(key, response["ContentLength"])
+        return ObjectInfo(key, response["ContentLength"], response.get("LastModified"))
 
     def list_objects(self, prefix: str) -> tuple[ObjectInfo, ...]:
         """Return every object under the prefix (all pages), in key order."""
@@ -137,7 +139,7 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
         with translated("list"):
             pages = list(paginator.paginate(Bucket=self._bucket, Prefix=prefix))
         entries = [entry for page in pages for entry in page.get("Contents", [])]
-        found = [ObjectInfo(entry["Key"], entry["Size"]) for entry in entries]
+        found = [_listed_info(entry) for entry in entries]
         return tuple(sorted(found, key=attrgetter("key")))
 
     def read(self, key: str) -> bytes | None:
@@ -245,3 +247,7 @@ class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
             if source.stat().st_size < self._part_bytes:
                 return put_whole(target, source, control)
             return put_in_parts(target, source, control)
+
+
+def _listed_info(entry: "ObjectTypeDef") -> ObjectInfo:
+    return ObjectInfo(entry["Key"], entry["Size"], entry.get("LastModified"))

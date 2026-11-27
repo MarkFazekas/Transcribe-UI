@@ -30,21 +30,21 @@ def read_launch_scope(state: LocalState, store: ObjectStore) -> LaunchScope:
     """Return the scope of the next run: the pending manifests in R2 plus the held ones.
 
     The database is read first (one transaction), then R2 (outside any transaction). A held
-    batch whose manifest is in R2 already (an interrupted manifest step) is counted from R2.
+    batch whose manifest is in R2 already (an interrupted manifest step) is counted from R2,
+    whether it is pending there, finished or unreadable.
 
     Raises:
         StorageError: R2 could not be read.
     """
     known, held = _local_view(state)
-    published, unreadable = published_batches(store, known)
-    in_r2 = {batch.batch_id for batch in published}
+    published = published_batches(store, known)
     waiting = [scope_batch(manifest, (), known=True, held=True) for manifest in held]
-    fresh = [batch for batch in waiting if batch.batch_id not in in_r2]
-    batches = sorted((*published, *fresh), key=_batch_id)
+    fresh = [batch for batch in waiting if batch.batch_id not in published.manifest_ids]
+    batches = sorted((*published.batches, *fresh), key=_batch_id)
     durations = [job.duration_s for batch in batches for job in batch.pending_jobs]
     return LaunchScope(
         batches=tuple(batches),
-        unreadable=tuple(unreadable),
+        unreadable=tuple(published.unreadable),
         pending_jobs=len(durations),
         pending_duration_s=total_duration(durations),
         fingerprint=scope_fingerprint(batches),
@@ -52,7 +52,7 @@ def read_launch_scope(state: LocalState, store: ObjectStore) -> LaunchScope:
 
 
 def scope_fingerprint(batches: Iterable[ScopeBatch]) -> str:
-    """Return the SHA-256 (hex) of the covered batch ids, the pending job keys and the total duration."""
+    """Return the SHA-256 (hex) of the covered batch ids, the pending jobs (key and mode) and the total duration."""
     covered = sorted(batches, key=_batch_id)
     jobs = [(batch.batch_id, job) for batch in covered for job in batch.pending_jobs]
     keys = sorted(_job_key(batch_id, job) for batch_id, job in jobs)
@@ -67,7 +67,7 @@ def scope_fingerprint(batches: Iterable[ScopeBatch]) -> str:
 
 
 def _job_key(batch_id: str, job: PendingJob) -> str:
-    return f"{batch_id}/{job.item_id}/{job.language}"
+    return f"{batch_id}/{job.item_id}/{job.language}/{job.mode}"
 
 
 def _batch_id(batch: ScopeBatch) -> str:

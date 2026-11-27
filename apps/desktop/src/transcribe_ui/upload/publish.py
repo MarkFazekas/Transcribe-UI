@@ -25,6 +25,7 @@ from transcribe_ui.runs.errors import ActivityUnknownError
 from transcribe_ui.state.database import compare_and_set_phase
 from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.state.models import BatchRow
+from transcribe_ui.storage.errors import StorageError
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.classes import HeldPublication, ManifestStep
 from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
@@ -37,10 +38,11 @@ type HeldOutcome = Literal["published", "incomplete", "moved"]
 def manifest_step(context: RequestContext, cloud: CloudAccess, batch_id: str) -> ManifestStep:
     """Upload the batch's manifest (→ `ready`), or hold it back while a run is active.
 
-    The caller holds the batch's lock (lock order runs → batch: the runs lock is taken here
-    through its bounded wait). The manifest is built from the database; the upload must be
-    complete. When the activity check cannot read the cloud, the batch is marked held and the
-    error is raised: re-sending, or the next `publish_held_manifests`, resumes.
+    The caller holds the batch's lock and not the runs lock (lock order runs → batch: the runs
+    lock is taken here through its bounded wait). The manifest is built from the database; the
+    upload must be complete. When the activity check cannot read the cloud, or the manifest
+    cannot be written, the batch is marked held and the error is raised: re-sending, or the
+    next `publish_held_manifests`, resumes.
 
     Raises:
         RunsBusyError: The runs lock stayed held for the whole wait; nothing was changed.
@@ -49,9 +51,14 @@ def manifest_step(context: RequestContext, cloud: CloudAccess, batch_id: str) ->
         UploadIncompleteError: An item is in review or an audio object is not verified.
         NothingToTranscribeError: The batch has no `transcribe` job (extract-only path).
         ActivityUnknownError: The Runpod lists or R2 could not be read (the manifest is held).
-        StorageError: The manifest could not be written (the batch stays as it was).
+        StorageError: The manifest could not be written (the manifest is held).
+        LockOrderError: The calling thread already holds the runs lock (a programming error:
+            launch and refresh use `publish_held_manifests`).
     """
     state = context.ports.state
+    if state.locks.holds_runs():
+        msg = "manifest_step takes the runs lock itself; under it, use publish_held_manifests."
+        raise LockOrderError(msg)
     with state.locks.runs(context.cancel.is_cancelled):
         with state.session() as session:
             require_phase(load_batch(session, batch_id), UPLOADING_PHASES)
@@ -64,7 +71,11 @@ def manifest_step(context: RequestContext, cloud: CloudAccess, batch_id: str) ->
         if activity.active:
             _hold(context, batch_id)
             return ManifestStep(batch_id=batch_id, outcome="held", activity=activity.sources)
-        write_manifest(cloud.store, manifest)
+        try:
+            write_manifest(cloud.store, manifest)
+        except StorageError:
+            _hold(context, batch_id)
+            raise
         _move_to_ready(context, batch_id, held_only=False)
     return ManifestStep(batch_id=batch_id, outcome="published")
 

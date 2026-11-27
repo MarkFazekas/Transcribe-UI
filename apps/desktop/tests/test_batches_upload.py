@@ -38,7 +38,7 @@ from support.batches import (
 from support.credentials import TEST_BUCKET
 from support.parity import Leg
 from support.storage import store_client
-from transcribe_contracts.constants import BATCH_METADATA_PREFIX
+from transcribe_contracts.constants import AUDIO_FOLDER
 from transcribe_contracts.layout import audio_prefix
 from transcribe_ui.api.ports import CancelFlag, DiscardProgress
 from transcribe_ui.batches.errors import ItemNotFoundError
@@ -79,7 +79,7 @@ def _recorded(leg: Leg) -> list[str]:
 
 
 class InterruptingStore(R2ObjectStore):
-    """Object store on the test bucket whose second object delete fails, or whose first one cancels the request."""
+    """Object store on the test bucket whose second audio delete fails, or whose first one cancels the request."""
 
     def __init__(self, token: CancelFlag | None = None) -> None:
         """Fail the second delete; with a token, set it at the first delete instead."""
@@ -89,8 +89,8 @@ class InterruptingStore(R2ObjectStore):
 
     @override
     def delete(self, key: str) -> None:
-        if key.startswith(BATCH_METADATA_PREFIX):
-            super().delete(key)  # the withdrawal of a leftover manifest is not an object delete
+        if f"/{AUDIO_FOLDER}/" not in key:
+            super().delete(key)  # the withdrawal of a leftover manifest is not an audio delete
             return
         if self.deleted and self.token is None:
             raise StorageError(ERROR_R2_FAILED, "delete", "Injected")

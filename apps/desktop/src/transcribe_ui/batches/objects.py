@@ -5,7 +5,7 @@ from collections.abc import Callable, Collection
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from transcribe_contracts.layout import audio_prefix, manifest_key
+from transcribe_contracts.layout import audio_prefix, done_key, manifest_key, results_prefix
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.state.models import AudioObjectRow, ExtractedSubtitleRow, JobRow
 from transcribe_ui.storage.client import open_object_store
@@ -58,10 +58,18 @@ def delete_item_objects(store: ObjectStore, batch_id: str, item_id: str, check_c
 
 
 def withdraw_manifest(store: ObjectStore, batch_id: str) -> None:
-    """Delete the manifest of an `uploading` batch before any of its audio is deleted.
+    """Delete the manifest of an `uploading` batch, then its `_done.json` and results, before any audio.
 
     An `uploading` batch has a manifest in R2 only when the manifest step was interrupted
-    between writing it and moving the batch to `ready`; its audio list is about to change, so it
-    must not stay visible to the worker. Missing is success (the usual case).
+    between writing it and moving the batch to `ready`; a worker may have processed it since.
+    Its audio list is about to change, so the manifest must not stay visible to the worker, and
+    what the worker wrote for it must go too: a `_done.json` would make the worker skip the batch
+    once it is published again, and a result of an item whose audio changes (same item id and
+    language) would make it skip that job and keep a subtitle of the old audio. The desktop
+    deletes worker objects only here and in the cloud cleanup, both on a batch no worker should
+    be processing. Missing objects are success (the usual case: nothing is there).
     """
     store.delete(manifest_key(batch_id))
+    store.delete(done_key(batch_id))
+    for found in store.list_objects(results_prefix(batch_id)):
+        store.delete(found.key)

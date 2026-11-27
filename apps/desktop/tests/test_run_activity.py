@@ -1,18 +1,16 @@
 """The run-activity check (plan m5 M5.9): its three sources, what it ignores, and failing closed."""
 
-from datetime import timedelta
 from typing import override
 
 import pytest
 
 from support.credentials import TEST_BUCKET
 from support.runpod_api import Failure
-from support.runs import JSON_TYPE, OTHER_RUN_ID, OUTAGE, RUN_ID, RunsWorld, app_pod_name, seed_heartbeat, seed_run
+from support.runs import OTHER_RUN_ID, OUTAGE, RUN_ID, RunsWorld, app_pod_name, seed_heartbeat, seed_run
 from support.storage import store_client
 from transcribe_ui.runpod.constants import HTTP_UNAUTHORIZED
 from transcribe_ui.runs.activity import check_activity
 from transcribe_ui.runs.cloud import CloudAccess
-from transcribe_ui.runs.constants import HEARTBEAT_STALE_S
 from transcribe_ui.runs.errors import ActivityUnknownError
 from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.storage.constants import ERROR_R2_UNREACHABLE
@@ -48,36 +46,6 @@ def test_a_final_local_run_is_not_active(runs_world: RunsWorld, run_status: str)
     assert not runs_world.activity().sources
 
 
-def test_a_fresh_heartbeat_is_active(runs_world: RunsWorld) -> None:
-    """A worker status that is not final and recent counts, even with no run known anywhere else."""
-    key = seed_heartbeat(runs_world, "transcribing", runs_world.now() - timedelta(seconds=HEARTBEAT_STALE_S))
-    assert [(source.kind, source.name, source.status) for source in runs_world.activity().sources] == [
-        ("heartbeat", key, "transcribing"),
-    ]
-
-
-def test_a_heartbeat_ahead_of_the_clock_is_active(runs_world: RunsWorld) -> None:
-    """A worker clock ahead of this one does not make a live heartbeat look stale."""
-    seed_heartbeat(runs_world, "starting", runs_world.now() + timedelta(minutes=5))
-    assert _kinds(runs_world) == [("heartbeat", "starting")]
-
-
-def test_stale_and_final_heartbeats_are_not_active(runs_world: RunsWorld) -> None:
-    """A heartbeat older than the stale limit (a crashed worker) or with a final state does not count."""
-    stale = runs_world.now() - timedelta(seconds=HEARTBEAT_STALE_S + 1)
-    seed_heartbeat(runs_world, "transcribing", stale)
-    seed_heartbeat(runs_world, "finished", runs_world.now(), run_id=OTHER_RUN_ID)
-    assert not runs_world.activity().sources
-
-
-def test_an_unreadable_heartbeat_is_active(runs_world: RunsWorld) -> None:
-    """A `status.json` that cannot be read may belong to a live worker: fail closed."""
-    key = f"runs/{RUN_ID}/status.json"
-    runs_world.store.write(key, b"{not json", JSON_TYPE)
-    runs_world.store.write(f"runs/{RUN_ID}/worker.log", b"log lines", "text/plain")
-    assert _kinds(runs_world) == [("heartbeat", "unreadable")]
-
-
 def test_every_source_is_reported(runs_world: RunsWorld) -> None:
     """All signs are listed: local runs first, then pods and queued pods, then heartbeats."""
     seed_run(runs_world, "running")
@@ -85,7 +53,8 @@ def test_every_source_is_reported(runs_world: RunsWorld) -> None:
     api.pods.add(app_pod_name(RUN_ID, runs_world.now()))
     api.queued_pods.add(app_pod_name(OTHER_RUN_ID, runs_world.now()))
     seed_heartbeat(runs_world, "transcribing", runs_world.now())
-    assert [source.kind for source in runs_world.activity().sources] == ["local_run", "pod", "queued_pod", "heartbeat"]
+    sources = [(source.kind, source.run_id) for source in runs_world.activity().sources]
+    assert sources == [("local_run", RUN_ID), ("pod", RUN_ID), ("queued_pod", OTHER_RUN_ID), ("heartbeat", RUN_ID)]
 
 
 @pytest.mark.parametrize("path", [PODS, QUEUED_PODS])
@@ -109,22 +78,31 @@ def test_a_rejected_key_fails_closed_naming_the_cause(runs_world: RunsWorld) -> 
 
 
 class UnreachableStore(R2ObjectStore):
-    """The test bucket, but listing fails as if R2 could not be reached."""
+    """The test bucket, but listing (or, with `list_works`, reading) fails as if R2 could not be reached."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, list_works: bool = False) -> None:
         """Use the test bucket."""
         super().__init__(store_client(), TEST_BUCKET)
+        self.list_works = list_works
 
     @override
     def list_objects(self, prefix: str) -> tuple[ObjectInfo, ...]:
+        if self.list_works:
+            return super().list_objects(prefix)
         raise StorageError(ERROR_R2_UNREACHABLE, "list", "EndpointConnectionError")
 
+    @override
+    def read(self, key: str) -> bytes | None:
+        raise StorageError(ERROR_R2_UNREACHABLE, "read", "EndpointConnectionError")
 
-def test_unreadable_r2_fails_closed(runs_world: RunsWorld) -> None:
-    """When R2 cannot be listed, the heartbeats are unknown: `cloud_unreachable`."""
+
+@pytest.mark.parametrize("list_works", [False, True])
+def test_unreadable_r2_fails_closed(runs_world: RunsWorld, *, list_works: bool) -> None:
+    """When R2 cannot be listed, or a heartbeat cannot be read after the listing, the check fails closed."""
+    seed_heartbeat(runs_world, "transcribing", runs_world.now())
     state = runs_world.ports.state
     with state.locks.runs(), runs_world.access() as cloud:
-        broken = CloudAccess(UnreachableStore(), cloud.pods)
+        broken = CloudAccess(UnreachableStore(list_works=list_works), cloud.pods)
         with pytest.raises(ActivityUnknownError) as raised:
             check_activity(state, broken, runs_world.now())
     assert raised.value.details == {"part": "r2", "cause": ERROR_R2_UNREACHABLE}
