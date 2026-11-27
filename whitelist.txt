@@ -1,5 +1,6 @@
 a15
 a6
+addfile
 asr
 backoff
 base32
@@ -14,6 +15,7 @@ copyfile
 crockford
 ctranslate2
 cuda
+devnull
 divmod
 e2e
 enospc
@@ -44,6 +46,7 @@ isspace
 iterdir
 joinpath
 levelname
+linkname
 liveness
 localhost
 misconfigured
@@ -59,6 +62,7 @@ popen
 posix
 prefetch
 prefetcher
+preprocess
 pyannote
 pydantic
 q10
@@ -68,6 +72,7 @@ recv
 removeprefix
 removesuffix
 repo
+retryable
 rfile
 runpod
 serialises
@@ -86,6 +91,7 @@ silero
 snakers4
 srt
 strerror
+symtype
 tmp
 tokenizer
 ulid

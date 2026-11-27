@@ -70,7 +70,9 @@ CAREFUL_VAD_SPEECH_PAD_MS: Final = 400
 # Start of the ValueError message WhisperX raises when a language has no default alignment model.
 NO_ALIGN_MODEL_MESSAGE: Final = "No default align-model for language"
 
-# Torch hub entry point of the Silero VAD (loaded from the baked local copy, never from GitHub).
+# Torch hub repository WhisperX asks for its Silero VAD (redirected to the baked local copy).
+SILERO_HUB_REPO: Final = "snakers4/silero-vad"
+# Torch hub entry point of the Silero VAD.
 SILERO_HUB_MODEL: Final = "silero_vad"
 # Silero VAD release baked into the image, and its commit (the archive is fetched by commit).
 SILERO_RELEASE_TAG: Final = "v6.3"
@@ -88,3 +90,11 @@ WHISPERX_VAD_OPTIONS: Final[Mapping[str, float]] = MappingProxyType(
 )
 # Seconds allowed for a model download at image build time.
 DOWNLOAD_TIMEOUT_S: Final = 300
+# Sample rate of the audio the engine receives (16 kHz mono, as Whisper needs).
+SAMPLE_RATE_HZ: Final = 16000
+# Seconds of silence the VAD self-check of the image smoke test runs on.
+VAD_CHECK_SECONDS: Final = 2
+# Attempts to download a pinned archive at image build (rate limits, server and connection errors retried).
+DOWNLOAD_ATTEMPTS: Final = 4
+# Seconds before the first retry; multiplied by the attempt number.
+DOWNLOAD_RETRY_DELAY_S: Final = 5.0
