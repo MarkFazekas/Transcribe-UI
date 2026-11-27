@@ -295,13 +295,16 @@ docs/human/, docs/ai/     see CLAUDE.md
 - ffmpeg/ffprobe: bundled static LGPL builds inside the executable. Resolution order: the
   path set in the settings, then the bundled build (`sys._MEIPASS` of a PyInstaller build),
   then `PATH` (development runs without a bundle), so a `PATH` ffmpeg of unknown version never
-  silently replaces the tested one. A settings path that is not a file is an error
-  (`media_tool_not_found`), never skipped. The `PATH` search is the app's own: only absolute
+  silently replaces the tested one. A settings path that is not absolute on this computer or
+  not a file is an error (`media_tool_not_found`, source `settings`), never skipped or looked
+  up on `PATH`. The `PATH` search is the app's own: only absolute
   entries, never the current folder (Windows' `shutil.which` searches it first), `PATHEXT` on
   Windows. The tools are resolved when first used, so requests that need no media work without
   them. The composition root (`api/wiring.py`) gives `ToolLocator` a `load_overrides` that
-  reads the settings file at every lookup: a changed path applies to the next tool call, and a
-  broken settings file gives `settings_invalid` only to requests that run a tool.
+  reads the two path fields of the settings file at every lookup (`SettingsStore.tool_paths`;
+  other fields are not checked): a changed path applies to the next tool call, and a broken
+  file or path field gives `settings_invalid` only to requests that run a tool (the warning is
+  logged once per process).
 - Media adapter (`transcribe_ui/media/`): the `MediaTools` port (`probe`, `convert`,
   `extract`), its ffmpeg adapter and a deterministic fake for golden flows. Processes run
   through an injectable `ProcessRunner`:
@@ -432,7 +435,8 @@ directories, the settings store, the locks and the lazily opened database.
 
 - **Directories**: `platformdirs` with app name `Transcribe-UI` (no author folder): data
   (`state.sqlite3`, `state.lock`), config (`settings.json`), cache (temp audio) and log (one
-  file per frontend: `transcribe-ui-cli.log`, `transcribe-ui-gui.log`, later one for MCP). Tests and other injected roots use `<root>/{data,config,cache,log}`.
+  file per frontend: `transcribe-ui-cli.log`, `transcribe-ui-gui.log`, later one for MCP).
+  Tests and other injected roots use `<root>/{data,config,cache,log}`.
 - **Schema**: every table lives in `state/models.py` (`batches`, `items`, `jobs`,
   `audio_objects`, `extracted_subtitles`, `probe_cache`, `runs`, `placements`): indexed status
   columns (phase, status, outcome, flags) plus a JSON `payload` column, so most later changes
@@ -445,16 +449,18 @@ directories, the settings store, the locks and the lazily opened database.
   enforced, the driver's legacy transaction control stated explicitly with its implicit BEGIN
   turned off, and every transaction started with `BEGIN IMMEDIATE`, so threads queue on
   SQLite's busy timeout (30 s) instead of failing on a read-to-write upgrade; a transaction
-  still locked out after it gets `state_busy` (re-send). One session (one transaction) per unit
-  of work (`LocalState.session`); handlers keep transactions short.
+  still waiting after it (`SQLITE_BUSY`) gets `state_busy` (re-send). One session (one
+  transaction) per unit of work (`LocalState.session`); sessions do not nest, and handlers
+  keep transactions short.
 - **Opening**: the dispatch table marks which requests need the database; `Backend.execute`
   opens it before such a request runs, the first time one arrives. Opening takes the writer
   lock, then runs the migrations (`render_as_batch=True`, foreign keys off during migration) in
   one transaction, which ends with `PRAGMA foreign_key_check`: a violation rolls the migration
-  back (`state_unavailable`, details in the log). The Alembic environment (`env.py`, `script.py.mako`, `versions/`) is package
-  data found through `importlib.resources`; there is no `alembic.ini` (the config is built in
-  code). A database carrying a revision this app does not know is refused unchanged with
-  `database_too_new`. A failed opening holds nothing; the next request tries again.
+  back (`state_unavailable`, details in the log). The Alembic environment (`env.py`,
+  `script.py.mako`, `versions/`) is package data found through `importlib.resources`; there
+  is no `alembic.ini` (the config is built in code). A database carrying a revision this app
+  does not know is refused unchanged with `database_too_new`. A failed opening holds nothing;
+  the next request tries again.
 - **Writer lock** (cross-process): an OS lock on `state.lock` (`fcntl.flock` on POSIX,
   `msvcrt.locking` on Windows), never waited for; the OS releases it when the process ends.
   Another process (or another backend in the same process) gets `app_busy` for any database
@@ -468,8 +474,8 @@ directories, the settings store, the locks and the lazily opened database.
 - **Lock order** is runs → batch → database transaction (innermost). A request holding batch
   locks takes the runs lock only through the bounded wait, so no two requests can wait on each
   other. Never wait for a lock or do network I/O inside `state.session()`: asking for a batch or
-  the runs lock while the thread has a session open raises `LockOrderError` (a programming
-  error, so `internal_error`).
+  the runs lock, or for a second session, while the thread has a session open raises
+  `LockOrderError` (a programming error, so `internal_error`).
 - **Phase changes** are compare-and-set (`compare_and_set_phase`: one `UPDATE … WHERE phase =
   :expected` plus optional conditions such as `manifest_held`): no row changed gives
   `phase_conflict` (or `batch_not_found`), and the error rolls back the request's whole
@@ -478,21 +484,24 @@ directories, the settings store, the locks and the lazily opened database.
 - **Settings** (`get_settings`, `update_settings`; no database): enabled languages (default
   `DEFAULT_LANGUAGES`, at least one, validated against `WHISPER_LANGUAGES`, no duplicates),
   video and audio extensions (defaults and rules shared with the scan, §3.2), include hidden
-  entries, the ffmpeg/ffprobe path override, and placement defaults (strategy, output folder,
-  folder count, overwrite). `update_settings` replaces the whole document: every field is required, so a
-  partial document is refused with `invalid_request` instead of resetting the missing fields.
-  Both responses list every Whisper language with its switch and whether WhisperX has an
-  alignment model for it. The file is written atomically (temp file in the same folder, fsync,
-  `os.replace`, on Windows retried for about 2 s while another process has the file open, then
-  an fsync of the folder on POSIX); temp files a crashed write left (older than a minute) are
-  removed; the last writer wins. Reading starts from the defaults and takes the fields the app
-  knows: a missing file means the defaults, fields of a newer app are ignored and fields an
-  older file lacks take their defaults; saving from an older app therefore drops the fields it
-  does not know. An unreadable or invalid file gives `settings_invalid` until settings are
-  saved again; a failed write gives `settings_unwritable`. Request handling never reads the
-  settings: machine-dependent inputs (scan options, placement options, test mode) are request
-  fields that the GUI fills from them, and the media adapter that the composition root
-  (`api/wiring.py`) builds reads the ffmpeg/ffprobe override at each tool lookup (§3.4).
+  entries, the ffmpeg/ffprobe path override (absolute in the Windows or the POSIX sense, so the
+  rule does not depend on the machine; the tool lookup also checks it on this computer), and
+  placement defaults (strategy, output folder, folder count, overwrite). `update_settings`
+  replaces the whole document: every field is required, so a partial document is refused with
+  `invalid_request` instead of resetting the missing fields. Both responses list every Whisper
+  language with its switch and whether WhisperX has an alignment model for it.
+- **Settings file**: written atomically (temp file in the same folder, fsync, `os.replace`,
+  then a best-effort fsync of the folder on POSIX, which only logs a warning when it fails);
+  temp files a crashed write left (older than a minute) are removed; the last writer wins. On
+  Windows, reads and the replace are retried for about 2 s while another process has the file
+  open. Reading starts from the defaults and takes the fields the app knows: a missing file
+  means the defaults, fields of a newer app are ignored and fields an older file lacks take
+  their defaults; saving from an older app therefore drops the fields it does not know. An
+  unreadable or invalid file gives `settings_invalid` until settings are saved again; a failed
+  write gives `settings_unwritable`. Readers: `get_settings`/`update_settings`, the GUI (to
+  fill request fields) and the media tool lookup (only the ffmpeg/ffprobe paths, §3.4). Other
+  request handling never reads it: machine-dependent inputs (scan options, placement options,
+  test mode) are request fields.
 - **Logging**: a frontend wraps its run in `log_to_file(<its log file>)`: a human-readable
   rotating file (1 MiB, 3 backups, UTF-8) in the user log dir, the app's loggers from INFO,
   other libraries from WARNING, warnings captured. One file per frontend keeps the GUI and the
@@ -500,8 +509,10 @@ directories, the settings store, the locks and the lazily opened database.
   (`SharedRotatingFileHandler`) tolerates: rotation renames the file first and shifts the
   backups only after that worked; when the rename fails (Windows, another process has the file
   open) it keeps appending and retries after another 64 KiB; before each record it reopens the
-  path when another process rotated the open file away (POSIX). Nothing reaches stderr: a
-  record that cannot be written at all is dropped. The log dir is created with the first
+  path when another process rotated the open file away (POSIX); a `.rotating` file left by an
+  interrupted rotation becomes the newest backup. No error leaves the handler and nothing
+  reaches stderr: a record that cannot be written is dropped and the next one opens the file
+  again; after `close`, records are dropped. The log dir is created with the first
   record. An unexpected exception's traceback goes only there (§3.1).
 
 ## 4. R2 object layout (contract)
