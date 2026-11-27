@@ -171,7 +171,12 @@ def confirmed_request(request: Request, response: NeedsConfirmation) -> Request:
     """Return the same request with each confirmation's field set to its `set_to` (validated).
 
     The backend names the confirming value (`true` for a flag, the plan's fingerprint for
-    `confirm_fingerprint`), so every frontend confirms the same way and decides nothing.
+    `confirm_fingerprint`), so every frontend confirms the same way and decides nothing. A
+    failure here is a backend bug; the caller (the first one is in M6.4) shows it with the
+    `internal_error` dialog.
+
+    Raises:
+        ValidationError: If a confirmation's field or its `set_to` does not fit the request.
     """
     document = request.model_dump(mode="json")
     for confirmation in response.confirmations:

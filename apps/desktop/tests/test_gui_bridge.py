@@ -45,7 +45,7 @@ from transcribe_ui.gui.constants import (
 )
 from transcribe_ui.gui.executor import CallHandle, PooledCall
 
-# Timeout of the shared-deadline test, in milliseconds (three pools would take three times as long).
+# Timeout of the shared-deadline test, in milliseconds (a wait per pool would take four times as long).
 WAIT_ONCE_MS = 500
 # Instant calls of the runnable stress test.
 STRESS_CALLS = 2000

@@ -125,7 +125,6 @@ isalnum
 isalpha
 isascii
 isdecimal
-isdisjoint
 isfinite
 islice
 islnk
@@ -281,7 +280,6 @@ uf
 ui
 ulid
 ulonglong
-unconfirmable
 und
 unhiding
 unicodedata

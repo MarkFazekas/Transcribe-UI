@@ -200,7 +200,7 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   a `QRunnable` (auto-deleted by its pool after `run` or on `clear()`; one taken off its queue
   is deleted by the bridge, so finished calls are freed; `run` first waits until `start` has
   returned, since PySide records the pool as parent only then, and is released even if
-  `start` fails, in which case the call is forgotten and the error raised) on one of three `QThreadPool`s, by the
+  `start` fails, in which case the call is forgotten and the error raised) on one of four `QThreadPool`s, by the
   presentation table `ACTION_POOLS` in `gui/constants.py`: `scan` (1 thread: `scan_tree`, sent
   on a `latest` channel, so a new file selection never waits behind uploads or downloads),
   `long` (3 threads: `review_batch`, `run_upload`, `run_download`, `import_custom_plan`,

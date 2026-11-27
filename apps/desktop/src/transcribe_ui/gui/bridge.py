@@ -1,4 +1,4 @@
-"""The GUI's executor: each request runs as a `QRunnable` on one of three pools (architecture §3.1 "GUI").
+"""The GUI's executor: each request runs as a `QRunnable` on one of four pools (architecture §3.1 "GUI").
 
 The GUI thread never calls `Backend.execute`. A pool thread runs the request with the call's
 cancel flag and a progress sink; the sink and the completion emit signals of a relay object
@@ -181,7 +181,7 @@ def _start(pool: QThreadPool, runnable: _CallRunnable, call: PooledCall, live: d
 
 
 class QtExecutor:
-    """Sends requests on the `long`, `short` and `poll` pools; create and use it on the GUI thread."""
+    """Sends requests on the `scan`, `long`, `short` and `poll` pools; create and use it on the GUI thread."""
 
     def __init__(self, backend: RequestRunner, pool_threads: Mapping[PoolName, int] = POOL_THREADS) -> None:
         """Run requests on this backend with pools of these sizes."""
@@ -260,7 +260,7 @@ class QtExecutor:
             deadline = QDeadlineTimer(QDeadlineTimer.ForeverConstant.Forever)
         else:
             deadline = QDeadlineTimer(timeout_ms)
-        # One deadline shared by every pool, so three pools cannot wait three times as long.
+        # One deadline shared by every pool, so the pools cannot each wait the full timeout in turn.
         return all(pool.waitForDone(deadline) for pool in self._pools.values())
 
     def _deliver(self, call: PooledCall, response: Response) -> None:
