@@ -385,34 +385,46 @@ docs/human/, docs/ai/     see CLAUDE.md
   - **Order and interruption.** The manifest object is written before the phase change. A crash
     in between leaves a complete manifest for an `uploading` batch (the worker may process it,
     which is correct); the next step writes the same bytes and moves the batch.
-  - **Withdrawing a leftover manifest** (`upload/withdraw.py`, `upload/steps.py`). Exclusion and
-    re-review change the batch such a manifest describes, so they withdraw it first:
-    - **Ours only.** The object at `batch_metadata/<id>.json` is withdrawn only when its bytes
-      have the SHA-256 of the manifest this database built (from the state before the change,
-      or as recorded by a pending withdrawal); anything else (another computer's batch with the
-      same id) is left alone, with its `_done.json` and results.
+  - **Withdrawing a leftover manifest** (`upload/withdraw.py`, `upload/leftover.py`,
+    `upload/steps.py`). Exclusion and re-review change the batch such a manifest describes, so
+    they withdraw it first:
+    - **Ours only.** The object at `batch_metadata/<id>.json` is ours when its bytes have the
+      SHA-256 of a manifest this database built (recorded by a pending withdrawal, or built
+      from the current state), or when it reads as a manifest with the batch's own
+      `created_at` and `scan_root` (the same batch written from an earlier state). Anything
+      else, such as another computer's batch with the same id (another creation time), is left
+      alone with its `_done.json` and results.
     - **No run active.** With a leftover manifest of ours, the request takes the runs lock
-      through the bounded wait (it holds the batch lock) and checks the run activity before
-      changing anything: an active run gives `run_active` (details: the run ids and every
-      sign), an unknown one `cloud_unreachable`, and nothing changes.
+      through the bounded wait (it holds the batch lock; the guard refuses to run with the runs
+      lock already held) and checks the run activity before changing anything: an active run
+      gives `run_active` (details: the run ids and every sign), an unknown one
+      `cloud_unreachable`, a long wait `runs_busy`, and nothing changes.
     - **Recorded, then carried out.** The change's own transaction records a
-      `PendingWithdrawal` (the digest and the affected item ids, accumulated) in the batch's
-      `pending_withdrawal` column. Then, still under the runs lock: the results of the affected
-      items (the excluded ones, or the one sent back to review) are deleted, then `_done.json`,
-      then the manifest, and the record is cleared. Results of the other items stay, so the
-      worker redoes only the jobs whose result is gone; `_done.json` must go, or the worker
-      would skip the batch once it is published again. A failure leaves the record: the next
-      `manifest_step` or `publish_held_manifests` finishes it (under the runs lock, with no run
-      active) before writing the new manifest. The orphan sweep of `run_upload` (M5.10) relies
-      on the same record; the cleanup of an `uploading` batch (M5.14) deletes the batch's
-      objects anyway.
-    - **Remaining window.** The runs lock and the activity check cover this app's runs and
-      every run the Runpod lists and heartbeats show. A worker started from another computer
-      (same account and bucket) in the seconds between the check and the manifest delete, or
-      one not listed yet, could still read the leftover manifest and write `_done.json` or a
-      result after their deletion; the batch would then be skipped or keep a stale subtitle
-      until its results are deleted again. This needs a crash in the manifest step, a later
-      exclusion or re-review, and a launch on another computer at that moment, and is accepted.
+      `PendingWithdrawal` (the digest of the object found and the affected item ids,
+      accumulated over changes) in the batch's `pending_withdrawal` column. Then, still under
+      the runs lock: the results of the affected items (the excluded ones, or the one sent back
+      to review) are deleted, then `_done.json`, then the manifest, and the record is cleared.
+      Results of the other items stay, so the worker redoes only the jobs whose result is gone;
+      `_done.json` must go, or the worker would skip the batch once it is published again.
+    - **Who finishes a pending withdrawal.** An R2 failure after the change was saved does not
+      fail the request: it is logged and the response says `withdrawal_pending: true`. The
+      record is then finished, always under the runs lock with no run active and before
+      anything else is written for the batch, by: the next exclusion or re-review of the batch;
+      its `manifest_step`, before the new manifest is written; `publish_held_manifests`, which
+      first finishes the pending withdrawal of every `uploading` batch (held or not, its lock
+      only tried) and is called by `launch_worker` before it launches and by
+      `refresh_status`; and (planned) the orphan sweep of `run_upload` and the extract-only
+      transition to `transcribed` (M5.10). The launch scope counts a leftover whose digest a
+      pending withdrawal recorded as absent (a held batch is counted from the database).
+    - **Remaining window.** This app cannot launch during a withdrawal: its launch holds the
+      runs lock for its whole check-publish-launch sequence, and a launch already under way
+      (`launching`, `queued`, a pod or a heartbeat) makes the check report a run. Runs of
+      another computer (same account and bucket) are visible only through the Runpod lists and
+      heartbeats: one started in the seconds between the check and the manifest delete, or not
+      listed yet, could still read the leftover and write `_done.json` or a result after their
+      deletion; the batch would then be skipped or keep a stale subtitle until its results are
+      deleted again. This needs a crash in the manifest step, a later exclusion or re-review,
+      and a launch on another computer at that moment, and is accepted.
 
 ### 3.4 Conversion
 
