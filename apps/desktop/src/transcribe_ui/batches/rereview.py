@@ -5,7 +5,7 @@ from sqlalchemy import update
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import JOB_PENDING, UPLOADING_PHASES
 from transcribe_ui.batches.errors import ItemNotFoundError
-from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store
+from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store, withdraw_manifest
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.state.models import ItemRow, JobRow
 
@@ -15,8 +15,8 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
 
     The caller holds the batch lock. One transaction first sets the item to `reviewing`, deletes
     its `audio_objects` and `extracted_subtitles` rows, sets its jobs back to pending and clears
-    the batch's `manifest_held` (the held manifest would list the old audio); only then are its
-    objects deleted. Objects an interruption leaves behind stay under the item's audio prefix,
+    the batch's `manifest_held` (the held manifest would list the old audio); only then are a
+    manifest left by an interrupted manifest step and the item's objects deleted. Objects an interruption leaves behind stay under the item's audio prefix,
     where a later exclusion or upload of the item (or the batch's cleanup) removes them.
 
     Raises:
@@ -37,4 +37,6 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
         session.execute(pending.execution_options(synchronize_session=False))
         now = context.ports.clock.now()
         touch_batch(session, batch_id, UPLOADING_PHASES, now=now, also_set={"manifest_held": False})
-    delete_item_objects(object_store(context.ports), batch_id, item_id, context.check_cancelled)
+    store = object_store(context.ports)
+    withdraw_manifest(store, batch_id)
+    delete_item_objects(store, batch_id, item_id, context.check_cancelled)

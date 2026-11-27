@@ -18,7 +18,7 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.classes import ExcludeItemsRequest
 from transcribe_ui.batches.constants import DELETE_OBJECTS_STAGE, REVIEW_PHASES, UPLOADING_PHASES
 from transcribe_ui.batches.errors import ItemNotFoundError, LastItemError
-from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store
+from transcribe_ui.batches.objects import delete_item_objects, forget_uploads, object_store, withdraw_manifest
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.batches.records import load_detail, stored_items
 from transcribe_ui.batches.responses import BatchDetail, ExcludeItemsResponse
@@ -61,6 +61,7 @@ def _remove_items(request: ExcludeItemsRequest, context: RequestContext, phase: 
 
 
 def _delete_objects(request: ExcludeItemsRequest, context: RequestContext, store: ObjectStore) -> int:
+    withdraw_manifest(store, request.batch_id)
     deleted = 0
     total = len(request.item_ids)
     for done, item_id in enumerate(request.item_ids, start=1):

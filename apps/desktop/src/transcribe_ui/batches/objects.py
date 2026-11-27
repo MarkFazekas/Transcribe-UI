@@ -5,7 +5,7 @@ from collections.abc import Callable, Collection
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from transcribe_contracts.layout import audio_prefix
+from transcribe_contracts.layout import audio_prefix, manifest_key
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.state.models import AudioObjectRow, ExtractedSubtitleRow, JobRow
 from transcribe_ui.storage.client import open_object_store
@@ -55,3 +55,13 @@ def delete_item_objects(store: ObjectStore, batch_id: str, item_id: str, check_c
         check_cancelled()
         store.delete(key)
     return len(listed)
+
+
+def withdraw_manifest(store: ObjectStore, batch_id: str) -> None:
+    """Delete the manifest of an `uploading` batch before any of its audio is deleted.
+
+    An `uploading` batch has a manifest in R2 only when the manifest step was interrupted
+    between writing it and moving the batch to `ready`; its audio list is about to change, so it
+    must not stay visible to the worker. Missing is success (the usual case).
+    """
+    store.delete(manifest_key(batch_id))
