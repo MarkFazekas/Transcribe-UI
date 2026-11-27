@@ -83,9 +83,13 @@ def _follow_queued(state: LocalState, pods: PodsApi, run: RunInfo, listed: Liste
 def _adopted(found: Adoption, now: datetime) -> PayloadChanges:
     """Return the payload fields of an adoption, with the end of a queued pod that ended without a pod.
 
-    The queued pod (or its pod) was found, so an empty lookup recorded before no longer counts.
+    The queued pod (or its pod) was found, so an empty lookup recorded before no longer counts,
+    and one still waiting voids an acknowledged cancel.
     """
     changes = {**found.changes(), "first_empty_lookup_at": None}
+    if found.status == "queued":
+        # Still waiting: a cancel acknowledged before did not take effect and bounds nothing.
+        changes["cancel_acknowledged_at"] = None
     if found.status in FINAL_RUN_STATUSES:
         changes.update({"ended_at": now, "end_reason": "queue_ended"})
     return changes

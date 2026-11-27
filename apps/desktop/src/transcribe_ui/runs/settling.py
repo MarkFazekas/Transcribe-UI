@@ -47,6 +47,14 @@ class Listed:
         return cls(pods.list_pods(), pods.list_queued_pods())
 
 
+def live_pod_named(listed: Listed, name: str, excluding: frozenset[str]) -> Pod | None:
+    """Return a live pod (not `TERMINATED`) listed under the name, other than those `excluding`; None if none."""
+    named = [pod for pod in listed.pods if pod.name == name]
+    others = [pod for pod in named if pod.pod_id not in excluding]
+    live = [pod for pod in others if pod.status != POD_TERMINATED]
+    return live[0] if live else None
+
+
 @dataclass(frozen=True)
 class Adoption:
     """The pod or queued pod found under a run's name, and the run status it gives."""
@@ -112,7 +120,8 @@ def resolve_launching(state: LocalState, run_id: str, listed: Listed, now: datet
         settle_from = max(moment for moment in sent if moment is not None)
     found = find_by_name(name, listed)
     if found is not None:
-        changes = found.changes()
+        # Found: an empty lookup recorded before no longer counts.
+        changes = {**found.changes(), "first_empty_lookup_at": None}
         if found.status in FINAL_RUN_STATUSES:
             # A queued pod found ended (cancelled, expired or failed) without a pod.
             changes = {**changes, "ended_at": now, "end_reason": "queue_ended"}

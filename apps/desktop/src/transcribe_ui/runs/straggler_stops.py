@@ -10,7 +10,9 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import Pod, QueuedPod
-from transcribe_ui.runs.records import open_run_id
+from transcribe_ui.runs.errors import runpod_call
+from transcribe_ui.runs.records import open_run_id, read_run, update_run
+from transcribe_ui.runs.settling import Listed, live_pod_named
 from transcribe_ui.runs.stop_records import adopt_deployed, queued_stop
 from transcribe_ui.runs.stopped import end_stopped_run, last_report
 from transcribe_ui.runs.stopping import KnownPod, QueuedStopped, cancel_queued_verified, terminate_verified
@@ -37,7 +39,8 @@ def stop_app_pod(context: RequestContext, pods: PodsApi, run_id: str | None, pod
     if stopped_now:
         terminate_verified(pods, KnownPod(pod_id, seen=True), context.ports.clock)
     stop = ({"pod_id": pod_id, "pod_seen": True}, frozenset((pod_id,)))
-    return end_stopped_run(context, run_id, stop, worker, stopped_now=stopped_now)
+    still_live = _follow_other_named(context, pods, run_id, stop[1])
+    return end_stopped_run(context, run_id, stop, worker, stopped_now=stopped_now and not still_live)
 
 
 def stop_app_queued_pod(
@@ -63,10 +66,35 @@ def stop_app_queued_pod(
     stopped = cancel_queued_verified(pods, target, context.ports.clock, hooks)
     changes = {"queued_pod_id": queued_id, "pod_id": stopped.pod_id}
     stop = (changes, frozenset((queued_id, *stopped.pod_ids)))
-    return stopped, end_stopped_run(context, run_id, stop, worker, stopped_now=stopped.stopped_live)
+    still_live = _follow_other_named(context, pods, run_id, stop[1])
+    stopped_now = stopped.stopped_live and not still_live
+    return stopped, end_stopped_run(context, run_id, stop, worker, stopped_now=stopped_now)
 
 
 def _report_of_open_run(context: RequestContext, run_id: str | None) -> WorkerReport | None:
     """Return the worker report of an open local run (best effort); None for no run or a final one."""
     open_id = open_run_id(context.ports.state, run_id)
     return None if open_id is None else last_report(context, open_id)
+
+
+def _follow_other_named(context: RequestContext, pods: PodsApi, run_id: str | None, stopped: frozenset[str]) -> bool:
+    """Make the open local run follow a live pod under its name that this stop did not stop; return whether one exists.
+
+    A run never becomes final while a pod carrying its name may still bill: such a pod (another
+    pod its queued pod deployed, say) keeps the run open, followed by `refresh_status`.
+
+    Raises:
+        DomainError: The pod list could not be read (the run stays as it is).
+    """
+    state = context.ports.state
+    open_id = open_run_id(state, run_id)
+    if open_id is None:
+        return False
+    name = read_run(state, open_id).pod_name
+    listed = Listed(runpod_call(pods.list_pods), ())
+    other = live_pod_named(listed, name, stopped)
+    if other is None:
+        return False
+    changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
+    update_run(state, open_id, context.ports.clock.now(), "running", changes)
+    return True

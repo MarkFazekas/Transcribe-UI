@@ -32,7 +32,7 @@ from transcribe_ui.runs.responses import QueuedStop
 
 # Told the pod a queued pod deployed, before that pod is terminated (so a run can follow it if
 # the termination cannot be verified).
-type OnDeployed = Callable[["KnownPod"], None]
+type OnDeployed = Callable[["KnownPod", frozenset[str]], None]
 # Told the id of a pod known only from its queued pod once a pod read returned it (a sighting).
 type OnSeen = Callable[[str], None]
 
@@ -121,6 +121,10 @@ type OnAcknowledged = Callable[[datetime], None]
 type StopOutcome = bool | DomainError
 # A pod whose stop did not show, with the error.
 type FailedStop = tuple["KnownPod", DomainError]
+# Told the status of the queued pod when a read after the cancel still shows it.
+type OnQueueSeen = Callable[[str], None]
+# Told a pod under the run's name whose stop did not show (the run follows it).
+type OnStillLive = Callable[["KnownPod"], None]
 # Told the moment of an empty lookup after the settle time (the first of the two the rule needs).
 type OnEmptyLookup = Callable[[datetime], None]
 
@@ -159,13 +163,16 @@ class QueuedHooks:
     """What a caller is told during a queued pod's stop, to record it on its local run.
 
     `on_deployed`: the pod the run follows, before it is terminated (the first pod, or later the
-    first whose stop did not show); `on_seen`: a pod read showed a pod; `on_acknowledged`: the cancel
-    was acknowledged; `on_empty_lookup`: the first empty lookup after the settle time.
+    first whose stop did not show), with the ids of every pod this stop handles; `on_seen`: a pod
+    read showed a pod; `on_acknowledged`: the cancel was acknowledged; `on_queue_seen`: a read
+    after the cancel still shows the queued pod (with its status); `on_empty_lookup`: the first
+    empty lookup after the settle time.
     """
 
     on_deployed: OnDeployed | None = None
     on_seen: OnSeen | None = None
     on_acknowledged: OnAcknowledged | None = None
+    on_queue_seen: OnQueueSeen | None = None
     on_empty_lookup: OnEmptyLookup | None = None
 
 
@@ -203,14 +210,13 @@ class QueuedTarget:
 
     def vanish(self, acknowledged_at: datetime | None, now: datetime) -> VanishVerdict:
         """Return how a 404 after the cancel with no pod listed under its name is judged (see `vanish_verdict`)."""
-        if self.ended:
+        if self.ended or not self.tracked:
+            # Ended without a pod as read before; or no local run that could become final: the
+            # answer is final, and a pod that shows up later is a straggler for `reconcile_cloud`.
             return "gone"
         known = [moment for moment in (self.acknowledged_at, acknowledged_at) if moment is not None]
         settled_from = queue_settled_from(self.expires_at, min(known, default=None))
-        verdict = vanish_verdict(settled_from, self.first_empty_lookup_at, now)
-        if verdict == "record" and not self.tracked:
-            return "gone"
-        return verdict
+        return vanish_verdict(settled_from, self.first_empty_lookup_at, now)
 
 
 def ended_without_pod(entry: QueuedPod) -> bool:
@@ -244,7 +250,7 @@ def cancel_queued_verified(
     acknowledged_at = clock.now() if acknowledged else None
     if acknowledged_at is not None and told.on_acknowledged is not None:
         told.on_acknowledged(acknowledged_at)
-    entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
+    entry = _read_after_cancel(pods, queued_pod_id, told)
     deployed = _deployed_pods(pods, target, entry)
     if deployed:
         return _stop_deployed(pods, deployed, clock, told)
@@ -257,6 +263,18 @@ def cancel_queued_verified(
     # QUEUED (the cancel did not take effect), DEPLOYED without its pod's id, gone too early, or
     # an unknown status.
     raise StopUnverifiedError(QUEUED_POD_KIND, queued_pod_id)
+
+
+def _read_after_cancel(pods: PodsApi, queued_pod_id: str, told: QueuedHooks) -> QueuedPod | None:
+    """Read the queued pod after its cancel; a read that shows it is told (`on_queue_seen`).
+
+    Raises:
+        DomainError: The read failed.
+    """
+    entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
+    if entry is not None and told.on_queue_seen is not None:
+        told.on_queue_seen(entry.status)
+    return entry
 
 
 def _vanished(target: QueuedTarget, acknowledged_at: datetime | None, now: datetime, told: QueuedHooks) -> bool:
@@ -273,15 +291,16 @@ def _stop_deployed(pods: PodsApi, deployed: list[KnownPod], clock: Clock, told: 
     Raises:
         DomainError: A pod's stop did not show or a Runpod call failed (the run follows that pod).
     """
+    handled = frozenset(each.pod_id for each in deployed)
     if told.on_deployed is not None:
-        told.on_deployed(deployed[0])
+        told.on_deployed(deployed[0], handled)
     on_seen = told.on_seen
     outcomes = [_try_stop(pods, each, clock, on_seen) for each in deployed]
     failed = _first_failure(deployed, outcomes)
     if failed is not None:
         failed_pod, error = failed
         if told.on_deployed is not None and failed_pod is not deployed[0]:
-            told.on_deployed(failed_pod)
+            told.on_deployed(failed_pod, handled)
         raise error
     pod_ids = tuple(each.pod_id for each in deployed)
     live = [outcome is True for outcome in outcomes]
@@ -349,6 +368,33 @@ def _stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None
         return False
     terminate_verified(pods, KnownPod(pod_id, seen=True), clock, on_seen)
     return True
+
+
+def stop_named_pods(
+    pods: PodsApi,
+    name: str,
+    skip: frozenset[str],
+    clock: Clock,
+    on_still_live: OnStillLive | None = None,
+) -> tuple[str, ...]:
+    """Terminate (verified) every live pod listed under the name but the ones in `skip`; return their ids.
+
+    A run must not become final while a pod carrying its name may still bill: a queued pod may
+    have deployed more than one, a stop may have been cut short. Every one is tried; the first
+    pod whose stop did not show is told to `on_still_live` and its error raised afterwards.
+
+    Raises:
+        DomainError: The pod list could not be read, or a pod's stop did not show.
+    """
+    named = [pod for pod in _listed_pods(pods, name) if pod.pod_id not in skip]
+    outcomes = [_try_stop(pods, pod, clock, None) for pod in named]
+    failed = _first_failure(named, outcomes)
+    if failed is not None:
+        failed_pod, error = failed
+        if on_still_live is not None:
+            on_still_live(failed_pod)
+        raise error
+    return tuple(pod.pod_id for pod in named)
 
 
 def _listed_pods(pods: PodsApi, name: str) -> list[KnownPod]:

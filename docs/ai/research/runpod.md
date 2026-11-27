@@ -198,7 +198,8 @@ Sources: https://docs.runpod.io/api-reference-v2/templates/create-a-template.md 
    done only `DEPLOY_SETTLE_S` after the earlier of the queue's `expiresAt` and the cancel's
    acknowledgement, after two empty lookups (architecture §3.7 "Cancel").
 8. Whether a queued pod can still deploy after its `expiresAt` (a scheduler attempt that started
-   before it and is still running at that moment): the settle rule above assumes it cannot.
+   before it and is still running at that moment), or after a cancel answered 204 (an attempt
+   under way when the cancel arrived): the settle rule above assumes neither happens.
 
 ## Sources
 https://docs.runpod.io/release-notes ; https://api.runpod.io/v2/openapi.json ; https://docs.runpod.io/api-reference-v2/migrate-from-v1.md ; https://docs.runpod.io/api-reference/overview ; https://docs.runpod.io/pods/manage-pods ; https://docs.runpod.io/pods/references/environment-variables ; https://docs.runpod.io/pods/pricing ; https://docs.runpod.io/pods/storage/types ; https://docs.runpod.io/storage/globalvolume/overview.md ; https://docs.runpod.io/storage/globalvolume/globalvolume-pods.md ; https://docs.runpod.io/pods/templates/secrets ; https://docs.runpod.io/pods/configuration/use-ssh ; https://docs.runpod.io/references/gpu-types.md ; https://docs.runpod.io/runpodctl/reference/runpodctl-pod.md ; https://runpod.io/blog/deploy-when-available-is-now-ga ; https://www.runpod.io/pricing ; https://hub.docker.com/v2/repositories/runpod/pytorch/tags ; https://github.com/SYSTRAN/faster-whisper

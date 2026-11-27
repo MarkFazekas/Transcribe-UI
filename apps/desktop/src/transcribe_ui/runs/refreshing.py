@@ -21,9 +21,9 @@ from transcribe_ui.runs.cloud import LazyStore
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.ending import desktop_deadline, end_run, stop_at_deadline
 from transcribe_ui.runs.errors import runpod_call
-from transcribe_ui.runs.following import follow_run
+from transcribe_ui.runs.following import Followed, follow_run
 from transcribe_ui.runs.records import open_runs, read_payload, update_run
-from transcribe_ui.runs.settling import Listed
+from transcribe_ui.runs.settling import Listed, live_pod_named
 from transcribe_ui.runs.worker import WorkerReport, read_worker, stored_report
 from transcribe_ui.state.store import LocalState
 
@@ -104,7 +104,7 @@ def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_i
     worker, failure = _read_report(store, run_id)
     read = failure is None
     if followed.gone:
-        if read:
+        if not _follow_other_pod(state, followed, listed, clock.now()) and read:
             end_run(state, run_id, worker, clock.now())
         return Refreshed(run_id, worker, failure=failure, read=read)
     if not past_deadline:
@@ -118,6 +118,23 @@ def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_i
         # every run was handled (the run stays followed; the next refresh tries again).
         return Refreshed(run_id, worker, error.code, error, read=read)
     return Refreshed(run_id, worker, stop_error, failure, read=read)
+
+
+def _follow_other_pod(state: LocalState, followed: Followed, listed: Listed, now: datetime) -> bool:
+    """Make a run whose pod is gone follow another live pod listed under its name; return whether there was one.
+
+    A run never becomes final while a pod carrying its name may still bill (a queued pod that
+    deployed more than one, a stop cut short between pods): it follows such a pod until it too
+    is gone, or stopped at the deadline.
+    """
+    run = followed.run
+    gone = frozenset(() if run.pod_id is None else (run.pod_id,))
+    other = live_pod_named(listed, run.pod_name, gone)
+    if other is None:
+        return False
+    changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
+    update_run(state, run.run_id, now, "running", changes)
+    return True
 
 
 def _read_report(store: LazyStore, run_id: str) -> tuple[WorkerReport | None, DomainError | None]:
