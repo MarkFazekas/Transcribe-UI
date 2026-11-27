@@ -173,6 +173,13 @@ Naming and conflicts:
   shared by the desktop and the pod. `setup_cloud` creates or updates the Runpod secrets from
   the R2 credentials in the desktop keyring, then the template that references them. Rotating
   the token means re-running `setup_cloud`.
+- Upload finishing during a run *(Q27, accepted default; architect: "let it be the Start
+  button")*: the launch scope is the set of batches that are fully uploaded when the user
+  presses Start. The maximum runtime, the cost estimate and the pod name deadline are worked out
+  from that scope and fixed in the pod request. A batch whose upload finishes after Start, while
+  the run is queued, waiting or running, completes its upload and waits ("uploaded, waits for
+  the current run"). It is not given to that run, and it becomes ready for the next Start once
+  the current run ends.
 
 ## Deployed app (worker)
 

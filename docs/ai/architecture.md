@@ -233,7 +233,7 @@ docs/human/, docs/ai/     see CLAUDE.md
 
   Extracted subtitles are placed together with the transcribed ones. A batch with only
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
-  The phases are not a strict line (planned on the proposed default of Q27 and the requirements "Subtitle download options", `plans/m5.md` §1):
+  The phases are not a strict line (planned on the requirements "Subtitle download options" and "Runpod control", `plans/m5.md` §1):
   a batch in `composing` or `reviewing` can be deleted; finished subtitles can already be
   downloaded in `ready` and again in `downloaded` (extracted ones even in `cleaned`); a batch
   reaches `downloaded` once it has `_done.json` (or is extract-only) and every job has a placement

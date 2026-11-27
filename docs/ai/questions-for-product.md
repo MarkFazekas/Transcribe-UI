@@ -10,17 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q27. A job that finishes uploading while the cloud machine is waiting or working
-
-Starting transcription sends every uploaded job, with a cost estimate and a time limit worked
-out for them. A job whose upload completes after the start would otherwise be picked up by the
-same machine if it is still working: beyond the confirmed estimate, and possibly cut by the
-time limit.
-
-Proposed default: such a job completes its upload but waits ("uploaded, waits for the current
-run"); it is not given to the running machine and becomes ready for the next start as soon as
-the current run ends.
-
 ### Q28. Jobs in the cloud that this computer does not know
 
 The cloud machine transcribes every job it finds in the cloud storage, including jobs uploaded

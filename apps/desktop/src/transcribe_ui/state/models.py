@@ -80,7 +80,7 @@ class BatchRow(Base):
 
     batch_id: Mapped[str] = mapped_column(String(BATCH_ID_LENGTH), primary_key=True)
     phase: Mapped[str] = mapped_column(String(STATUS_LENGTH), index=True)
-    # Upload complete, manifest kept back while a run is active (plan m5 §1, Q27).
+    # Upload complete, manifest kept back while a run is active (plan m5 §1, requirements "Runpod control").
     manifest_held: Mapped[bool] = mapped_column(default=False)
     # The audio objects were cleaned up; results stay downloadable, retry is refused.
     audio_deleted: Mapped[bool] = mapped_column(default=False)
