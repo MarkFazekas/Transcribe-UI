@@ -32,6 +32,9 @@ dev = [
     "pytest-mock>=3.15.1",
     "moto[s3]>=5.2.3",
     "types-boto3[s3]>=1.44.12",
+    # IANA time zones for zoneinfo in tests where the OS has none (Windows); the app itself
+    # only uses the OS's local zone.
+    "tzdata>=2026.6",
 ]
 
 [tool.uv]
