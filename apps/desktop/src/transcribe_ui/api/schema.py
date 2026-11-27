@@ -41,6 +41,14 @@ def _problem(detail: ErrorDetails) -> JsonValue:
     return {"location": location, "message": detail["msg"], "type": detail["type"]}
 
 
+def parse_request(document: str | bytes) -> Request | ErrorResponse:
+    """Validate a JSON request document; an invalid one gives its `invalid_request` response."""
+    try:
+        return request_adapter().validate_json(document)
+    except ValidationError as error:
+        return invalid_request(error)
+
+
 def invalid_request(error: ValidationError) -> ErrorResponse:
     """Return the response to a request document that is not valid JSON or not a `Request`."""
     found = error.errors(include_url=False, include_context=False, include_input=False)

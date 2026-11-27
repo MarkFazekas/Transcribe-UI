@@ -5,19 +5,23 @@ NDJSON, both UTF-8 with LF line ends on every OS. Exit codes are in `cli/constan
 """
 
 import argparse
+import logging
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import BinaryIO, NoReturn
 
-from transcribe_ui.api.backend import Backend
+from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
 from transcribe_ui.api.info import app_version
 from transcribe_ui.api.schema import render_schema
 from transcribe_ui.api.wiring import build_backend
 from transcribe_ui.cli.constants import ERROR_INVALID_ARGUMENTS
 from transcribe_ui.cli.output import failure, respond, write_text
-from transcribe_ui.cli.run_command import run_request
+from transcribe_ui.cli.quiet import logs_off_stderr
+from transcribe_ui.cli.run_command import BackendFactory, cancelled_before_reading, run_request
 from transcribe_ui.constants import DISTRIBUTION_NAME
+
+logger = logging.getLogger(__name__)
 
 
 class UsageError(Exception):
@@ -48,16 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(
-    argv: Sequence[str] | None = None,
-    *,
-    backend: Backend | None = None,
-    stdout: BinaryIO | None = None,
-    stderr: BinaryIO | None = None,
-) -> int:
-    """Run the CLI and return the exit code; tests inject the backend and the streams."""
-    out = sys.stdout.buffer if stdout is None else stdout
-    err = sys.stderr.buffer if stderr is None else stderr
+def _dispatch(argv: Sequence[str] | None, make_backend: BackendFactory, out: BinaryIO, err: BinaryIO) -> int:
     try:
         args = build_parser().parse_args(argv)
     except UsageError as error:
@@ -67,8 +62,32 @@ def main(
     if args.command == "schema":
         return write_text(out, render_schema("response" if args.response else "request"))
     if args.command == "run":
-        return run_request(Path(args.request), backend or build_backend(), out, err)
+        return run_request(Path(args.request), make_backend, out, err)
     return respond(out, failure(ERROR_INVALID_ARGUMENTS, "A command is required (run or schema)."))
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    make_backend: BackendFactory = build_backend,
+    stdout: BinaryIO | None = None,
+    stderr: BinaryIO | None = None,
+) -> int:
+    """Run the CLI and return the exit code; tests inject the backend factory and the streams.
+
+    Whatever fails, stdout gets a JSON response (`--help` excepted): an unexpected exception is
+    answered with `internal_error`, a Ctrl+C outside a request with `cancelled`.
+    """
+    out = sys.stdout.buffer if stdout is None else stdout
+    err = sys.stderr.buffer if stderr is None else stderr
+    with logs_off_stderr():
+        try:
+            return _dispatch(argv, make_backend, out, err)
+        except KeyboardInterrupt:
+            return respond(out, cancelled_before_reading())
+        except Exception:
+            logger.exception("The CLI failed unexpectedly")
+            return respond(out, failure(ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE))
 
 
 def run() -> NoReturn:

@@ -86,12 +86,11 @@ def _via_backend(leg: Leg, template: str) -> Exchange:
     return leg.exchange(response, progress.events, exit_code(response))
 
 
-def _via_cli(leg: Leg, template: str, index: int) -> Exchange:
-    request_file = leg.root / f"request-{index}.json"
+def _via_cli(leg: Leg, template: str, request_file: Path) -> Exchange:
     request_file.write_bytes(leg.document(template).encode("utf-8"))
     stdout = io.BytesIO()
     stderr = io.BytesIO()
-    code = main(["run", str(request_file)], backend=leg.backend, stdout=stdout, stderr=stderr)
+    code = main(["run", str(request_file)], make_backend=lambda: leg.backend, stdout=stdout, stderr=stderr)
     lines = stderr.getvalue().decode("utf-8").splitlines()
     events = [ProgressEvent.model_validate_json(line) for line in lines]
     return leg.exchange(response_adapter().validate_json(stdout.getvalue()), events, code)
@@ -104,10 +103,13 @@ def run_parity(tmp_path: Path, templates: Sequence[str], routes: RoutesFactory |
     """
     direct = Leg.create(tmp_path / "backend", routes)
     via_cli = Leg.create(tmp_path / "cli", routes)
+    # Request files live outside the leg's root, so they never show up in what a request sees there.
+    requests_dir = tmp_path / "requests-cli"
+    requests_dir.mkdir()
     exchanges = []
     for index, template in enumerate(templates):
         expected = _via_backend(direct, template)
-        actual = _via_cli(via_cli, template, index)
+        actual = _via_cli(via_cli, template, requests_dir / f"request-{index}.json")
         assert actual == expected, f"request {index}: the CLI and the backend disagree"
         exchanges.append(actual)
     return exchanges

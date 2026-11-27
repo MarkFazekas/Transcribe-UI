@@ -6,14 +6,12 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from pydantic import ValidationError
-
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, Request, Response
-from transcribe_ui.api.constants import ERROR_INTERNAL
+from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.info import get_app_info
 from transcribe_ui.api.ports import CancelFlag, CancelToken, DiscardProgress, Ports, ProgressSink, RequestContext
-from transcribe_ui.api.schema import invalid_request, request_adapter
+from transcribe_ui.api.schema import parse_request
 
 logger = logging.getLogger(__name__)
 
@@ -61,16 +59,17 @@ class Backend:
     ) -> Response:
         """Carry out one request; failures come back as `ErrorResponse`, never as exceptions."""
         route = self._routes[request.action]
-        sink = progress or DiscardProgress()
-        context = RequestContext(self._ports, sink, cancel or CancelFlag())
+        sink = DiscardProgress() if progress is None else progress
+        token = CancelFlag() if cancel is None else cancel
+        context = RequestContext(self._ports, sink, token)
         try:
             return route.run(request, context)
         except DomainError as error:
             return ErrorResponse(action=request.action, error=error.body())
         except Exception:
             logger.exception("Request %s failed unexpectedly", request.action)
-            message = "Unexpected internal error; the details are in the log."
-            return ErrorResponse(action=request.action, error=ErrorBody(code=ERROR_INTERNAL, message=message))
+            body = ErrorBody(code=ERROR_INTERNAL, message=INTERNAL_ERROR_MESSAGE)
+            return ErrorResponse(action=request.action, error=body)
 
     def execute_json(
         self,
@@ -79,8 +78,7 @@ class Backend:
         cancel: CancelToken | None = None,
     ) -> Response:
         """Validate a JSON request document, then carry it out like `execute`."""
-        try:
-            request = request_adapter().validate_json(document)
-        except ValidationError as error:
-            return invalid_request(error)
+        request = parse_request(document)
+        if isinstance(request, ErrorResponse):
+            return request
         return self.execute(request, progress, cancel)

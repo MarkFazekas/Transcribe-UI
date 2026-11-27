@@ -8,6 +8,8 @@ ERROR_INVALID_REQUEST: Final = "invalid_request"
 ERROR_CANCELLED: Final = "cancelled"
 # Error code: an unexpected failure; the details are in the log, never in the response.
 ERROR_INTERNAL: Final = "internal_error"
+# Message of `internal_error`: generic, so no internals (or secrets) reach a response.
+INTERNAL_ERROR_MESSAGE: Final = "Unexpected internal error; the details are in the log."
 
 # Serialization context key of the function rewriting `LocalPath` values (golden-file tests).
 LOCAL_PATH_CONTEXT_KEY: Final = "local_path"

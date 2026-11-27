@@ -5,6 +5,8 @@ asr
 astimezone
 backoff
 base32
+bom
+boms
 caplog
 casefold
 chunksize
@@ -119,6 +121,7 @@ unspaced
 untimed
 untracked
 untrusted
+utf16
 utils
 v2
 v3
