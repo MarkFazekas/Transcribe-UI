@@ -5,7 +5,9 @@ stays, nothing else runs. Sending the request again must finish the download wit
 temp file left behind.
 """
 
+import os
 import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,9 +41,12 @@ from transcribe_contracts.layout import result_srt_key
 from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.api.ports import CancelFlag
 from transcribe_ui.placement import download, writer
+from transcribe_ui.placement.constants import STALE_TEMP_S
 
 # The mirror strategy with empty results included: three files written, the failed job skipped.
 MIRROR = placement("mirror", include_empty=True)
+# The writer's function that writes a temp file.
+STAGED = "_staged"
 # The film's target of the mirror strategy below the leg's root.
 FILM_TARGET = "out/Movies/Film.en.srt"
 
@@ -92,8 +97,26 @@ def _crash_once(monkeypatch: pytest.MonkeyPatch, owner: object, name: str, *, be
     monkeypatch.setattr(owner, name, CrashOnce(getattr(owner, name), before))
 
 
-def _refuse_write(_path: Path, _body: bytes) -> None:
-    raise PermissionError
+@dataclass(frozen=True)
+class RefuseFilm:
+    """Stands in for the temp file write: the OS refuses the film's subtitle, the others are written."""
+
+    real: object
+
+    def __call__(self, target: Path, body: bytes) -> Path:
+        """Refuse the film's target, write the others."""
+        if target.name.startswith("Film"):
+            raise PermissionError
+        assert callable(self.real)
+        written = self.real(target, body)
+        assert isinstance(written, Path)
+        return written
+
+
+def _failures(document: dict[str, object]) -> list[tuple[object, ...]]:
+    download = document["download"]
+    assert isinstance(download, dict)
+    return [(each["item_id"], each["code"], each["reason"]) for each in download["failures"]]
 
 
 def _mirror(leg: Leg) -> dict[str, str]:
@@ -115,14 +138,16 @@ def test_cancel_then_resume(world: RunsWorld) -> None:
 def test_kill_between_temp_file_and_replace(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
     """A kill after the temp file is written leaves no target; a temp file a kill left is replaced on resume."""
     leg = world.leg
-    _crash_once(monkeypatch, writer, "_write_synced", before=False)
+    _crash_once(monkeypatch, writer, "_fill", before=False)
     with pytest.raises(Crash):
         send(leg, request(RUN_DOWNLOAD, placement=MIRROR))
     monkeypatch.undo()
     assert (recorded(leg), (leg.root / FILM_TARGET).exists(), temp_files(leg.root)) == ([], False, [])
-    # A hard kill skips the cleanup and leaves the partial temp file behind.
-    leftover = leg.root / f"{FILM_TARGET}.tmp"
+    # A hard kill skips the cleanup and leaves the partial temp file behind; once stale it is removed.
+    leftover = leg.root / f"{FILM_TARGET}.0a1b2c.tmp"
     leftover.write_bytes(b"partial")
+    stale = time.time() - STALE_TEMP_S - 1
+    os.utime(leftover, (stale, stale))
     assert _mirror(leg) == expected_outcomes(podcast="place")
     assert ((leg.root / FILM_TARGET).read_bytes(), temp_files(leg.root)) == (SUBTITLE, [])
 
@@ -139,13 +164,17 @@ def test_kill_before_the_outcome_is_recorded(world: RunsWorld, monkeypatch: pyte
     assert phase_of(leg) == "downloaded"
 
 
-def test_missing_subtitle_keeps_what_was_placed(world: RunsWorld) -> None:
-    """A finished job whose subtitle is gone from R2 fails the request; nothing after it is placed."""
+def test_missing_subtitle_does_not_block_the_others(world: RunsWorld) -> None:
+    """A finished job whose subtitle is gone from R2 is listed as failed; the other jobs are placed."""
     leg = world.leg
-    world.store.delete(result_srt_key(FIRST_BATCH_ID, FILM_ID, "en"))
-    body = error_document(send(leg, request(RUN_DOWNLOAD, placement=MIRROR)))
-    assert (body["code"], body["details"]) == ("subtitle_missing", {"item_id": FILM_ID, "language": "en"})
-    assert (recorded(leg), phase_of(leg)) == ([], "transcribed")
+    key = result_srt_key(FIRST_BATCH_ID, FILM_ID, "en")
+    world.store.delete(key)
+    first = ok_document(send(leg, request(RUN_DOWNLOAD, placement=MIRROR)))
+    assert _failures(first) == [(FILM_ID, "subtitle_missing", None)]
+    assert (len(recorded(leg)), phase_of(leg)) == (3, "transcribed")
+    world.store.write(key, SUBTITLE, "application/x-subrip")
+    again = outcomes(ok_document(send(leg, request(RUN_DOWNLOAD, placement=MIRROR))))
+    assert (again[FILM_ID], phase_of(leg)) == ("place", "downloaded")
 
 
 def test_overwrite_needs_confirmation(world: RunsWorld) -> None:
@@ -168,14 +197,14 @@ def test_plan_errors_write_nothing(world: RunsWorld) -> None:
     assert not recorded(world.leg)
 
 
-def test_unwritable_target_fails_the_request(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A write the OS refuses (a target open in a player on Windows) fails the request, named by the job."""
+def test_refused_write_does_not_block_the_others(world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A write the OS refuses (a target held open on Windows) is listed as failed; the others are placed."""
     leg = world.leg
-    monkeypatch.setattr(writer, "_write_synced", _refuse_write)
-    body = error_document(send(leg, request(RUN_DOWNLOAD, placement=placement("flat"))))
-    details = {"item_id": FILM_ID, "language": "en", "reason": "PermissionError"}
-    assert (body["code"], body["details"]) == ("download_write_failed", details)
-    assert (recorded(leg), temp_files(leg.root), (leg.root / "out").is_dir()) == ([], [], True)
+    monkeypatch.setattr(writer, STAGED, RefuseFilm(getattr(writer, STAGED)))
+    document = ok_document(send(leg, request(RUN_DOWNLOAD, placement=placement("flat"))))
+    assert _failures(document) == [(FILM_ID, "download_write_failed", "PermissionError")]
+    assert outcomes(document)[SILENT_ID] == "place"
+    assert (temp_files(leg.root), phase_of(leg)) == ([], "transcribed")
 
 
 def test_busy_batch_is_refused(world: RunsWorld) -> None:

@@ -1082,10 +1082,75 @@
       "title": "DeleteBatchResponse",
       "type": "object"
     },
+    "DownloadFailure": {
+      "additionalProperties": false,
+      "description": "A job a download could not place; nothing is recorded for it and the other jobs went on.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/DownloadFailureCode"
+        },
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "target_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "item_id",
+        "language",
+        "target_path",
+        "code",
+        "message",
+        "reason"
+      ],
+      "title": "DownloadFailure",
+      "type": "object"
+    },
+    "DownloadFailureCode": {
+      "enum": [
+        "subtitle_missing",
+        "download_write_failed"
+      ],
+      "type": "string"
+    },
     "DownloadOutcome": {
       "additionalProperties": false,
       "description": "What a download did with every job of its plan.",
       "properties": {
+        "failures": {
+          "items": {
+            "$ref": "#/$defs/DownloadFailure"
+          },
+          "title": "Failures",
+          "type": "array"
+        },
         "not_finished": {
           "minimum": 0,
           "title": "Not Finished",
@@ -1111,6 +1176,7 @@
       },
       "required": [
         "placements",
+        "failures",
         "written",
         "skipped",
         "not_finished"

@@ -28,6 +28,8 @@ FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
 PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
 # Batch state of a batch that has its `_done.json`.
 TRANSCRIBED = ("transcribed", False, True)
+# Batch state of a batch with `_done.json` whose every job failed (none blocks `downloaded`).
+DOWNLOADED = ("downloaded", False, True)
 
 
 class WorkerFinishingStore(R2ObjectStore):
@@ -99,7 +101,8 @@ def test_unreadable_result_fails_once_done(world: RunsWorld) -> None:
         [2],
     )
     reasons = (_result_error(world, FILM_ID), _result_error(world, PODCAST_ID))
-    assert (reasons, batch_state(world)) == (("decoding failed", UNREADABLE_RESULT_ERROR), TRANSCRIBED)
+    # Every job failed: nothing is left to download, so the `downloaded` rule moves the batch on.
+    assert (reasons, batch_state(world)) == (("decoding failed", UNREADABLE_RESULT_ERROR), DOWNLOADED)
 
 
 def test_missing_result_fails_once_done(world: RunsWorld) -> None:

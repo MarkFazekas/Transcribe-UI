@@ -4,20 +4,23 @@ The caller holds the batch's lock. A plan with errors is refused before anything
 that would overwrite files needs `confirm_overwrite` (answered with `needs_confirmation`, nothing
 changed). Then job by job, in plan order, with the cancel token checked between jobs:
 
-1. a job the plan writes gets its subtitle: an extracted one from SQLite, a transcribed one from
-   R2 (opened on first use, so extracted subtitles need no R2 credentials), an empty result as an
+1. the target is checked again (`placement/writer.py`): an existing target is skipped unless
+   overwriting, a vanished original folder is skipped as missing; nothing is read for a skip;
+2. a job to write gets its subtitle: an extracted one from SQLite, a transcribed one from R2
+   (opened on first use, so extracted subtitles need no R2 credentials), an empty result as an
    empty file;
-2. it is written through a temp file and `os.replace` (`placement/writer.py`), the target checked
-   again first (an existing target is skipped unless overwriting, a vanished original folder is
-   skipped as missing);
-3. its outcome is recorded in its own transaction (`placement/recording.py`), skipped jobs' too.
+3. it is written through a temp file and moved into place (`placement/writer.py`);
+4. its outcome is recorded in its own transaction (`placement/recording.py`), skipped jobs' too.
 
-No R2 call and no file write happens inside a transaction. A cancel, a failure or a kill keeps the
-outcomes recorded so far; sending the request again places the rest (files already placed are
-then existing targets, skipped unless overwriting). Finally the `downloaded` rule is applied.
+A job that cannot be placed (its subtitle is gone from R2, or the OS refuses the write, such as a
+Windows target held open by a player) is listed in `failures` with nothing recorded, and the other
+jobs go on; sending the request again tries it again. Failures that concern every job (R2 or its
+credentials) fail the request. No R2 call and no file write happens inside a transaction. A cancel,
+a failure or a kill keeps the outcomes recorded so far; sending the request again places the rest
+(files already placed are then existing targets, skipped unless overwriting). Finally the
+`downloaded` rule is applied.
 """
 
-from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,17 +28,29 @@ from pathlib import Path
 from transcribe_contracts.layout import result_srt_key
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation, ProgressEvent
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.placement.classes import DownloadOutcome, PlacementOutcome, PlacementPlan, PlannedPlacement
-from transcribe_ui.placement.constants import DOWNLOAD_STAGE, EXTRACT_KIND, SUBTITLE_ENCODING, WRITING_OUTCOMES
-from transcribe_ui.placement.errors import DownloadPlanInvalidError, DownloadWriteFailedError, SubtitleMissingError
+from transcribe_ui.placement.classes import (
+    DownloadFailure,
+    DownloadOutcome,
+    PlacementOutcome,
+    PlacementPlan,
+    PlannedPlacement,
+)
+from transcribe_ui.placement.constants import (
+    CONFIRM_OVERWRITE_FIELD,
+    DOWNLOAD_STAGE,
+    ERROR_DOWNLOAD_WRITE_FAILED,
+    ERROR_SUBTITLE_MISSING,
+    EXTRACT_KIND,
+    SUBTITLE_ENCODING,
+    WRITING_OUTCOMES,
+)
+from transcribe_ui.placement.errors import DownloadPlanInvalidError
+from transcribe_ui.placement.planner import job_label
 from transcribe_ui.placement.recording import Placed, mark_downloaded, record_placement
 from transcribe_ui.placement.sources import DownloadJob, DownloadSource
-from transcribe_ui.placement.writer import place_file
+from transcribe_ui.placement.writer import check_target, place_file
 from transcribe_ui.runs.cloud import LazyStore
 from transcribe_ui.state.models import ExtractedSubtitleRow
-
-# Request field that confirms overwriting existing files.
-CONFIRM_OVERWRITE_FIELD = "confirm_overwrite"
 
 
 @dataclass(frozen=True)
@@ -55,12 +70,10 @@ def carry_out(
     plan: PlacementPlan,
     carrying: Carrying,
 ) -> DownloadOutcome | NeedsConfirmation:
-    """Place the plan's subtitles and record each job's outcome; return what was done.
+    """Place the plan's subtitles and record each job's outcome; return what was done and what failed.
 
     Raises:
         DownloadPlanInvalidError: The plan has errors (nothing was written).
-        DownloadWriteFailedError: A subtitle could not be written (the jobs before it are recorded).
-        SubtitleMissingError: A finished job's subtitle is not in R2 (the jobs before it are recorded).
         CancelledError: Cancelled between jobs (the jobs before are recorded).
         DomainError: R2 or its credentials failed (the jobs before are recorded).
     """
@@ -73,14 +86,18 @@ def carry_out(
     placer = _JobPlacer(context, LazyStore(context), source.batch_id, carrying)
     jobs = source.by_key()
     done: list[PlannedPlacement] = []
-    for entry in plan.entries:
+    failures: list[DownloadFailure] = []
+    for index, entry in enumerate(plan.entries, start=1):
         context.check_cancelled()
         outcome = placer.place(jobs[entry.item_id, entry.language], entry)
-        done.append(entry.model_copy(update={"outcome": outcome}))
-        placer.report(len(done), len(plan.entries), entry.target_path)
+        if isinstance(outcome, DownloadFailure):
+            failures.append(outcome)
+        else:
+            done.append(entry.model_copy(update={"outcome": outcome}))
+        placer.report(index, len(plan.entries), entry.target_path)
     with context.ports.state.session() as session:
         mark_downloaded(session, source.batch_id, context.ports.clock.now())
-    return _outcome(done)
+    return _outcome(done, failures)
 
 
 def _overwrite_confirmation(action: str, entries: Sequence[PlannedPlacement]) -> NeedsConfirmation | None:
@@ -97,6 +114,31 @@ def _overwrite_confirmation(action: str, entries: Sequence[PlannedPlacement]) ->
     return NeedsConfirmation(action=action, confirmations=(confirmation,))
 
 
+class _JobFailedError(Exception):
+    """One job cannot be placed; the download goes on with the others."""
+
+    def __init__(self, failure: DownloadFailure) -> None:
+        """Keep the failure."""
+        super().__init__(failure.message)
+        self.failure = failure
+
+
+def _failure(job: DownloadJob, entry: PlannedPlacement, error: OSError | None = None) -> _JobFailedError:
+    label = job_label(job.job)
+    failure = DownloadFailure(
+        item_id=job.job.item_id,
+        language=job.job.language,
+        target_path=entry.target_path,
+        code=ERROR_SUBTITLE_MISSING,
+        message=f"{label}: the subtitle is not in the cloud any more.",
+    )
+    if error is not None:
+        message = f"{label}: the subtitle cannot be written; send the request again once the target is writable."
+        update = {"code": ERROR_DOWNLOAD_WRITE_FAILED, "message": message, "reason": type(error).__name__}
+        failure = failure.model_copy(update=update)
+    return _JobFailedError(failure)
+
+
 @dataclass(frozen=True)
 class _JobPlacer:
     """Carries out one job of a plan at a time."""
@@ -106,15 +148,16 @@ class _JobPlacer:
     batch_id: str
     carrying: Carrying
 
-    def place(self, job: DownloadJob, entry: PlannedPlacement) -> PlacementOutcome:
-        """Write the job's subtitle if the plan says so, record the outcome and return it.
+    def place(self, job: DownloadJob, entry: PlannedPlacement) -> PlacementOutcome | DownloadFailure:
+        """Write the job's subtitle if the plan says so and record the outcome; return it, or the job's failure.
 
         Raises:
-            DownloadWriteFailedError: The subtitle could not be written.
-            SubtitleMissingError: A transcribed subtitle is not in R2.
             DomainError: R2 or its credentials failed.
         """
-        outcome = self._written(job, entry)
+        try:
+            outcome = self._written(job, entry)
+        except _JobFailedError as failed:
+            return failed.failure
         placed = Placed(job_id=job.job_id, outcome=outcome, target_path=entry.target_path)
         ports = self.context.ports
         with ports.state.session() as session:
@@ -131,40 +174,43 @@ class _JobPlacer:
         target = entry.target_path
         if entry.outcome not in WRITING_OUTCOMES or target is None:
             return entry.outcome
-        body = self._body(job)
         overwrite = entry.outcome == "overwrite"
         next_to_media = self.carrying.next_to_media
+        skip = check_target(Path(target), overwrite=overwrite, next_to_media=next_to_media)
+        if skip is not None:
+            return skip
+        body = self._body(job, entry)
         try:
             return place_file(Path(target), body, overwrite=overwrite, next_to_media=next_to_media)
         except OSError as error:
-            raise DownloadWriteFailedError(job.job, error) from None
+            raise _failure(job, entry, error) from None
 
-    def _body(self, job: DownloadJob) -> bytes:
+    def _body(self, job: DownloadJob, entry: PlannedPlacement) -> bytes:
         if job.job.subtitle == "empty":
             return b""
         if job.kind == EXTRACT_KIND:
-            return self._extracted(job)
+            text = self._extracted(job)
+            if text is None:
+                raise _failure(job, entry)
+            return text.encode(SUBTITLE_ENCODING)
         key = result_srt_key(self.batch_id, job.job.item_id, job.job.language)
         body = self.store.get().read(key)
         if body is None:
-            raise SubtitleMissingError(job.job)
+            raise _failure(job, entry)
         return body
 
-    def _extracted(self, job: DownloadJob) -> bytes:
+    def _extracted(self, job: DownloadJob) -> str | None:
         with self.context.ports.state.session() as session:
             row = session.get(ExtractedSubtitleRow, job.job_id)
-            text = None if row is None else row.srt_text
-        if text is None:
-            raise SubtitleMissingError(job.job)
-        return text.encode(SUBTITLE_ENCODING)
+            return None if row is None else row.srt_text
 
 
-def _outcome(done: Sequence[PlannedPlacement]) -> DownloadOutcome:
-    counted = Counter(entry.outcome for entry in done)
-    written = counted["place"] + counted["overwrite"]
-    not_finished = counted["not_finished"]
+def _outcome(done: Sequence[PlannedPlacement], failures: Sequence[DownloadFailure]) -> DownloadOutcome:
+    written = sum(entry.outcome in WRITING_OUTCOMES for entry in done)
+    not_finished = sum(entry.outcome == "not_finished" for entry in done)
     return DownloadOutcome(
         placements=tuple(done),
+        failures=tuple(failures),
         written=written,
         skipped=len(done) - written - not_finished,
         not_finished=not_finished,

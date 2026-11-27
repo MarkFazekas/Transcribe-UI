@@ -198,6 +198,12 @@ def error_document(response: Response) -> Document:
     return found
 
 
+def error_of(response: Response) -> tuple[str, Document]:
+    """Return the code and details of an error response."""
+    body = error_document(response)
+    return body["code"], body["details"]
+
+
 def plan_error_codes(response: Response) -> list[str]:
     """Return the plan error codes of a `download_plan_invalid` error response."""
     body = error_document(response)

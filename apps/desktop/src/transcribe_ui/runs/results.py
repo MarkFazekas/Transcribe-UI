@@ -10,7 +10,8 @@ move on). A result that cannot be read stays pending (logged) until `_done.json`
 the job is `failed` with the reason `unreadable result`, and a job with no result JSON at all
 `failed` with `missing result` (the worker never comes back to a done batch), so a retry can
 take them. A batch that moves to `transcribed` moves on to `downloaded` when every job already
-has a placement outcome (`placement/recording.py`: downloaded in full while it was `ready`). Each
+has a placement outcome (`placement/recording.py`: downloaded in full while it was `ready`); the
+rule is also applied to every `transcribed` batch (a download killed after its last outcome). Each
 batch's lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
 is read outside any transaction.
 """
@@ -25,7 +26,7 @@ from transcribe_contracts.layout import done_key
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import JOB_PENDING
 from transcribe_ui.batches.payloads import JobPayload
-from transcribe_ui.placement.recording import mark_transcribed
+from transcribe_ui.placement.recording import mark_transcribed, settle_transcribed
 from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND
 from transcribe_ui.runs.responses import BatchResults
 from transcribe_ui.runs.result_reads import (
@@ -67,6 +68,7 @@ def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyChe
                 checked.append(_check_batch(context, store, batch_id))
             else:
                 busy.append(batch_id)
+    settle_transcribed(context)
     return ReadyCheck(tuple(checked), tuple(busy))
 
 

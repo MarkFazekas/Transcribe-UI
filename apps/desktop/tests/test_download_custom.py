@@ -1,6 +1,8 @@
 """`export_custom_plan` and `import_custom_plan` (plan m5 M5.13): the round trip and its refusals."""
 
+import codecs
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,7 @@ from support.download import (
     EXPORT_PLAN,
     IMPORT_PLAN,
     error_document,
+    error_of,
     expected_outcomes,
     ok_document,
     outcomes,
@@ -24,6 +27,7 @@ from support.download import (
 from support.monitor import SUBTITLE
 from support.runs import RunsWorld
 from transcribe_ui.api.classes import Response
+from transcribe_ui.placement.constants import MAX_CUSTOM_PLAN_BYTES
 
 # The exported plan file and the output folder of the import, below the leg's root.
 PLAN_FILE = "<root>/plan.json"
@@ -100,8 +104,7 @@ def test_checked_plan_lists_its_errors(world: RunsWorld) -> None:
 
 def test_unreadable_plan_file(world: RunsWorld) -> None:
     """A plan file that does not exist is `custom_plan_unreadable`."""
-    body = error_document(_import(world))
-    assert (body["code"], body["details"]) == ("custom_plan_unreadable", {"reason": "FileNotFoundError"})
+    assert error_of(_import(world)) == ("custom_plan_unreadable", {"reason": "FileNotFoundError"})
 
 
 def test_relative_plan_path_is_invalid(world: RunsWorld) -> None:
@@ -109,3 +112,48 @@ def test_relative_plan_path_is_invalid(world: RunsWorld) -> None:
     options = {"output_folder": CUSTOM}
     refused = send(world.leg, request(IMPORT_PLAN, plan_path="plan.json", placement=options))
     assert error_document(refused)["code"] == "invalid_request"
+
+
+def test_byte_order_mark_is_accepted(world: RunsWorld) -> None:
+    """A plan saved as UTF-8 with a byte order mark (Windows editors) is read like one without."""
+    plan = _export(world)
+    _plan_path(world).write_bytes(codecs.BOM_UTF8 + json.dumps(plan).encode())
+    checked = ok_document(_import(world, check_only=True))
+    assert checked["plan"]["errors"] == []
+
+
+def test_plan_file_over_the_limit(world: RunsWorld) -> None:
+    """A plan file over 32 MiB is not read."""
+    with _plan_path(world).open("wb") as stream:
+        stream.truncate(MAX_CUSTOM_PLAN_BYTES + 1)
+    assert error_of(_import(world, check_only=True)) == ("custom_plan_unreadable", {"reason": "too_large"})
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX only")
+def test_plan_path_must_be_a_regular_file(world: RunsWorld) -> None:
+    """A FIFO (or a folder) at the plan path is refused at once instead of blocking under the lock."""
+    os.mkfifo(_plan_path(world))
+    assert error_of(_import(world)) == ("custom_plan_unreadable", {"reason": "not_a_file"})
+
+
+def test_export_into_a_missing_folder(world: RunsWorld) -> None:
+    """Exporting into a folder that does not exist is `custom_plan_unwritable`."""
+    refused = send(world.leg, request(EXPORT_PLAN, path="<root>/missing/plan.json"))
+    assert error_of(refused) == ("custom_plan_unwritable", {"reason": "FileNotFoundError"})
+
+
+def test_target_escaping_through_a_linked_folder(world: RunsWorld) -> None:
+    """A plan folder that is a link leading out of the output folder is refused."""
+    root = world.leg.root
+    elsewhere = root / "elsewhere"
+    elsewhere.mkdir()
+    (root / "custom").mkdir()
+    try:
+        (root / "custom" / "linked").symlink_to(elsewhere, target_is_directory=True)
+    except OSError:
+        pytest.skip("this system cannot create symbolic links")
+    plan = _export(world)
+    plan["entries"][0]["output_folder"] = "linked"
+    _write_plan(world, plan)
+    assert plan_error_codes(_import(world)) == ["custom_plan_outside_root"]
+    assert not list(elsewhere.iterdir())

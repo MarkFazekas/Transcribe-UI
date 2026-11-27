@@ -16,7 +16,7 @@ from transcribe_ui.placement.constants import (
     POSIX_FORBIDDEN_CHARACTERS,
     REPLACEMENT_CHARACTER,
     SUBTITLE_EXTENSION,
-    TEMP_SUFFIX,
+    TEMP_TAIL_LENGTH,
     UTF16_UNIT_BYTES,
     WINDOWS_FORBIDDEN_CHARACTERS,
     WINDOWS_LAST_CONTROL_CHARACTER,
@@ -113,7 +113,7 @@ class TargetNames:
         if not self.windows:
             return False
         folder = str(self.pure(path).parent)
-        too_long = self.length(path + TEMP_SUFFIX) > WINDOWS_MAX_PATH_LENGTH
+        too_long = self.length(path) + TEMP_TAIL_LENGTH > WINDOWS_MAX_PATH_LENGTH
         return too_long or self.length(folder) > WINDOWS_MAX_FOLDER_LENGTH
 
     def forbidden(self, character: str) -> bool:

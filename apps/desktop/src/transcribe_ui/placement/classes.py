@@ -51,6 +51,8 @@ type PlanErrorCode = Literal[
     "custom_plan_not_srt",
     "custom_plan_outside_root",
 ]
+# Why a download could not place one job (the `ERROR_*` codes of `placement/constants.py`).
+type DownloadFailureCode = Literal["subtitle_missing", "download_write_failed"]
 # Why a target name differs from the default name and the strategy's chosen folders: folder
 # names were added to tell apart files of different folders, or the source extension was added
 # to tell apart files of the same folder.
@@ -230,12 +232,28 @@ class ImportCustomPlanRequest(FrozenModel):
 # Responses
 
 
+class DownloadFailure(FrozenModel):
+    """A job a download could not place; nothing is recorded for it and the other jobs went on."""
+
+    item_id: Ulid
+    language: LanguageCode
+    target_path: LocalPath | None
+    code: DownloadFailureCode
+    # Names the file by its name only, like the plan errors.
+    message: str
+    # The exception type of a failed write (not the OS message: it quotes the path); None otherwise.
+    reason: str | None = None
+
+
 class DownloadOutcome(FrozenModel):
     """What a download did with every job of its plan."""
 
-    # One entry per job, in plan order, with the outcome as carried out: a target that appeared
-    # since the plan was made is skipped as existing, a vanished original folder as missing.
+    # One entry per job carried out, in plan order, with the outcome as carried out: a target that
+    # appeared since the plan was made is skipped as existing, a vanished original folder as missing.
     placements: tuple[PlannedPlacement, ...]
+    # The jobs that could not be placed (subtitle missing in R2, write refused); sending the
+    # request again tries them again.
+    failures: tuple[DownloadFailure, ...]
     # Subtitle files written (placed or overwritten).
     written: NonNegativeInt
     # Jobs skipped (existing target, missing folder, empty or failed result).

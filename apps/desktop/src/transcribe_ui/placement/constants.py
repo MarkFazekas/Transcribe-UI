@@ -1,5 +1,7 @@
 """Constants of the placement planner (architecture §3.5)."""
 
+import codecs
+import os
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
@@ -23,9 +25,27 @@ WINDOWS_MAX_PATH_LENGTH: Final = 259
 # Longest folder path Windows creates (UTF-16 code units): 248 (MAX_PATH minus an 8.3 name)
 # minus the final NUL.
 WINDOWS_MAX_FOLDER_LENGTH: Final = 247
-# Suffix of the temp file a subtitle is written to before `os.replace` moves it into place
-# (`run_download`); name and path limits keep room for it.
+# Suffix of the temp file a subtitle is written to before it is moved into place (`run_download`).
 TEMP_SUFFIX: Final = ".tmp"
+# Hex characters of the random token that makes each temp file's name unique (`<name>.<token>.tmp`).
+TEMP_TOKEN_LENGTH: Final = 6
+# Characters a temp file adds to its target's name (`.<token>.tmp`, ASCII); name and path limits
+# keep room for them.
+TEMP_TAIL_LENGTH: Final = 1 + TEMP_TOKEN_LENGTH + len(TEMP_SUFFIX)
+# Open flag of binary mode where the OS has one (Windows), else nothing.
+OPEN_BINARY: Final[int] = getattr(os, "O_BINARY", 0)
+# Open flag that refuses to follow a link at the path, where the OS has one (POSIX), else nothing.
+OPEN_NO_FOLLOW: Final[int] = getattr(os, "O_NOFOLLOW", 0)
+# Open flag that never waits for a writer (a FIFO), where the OS has one (POSIX), else nothing.
+OPEN_NON_BLOCKING: Final[int] = getattr(os, "O_NONBLOCK", 0)
+# Open flags of a file created here and now for writing (fails if anything is at the path).
+NEW_FILE_FLAGS: Final = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+# Flags of a new temp file: a new file, never through a link, binary on Windows.
+TEMP_FLAGS: Final = NEW_FILE_FLAGS | OPEN_BINARY | OPEN_NO_FOLLOW
+# Permissions of a new temp file before the umask, as for any new file.
+TEMP_MODE: Final = 0o666
+# Seconds after which a temp file of a target counts as left by a killed download and is removed.
+STALE_TEMP_S: Final = 600
 # Most rounds of collision renaming; each round changes at least one name, so it ends earlier.
 MAX_COLLISION_ROUNDS: Final = 64
 # Outcomes of a placement that write a file.
@@ -101,12 +121,8 @@ ERROR_CUSTOM_OUTSIDE_ROOT: Final = "custom_plan_outside_root"
 # again while the results are in R2, and the extracted subtitles of a `cleaned` batch (they are
 # kept in SQLite).
 DOWNLOAD_PHASES: Final = frozenset(("ready", "transcribed", "downloaded", "cleaned"))
-# Batch phase whose manifest is published: its finished jobs can be downloaded already.
-READY_PHASE: Final = "ready"
 # Batch phase whose transcribed subtitles are gone from R2: only its extracted ones are placed.
 CLEANED_PHASE: Final = "cleaned"
-# Batch phase of a batch with `_done.json` (or extract-only) that is not downloaded yet.
-TRANSCRIBED_PHASE: Final = "transcribed"
 # Batch phase of a batch whose every job has a placement outcome.
 DOWNLOADED_PHASE: Final = "downloaded"
 # Outcomes recorded for a job: each counts towards `downloaded` (`not_finished` is no outcome).
@@ -119,20 +135,32 @@ EXTRACT_KIND: Final = "extract"
 TRANSCRIBE_SUBTITLES: Final[Mapping[str, "SubtitleState"]] = MappingProxyType(
     {"ok": "available", "no_speech": "empty", "failed": "failed"},
 )
+# Request field that confirms overwriting existing files (`run_download`, `import_custom_plan`).
+CONFIRM_OVERWRITE_FIELD: Final = "confirm_overwrite"
 # Progress stage of a download: one event per job.
 DOWNLOAD_STAGE: Final = "download"
 # Encoding of the extracted SRT texts written to disk.
 SUBTITLE_ENCODING: Final = "utf-8"
 # Largest custom plan file read by `import_custom_plan` (32 MiB; a plan has a few hundred bytes per job).
 MAX_CUSTOM_PLAN_BYTES: Final = 33_554_432
+# Reason of `custom_plan_unreadable` for a plan path that is not a regular file (a folder, a FIFO).
+NOT_A_FILE: Final = "not_a_file"
+# Reason of `custom_plan_unreadable` for a plan file over `MAX_CUSTOM_PLAN_BYTES`.
+TOO_LARGE: Final = "too_large"
+# Flags of the plan file's open: read only, never waiting for a writer (a FIFO), binary on Windows.
+PLAN_READ_FLAGS: Final = os.O_RDONLY | OPEN_NON_BLOCKING | OPEN_BINARY
+# The UTF-8 byte order mark some Windows editors put at the start of a saved file.
+BOM_UTF8: Final = codecs.BOM_UTF8
+# The byte order mark as text (a UTF-8 file decoded without `utf-8-sig` keeps it).
+BYTE_ORDER_MARK: Final = "\N{ZERO WIDTH NO-BREAK SPACE}"
 # Indentation of the custom plan file written by `export_custom_plan`.
 CUSTOM_PLAN_INDENT: Final = 2
 
 # Error code: the placement plan has errors, so nothing was written (details: the plan errors).
 ERROR_DOWNLOAD_PLAN_INVALID: Final = "download_plan_invalid"
-# Error code: a subtitle could not be written to its target (the jobs before it are placed and recorded).
+# Failure code of a job whose subtitle could not be written (the other jobs go on; send the request again).
 ERROR_DOWNLOAD_WRITE_FAILED: Final = "download_write_failed"
-# Error code: a finished job's subtitle is not in R2 (the jobs before it are placed and recorded).
+# Failure code of a finished job whose subtitle is not in R2 (the other jobs go on).
 ERROR_SUBTITLE_MISSING: Final = "subtitle_missing"
 # Error code: the custom plan file cannot be read.
 ERROR_CUSTOM_PLAN_UNREADABLE: Final = "custom_plan_unreadable"
