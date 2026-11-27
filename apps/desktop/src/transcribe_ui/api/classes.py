@@ -30,7 +30,7 @@ from transcribe_ui.discovery.classes import (
     ScanTreeResponse,
 )
 from transcribe_ui.discovery.constants import SIDECAR_EXTENSIONS
-from transcribe_ui.placement.classes import PlacementStrategy
+from transcribe_ui.placement import classes as placement_models
 from transcribe_ui.runpod.classes import (
     CloudSetupStatusRequest,
     CloudSetupStatusResponse,
@@ -85,7 +85,7 @@ class GetAppInfoRequest(FrozenModel):
 class PlacementDefaults(FrozenModel):
     """Placement choices a download request is pre-filled with (§3.5)."""
 
-    strategy: PlacementStrategy
+    strategy: placement_models.PlacementStrategy
     # Target folder of the mirror and flat strategies; None until the user picks one.
     output_folder: SetPath | None
     # Folders closest to the file joined into the name by `flat_with_folders` (X).
@@ -175,7 +175,11 @@ type Request = Annotated[
     | run_requests.RefreshStatusRequest
     | run_requests.ReconcileCloudRequest
     | run_requests.TerminatePodRequest
-    | run_requests.CancelQueuedPodRequest,
+    | run_requests.CancelQueuedPodRequest
+    | placement_models.PlanDownloadRequest
+    | placement_models.RunDownloadRequest
+    | placement_models.ExportCustomPlanRequest
+    | placement_models.ImportCustomPlanRequest,
     Field(discriminator="action"),
 ]
 
@@ -273,7 +277,11 @@ type SuccessResponse = Annotated[
     | run_responses.RefreshStatusResponse
     | run_responses.ReconcileCloudResponse
     | run_responses.TerminatePodResponse
-    | run_responses.CancelQueuedPodResponse,
+    | run_responses.CancelQueuedPodResponse
+    | placement_models.PlanDownloadResponse
+    | placement_models.RunDownloadResponse
+    | placement_models.ExportCustomPlanResponse
+    | placement_models.ImportCustomPlanResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

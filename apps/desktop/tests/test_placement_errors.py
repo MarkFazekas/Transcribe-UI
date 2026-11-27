@@ -24,7 +24,12 @@ from support.placement import (
 )
 from transcribe_ui.discovery.rules import posix_rules, windows_rules
 from transcribe_ui.placement.classes import PlacementOptions, PlacementStrategy
-from transcribe_ui.placement.constants import MAX_NAME_LENGTH, WINDOWS_MAX_FOLDER_LENGTH
+from transcribe_ui.placement.constants import (
+    MAX_NAME_LENGTH,
+    TEMP_TAIL_LENGTH,
+    WINDOWS_MAX_FOLDER_LENGTH,
+    WINDOWS_MAX_PATH_LENGTH,
+)
 from transcribe_ui.placement.naming import TargetNames
 from transcribe_ui.placement.planner import plan_placement
 
@@ -34,7 +39,7 @@ LONG_STEM_LENGTH = 250
 WIDE_STEM_LENGTH = 128
 # Folder name length that makes a Windows target path longer than MAX_PATH.
 LONG_FOLDER_LENGTH = 200
-# A stem whose `.hu.srt` name fits in 255 bytes but not with `.tmp` added.
+# A stem whose `.hu.srt` name fits in 255 bytes but not with the temp file's tail added.
 TEMP_TIGHT_STEM_LENGTH = 245
 # The Windows path separator.
 BACKSLASH = "\N{REVERSE SOLIDUS}"
@@ -47,18 +52,21 @@ def test_name_too_long_is_an_error() -> None:
 
 
 def test_name_length_leaves_room_for_the_temp_suffix() -> None:
-    """A name that fits only without the temp file's `.tmp` is too long."""
+    """A name that fits only without the temp file's tail (`.<token>.tmp`) is too long."""
     stem = "x" * TEMP_TIGHT_STEM_LENGTH
     assert len(f"{stem}.hu.srt") <= MAX_NAME_LENGTH
     assert error_codes(plan_of([f"{POSIX_ROOT}/{stem}.mkv"])) == ["name_too_long"]
 
 
-def test_windows_folder_length_limit() -> None:
-    """Windows cannot create a folder path over 247 units, even when the file path would fit."""
+def test_windows_path_keeps_room_for_the_temp_file() -> None:
+    """A Windows target fits when its temp file's path (`.<token>.tmp` added) fits MAX_PATH; folders over 247 never do."""
     names = TargetNames(windows_rules())
-    folder = windows_path(f"D:/{'f' * (WINDOWS_MAX_FOLDER_LENGTH - len('D:/'))}")
-    assert not names.path_too_long(f"{folder}{BACKSLASH}a.srt")
-    assert names.path_too_long(f"{folder}f{BACKSLASH}a.srt")
+    name = f"{BACKSLASH}a.srt"
+    fitting = WINDOWS_MAX_PATH_LENGTH - TEMP_TAIL_LENGTH - len(name)
+    folder = windows_path(f"D:/{'f' * (fitting - len('D:/'))}")
+    assert not names.path_too_long(f"{folder}{name}")
+    assert names.path_too_long(f"{folder}f{name}")
+    assert len(folder) < WINDOWS_MAX_FOLDER_LENGTH
 
 
 def test_name_length_units_per_os() -> None:

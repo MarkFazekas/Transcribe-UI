@@ -990,6 +990,70 @@
       "title": "CurrentJob",
       "type": "object"
     },
+    "CustomPlan": {
+      "additionalProperties": false,
+      "description": "The exported custom plan: every job of the download exactly once.",
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/CustomPlanEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "entries"
+      ],
+      "title": "CustomPlan",
+      "type": "object"
+    },
+    "CustomPlanEntry": {
+      "additionalProperties": false,
+      "description": "One job of an exported custom plan; the user (or an LLM) edits the output fields.",
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        },
+        "original_folder": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "The media file's folder; must not be changed."
+        },
+        "output_file_name": {
+          "description": "Target file name, ending with .srt.",
+          "title": "Output File Name",
+          "type": "string"
+        },
+        "output_folder": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "Target folder, relative to the chosen output folder (empty: the output folder itself)."
+        },
+        "source_path": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "The media file; must not be changed."
+        }
+      },
+      "required": [
+        "item_id",
+        "language",
+        "source_path",
+        "original_folder",
+        "output_folder",
+        "output_file_name"
+      ],
+      "title": "CustomPlanEntry",
+      "type": "object"
+    },
     "DeleteBatchResponse": {
       "additionalProperties": false,
       "description": "The batch is gone.",
@@ -1016,6 +1080,108 @@
         "batch_id"
       ],
       "title": "DeleteBatchResponse",
+      "type": "object"
+    },
+    "DownloadFailure": {
+      "additionalProperties": false,
+      "description": "A job a download could not place; nothing is recorded for it and the other jobs went on.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/DownloadFailureCode"
+        },
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "target_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "item_id",
+        "language",
+        "target_path",
+        "code",
+        "message",
+        "reason"
+      ],
+      "title": "DownloadFailure",
+      "type": "object"
+    },
+    "DownloadFailureCode": {
+      "enum": [
+        "subtitle_missing",
+        "download_write_failed"
+      ],
+      "type": "string"
+    },
+    "DownloadOutcome": {
+      "additionalProperties": false,
+      "description": "What a download did with every job of its plan.",
+      "properties": {
+        "failures": {
+          "items": {
+            "$ref": "#/$defs/DownloadFailure"
+          },
+          "title": "Failures",
+          "type": "array"
+        },
+        "not_finished": {
+          "minimum": 0,
+          "title": "Not Finished",
+          "type": "integer"
+        },
+        "placements": {
+          "items": {
+            "$ref": "#/$defs/PlannedPlacement"
+          },
+          "title": "Placements",
+          "type": "array"
+        },
+        "skipped": {
+          "minimum": 0,
+          "title": "Skipped",
+          "type": "integer"
+        },
+        "written": {
+          "minimum": 0,
+          "title": "Written",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "placements",
+        "failures",
+        "written",
+        "skipped",
+        "not_finished"
+      ],
+      "title": "DownloadOutcome",
       "type": "object"
     },
     "EditBatchResponse": {
@@ -1172,6 +1338,49 @@
       "title": "ExcludeItemsResponse",
       "type": "object"
     },
+    "ExportCustomPlanResponse": {
+      "additionalProperties": false,
+      "description": "The batch and its custom plan, to edit and import.",
+      "properties": {
+        "action": {
+          "const": "export_custom_plan",
+          "default": "export_custom_plan",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan": {
+          "$ref": "#/$defs/CustomPlan"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "plan",
+        "path"
+      ],
+      "title": "ExportCustomPlanResponse",
+      "type": "object"
+    },
     "FileExtension": {
       "pattern": "^[a-z0-9]{1,16}$",
       "type": "string"
@@ -1299,6 +1508,49 @@
       "title": "GetSettingsResponse",
       "type": "object"
     },
+    "ImportCustomPlanResponse": {
+      "additionalProperties": false,
+      "description": "The validated plan of the edited custom plan, and the download it made (None when only checked).",
+      "properties": {
+        "action": {
+          "const": "import_custom_plan",
+          "default": "import_custom_plan",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "download": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DownloadOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan": {
+          "$ref": "#/$defs/PlacementPlan"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "plan",
+        "download"
+      ],
+      "title": "ImportCustomPlanResponse",
+      "type": "object"
+    },
     "ItemPhase": {
       "enum": [
         "composing",
@@ -1352,6 +1604,17 @@
           "title": "Resolved",
           "type": "boolean"
         },
+        "result_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Result Error"
+        },
         "status": {
           "title": "Status",
           "type": "string"
@@ -1388,7 +1651,8 @@
         "track_index",
         "stream_index",
         "status",
-        "resolved"
+        "resolved",
+        "result_error"
       ],
       "title": "JobView",
       "type": "object"
@@ -1400,6 +1664,10 @@
         "unavailable",
         "failed"
       ],
+      "type": "string"
+    },
+    "LanguageCode": {
+      "pattern": "^[a-z]{2,3}$",
       "type": "string"
     },
     "LanguageOption": {
@@ -1723,12 +1991,148 @@
       "title": "PlacementDefaults",
       "type": "object"
     },
+    "PlacementOutcome": {
+      "enum": [
+        "place",
+        "overwrite",
+        "skip_existing",
+        "skip_folder_missing",
+        "skip_empty",
+        "skip_failed",
+        "not_finished"
+      ],
+      "type": "string"
+    },
+    "PlacementPlan": {
+      "additionalProperties": false,
+      "description": "A validated placement: one entry per job in input order, and the problems found.",
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/PlannedPlacement"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "errors": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PlanError"
+          },
+          "title": "Errors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries",
+        "errors"
+      ],
+      "title": "PlacementPlan",
+      "type": "object"
+    },
     "PlacementStrategy": {
       "enum": [
         "next_to_media",
         "mirror",
         "flat",
         "flat_with_folders"
+      ],
+      "type": "string"
+    },
+    "PlanDownloadResponse": {
+      "additionalProperties": false,
+      "description": "The batch and the plan of placing its subtitles; nothing was written.",
+      "properties": {
+        "action": {
+          "const": "plan_download",
+          "default": "plan_download",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "plan": {
+          "$ref": "#/$defs/PlacementPlan"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "plan"
+      ],
+      "title": "PlanDownloadResponse",
+      "type": "object"
+    },
+    "PlanError": {
+      "additionalProperties": false,
+      "description": "A problem that stops the plan from being carried out; nothing is written while one exists.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/PlanErrorCode"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LanguageCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "item_id",
+        "language"
+      ],
+      "title": "PlanError",
+      "type": "object"
+    },
+    "PlanErrorCode": {
+      "enum": [
+        "name_too_long",
+        "path_too_long",
+        "duplicate_target",
+        "target_unreadable",
+        "scan_root_invalid",
+        "source_path_invalid",
+        "target_not_a_file",
+        "outside_scan_root",
+        "output_not_absolute",
+        "custom_plan_schema",
+        "custom_plan_duplicate_job",
+        "custom_plan_unknown_job",
+        "custom_plan_missing_job",
+        "custom_plan_source_changed",
+        "custom_plan_invalid_name",
+        "custom_plan_not_srt",
+        "custom_plan_outside_root"
       ],
       "type": "string"
     },
@@ -1758,6 +2162,52 @@
         "plan"
       ],
       "title": "PlanLaunchResponse",
+      "type": "object"
+    },
+    "PlannedPlacement": {
+      "additionalProperties": false,
+      "description": "What a download does with one job, and where its subtitle goes.",
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageCode"
+        },
+        "outcome": {
+          "$ref": "#/$defs/PlacementOutcome"
+        },
+        "renamed_by": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RenameReason"
+          },
+          "title": "Renamed By",
+          "type": "array"
+        },
+        "source_path": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "target_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "item_id",
+        "language",
+        "source_path",
+        "target_path",
+        "outcome",
+        "renamed_by"
+      ],
+      "title": "PlannedPlacement",
       "type": "object"
     },
     "PreviewSelectionResponse": {
@@ -1958,6 +2408,13 @@
       "title": "RefreshStatusResponse",
       "type": "object"
     },
+    "RenameReason": {
+      "enum": [
+        "folders",
+        "source_extension"
+      ],
+      "type": "string"
+    },
     "ResolveReviewResponse": {
       "additionalProperties": false,
       "description": "The review views (unfiltered) after the choices.",
@@ -2078,6 +2535,38 @@
         "jobs"
       ],
       "title": "ReviewFile",
+      "type": "object"
+    },
+    "RunDownloadResponse": {
+      "additionalProperties": false,
+      "description": "The batch after the download (`downloaded` once every job has an outcome), and what was placed.",
+      "properties": {
+        "action": {
+          "const": "run_download",
+          "default": "run_download",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "download": {
+          "$ref": "#/$defs/DownloadOutcome"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "download"
+      ],
+      "title": "RunDownloadResponse",
       "type": "object"
     },
     "RunInfo": {
@@ -3113,17 +3602,21 @@
           "delete_batch": "#/$defs/DeleteBatchResponse",
           "edit_batch": "#/$defs/EditBatchResponse",
           "exclude_items": "#/$defs/ExcludeItemsResponse",
+          "export_custom_plan": "#/$defs/ExportCustomPlanResponse",
           "get_app_info": "#/$defs/GetAppInfoResponse",
           "get_batch": "#/$defs/GetBatchResponse",
           "get_settings": "#/$defs/GetSettingsResponse",
+          "import_custom_plan": "#/$defs/ImportCustomPlanResponse",
           "launch_worker": "#/$defs/LaunchWorkerResponse",
           "list_batches": "#/$defs/ListBatchesResponse",
+          "plan_download": "#/$defs/PlanDownloadResponse",
           "plan_launch": "#/$defs/PlanLaunchResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
           "reconcile_cloud": "#/$defs/ReconcileCloudResponse",
           "refresh_status": "#/$defs/RefreshStatusResponse",
           "resolve_review": "#/$defs/ResolveReviewResponse",
           "review_batch": "#/$defs/ReviewBatchResponse",
+          "run_download": "#/$defs/RunDownloadResponse",
           "run_upload": "#/$defs/RunUploadResponse",
           "scan_tree": "#/$defs/ScanTreeResponse",
           "set_batch_hidden": "#/$defs/SetBatchHiddenResponse",
@@ -3219,6 +3712,18 @@
         },
         {
           "$ref": "#/$defs/CancelQueuedPodResponse"
+        },
+        {
+          "$ref": "#/$defs/PlanDownloadResponse"
+        },
+        {
+          "$ref": "#/$defs/RunDownloadResponse"
+        },
+        {
+          "$ref": "#/$defs/ExportCustomPlanResponse"
+        },
+        {
+          "$ref": "#/$defs/ImportCustomPlanResponse"
         }
       ]
     },

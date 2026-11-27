@@ -1,16 +1,18 @@
-"""Inputs and results of the placement planner, and the custom plan format (architecture §3.5).
+"""The placement planner's models, the custom plan format, and the download requests and responses (§3.5).
 
 The planner's input is its own models (a job's source path, language and subtitle state, the
 scan root and the options), so it does not depend on the batch model; `plan_download` builds
 them from a batch.
 """
 
-from typing import Literal, Self
+from pathlib import Path
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, PositiveInt, model_validator
+from pydantic import AfterValidator, Field, NonNegativeInt, PositiveInt, model_validator
 
-from transcribe_contracts.classes import LanguageCode, Ulid
+from transcribe_contracts.classes import BatchId, LanguageCode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath
+from transcribe_ui.batches.responses import BatchSummary, OkResponse
 from transcribe_ui.placement.constants import CUSTOM_PLAN_VERSION, DEFAULT_FOLDER_COUNT
 
 # How a download places its subtitles (§3.5 strategies 1-4; custom plans are imported instead);
@@ -49,6 +51,8 @@ type PlanErrorCode = Literal[
     "custom_plan_not_srt",
     "custom_plan_outside_root",
 ]
+# Why a download could not place one job (the `ERROR_*` codes of `placement/constants.py`).
+type DownloadFailureCode = Literal["subtitle_missing", "download_write_failed"]
 # Why a target name differs from the default name and the strategy's chosen folders: folder
 # names were added to tell apart files of different folders, or the source extension was added
 # to tell apart files of the same folder.
@@ -170,3 +174,124 @@ class CustomPlan(FrozenModel):
 
     version: Literal[1] = CUSTOM_PLAN_VERSION
     entries: tuple[CustomPlanEntry, ...]
+
+
+def _check_absolute(path: str) -> str:
+    # The file is read or written on this computer, so its rule decides (a relative path would
+    # depend on the working folder of the frontend).
+    if not Path(path).is_absolute():
+        msg = "the path must be absolute"
+        raise ValueError(msg)
+    return path
+
+
+# An absolute path of a file on this computer.
+type AbsoluteFile = Annotated[LocalPath, AfterValidator(_check_absolute)]
+
+
+class PlanDownloadRequest(FrozenModel):
+    """Show what a download of the batch's subtitles with a strategy would do; nothing is written."""
+
+    action: Literal["plan_download"]
+    batch_id: BatchId
+    placement: PlacementOptions = Field(default_factory=PlacementOptions)
+
+
+class RunDownloadRequest(FrozenModel):
+    """Download the batch's finished subtitles and place them with a strategy (resumable: send it again)."""
+
+    action: Literal["run_download"]
+    batch_id: BatchId
+    placement: PlacementOptions = Field(default_factory=PlacementOptions)
+    # Confirms replacing the existing files the plan lists (with `placement.overwrite`).
+    confirm_overwrite: bool = False
+
+
+class ExportCustomPlanRequest(FrozenModel):
+    """Return the custom plan of the batch's jobs, pre-filled with the mirror folders and the default names."""
+
+    action: Literal["export_custom_plan"]
+    batch_id: BatchId
+    # Also write the plan to this file as JSON (replaced if it exists); None returns it only.
+    path: AbsoluteFile | None = None
+
+
+class ImportCustomPlanRequest(FrozenModel):
+    """Validate an edited custom plan file, then place the batch's finished subtitles as it says."""
+
+    action: Literal["import_custom_plan"]
+    batch_id: BatchId
+    plan_path: AbsoluteFile
+    placement: CustomPlacementOptions
+    # Only validate and return the plan; nothing is written.
+    check_only: bool = False
+    # Confirms replacing the existing files the plan lists (with `placement.overwrite`).
+    confirm_overwrite: bool = False
+
+
+# Responses
+
+
+class DownloadFailure(FrozenModel):
+    """A job a download could not place; nothing is recorded for it and the other jobs went on."""
+
+    item_id: Ulid
+    language: LanguageCode
+    target_path: LocalPath | None
+    code: DownloadFailureCode
+    # Names the file by its name only, like the plan errors.
+    message: str
+    # The exception type of a failed write (not the OS message: it quotes the path); None otherwise.
+    reason: str | None = None
+
+
+class DownloadOutcome(FrozenModel):
+    """What a download did with every job of its plan."""
+
+    # One entry per job carried out, in plan order, with the outcome as carried out: a target that
+    # appeared since the plan was made is skipped as existing, a vanished original folder as missing.
+    placements: tuple[PlannedPlacement, ...]
+    # The jobs that could not be placed (subtitle missing in R2, write refused); sending the
+    # request again tries them again.
+    failures: tuple[DownloadFailure, ...]
+    # Subtitle files written (placed or overwritten).
+    written: NonNegativeInt
+    # Jobs skipped (existing target, missing folder, empty or failed result).
+    skipped: NonNegativeInt
+    # Jobs without a result yet (`ready` batch); a later download places them.
+    not_finished: NonNegativeInt
+
+
+class PlanDownloadResponse(OkResponse):
+    """The batch and the plan of placing its subtitles; nothing was written."""
+
+    action: Literal["plan_download"] = "plan_download"
+    batch: BatchSummary
+    plan: PlacementPlan
+
+
+class RunDownloadResponse(OkResponse):
+    """The batch after the download (`downloaded` once every job has an outcome), and what was placed."""
+
+    action: Literal["run_download"] = "run_download"
+    batch: BatchSummary
+    download: DownloadOutcome
+
+
+class ExportCustomPlanResponse(OkResponse):
+    """The batch and its custom plan, to edit and import."""
+
+    action: Literal["export_custom_plan"] = "export_custom_plan"
+    batch: BatchSummary
+    plan: CustomPlan
+    # The file the plan was written to, if asked.
+    path: LocalPath | None
+
+
+class ImportCustomPlanResponse(OkResponse):
+    """The validated plan of the edited custom plan, and the download it made (None when only checked)."""
+
+    action: Literal["import_custom_plan"] = "import_custom_plan"
+    batch: BatchSummary
+    plan: PlacementPlan
+    download: DownloadOutcome | None

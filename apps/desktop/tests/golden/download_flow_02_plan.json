@@ -1,0 +1,61 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "plan_download",
+    "batch": {
+      "batch_id": "batch_20261127_130000",
+      "phase": "transcribed",
+      "created_at": "2026-11-27T12:00:00Z",
+      "updated_at": "2026-11-27T12:00:00Z",
+      "items": 4,
+      "jobs": 4,
+      "languages": [
+        "en",
+        "hu"
+      ],
+      "hidden": false,
+      "manifest_held": false,
+      "audio_deleted": false,
+      "extract_only": false
+    },
+    "plan": {
+      "entries": [
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ01",
+          "language": "en",
+          "source_path": "<root>/media/Movies/Film.mkv",
+          "target_path": "<root>/media/Movies/Film.en.srt",
+          "outcome": "skip_existing",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ02",
+          "language": "en",
+          "source_path": "<root>/media/Audio/podcast.mp3",
+          "target_path": "<root>/media/Audio/podcast.en.srt",
+          "outcome": "skip_empty",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ03",
+          "language": "en",
+          "source_path": "<root>/media/Audio/Episode.mkv",
+          "target_path": "<root>/media/Audio/Episode.en.srt",
+          "outcome": "skip_failed",
+          "renamed_by": []
+        },
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ04",
+          "language": "hu",
+          "source_path": "<root>/media/Movies/Silent.mkv",
+          "target_path": "<root>/media/Movies/Silent.hu.srt",
+          "outcome": "place",
+          "renamed_by": []
+        }
+      ],
+      "errors": []
+    }
+  },
+  "events": []
+}

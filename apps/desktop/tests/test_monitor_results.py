@@ -78,6 +78,8 @@ def test_results_without_a_run(world: RunsWorld) -> None:
 def test_busy_ready_batch_skipped(world: RunsWorld) -> None:
     """A `ready` batch whose lock another request holds is skipped until the next refresh."""
     run_id = launch_run(world).run_id
+    # One finished job without a download keeps the batch from `downloaded` once it is done.
+    write_result(world.store, FIRST_BATCH_ID, FILM_ID, run_id, world.now())
     write_done(world.store, FIRST_BATCH_ID, run_id, world.now())
     with world.ports.state.locks.batch(FIRST_BATCH_ID):
         skipped = refresh(world)

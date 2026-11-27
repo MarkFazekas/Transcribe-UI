@@ -42,6 +42,11 @@ every file has been through a download (placed, or skipped as an existing file, 
 folder or an empty result), whether in one download or several. The next start of
 transcription does the missing files.
 
+Built so far on this default plus one addition: a failed file (no subtitle could be made) does not
+keep the job from counting as downloaded; failed files are sent to a retry job instead. Proposed
+default for this addition: a failed job does not block "downloaded" (retry batches handle failed
+jobs).
+
 ### Q25. Downloading a job's subtitles again
 
 After a download, the subtitles stay in the cloud until the user cleans up.

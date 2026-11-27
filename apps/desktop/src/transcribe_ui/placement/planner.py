@@ -32,7 +32,7 @@ from transcribe_ui.placement.constants import (
     ERROR_TARGET_UNREADABLE,
     FLAT_STRATEGIES,
     MAX_NAME_LENGTH,
-    TEMP_SUFFIX,
+    TEMP_TAIL_LENGTH,
     WRITING_OUTCOMES,
 )
 from transcribe_ui.placement.drafts import Draft, Source, closest_levels, resolve_collisions, source_of
@@ -94,8 +94,8 @@ def name_errors(target: str | None, job: PlacementJob, names: TargetNames) -> li
         return []
     errors: list[PlanError] = []
     name = names.pure(target).name
-    if names.length(name + TEMP_SUFFIX) > MAX_NAME_LENGTH:
-        message = f"the name {name!r} (with {TEMP_SUFFIX} while it is written) is longer than {MAX_NAME_LENGTH}"
+    if names.length(name) + TEMP_TAIL_LENGTH > MAX_NAME_LENGTH:
+        message = f"the name {name!r} (with its temp file's tail while it is written) is longer than {MAX_NAME_LENGTH}"
         errors.append(job_error(ERROR_NAME_TOO_LONG, message, job))
     if names.path_too_long(target):
         errors.append(job_error(ERROR_PATH_TOO_LONG, "the target path is longer than Windows allows", job))

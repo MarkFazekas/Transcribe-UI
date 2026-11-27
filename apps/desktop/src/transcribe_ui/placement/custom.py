@@ -25,6 +25,8 @@ from transcribe_ui.placement.classes import (
     PlannedPlacement,
 )
 from transcribe_ui.placement.constants import (
+    BOM_UTF8,
+    BYTE_ORDER_MARK,
     ERROR_CUSTOM_DUPLICATE_JOB,
     ERROR_CUSTOM_INVALID_NAME,
     ERROR_CUSTOM_MISSING_JOB,
@@ -196,6 +198,12 @@ class _Importer:
         return target
 
 
+def _without_bom(document: str | bytes) -> str | bytes:
+    if isinstance(document, str):
+        return document.removeprefix(BYTE_ORDER_MARK)
+    return document.removeprefix(BOM_UTF8)
+
+
 def import_custom_plan(
     document: str | bytes,
     jobs: Sequence[PlacementJob],
@@ -207,8 +215,10 @@ def import_custom_plan(
 
     Entries follow the plan's order; a plan with errors must not be carried out.
     """
+    # Editors on Windows often save UTF-8 with a byte order mark.
+    unmarked = _without_bom(document)
     try:
-        plan = CustomPlan.model_validate_json(document)
+        plan = CustomPlan.model_validate_json(unmarked)
     except ValidationError as error:
         return PlacementPlan(entries=(), errors=(_schema_error(error),))
     names = TargetNames(rules)

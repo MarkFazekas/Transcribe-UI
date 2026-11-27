@@ -1,0 +1,62 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "export_custom_plan",
+    "batch": {
+      "batch_id": "batch_20261127_130000",
+      "phase": "downloaded",
+      "created_at": "2026-11-27T12:00:00Z",
+      "updated_at": "2026-11-27T12:00:00Z",
+      "items": 4,
+      "jobs": 4,
+      "languages": [
+        "en",
+        "hu"
+      ],
+      "hidden": false,
+      "manifest_held": false,
+      "audio_deleted": false,
+      "extract_only": false
+    },
+    "plan": {
+      "version": 1,
+      "entries": [
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ01",
+          "language": "en",
+          "source_path": "<root>/media/Movies/Film.mkv",
+          "original_folder": "<root>/media/Movies",
+          "output_folder": "Movies",
+          "output_file_name": "Film.en.srt"
+        },
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ02",
+          "language": "en",
+          "source_path": "<root>/media/Audio/podcast.mp3",
+          "original_folder": "<root>/media/Audio",
+          "output_folder": "Audio",
+          "output_file_name": "podcast.en.srt"
+        },
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ03",
+          "language": "en",
+          "source_path": "<root>/media/Audio/Episode.mkv",
+          "original_folder": "<root>/media/Audio",
+          "output_folder": "Audio",
+          "output_file_name": "Episode.en.srt"
+        },
+        {
+          "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ04",
+          "language": "hu",
+          "source_path": "<root>/media/Movies/Silent.mkv",
+          "original_folder": "<root>/media/Movies",
+          "output_folder": "Movies",
+          "output_file_name": "Silent.hu.srt"
+        }
+      ]
+    },
+    "path": "<root>/plan.json"
+  },
+  "events": []
+}
