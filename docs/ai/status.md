@@ -34,8 +34,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
   `runpod-reaper` GitHub environment restricted to `main`. Until then the reaper is inactive.
 - Architect: schedule the M4 approved Runpod run.
 - Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
-  gone) in `questions-for-product.md`.
-- Architect: A18 (R2 credentials for the pod) in `questions-for-architect.md`.
+  gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
+  before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud) in
+  `questions-for-product.md`. M5 is planned on the proposed defaults.
+- Architect: A18 (R2 credentials for the pod), A19 (maximum wait for a machine) in
+  `questions-for-architect.md`.
 
 ## Next
 

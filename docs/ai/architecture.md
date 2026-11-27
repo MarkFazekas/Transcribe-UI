@@ -129,8 +129,14 @@ docs/human/, docs/ai/     see CLAUDE.md
 
   Extracted subtitles are placed together with the transcribed ones. A batch with only
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
-  Cloud cleanup can also happen from `ready` or `transcribed` (below); a separate flag records
-  "audio deleted".
+  The phases are not a strict line (planned on the proposed defaults of Q24-Q27,
+  `plans/m5.md` §1): a batch in `composing` or `reviewing` can be deleted; finished subtitles
+  can already be downloaded in `ready` (the phase stays) and again in `downloaded`; a batch
+  whose upload completes while a run is launching, queued or running keeps its manifest back
+  and stays `uploading` until the run ends, so a worker never gets work its deadline and
+  estimate did not include; cloud cleanup is possible from `uploading` on (below). `audio`
+  cleanup sets an "audio deleted" flag without changing the phase; `everything` ends in
+  `cleaned`.
 
   Items that failed or produced no speech are flagged in `transcribed`/`downloaded` and can be
   sent to a new retry batch whose jobs use mode `careful` and the same language. The retry
@@ -145,23 +151,25 @@ docs/human/, docs/ai/     see CLAUDE.md
   after download). Deleting what is already gone is not an error.
   - Both scopes are refused while a worker run is active (a pod exists, or a `status.json`
     younger than its heartbeat timeout names the batch), so no worker writes after a cleanup.
+    A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
+    (`everything` only, Q26) is allowed during a run and also aborts open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
     then `_done.json` and results, then audio; a crash in between leaves only objects under the
     batch prefix, which the next attempt removes. If results were not downloaded yet, the
     response asks for a second confirmation (only the Global Volume backup would remain).
   - `audio` is refused while the batch has jobs without a result (the worker would fail them);
     after a crashed run, `everything` is the way out. Without audio, Retry is no longer
-    possible; the UI says so before confirming.
+    possible (a retry request is refused); the UI says so before confirming.
 - **Readiness marker**: the manifest is uploaded last, after every audio object is verified.
   A manifest present in `batch_metadata/` therefore always means "ready"; the worker never sees
   half-uploaded batches.
 - **Local state**: SQLite (WAL mode, single file) in `platformdirs.user_data_dir("Transcribe-UI")`
-  through SQLAlchemy 2.0 ORM; Alembic migrations run at start-up, after taking the writer lock
- . `alembic.ini`, `script.py.mako` and `versions/` are bundled as PyInstaller data;
-  migrations use `render_as_batch=True` (SQLite ALTER); a database newer than the app is refused.
-  One writer process at a time (lock file). Rows store Pydantic models as JSON plus indexed status columns. Temp audio
-  goes to `user_cache_dir`, one file at a time. History is kept; finished batches can be hidden
- .
+  through SQLAlchemy 2.0 ORM; Alembic migrations run at start-up, after taking the writer
+  lock. `alembic.ini`, `script.py.mako` and `versions/` are bundled as PyInstaller data;
+  migrations use `render_as_batch=True` (SQLite ALTER); a database newer than the app is
+  refused. One writer process at a time (lock file); requests that need no database never open
+  it. Rows store Pydantic models as JSON plus indexed status columns. Temp audio goes to
+  `user_cache_dir`, one file at a time. History is kept; finished batches can be hidden.
 
 ### 3.4 Conversion
 
@@ -174,8 +182,9 @@ docs/human/, docs/ai/     see CLAUDE.md
   become distinct audio objects.
 - Embedded subtitle extraction: `ffmpeg -nostdin -i <in> -map 0:s:<n> -c:s srt <tmp>.srt`
   for text codecs (`subrip`, `ass`, `ssa`, `mov_text`, `webvtt`, `text`).
-- ffmpeg/ffprobe: bundled static LGPL builds inside the executable, overridable by a config
-  path or `PATH`.
+- ffmpeg/ffprobe: bundled static LGPL builds inside the executable. Resolution order: the
+  path set in the settings, then the bundled build, then `PATH` (development runs without a
+  bundle), so a `PATH` ffmpeg of unknown version never silently replaces the tested one.
 
 ### 3.5 Download and placement
 
@@ -224,23 +233,36 @@ into place with `os.replace`, so an interrupted download never leaves a partial 
   (excludes A5000 hosts that report CUDA 12.4), `cloud: SECURE` (on-demand; spot no longer
   exists), `disk: 60`, the Global Volume mount, pinned image tag, non-secret env, and
   `queue: {expiresAt: now + N h}` for **deploy when available**; the user sets the wait at
-  every start, default 1 hour. A 202 response means "queued"; the app shows the queued state
-  and can cancel it. Before starting, the app shows the total audio duration and an estimated
-  cost range for confirmation; there is no in-app spending limit (the account's own limit
-  applies). SSH uses Runpod's proxied basic SSH, so no port or sshd is configured.
+  every start, 5 min to 24 h (open A19), default 1 hour. A 202 response means "queued"; the
+  app shows the queued state and can cancel it. Before starting, the app shows the total audio
+  duration and an estimated cost range for confirmation; there is no in-app spending limit (the
+  account's own limit applies). SSH uses Runpod's proxied basic SSH, so no port or sshd is
+  configured.
 - Single worker at a time: `launch_worker` refuses while a pod or queued pod named
   `transcribe-ui-*` exists, so two workers never process the same batch (result writes are
   also conditional, see §4).
+- Creating calls are never retried blindly: the run is recorded locally (run id, pod name,
+  status `launching`) before the `POST /v2/pods`; after a timeout or 5xx the app looks the
+  name up in `GET /v2/pods` and `GET /v2/queued-pods` and adopts what it finds, and sends the
+  POST again only if nothing carries the name. The same holds for the template, secret and
+  Global Volume creates of the cloud setup, by their fixed names.
+- The template carries no mounts (template mounts can only be persistent volumes); the Global
+  Volume (`transcribe-ui-backups`) is looked up by name and mounted through `mounts.global`
+  in the create body.
 - The desktop app is a further line of defence against a forgotten pod: it stores the pod /
   queued-pod id, polls status and the worker's `status.json`, terminates at a deadline, and on
   startup reconciles `GET /v2/pods` and `GET /v2/queued-pods` and offers to terminate or cancel
   stragglers. This layer only works while the app is running; a queued pod may start while it
   is closed, which is why the pod-side layers (§5.2) must be sufficient on their own.
-- "Start transcription" launches one worker for every batch in `ready`. The app shows:
+- "Start transcription" launches one worker for every batch in `ready`. The worker processes
+  every manifest in `batch_metadata/` without `_done.json`, so the estimate and
+  `MAX_RUNTIME_S` cover all of them, including batches this computer does not know (listed
+  separately, open Q28). The app shows:
   waiting for a machine (cancellable), starting, transcribing (batch, file, elapsed time,
   cost so far), finished or failed.
 - Progress and cost shown in the app come from `runs/<run_id>/status.json` and the pod's `cost`
-  field (USD/h) from the Runpod API.
+  field (USD/h) from the Runpod API. After a run has ended and its pod is gone, the app keeps
+  the final status and the worker log locally and deletes `runs/<run_id>/`.
 
 ## 4. R2 object layout (contract)
 
@@ -505,7 +527,10 @@ Few unit tests; mostly regression and flow tests:
   `moto`; Runpod is an `httpx` mock. Flows: scan → filter → select → create batch → convert +
   upload (interrupted and resumed) → simulated worker results → every placement strategy →
   cleanup. Each flow runs the same request JSON through the CLI entry point and through the
-  backend directly and asserts identical responses (golden files).
+  backend directly and asserts identical responses (golden files). Golden flows use a fake
+  media adapter and normalise temp roots, path separators and the path flavour, so the files
+  match on every OS; flows with the real ffmpeg assert structure, since its output differs
+  across builds.
 - **Worker flow tests**: fake transcriber behind the engine protocol + `moto` (the WhisperX
   stack is an optional extra, not installed in CI): discovery, language ordering,
   prefetch pipeline, resume after a kill, failure isolation (one failing file, one empty
