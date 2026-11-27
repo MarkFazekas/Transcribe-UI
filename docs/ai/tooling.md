@@ -80,9 +80,9 @@ Desktop test backends come from `support.fakes.seeded_ports(root)`: fixed clock,
 the local state under `<root>/app/{data,config,cache,log}`; close `ports.state` when a test opened
 the database (the parity runner closes its legs). The CLI run by hand uses the real per-user
 directories (architecture §3.8); its log is `transcribe-ui-cli.log` in the user log dir. Every
-schema or stored payload change is a new Alembic revision (the existing ones are never edited), so
-a local database upgrades on its next opening; `test_state_revisions.py` upgrades a database of an
-older revision holding old payloads. Alembic revisions
+schema or payload change is a new Alembic revision (architecture §3.8; the existing ones are never
+edited), so a local database upgrades on its next opening; `test_state_revisions.py` upgrades a
+database of an older revision holding old payloads. Alembic revisions
 (`state/migrations/versions/`) are frozen snapshots, so `.flake8` lets them use literal names and
 lengths (`WPS226`, `WPS432`) instead of app constants.
 
@@ -112,6 +112,19 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 - Markers: `integration` (real R2/Runpod) and `gpu` (needs the GPU stack) are deselected by
   default and in CI; Runpod ones that create or change anything run only with the architect
   present (read-only calls may run any time).
+
+## Translations
+
+- Babel (`pybabel`, a dev dependency only; the app reads the catalogs with the standard
+  library) with `babel.cfg` in `apps/desktop`: `extract` (keywords `tr`, `ntr:1,2`) into
+  `transcribe_ui/locale/transcribe_ui.pot`, `update` into `en` and `hu`, `compile` into the
+  committed `.mo` files, so the app also runs from source.
+- The desktop target of `scripts/check.py` runs a catalog check: the `.pot` equals a fresh
+  extraction (ignoring `POT-Creation-Date`), each `.po` matches the `.pot`, `hu` has no
+  untranslated and no fuzzy entry, and each committed `.mo` equals a fresh compile.
+- PyInstaller bundles the `.mo` files in both executables (`--collect-data` for
+  `transcribe_ui.locale`); the release smoke test on Linux runs the CLI's `--help` with
+  `LANGUAGE=hu` and checks for a Hungarian line from the app's own help texts.
 
 ## Commits and branches
 

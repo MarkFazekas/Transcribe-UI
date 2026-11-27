@@ -177,11 +177,11 @@ def volume_duplicated(volume_ids: tuple[str, ...]) -> DomainError:
     """Return the error for several Global Volumes with the app's name.
 
     They may hold worker backups, so none is deleted automatically: the user removes the
-    unwanted ones in the Runpod console (open Q29).
+    unwanted ones in the Runpod console (Q29).
     """
     message = (
         f"Runpod holds {len(volume_ids)} Global Volumes named {GLOBAL_VOLUME_NAME!r}. They may hold result "
-        "backups, so the app deletes none of them: delete the unwanted ones in the Runpod console, then "
+        "backups, so the app deletes none of them: delete the unwanted ones in the Runpod console (Storage page), then "
         "run the cloud setup again."
     )
     return DomainError(ERROR_CLOUD_VOLUME_DUPLICATED, message, {"volume_ids": list(volume_ids)})
