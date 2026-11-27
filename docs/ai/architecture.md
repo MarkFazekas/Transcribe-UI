@@ -72,8 +72,9 @@ docs/human/, docs/ai/     see CLAUDE.md
   `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
   fields (§7).
 - The dispatch table (`api/routes.py`) maps each action to its handler and marks whether it
-  needs the database; request types that do not (app info, settings, credentials, scans) never
-  open it, so the CLI can run them while the GUI holds the writer lock.
+  needs the database; request types that do not (app info, settings, credentials, scans, cloud
+  setup; their handlers are listed in `api/local_handlers.py`) never open it, so the CLI can run
+  them while the GUI holds the writer lock.
 - Cancellation: long requests check the `CancelToken` between items and stop with the error
   `cancelled` after persisting what is done; re-sending the request resumes.
 - Frontends only build requests and render responses/progress events:
@@ -551,8 +552,9 @@ docs/human/, docs/ai/     see CLAUDE.md
     transcribe job is `pending` (`results_pending`, details: the count). Both are refused while
     a retry batch of the batch is `uploading` with an item not `uploaded` (`retry_copying`,
     details: the retry batch). Confirmations: `confirm`, and for `everything` on a `ready` or
-    `transcribed` batch with transcribe jobs also `confirm_not_downloaded` (both listed at
-    once). The activity check runs (`run_active`, `cloud_unreachable`) unless the batch is
+    `transcribed` batch also `confirm_not_downloaded` while a transcribe job that did not fail
+    has no recorded placement outcome (the rule that moves a batch to `downloaded`, §3.5;
+    a `downloaded` batch never asks; both listed at once). The activity check runs (`run_active`, `cloud_unreachable`) unless the batch is
     `uploading` or `cleaned` and R2 holds no manifest for it. Then one transaction records the
     intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), the
     batch payload's `cleanup_pending` (the scope; shown in `BatchSummary`), and for
@@ -1642,6 +1644,14 @@ Few unit tests; mostly regression and flow tests:
   media adapter and normalise temp roots, path separators and the path flavour, so the files
   match on every OS; flows with the real ffmpeg assert structure, since its output differs
   across builds.
+  - End-to-end flow (`tests/test_end_to_end.py`, goldens `end_to_end_*`): create, review and
+    upload a batch (manifest published), plan and launch the worker (fake Runpod API), refresh
+    while a simulated worker (`support/worker_sim.py`) writes its heartbeat, then its results
+    (ok, no speech, failed), `_done.json` and log, and its pod ends; download with `mirror`
+    (`downloaded`), retry the failed and no-speech jobs (`careful`, audio copied), clean up the
+    source's audio, then everything, then the retry batch (two confirmations). Interruptions
+    and every placement strategy are covered by the per-request flows (upload, download,
+    retry, cleanup), not repeated here.
   - Parity runner (`apps/desktop/tests/support/parity.py`): each leg gets a fresh temp root and
     a backend from the same seeded factory (fixed clock, seeded ULID randomness); the backend
     leg calls `Backend.execute_json`, the CLI leg calls the CLI's `main(["run", <file>])`
@@ -1747,9 +1757,9 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.13 built): Desktop backend: façade,
+- **M5** (built; planned in `plans/m5.md`): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
-  launch and monitoring, download and placement (§3.1-3.7).
+  launch and monitoring, download and placement, retry and cloud cleanup (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` one-file builds for the four platforms (§8).

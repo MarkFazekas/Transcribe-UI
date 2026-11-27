@@ -26,10 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M5.14 retry and cleanup on `feat/m5.14-retry-cleanup` (`transcribe_ui/cleanup/`, architecture
-  §3.3 "Retry and cleanup"): `create_retry_batch` and `cleanup_cloud` with their tests and
-  goldens are done; the branch is rebased onto M5.13 once that merges, then the end-to-end flow
-  test of §7 is added and M5 is marked **(built)**.
+- M5.14 (retry, cloud cleanup and the end-to-end flow; marks M5 **(built)**) on
+  `feat/m5.14-retry-cleanup`, ready for its PR.
 
 ## Waiting on humans
 
@@ -37,7 +35,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - Product: Q22 (Chinese and Japanese line length), Q23 (placement when the original folder is
   gone), Q24 (download before the job is done), Q25 (download again), Q26 (abandoning a job
   before upload), Q27 (upload finishing during a run), Q28 (unknown jobs in the cloud), Q29
-  (duplicate backup volumes) in `questions-for-product.md`. M5 is planned on the proposed defaults.
+  (duplicate backup volumes) in `questions-for-product.md`. M5 is built on the proposed defaults;
+  an answer that differs changes the part that implements it.
 
 ## Next
 
@@ -45,11 +44,10 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `runpod-reaper` environment (deployment branch policy: `main` only); its first real run on
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
-2. M5 wave 5 per `docs/ai/plans/m5.md` §4 (M5.1-M5.13 are built): M5.14 next; M4 runs whenever
-   the architect is available.
-3. For M5.14: whether a batch's results were downloaded (the second confirmation of the
-   `everything` cleanup) is its phase `downloaded`, or per job a `placements` row
-   (`placement/recording.py`); the end-to-end flow places subtitles with `run_download` and
-   `import_custom_plan` (architecture §3.5 "Download").
-4. M5.14: the end-to-end flow test of §7 (create → upload → manifest → launch → results →
-   download → retry → cleanup, CLI and backend with goldens), then M5 **(built)** in §10.
+2. M5 is built. Next milestone: M6 (desktop frontends, architecture §10), which needs its plan
+   `docs/ai/plans/m6.md` first. M4 runs whenever the architect is available.
+3. From now on every database schema change, including a change of a stored payload's shape,
+   is a new Alembic revision (architecture §3.8); the initial revision is no longer edited.
+4. Desktop follow-ups for M6: the GUI shows `BatchSummary.cleanup_pending` and offers to repeat
+   the cleanup (launches are refused with `cleanup_pending` until then), and runs
+   `reconcile_cloud` at start-up and `refresh_status` while a run is active (plan m5 §1).
