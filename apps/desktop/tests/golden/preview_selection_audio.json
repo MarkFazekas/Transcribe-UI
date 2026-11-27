@@ -1,0 +1,50 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "preview_selection",
+    "scan_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+    "root": "<root>/media",
+    "path_flavor": "<flavor>",
+    "files": [
+      {
+        "name": "interview.flac",
+        "path": "<root>/media/Audio/interview.flac",
+        "kind": "audio",
+        "size_bytes": 0,
+        "subtitle_languages": [
+          "en"
+        ],
+        "forced_subtitle_languages": [],
+        "unknown_language_subtitles": 0
+      },
+      {
+        "name": "podcast.MP3",
+        "path": "<root>/media/Audio/podcast.MP3",
+        "kind": "audio",
+        "size_bytes": 0,
+        "subtitle_languages": [],
+        "forced_subtitle_languages": [],
+        "unknown_language_subtitles": 0
+      }
+    ],
+    "folders": [
+      {
+        "path": "<root>/media",
+        "state": "partial"
+      },
+      {
+        "path": "<root>/media/Audio",
+        "state": "all"
+      }
+    ],
+    "counts": {
+      "files": 2,
+      "video_files": 0,
+      "audio_files": 2,
+      "size_bytes": 0
+    },
+    "warnings": []
+  },
+  "events": []
+}

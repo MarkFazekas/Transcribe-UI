@@ -1,0 +1,23 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "scan_tree"
+            ],
+            "message": "Value error, subtitle extensions cannot be media extensions: ['srt']",
+            "type": "value_error"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

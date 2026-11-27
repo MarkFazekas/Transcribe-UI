@@ -6,54 +6,17 @@ the `ProgressEvent`s. A response is one of: the request's own success model (`st
 set) or `ErrorResponse`.
 """
 
-from collections.abc import Callable, Mapping
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, NonNegativeInt, PlainSerializer, SerializationInfo
+from pydantic import Field, JsonValue, NonNegativeInt
 
-from transcribe_contracts.classes import PathFlavor as ContractPathFlavor
-from transcribe_ui.api.constants import LOCAL_PATH_CONTEXT_KEY, PATH_FLAVOR_CONTEXT_KEY
-
-
-def _rewritten(text: str, serialization: SerializationInfo, key: str) -> str:
-    """Return the text passed through the rewrite function the serialization context holds."""
-    context = serialization.context
-    if not isinstance(context, Mapping):
-        return text
-    rewrite = context.get(key)
-    if not callable(rewrite):
-        return text
-    return str(rewrite(text))
-
-
-def _serialise_local_path(path: str, serialization: SerializationInfo) -> str:
-    return _rewritten(path, serialization, LOCAL_PATH_CONTEXT_KEY)
-
-
-def _serialise_path_flavor(flavor: str, serialization: SerializationInfo) -> str:
-    return _rewritten(flavor, serialization, PATH_FLAVOR_CONTEXT_KEY)
-
-
-# A path on this computer, as the OS reports it. The type marks the field for the golden-file
-# normaliser, which passes a rewrite function in the serialization context; without one the
-# value is written unchanged.
-type LocalPath = Annotated[str, PlainSerializer(_serialise_local_path, return_type=str)]
-# The path flavour of this computer; marked for the golden-file normaliser like `LocalPath`.
-type PathFlavor = Annotated[ContractPathFlavor, PlainSerializer(_serialise_path_flavor, return_type=str)]
-
-# Signature of a serialization rewrite function (see `LocalPath`).
-type Rewrite = Callable[[str], str]
-
-
-class FrozenModel(BaseModel):
-    """Base of the façade models: immutable, unknown fields refused.
-
-    In the responses' (serialization) schema, fields with defaults are required: they are
-    always written.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid", json_schema_serialization_defaults_required=True)
-
+from transcribe_ui.api.base import FrozenModel, LocalPath
+from transcribe_ui.discovery.classes import (
+    PreviewSelectionRequest,
+    PreviewSelectionResponse,
+    ScanTreeRequest,
+    ScanTreeResponse,
+)
 
 # Requests
 
@@ -66,7 +29,10 @@ class GetAppInfoRequest(FrozenModel):
 
 
 # Discriminated on `action`; each part adds its request models here (`A | B | ...`).
-type Request = Annotated[GetAppInfoRequest, Field(discriminator="action")]
+type Request = Annotated[
+    GetAppInfoRequest | ScanTreeRequest | PreviewSelectionRequest,
+    Field(discriminator="action"),
+]
 
 
 # Responses
@@ -116,7 +82,10 @@ class NeedsConfirmation(FrozenModel):
 
 
 # Discriminated on `action`; each part adds its success response models here.
-type SuccessResponse = Annotated[GetAppInfoResponse, Field(discriminator="action")]
+type SuccessResponse = Annotated[
+    GetAppInfoResponse | ScanTreeResponse | PreviewSelectionResponse,
+    Field(discriminator="action"),
+]
 # Every response of `Backend.execute`, discriminated on `status`.
 type Response = Annotated[SuccessResponse | ErrorResponse | NeedsConfirmation, Field(discriminator="status")]
 

@@ -1,0 +1,28 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "preview_selection",
+              "operations",
+              "0",
+              "filters",
+              "subtitles",
+              "languages"
+            ],
+            "message": "Tuple should have at least 1 item after validation, not 0",
+            "type": "too_short"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

@@ -6,7 +6,7 @@ same response from every frontend and in tests.
 
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -14,6 +14,8 @@ from transcribe_contracts.constants import ULID_RANDOM_BITS
 from transcribe_contracts.ids import new_ulid
 from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.api.errors import CancelledError
+from transcribe_ui.discovery.cache import ScanCache
+from transcribe_ui.discovery.rules import PathRules, host_rules
 
 # Returns that many random bits (`random.Random.getrandbits` signature).
 type RandomBits = Callable[[int], int]
@@ -102,6 +104,10 @@ class Ports:
 
     clock: Clock
     ids: IdSource
+    # How the host's file system compares names; tests inject the Windows or macOS rule.
+    path_rules: PathRules = field(default_factory=host_rules)
+    # The latest scans, reused by `preview_selection` (process-local).
+    scan_cache: ScanCache = field(default_factory=ScanCache)
 
 
 @dataclass(frozen=True)

@@ -64,9 +64,12 @@ docs/human/, docs/ai/     see CLAUDE.md
   - `error`: `{"status": "error", "action": ..., "error": {"code", "message", "details"}}`
     (§6). Handlers raise `DomainError(code, ...)`; an unexpected exception becomes
     `internal_error` with a generic message (the traceback goes to the log only).
-- Models live in `transcribe_ui/api/classes.py` (not in contracts: they are not shared with the
-  worker). A path on the user's computer is typed `LocalPath`, the host's path flavour
-  `PathFlavor`; golden-file tests normalise exactly these fields (§7).
+- Models live in the desktop app (not in contracts: they are not shared with the worker): the
+  unions in `transcribe_ui/api/classes.py`, each sub-package's request and response models in
+  its own `classes.py`, built on `api/base.py` (`FrozenModel`, `LocalPath`, `PathFlavor`), so
+  `api/classes.py` can import them without a cycle. A path on the user's computer is typed
+  `LocalPath`, the host's path flavour `PathFlavor`; golden-file tests normalise exactly these
+  fields (§7).
 - The dispatch table (`api/backend.py`) maps each action to its handler and marks whether it
   needs the database; request types that do not (app info, settings, credentials, scans) never
   open it, so the CLI can run them while the GUI holds the writer lock.
@@ -102,22 +105,89 @@ docs/human/, docs/ai/     see CLAUDE.md
 
 ### 3.2 Discovery and selection
 
-- Recursive scan from a chosen root with `os.scandir` (no symlink following; hidden/system
-  entries skipped unless a setting includes them), classified by extension into video/audio
-  (default list of common types, adjustable in the settings). No ffprobe during
-  the scan: tens of thousands of files must list in seconds. ffprobe runs only on selected
-  files, in the review step (§3.3). Probe results are cached in SQLite by path + size + mtime.
-- Existing subtitles in the main view: sidecar files next to the media (`<stem>.srt`,
-  `<stem>.<lang>.srt`, `<stem>.<lang>.forced.srt`, also `.vtt/.ass/.ssa/.sub`), language parsed
-  from ISO 639-1/2 codes and common names. A file without a language code counts as
-  "unknown language". Embedded subtitles are handled in the review step.
+- Two requests in `discovery/`, both without the database: `scan_tree` (the media tree below a
+  root) and `preview_selection` (resolves a selection on a scan).
+- Scan cache: each scan gets a `scan_id` (from the injected id source), and the backend keeps
+  the latest 4 scans in process (`discovery/cache.py`, `Ports.scan_cache`) with the options
+  they were made with. `preview_selection` takes an optional `scan_id`: when that scan is kept
+  and was made with the same options, it is used as it is (the GUI previews on every click,
+  and the preview stays consistent with the tree on screen); otherwise the request scans again
+  and keeps the new scan. The response names the scan it used. A one-shot CLI process starts
+  empty, so its previews always scan; the answer differs only if the disk changed in between.
+- Scan options are request fields with defaults (`discovery/constants.py`): the video and audio
+  extension lists (lower case, no dot, compared case-insensitively; the two lists are disjoint
+  and never contain a subtitle extension) and `include_hidden`. The GUI fills them from the
+  settings; request handling never reads the settings file.
+- The root must be an absolute path of an existing, listable folder (`root_not_absolute`,
+  `root_not_found`, `root_not_a_folder`, `root_unreadable`); it is reported after
+  `os.path.normpath`. A symlinked
+  root is followed (the user chose it).
+- Walk: `os.scandir` without following links, iterative (an explicit stack, so no recursion
+  limit). Symlinks and Windows junctions are reported (`link_skipped`) and skipped, so loops
+  cannot occur; folders deeper than 256 levels give `too_deep`. Entries are classified by
+  their directory-entry type and name first; `stat` runs only for media files (size, mtime)
+  and, where the OS keeps hidden flags there, for each entry (free on Windows; macOS/BSD
+  `st_flags`). Hidden entries (a name starting with `.`, the Windows hidden attribute alone or
+  with system, the macOS `UF_HIDDEN` flag) are skipped unless `include_hidden`; a system-only
+  entry stays visible. macOS AppleDouble files (`._` prefix) are never media or sidecars, even
+  with `include_hidden`. An unreadable folder or entry gives `unreadable`; an entry that
+  vanishes during the scan is skipped silently. A name that is not valid Unicode (undecodable
+  bytes on POSIX, lone surrogates on Windows) cannot be shown or stored: it is reported as
+  `invalid_name` with U+FFFD in its place and skipped. Warnings never stop the scan. The cancel
+  token is checked per folder; a progress event goes out every 1000 media files.
+- No ffprobe during the scan: tens of thousands of files must list in seconds. ffprobe runs
+  only on selected files, in the review step (§3.3). Probe results are cached in SQLite by
+  path + size + mtime; the scan reports size and `mtime_ns` of each file.
+- Response shape: flat lists, so deep trees do not nest JSON deeply and the GUI's lazy model
+  indexes them directly. `folders` in depth-first order (index 0 is the root, each with its
+  parent's index), `files` grouped by folder in that order, each with its folder's index;
+  folders without media at any depth are left out. Siblings are ordered by their composed
+  (NFC), case-folded name, then the exact name: the same order on every OS.
+- Sidecar subtitles (`srt`, `vtt`, `ass`, `ssa`, `sub`; not configurable): a subtitle file
+  belongs to the media files whose stem is the longest `.`-bounded prefix of its name
+  (`Movie.part2.en.srt` belongs to `Movie.part2.mkv`, not `Movie.mkv`); media files sharing
+  that stem (`Movie.mkv`, `Movie.mp4`) all get it. When the stem is shorter than the name, the
+  next token must be a language, `forced` or a known tag (`sdh`, `cc`, `hi`, `default`,
+  `full`, `cd1`, `cd2`, ...); otherwise the subtitle belongs to no media file
+  (`Show.S01E02.en.srt` is not `Show.mkv`'s). A subtitle of no media file is ignored, and a
+  dot-prefixed one never matches. The remaining name tokens give the language (the first token
+  that names one) and the `forced` flag (a `forced` token anywhere); other tokens are ignored. Languages recognised: Whisper's codes and
+  English names, ISO 639-2/B and /T codes (and the 639-3 codes `cmn`, `fil`, `nob`, `nno`,
+  `yue`), a few other spellings (`iw`, `jv`, `nb`, `farsi`, ...) and a code with a region or
+  script suffix (`pt-BR`, `en_US`, `zh-Hans`). Anything else, including real languages Whisper
+  does not support, is "unknown language" (`language: null`). Embedded subtitles are handled in
+  the review step.
+- Path-flavour rule (`discovery/rules.py`, injected as `Ports.path_rules`, so the Windows and
+  macOS rules are tested on Linux): Windows compares names case-insensitively by simple
+  one-to-one upper-casing per character, as NTFS does (`ß` stays `ß`), and splits paths on
+  `\` and `/`; macOS compares with full Unicode case folding and normalisation-insensitively
+  (APFS and HFS+ defaults); other POSIX systems compare exactly. The rule shapes comparisons
+  only (sidecar stems, selection paths); reported names and paths stay as the OS returned them.
+  The response's `path_flavor` is the rule's flavour. Limitation: the rule is per OS, not per
+  volume, so a case-sensitive macOS volume or a Windows folder with per-directory case
+  sensitivity (WSL) can match two files that differ only in case as one.
 - Languages: the global settings list every Whisper language with an on/off switch (`hu`, `en`
   on by default); GUI choosers and filters offer only enabled languages. Languages
   without a WhisperX alignment model are marked there.
-- The scan result is a tree model; folder selection is tri-state and selects only the
-  descendants that match the active filters (subtitle: a set of enabled languages with the
-  rule all / any / missing at least one; audio/video; name starts/ends/contains/regex). Filters are part of the
-  request, so the CLI and GUI select identically.
+- Selection is an ordered list of operations, each `include` or `exclude` with a path (folder
+  or file) and the filters active when it was made; it applies to the media files at or below
+  the path that match those filters, and later operations override earlier ones. This gives
+  the GUI's tri-state folder selection: selecting a folder selects only the descendants that
+  match the active filters. Filters (all given parts must match): media kind (any, audio,
+  video); subtitle languages with the rule all / any / `missing_one` (lacks at least one),
+  counting only sidecars that are not forced; name of the file without its extension
+  (`starts_with`, `ends_with`, `contains`, compared NFC and case-folded; `regex`, searched in the
+  NFC name ignoring case). Requests are validated machine-independently (languages against the
+  full Whisper set, the regex compiled and at most 200 characters). The cancel token is checked
+  per file while filters run; a single regex match cannot be interrupted (relevant for the MCP
+  frontend, whose requests come from a model). An operation path that is relative, contains
+  `..` or is outside the root is `path_outside_root` with the operation's index in the details
+  (not the path: details are not path-normalised, and the request holds it); one with no media
+  file at or below it gives the warning `no_media_at_path`. Paths are matched by binary search
+  over the sorted file keys.
+- `preview_selection` returns the selected files in scan order (with their sidecar languages,
+  forced ones and unknown-language count), each folder with a selected file below it as `all`
+  or `partial`, and totals (files, video, audio, bytes).
 - The GUI uses a lazy `QAbstractItemModel` over the scan result (virtual rows, parent check
   state derived from children), which scales to tens of thousands of nodes.
 
@@ -353,7 +423,7 @@ compatibility); the Whisper language set is enforced where the desktop app build
 Paths are stored as text exactly as the OS reported them (no case or Unicode normalisation),
 plus `path_flavor`. Names that are not valid Unicode (unpaired surrogates on Windows, non-UTF-8
 bytes on POSIX) are rejected at scan time with a visible warning instead of being mangled.
-Comparisons for sidecar matching use NFC on macOS and case-insensitive matching on Windows.
+How names are compared (sidecar stems, selection paths) is the path-flavour rule of §3.2.
 
 ## 5. Worker (Runpod)
 
@@ -618,7 +688,8 @@ Few unit tests; mostly regression and flow tests:
     leg calls `Backend.execute_json`, the CLI leg calls the CLI's `main(["run", <file>])`
     in-process with the same backend injected. Responses, progress events and exit codes are
     compared step by step after normalisation. A request document may contain `<root>`, which
-    each leg replaces with its own root. One test runs the installed `transcribe-ui` entry
+    each leg replaces with its own root; an optional `prepare` function fills each leg's root
+    first (a media tree of empty files with fixed mtimes, `support/trees.py`). One test runs the installed `transcribe-ui` entry
     point as a subprocess.
   - Normalisation touches only `LocalPath` and `PathFlavor` fields (their serializers apply
     rewrite functions passed in the serialization context): the leg's root, as created and as
@@ -708,7 +779,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1 built): Desktop backend: façade, discovery and selection,
+- **M5** (planned in `plans/m5.md`; M5.1 and M5.3 built): Desktop backend: façade, discovery and selection,
   batches, conversion and resumable R2 upload, credentials, worker launch and monitoring,
   download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

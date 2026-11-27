@@ -1,5 +1,9 @@
 {
   "$defs": {
+    "FileExtension": {
+      "pattern": "^[a-z0-9]{1,16}$",
+      "type": "string"
+    },
     "GetAppInfoRequest": {
       "additionalProperties": false,
       "description": "Ask for the app version and the data contract version (nothing machine-specific).",
@@ -15,17 +19,364 @@
       ],
       "title": "GetAppInfoRequest",
       "type": "object"
+    },
+    "LanguageCode": {
+      "pattern": "^[a-z]{2,3}$",
+      "type": "string"
+    },
+    "LocalPath": {
+      "type": "string"
+    },
+    "NameFilter": {
+      "additionalProperties": false,
+      "description": "Match files by their name without the extension, ignoring case.",
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/NameMatch"
+        },
+        "text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "match",
+        "text"
+      ],
+      "title": "NameFilter",
+      "type": "object"
+    },
+    "NameMatch": {
+      "enum": [
+        "starts_with",
+        "ends_with",
+        "contains",
+        "regex"
+      ],
+      "type": "string"
+    },
+    "PreviewSelectionRequest": {
+      "additionalProperties": false,
+      "description": "Scan, then apply the selection operations in order; changes nothing.",
+      "properties": {
+        "action": {
+          "const": "preview_selection",
+          "title": "Action",
+          "type": "string"
+        },
+        "operations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SelectionOperation"
+          },
+          "title": "Operations",
+          "type": "array"
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanSpec"
+        },
+        "scan_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reuse this scan of the same options if this process still keeps it; else scan again."
+        }
+      },
+      "required": [
+        "action",
+        "scan"
+      ],
+      "title": "PreviewSelectionRequest",
+      "type": "object"
+    },
+    "ScanSpec": {
+      "additionalProperties": false,
+      "description": "What to scan and how to classify it; the GUI fills the defaults from the settings.",
+      "properties": {
+        "audio_extensions": {
+          "default": [
+            "aac",
+            "ac3",
+            "aif",
+            "aiff",
+            "amr",
+            "ape",
+            "dts",
+            "eac3",
+            "flac",
+            "m4a",
+            "m4b",
+            "mka",
+            "mp2",
+            "mp3",
+            "oga",
+            "ogg",
+            "opus",
+            "wav",
+            "wma",
+            "wv"
+          ],
+          "items": {
+            "$ref": "#/$defs/FileExtension"
+          },
+          "title": "Audio Extensions",
+          "type": "array"
+        },
+        "include_hidden": {
+          "default": false,
+          "description": "Also scan hidden and system files and folders.",
+          "title": "Include Hidden",
+          "type": "boolean"
+        },
+        "root": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "Absolute path of the folder to scan."
+        },
+        "video_extensions": {
+          "default": [
+            "3gp",
+            "avi",
+            "flv",
+            "m2ts",
+            "m4v",
+            "mkv",
+            "mov",
+            "mp4",
+            "mpeg",
+            "mpg",
+            "mts",
+            "ogv",
+            "ts",
+            "vob",
+            "webm",
+            "wmv"
+          ],
+          "items": {
+            "$ref": "#/$defs/FileExtension"
+          },
+          "title": "Video Extensions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "title": "ScanSpec",
+      "type": "object"
+    },
+    "ScanTreeRequest": {
+      "additionalProperties": false,
+      "description": "List the media files below a folder with their sidecar subtitles; changes nothing.",
+      "properties": {
+        "action": {
+          "const": "scan_tree",
+          "title": "Action",
+          "type": "string"
+        },
+        "audio_extensions": {
+          "default": [
+            "aac",
+            "ac3",
+            "aif",
+            "aiff",
+            "amr",
+            "ape",
+            "dts",
+            "eac3",
+            "flac",
+            "m4a",
+            "m4b",
+            "mka",
+            "mp2",
+            "mp3",
+            "oga",
+            "ogg",
+            "opus",
+            "wav",
+            "wma",
+            "wv"
+          ],
+          "items": {
+            "$ref": "#/$defs/FileExtension"
+          },
+          "title": "Audio Extensions",
+          "type": "array"
+        },
+        "include_hidden": {
+          "default": false,
+          "description": "Also scan hidden and system files and folders.",
+          "title": "Include Hidden",
+          "type": "boolean"
+        },
+        "root": {
+          "$ref": "#/$defs/LocalPath",
+          "description": "Absolute path of the folder to scan."
+        },
+        "video_extensions": {
+          "default": [
+            "3gp",
+            "avi",
+            "flv",
+            "m2ts",
+            "m4v",
+            "mkv",
+            "mov",
+            "mp4",
+            "mpeg",
+            "mpg",
+            "mts",
+            "ogv",
+            "ts",
+            "vob",
+            "webm",
+            "wmv"
+          ],
+          "items": {
+            "$ref": "#/$defs/FileExtension"
+          },
+          "title": "Video Extensions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "root",
+        "action"
+      ],
+      "title": "ScanTreeRequest",
+      "type": "object"
+    },
+    "SelectionFilter": {
+      "additionalProperties": false,
+      "description": "The filters active when an operation was made; every given part must match.",
+      "properties": {
+        "media_kind": {
+          "default": "any",
+          "enum": [
+            "any",
+            "audio",
+            "video"
+          ],
+          "title": "Media Kind",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NameFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtitles": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubtitleFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SelectionFilter",
+      "type": "object"
+    },
+    "SelectionOperation": {
+      "additionalProperties": false,
+      "description": "Include or exclude the matching media files at or below a path (a folder or a file).",
+      "properties": {
+        "filters": {
+          "$ref": "#/$defs/SelectionFilter",
+          "default": {
+            "media_kind": "any",
+            "name": null,
+            "subtitles": null
+          }
+        },
+        "operation": {
+          "enum": [
+            "include",
+            "exclude"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        }
+      },
+      "required": [
+        "operation",
+        "path"
+      ],
+      "title": "SelectionOperation",
+      "type": "object"
+    },
+    "SubtitleFilter": {
+      "additionalProperties": false,
+      "description": "Match files by the languages of their (not forced) sidecar subtitles.",
+      "properties": {
+        "languages": {
+          "items": {
+            "$ref": "#/$defs/LanguageCode"
+          },
+          "minItems": 1,
+          "title": "Languages",
+          "type": "array"
+        },
+        "rule": {
+          "$ref": "#/$defs/SubtitleRule"
+        }
+      },
+      "required": [
+        "languages",
+        "rule"
+      ],
+      "title": "SubtitleFilter",
+      "type": "object"
+    },
+    "SubtitleRule": {
+      "enum": [
+        "all",
+        "any",
+        "missing_one"
+      ],
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
     }
   },
   "discriminator": {
     "mapping": {
-      "get_app_info": "#/$defs/GetAppInfoRequest"
+      "get_app_info": "#/$defs/GetAppInfoRequest",
+      "preview_selection": "#/$defs/PreviewSelectionRequest",
+      "scan_tree": "#/$defs/ScanTreeRequest"
     },
     "propertyName": "action"
   },
   "oneOf": [
     {
       "$ref": "#/$defs/GetAppInfoRequest"
+    },
+    {
+      "$ref": "#/$defs/ScanTreeRequest"
+    },
+    {
+      "$ref": "#/$defs/PreviewSelectionRequest"
     }
   ]
 }

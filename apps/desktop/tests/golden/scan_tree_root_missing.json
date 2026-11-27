@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "scan_tree",
+    "error": {
+      "code": "root_not_found",
+      "message": "The folder to scan does not exist.",
+      "details": {}
+    }
+  },
+  "events": []
+}
