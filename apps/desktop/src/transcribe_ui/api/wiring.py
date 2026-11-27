@@ -1,15 +1,20 @@
 """Composition root: builds the backend with its real adapters (tests inject fakes instead)."""
 
+import os
 from functools import partial
 from pathlib import Path
 
+import keyring
+
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.ports import Ports, SystemClock, UlidSource
+from transcribe_ui.credentials.store import CredentialStore
 from transcribe_ui.media.adapter import FfmpegMediaTools
 from transcribe_ui.media.tools import ToolLocator, ToolOverrides, bundle_dir
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.settings import SettingsStore
 from transcribe_ui.state.store import LocalState
+from transcribe_ui.storage.client import r2_client
 
 
 def build_backend(paths: AppPaths | None = None) -> Backend:
@@ -20,8 +25,16 @@ def build_backend(paths: AppPaths | None = None) -> Backend:
     clock = SystemClock()
     state = LocalState(AppPaths.for_user() if paths is None else paths)
     media = media_tools(state.settings)
-    ids = UlidSource(clock)
-    return Backend(Ports(clock=clock, ids=ids, media=media, state=state))
+    credentials = CredentialStore(keyring.get_keyring, os.environ)
+    ports = Ports(
+        clock=clock,
+        ids=UlidSource(clock),
+        media=media,
+        state=state,
+        credentials=credentials,
+        r2_clients=r2_client,
+    )
+    return Backend(ports)
 
 
 def media_tools(settings: SettingsStore) -> FfmpegMediaTools:

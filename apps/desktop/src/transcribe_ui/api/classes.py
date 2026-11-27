@@ -13,6 +13,14 @@ from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveI
 
 from transcribe_contracts.constants import WHISPER_LANGUAGES
 from transcribe_ui.api.base import FrozenModel, LocalPath
+from transcribe_ui.credentials.classes import (
+    CheckCredentialsRequest,
+    CheckCredentialsResponse,
+    CredentialsStatusRequest,
+    CredentialsStatusResponse,
+    StoreCredentialsRequest,
+    StoreCredentialsResponse,
+)
 from transcribe_ui.discovery.classes import (
     FileExtension,
     PreviewSelectionRequest,
@@ -138,7 +146,14 @@ class UpdateSettingsRequest(FrozenModel):
 
 # Discriminated on `action`; each part adds its request models here (`A | B | ...`).
 type Request = Annotated[
-    GetAppInfoRequest | ScanTreeRequest | PreviewSelectionRequest | GetSettingsRequest | UpdateSettingsRequest,
+    GetAppInfoRequest
+    | ScanTreeRequest
+    | PreviewSelectionRequest
+    | GetSettingsRequest
+    | UpdateSettingsRequest
+    | StoreCredentialsRequest
+    | CredentialsStatusRequest
+    | CheckCredentialsRequest,
     Field(discriminator="action"),
 ]
 
@@ -209,7 +224,14 @@ class NeedsConfirmation(FrozenModel):
 
 # Discriminated on `action`; each part adds its success response models here.
 type SuccessResponse = Annotated[
-    GetAppInfoResponse | ScanTreeResponse | PreviewSelectionResponse | GetSettingsResponse | UpdateSettingsResponse,
+    GetAppInfoResponse
+    | ScanTreeResponse
+    | PreviewSelectionResponse
+    | GetSettingsResponse
+    | UpdateSettingsResponse
+    | StoreCredentialsResponse
+    | CredentialsStatusResponse
+    | CheckCredentialsResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

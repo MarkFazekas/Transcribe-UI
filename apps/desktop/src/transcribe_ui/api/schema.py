@@ -4,7 +4,7 @@ import json
 from functools import cache
 from typing import Literal
 
-from pydantic import JsonValue, TypeAdapter, ValidationError
+from pydantic import ConfigDict, JsonValue, TypeAdapter, ValidationError
 from pydantic_core import ErrorDetails
 
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, Request, Response
@@ -16,8 +16,8 @@ type SchemaKind = Literal["request", "response"]
 
 @cache
 def request_adapter() -> TypeAdapter[Request]:
-    """Return the validator of the `Request` union."""
-    return TypeAdapter(Request)
+    """Return the validator of the `Request` union; its errors never show the input (credentials)."""
+    return TypeAdapter(Request, config=ConfigDict(hide_input_in_errors=True))
 
 
 @cache
