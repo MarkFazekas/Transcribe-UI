@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from transcribe_ui.batches.errors import WrongPhaseError
 from transcribe_ui.batches.payloads import ItemPhase
-from transcribe_ui.batches.records import stored_items
+from transcribe_ui.batches.records import stored_item
 from transcribe_ui.state.errors import BatchNotFoundError, PhaseConflictError
 from transcribe_ui.state.models import BatchRow, ItemRow
 
@@ -94,15 +94,11 @@ def set_item_phases(session: Session, batch_id: str, expected: ItemPhase, new: I
     session.expire_all()
 
 
-def set_review_phase(session: Session, batch_id: str, item_id: str) -> None:
+def set_review_phase(session: Session, item_id: str) -> None:
     """Set an item's review phase from its jobs: `reviewed` when every choice fits, else `reviewing`.
 
     An item that is not in review (already uploaded) keeps its phase.
     """
-    members = {stored.item_id: stored for stored in stored_items(session, batch_id)}
-    member = members[item_id]
-    if not member.in_review():
-        return
-    row = session.get(ItemRow, item_id)
-    assert row is not None, "the item was just read"
-    row.phase = "reviewed" if member.resolved() else "reviewing"
+    member = stored_item(session, item_id)
+    if member.in_review():
+        member.row.phase = "reviewed" if member.resolved() else "reviewing"

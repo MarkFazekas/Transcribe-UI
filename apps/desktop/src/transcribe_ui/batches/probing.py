@@ -1,9 +1,12 @@
 """Probing the items of the review step (architecture §3.3 "Review step").
 
 Every item in phase `reviewing` is probed: its file is stat-ed, the probe cache (path + size +
-mtime) is asked first and ffprobe runs only on a miss, outside any database transaction. The
-outcome is stored per item in its own transaction, so a cancelled or interrupted review keeps
-the items probed so far. Each job gets its pre-selected choice (`batches/choices.py`), unless
+mtime) is asked first and ffprobe runs only on a miss, outside any database transaction. An
+unreadable cache row (an older payload shape) counts as a miss and is overwritten. The file is
+stat-ed again after ffprobe: a file that changed meanwhile is probed once more, and if it
+changed again it is an item problem (`source_changing`) and nothing is cached. The outcome is
+stored per item in its own transaction, so a cancelled or interrupted review keeps the items
+probed so far. Each job gets its pre-selected choice (`batches/choices.py`), unless
 the file probes the same as before (choices made earlier stay). A missing file or a failed probe
 is an item problem, not a failure of the request: the item stays in `reviewing` until it probes
 well or is excluded.
@@ -13,7 +16,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from transcribe_ui.api.classes import ProgressEvent
@@ -21,87 +23,77 @@ from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.choices import preselected_choice
 from transcribe_ui.batches.constants import (
+    PROBE_ATTEMPTS,
     PROBE_FAILURE_CODES,
     PROBE_STAGE,
     PROBLEM_PROBE_FAILED,
+    PROBLEM_SOURCE_CHANGING,
     PROBLEM_SOURCE_MISSING,
     REVIEW_PHASES,
+    SOURCE_CHANGING_MESSAGE,
     SOURCE_MISSING_MESSAGE,
 )
 from transcribe_ui.batches.payloads import ItemPayload, ItemProblem
 from transcribe_ui.batches.phases import load_batch, require_phase, set_review_phase, touch_batch
+from transcribe_ui.batches.probe_cache import FileStat, cached_probe, file_stat, remember_probe
 from transcribe_ui.batches.records import StoredItem, stored_items
 from transcribe_ui.media.classes import ProbeResult
-from transcribe_ui.state.models import ItemRow, JobRow, ProbeCacheRow
-
-
-@dataclass(frozen=True)
-class _Stat:
-    """Size and mtime of a source file."""
-
-    size_bytes: int
-    mtime_ns: int
+from transcribe_ui.state.models import ItemRow, JobRow
 
 
 @dataclass(frozen=True)
 class _Probed:
     """The outcome of probing one item: a result or a problem, with the file's size and mtime."""
 
-    stat: _Stat | None
+    stat: FileStat | None
     probe: ProbeResult | None
     problem: ItemProblem | None
+    # Whether the result came from the probe cache (so there is nothing to remember).
+    cached: bool = False
 
 
-def _stat(path: str) -> _Stat | None:
-    source = Path(path)
-    try:
-        found = source.stat() if source.is_file() else None
-    except OSError:
-        return None
-    return None if found is None else _Stat(found.st_size, found.st_mtime_ns)
+# The outcome of a file that kept changing while it was probed.
+_CHANGING = _Probed(None, None, ItemProblem(code=PROBLEM_SOURCE_CHANGING, message=SOURCE_CHANGING_MESSAGE))
+# The outcome of a file that is gone or cannot be read.
+_MISSING = _Probed(None, None, ItemProblem(code=PROBLEM_SOURCE_MISSING, message=SOURCE_MISSING_MESSAGE))
 
 
-def _cached_probe(context: RequestContext, path: str, file_stat: _Stat) -> ProbeResult | None:
-    key = (path, file_stat.size_bytes, file_stat.mtime_ns)
+def _cached(context: RequestContext, path: str, stat: FileStat) -> ProbeResult | None:
     with context.ports.state.session() as session:
-        cached = session.get(ProbeCacheRow, key)
-        return None if cached is None else ProbeResult.model_validate(cached.payload)
+        return cached_probe(session, path, stat)
 
 
-def _probe(context: RequestContext, path: str) -> _Probed:
-    file_stat = _stat(path)
-    if file_stat is None:
-        return _Probed(None, None, ItemProblem(code=PROBLEM_SOURCE_MISSING, message=SOURCE_MISSING_MESSAGE))
-    cached = _cached_probe(context, path, file_stat)
-    if cached is not None:
-        return _Probed(file_stat, cached, None)
+def _probe_once(context: RequestContext, path: str, stat: FileStat) -> _Probed | None:
+    """Probe the file; return None when it changed during the probe (nothing is trusted then)."""
     try:
         probed = context.ports.media.probe(Path(path), context.cancel)
     except DomainError as error:
         if error.code not in PROBE_FAILURE_CODES:
             raise
-        return _Probed(file_stat, None, ItemProblem(code=PROBLEM_PROBE_FAILED, message=error.message))
-    return _Probed(file_stat, probed, None)
+        outcome = _Probed(stat, None, ItemProblem(code=PROBLEM_PROBE_FAILED, message=error.message))
+    else:
+        outcome = _Probed(stat, probed, None)
+    return outcome if file_stat(path) == stat else None
 
 
-def _remember_probe(session: Session, path: str, probed: _Probed, now: datetime) -> None:
-    file_stat = probed.stat
-    if file_stat is None or probed.probe is None:
-        return
-    key = (path, file_stat.size_bytes, file_stat.mtime_ns)
-    if session.get(ProbeCacheRow, key) is not None:
-        return
-    # One entry per path: the older ones describe a file that is not there any more.
-    session.execute(delete(ProbeCacheRow).where(ProbeCacheRow.path == path))
-    session.add(
-        ProbeCacheRow(
-            path=path,
-            size_bytes=file_stat.size_bytes,
-            mtime_ns=file_stat.mtime_ns,
-            probed_at=now,
-            payload=probed.probe.model_dump(mode="json"),
-        ),
-    )
+def _probe(context: RequestContext, path: str) -> _Probed:
+    """Probe the file, from the cache when it has it; a file that changes during every attempt is `source_changing`."""
+    for _ in range(PROBE_ATTEMPTS):
+        stat = file_stat(path)
+        if stat is None:
+            return _MISSING
+        cached = _cached(context, path, stat)
+        if cached is not None:
+            return _Probed(stat, cached, None, cached=True)
+        outcome = _probe_once(context, path, stat)
+        if outcome is not None:
+            return outcome
+    return _CHANGING
+
+
+def _remember(session: Session, path: str, probed: _Probed, now: datetime) -> None:
+    if probed.stat is not None and probed.probe is not None and not probed.cached:
+        remember_probe(session, path, probed.stat, probed.probe, now)
 
 
 def _probed_payload(previous: ItemPayload, probed: _Probed) -> ItemPayload:
@@ -156,8 +148,8 @@ def probe_waiting_items(context: RequestContext, batch_id: str, action: str) -> 
             row = load_batch(session, batch_id)
             require_phase(row, REVIEW_PHASES)
             now = context.ports.clock.now()
-            _remember_probe(session, path, probed, now)
+            _remember(session, path, probed, now)
             _apply_probe(session, member, probed)
-            set_review_phase(session, batch_id, member.item_id)
+            set_review_phase(session, member.item_id)
             touch_batch(session, batch_id, (row.phase,), now=now)
         context.progress.emit(_progress(action, done, total, path))

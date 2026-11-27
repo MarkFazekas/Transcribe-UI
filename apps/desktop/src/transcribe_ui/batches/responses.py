@@ -155,7 +155,7 @@ class ExcludeItemsResponse(OkResponse):
 
     action: Literal["exclude_items"] = "exclude_items"
     batch: BatchDetail
-    # Uploaded audio objects deleted for the excluded items.
+    # Audio objects found under the excluded items' prefixes and deleted (a re-sent request counts what was left).
     deleted_objects: NonNegativeInt
 
 

@@ -2,9 +2,10 @@
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import Final, get_args
 
 from transcribe_ui.media.constants import ERROR_MEDIA_TOOL_FAILED, ERROR_MEDIA_TOOL_TIMEOUT
+from transcribe_ui.state.models import BatchPhase
 
 # strftime format of a batch id from the local creation time (`batch_YYYYMMDD_HHmmss`).
 BATCH_ID_FORMAT: Final = "batch_%Y%m%d_%H%M%S"
@@ -18,7 +19,7 @@ COMPOSING: Final = "composing"
 # Phase of a batch (and its items) in the review step.
 REVIEWING: Final = "reviewing"
 # Every batch phase (unhiding is possible in any of them).
-ALL_PHASES: Final = frozenset(("composing", "reviewing", "uploading", "ready", "transcribed", "downloaded", "cleaned"))
+ALL_PHASES: Final[frozenset[str]] = frozenset(get_args(BatchPhase.__value__))
 # Batch phases in which the items can still be edited (`edit_batch`).
 EDITABLE_PHASES: Final = frozenset(("composing",))
 # Batch phases in which a batch can be deleted (nothing is in the cloud yet, Q26).
@@ -75,6 +76,8 @@ REASON_STREAM_OUT_OF_RANGE: Final = "stream_out_of_range"
 REASON_STREAM_NOT_TEXT: Final = "stream_not_text"
 # Choice reason: the item is not in review (already uploaded).
 REASON_NOT_IN_REVIEW: Final = "item_not_in_review"
+# Choice reason: in an `uploading` batch, the item's upload has started (it has audio or extraction rows).
+REASON_UPLOAD_STARTED: Final = "upload_started"
 # Choice reason: the item has no job in this language.
 REASON_NO_SUCH_JOB: Final = "no_such_job"
 # Choice reason: the batch has no item with this id.
@@ -91,6 +94,7 @@ CHOICE_MESSAGES: Final[Mapping[str, str]] = MappingProxyType(
         REASON_STREAM_OUT_OF_RANGE: "The file has no subtitle stream with this index.",
         REASON_STREAM_NOT_TEXT: "Picture-based subtitles cannot be extracted as text; they can only be transcribed.",
         REASON_NOT_IN_REVIEW: "The file is not in review any more; its choices cannot change.",
+        REASON_UPLOAD_STARTED: "The file's upload has started; its choices cannot change unless it is excluded.",
         REASON_NO_SUCH_JOB: "The file has no job in this language.",
         REASON_NO_SUCH_ITEM: "The batch has no item with this id.",
     },
@@ -102,5 +106,11 @@ PROBLEM_SOURCE_MISSING: Final = "source_missing"
 PROBE_FAILURE_CODES: Final = frozenset((ERROR_MEDIA_TOOL_FAILED, ERROR_MEDIA_TOOL_TIMEOUT))
 # Item problem: ffprobe failed or timed out on the file.
 PROBLEM_PROBE_FAILED: Final = "probe_failed"
+# Item problem: the file kept changing while it was probed (size or mtime), so the probe is not trusted.
+PROBLEM_SOURCE_CHANGING: Final = "source_changing"
+# Message of `source_changing`.
+SOURCE_CHANGING_MESSAGE: Final = "The file changed while it was probed; review the batch again once it is complete."
+# How often a file that changed during its probe is probed before it is reported as `source_changing`.
+PROBE_ATTEMPTS: Final = 2
 # Message of `source_missing`.
 SOURCE_MISSING_MESSAGE: Final = "The file is gone or cannot be read; restore it, or exclude it from the batch."

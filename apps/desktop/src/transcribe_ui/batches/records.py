@@ -12,7 +12,7 @@ from transcribe_ui.batches.choices import choice_problem
 from transcribe_ui.batches.constants import ITEM_REVIEW_PHASES
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, ItemPhase, JobKind, JobPayload
 from transcribe_ui.batches.responses import BatchDetail, BatchItem, BatchSummary, JobView
-from transcribe_ui.state.models import BatchPhase, BatchRow, ItemRow, JobRow
+from transcribe_ui.state.models import AudioObjectRow, BatchPhase, BatchRow, ExtractedSubtitleRow, ItemRow, JobRow
 
 # A job's (language, kind), as the batch summary counts it.
 type JobKey = tuple[str, str]
@@ -84,6 +84,27 @@ def stored_job(row: JobRow) -> StoredJob:
 
 def _stored_item(row: ItemRow, jobs: list[StoredJob]) -> StoredItem:
     return StoredItem(row, ItemPayload.model_validate(row.payload), tuple(jobs))
+
+
+def stored_item(session: Session, item_id: str) -> StoredItem:
+    """Return one item with its jobs (jobs by language); the caller knows that it exists."""
+    row = session.get(ItemRow, item_id)
+    assert row is not None, "the item is locked by its batch lock"
+    of_item = JobRow.item_id == item_id
+    jobs_query = select(JobRow).where(of_item).order_by(JobRow.language)
+    jobs = [stored_job(job_row) for job_row in session.scalars(jobs_query)]
+    return _stored_item(row, jobs)
+
+
+def items_with_uploads(session: Session, batch_id: str) -> frozenset[str]:
+    """Return the ids of the batch's items that have `audio_objects` or `extracted_subtitles` rows."""
+    audio = select(AudioObjectRow.item_id).where(AudioObjectRow.batch_id == batch_id)
+    extracted = (
+        select(JobRow.item_id)
+        .join(ExtractedSubtitleRow, ExtractedSubtitleRow.job_id == JobRow.job_id)
+        .where(JobRow.batch_id == batch_id)
+    )
+    return frozenset(session.scalars(audio.union(extracted)))
 
 
 def stored_items(session: Session, batch_id: str) -> list[StoredItem]:

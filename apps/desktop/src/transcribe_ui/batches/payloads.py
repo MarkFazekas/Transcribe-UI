@@ -14,7 +14,7 @@ type ItemPhase = Literal["composing", "reviewing", "reviewed", "uploaded"]
 # What a job does: transcribe an audio track in the cloud, or extract an embedded text subtitle locally.
 type JobKind = Literal["transcribe", "extract"]
 # Why an item cannot be resolved until it is probed again (or excluded).
-type ProblemCode = Literal["source_missing", "probe_failed"]
+type ProblemCode = Literal["source_missing", "probe_failed", "source_changing"]
 
 
 class BatchPayload(FrozenModel):

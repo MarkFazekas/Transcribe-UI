@@ -8,9 +8,10 @@ import dataclasses
 import json
 import threading
 from contextlib import closing
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import select
@@ -49,6 +50,12 @@ THREAD_TIMEOUT_S = 10
 CHANGED = b"changed"
 # The film alone, as a selection path.
 FILM_ONLY = (f"{MEDIA_ROOT}/Movies/{FILM}",)
+# A zone with daylight saving time: on 2026-10-25 its clocks go back from 03:00 (UTC+2) to 02:00 (UTC+1).
+BUDAPEST = ZoneInfo("Europe/Budapest")
+# 02:30 summer time (UTC+2), the first time the local clock shows 02:30 that night.
+BEFORE_FALLBACK = datetime.fromisoformat("2026-10-25T00:30:00+00:00")
+# 02:30 winter time (UTC+1), an hour later, the second time the local clock shows 02:30.
+AFTER_FALLBACK = BEFORE_FALLBACK + timedelta(hours=1)
 
 
 @dataclasses.dataclass
@@ -120,6 +127,11 @@ def test_edit_refused_after_composing(batch_leg: Leg) -> None:
     assert (error_code(refused), again["phase"], ids_of(batch_leg)) == ("wrong_phase", "reviewing", before)
 
 
+def _new_batch_id(leg: Leg, document: str) -> str:
+    batch_id: str = run_ok(leg, document)["batch"]["summary"]["batch_id"]
+    return batch_id
+
+
 def test_batch_id_collision_and_time_zone(tmp_path: Path) -> None:
     """The id is the local creation time in the injected zone; a second batch in that second gets `_2`."""
     western = timezone(timedelta(hours=-5))
@@ -127,8 +139,35 @@ def test_batch_id_collision_and_time_zone(tmp_path: Path) -> None:
     leg = Leg.create(tmp_path / "leg", None, build_batch_tree, factory)
     with closing(leg):
         document = create_request(HU, confirm_existing_languages=True)
-        found = [run_ok(leg, document)["batch"]["summary"]["batch_id"] for _attempt in range(3)]
+        found = [_new_batch_id(leg, document) for _attempt in range(3)]
     assert found == ["batch_20261127_070000", "batch_20261127_070000_2", "batch_20261127_070000_3"]
+
+
+@dataclasses.dataclass
+class SettableClock:
+    """A clock the test moves between requests."""
+
+    moment: datetime
+
+    def now(self) -> datetime:
+        """Return the current moment."""
+        return self.moment
+
+
+def _budapest_ports(clock: SettableClock, root: Path) -> Ports:
+    return dataclasses.replace(seeded_ports(root, local_zone=BUDAPEST), clock=clock)
+
+
+def test_batch_ids_across_the_autumn_fallback(tmp_path: Path) -> None:
+    """The repeated local hour of the DST fallback gives the same base id, so the second batch gets `_2`."""
+    clock = SettableClock(BEFORE_FALLBACK)
+    leg = Leg.create(tmp_path / "leg", None, build_batch_tree, partial(_budapest_ports, clock))
+    document = create_request(HU, confirm_existing_languages=True)
+    with closing(leg):
+        first = _new_batch_id(leg, document)
+        clock.moment = AFTER_FALLBACK
+        second = _new_batch_id(leg, document)
+    assert (first, second) == ("batch_20261025_023000", "batch_20261025_023000_2")
 
 
 def _windows_ports(root: Path) -> Ports:

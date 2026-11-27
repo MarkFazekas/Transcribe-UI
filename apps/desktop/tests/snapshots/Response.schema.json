@@ -1242,7 +1242,8 @@
     "ProblemCode": {
       "enum": [
         "source_missing",
-        "probe_failed"
+        "probe_failed",
+        "source_changing"
       ],
       "type": "string"
     },
