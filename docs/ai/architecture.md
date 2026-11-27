@@ -974,8 +974,9 @@ requests wire it in M5.13):
   the Runpod key is read up front; R2 is opened on first use (`runs/cloud.py` `LazyStore`), so
   missing or rejected R2 credentials never block a deadline stop. In order:
   1. Every run that is not final is followed; the Runpod lists are read once, only when such a
-     run exists or a final run waits for collection (a failed read or lookup fails the request
-     with nothing more changed, re-send).
+     run exists or a final run waits for collection. With an open run a failed read or lookup
+     fails the request with nothing more changed (re-send); with none, a failed read is logged
+     and only collection (step 4) is put off, so results and held manifests do not stall.
      A `launching` run is resolved by its name (`resolve_launching`). A run without a pod id
      follows its queued pod: a pod listed under the run's name is adopted as seen; else the
      queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
@@ -1026,16 +1027,20 @@ requests wire it in M5.13):
      `<log dir>/worker-<run_id>.log`, deletes every object under `runs/<run_id>/` and is then
      marked collected. Logs (`runs/worker_logs.py`) are written whole and never over another:
      to a temp file in the log dir (flushed to disk), then published with a hard link, which
-     fails instead of replacing (POSIX and Windows/NTFS); the temp file is removed afterwards
-     and on any failure, and temp files a crash left for the run are removed before the next
-     write. A log collected again goes to `worker-<run_id>-<n>.log` with the next free n from
+     fails instead of replacing (POSIX and Windows/NTFS); on a file system without hard links
+     (exFAT, FAT32, some network or FUSE mounts) by a rename on Windows (never over a file) and
+     by an exclusive create (`O_CREAT | O_EXCL`) and write on POSIX. On POSIX the log dir is
+     then synced (best effort), so the log is durable before the R2 objects are deleted. The
+     temp file is removed afterwards and on any failure, and temp files a crash left for the
+     run are removed before the next write; these removals are best effort (logged), so a
+     handle another program holds never blocks a collection. A log collected again goes to `worker-<run_id>-<n>.log` with the next free n from
      2, and a log already kept with the same bytes (a retried collection) is not written again.
      An R2 or file error is logged and retried at the next refresh, without failing the
      request. A straggler pod or queued pod carrying the run's name may still write these
      objects, so collection waits while one is live in the lists read in step 1
      (`runs/lingering.py`: another id than the run's own, live by the activity check's rules:
-     a pod not `TERMINATED`, a queued pod `queued_pod_active` keeps; its lookup failing fails
-     the request). `reconcile_cloud` (for every straggler it lists), `terminate_pod` and
+     a pod not `TERMINATED`, a queued pod `queued_pod_active` keeps; a failed lookup counts as
+     a straggler for that run, logged, and the request goes on). `reconcile_cloud` (for every straggler it lists), `terminate_pod` and
      `cancel_queued_pod` mark a final, collected run uncollected (`records.reopen_collection`),
      so the first refresh after the straggler is gone collects what it wrote, once and whole.
      Refresh never calls reconcile, so nothing loops.
