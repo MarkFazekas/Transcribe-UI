@@ -192,7 +192,10 @@ Sources: https://docs.runpod.io/api-reference-v2/templates/create-a-template.md 
 7. What `DELETE /v2/pods/{id}` answers for an id Runpod does not know (yet): 404 as the spec
    says, or 204 (idempotent). The desktop does not count a 204 as a sighting of a pod known only
    from its queued pod (architecture §3.7 "Cancel"); M7 checks it, together with how long a
-   deployed pod takes to show in `GET /v2/pods` and `GET /v2/pods/{id}` (`DEPLOY_SETTLE_S`).
+   deployed pod takes to show in `GET /v2/pods` and `GET /v2/pods/{id}` (`DEPLOY_SETTLE_S`; list
+   lag after a deploy), and whether `GET /v2/queued-pods/{id}` answers 404 after a cancel
+   (cancelled queued pods forgotten) instead of `CANCELLED`: the desktop then counts a cancel as
+   done only once a pod deployed just before it would be listed.
 
 ## Sources
 https://docs.runpod.io/release-notes ; https://api.runpod.io/v2/openapi.json ; https://docs.runpod.io/api-reference-v2/migrate-from-v1.md ; https://docs.runpod.io/api-reference/overview ; https://docs.runpod.io/pods/manage-pods ; https://docs.runpod.io/pods/references/environment-variables ; https://docs.runpod.io/pods/pricing ; https://docs.runpod.io/pods/storage/types ; https://docs.runpod.io/storage/globalvolume/overview.md ; https://docs.runpod.io/storage/globalvolume/globalvolume-pods.md ; https://docs.runpod.io/pods/templates/secrets ; https://docs.runpod.io/pods/configuration/use-ssh ; https://docs.runpod.io/references/gpu-types.md ; https://docs.runpod.io/runpodctl/reference/runpodctl-pod.md ; https://runpod.io/blog/deploy-when-available-is-now-ga ; https://www.runpod.io/pricing ; https://hub.docker.com/v2/repositories/runpod/pytorch/tags ; https://github.com/SYSTRAN/faster-whisper

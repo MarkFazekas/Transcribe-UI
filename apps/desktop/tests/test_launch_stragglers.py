@@ -19,7 +19,7 @@ from support.launch import (
 )
 from support.runs import RUN_ID, RunsWorld, app_pod_name, seed_uploaded
 from transcribe_ui.runpod.constants import QUEUED_POD_CANCELLED
-from transcribe_ui.runs.constants import DEPLOY_SETTLE_S, ERROR_NOT_APP_POD, ERROR_POD_NOT_FOUND, ERROR_STOP_UNVERIFIED
+from transcribe_ui.runs.constants import ERROR_NOT_APP_POD, ERROR_POD_NOT_FOUND
 from transcribe_ui.runs.responses import (
     CancelQueuedPodResponse,
     ListRunsResponse,
@@ -63,11 +63,8 @@ def test_cancel_the_queued_pod_of_a_local_run(runs_world: RunsWorld, *, deploy: 
     run = launch_run(runs_world)
     queued_id = str(run.queued_pod_id)
     if deploy:
+        # It deploys at the next request; a read of its pod is a sighting, so the stop shows at once.
         runs_world.cloud.api.queued_pods.schedule_deploy(queued_id, runs_world.now())
-        # Its pod, never seen, counts as gone only once the deploy has settled: re-send then.
-        first = send(runs_world, CANCEL_QUEUED, queued_pod_id=queued_id, confirm=True)
-        assert error_code(first) == ERROR_STOP_UNVERIFIED
-        runs_world.cloud.clock.advance(timedelta(seconds=DEPLOY_SETTLE_S))
     stopped = _cancel(runs_world, queued_id)
     expected_outcome = "pod_terminated" if deploy else "cancelled"
     assert (stopped.outcome, stopped.run_id, stopped.local_status) == (expected_outcome, run.run_id, "cancelled")

@@ -29,7 +29,7 @@ def stop_run(state: LocalState, pods: PodsApi, run_id: str, clock: Clock) -> str
         DomainError: A Runpod call failed.
     """
     payload = read_payload(state, run_id)
-    seen = partial(_mark_seen, state, run_id, clock)
+    seen = partial(mark_seen, state, run_id, clock)
     pod = payload.known_pod()
     if pod is not None:
         terminate_verified(pods, pod, clock, seen)
@@ -38,7 +38,8 @@ def stop_run(state: LocalState, pods: PodsApi, run_id: str, clock: Clock) -> str
         raise LaunchUnresolvedError(run_id)  # not final, yet neither id is known
     follow = partial(_follow_pod, state, run_id, clock)
     # A pod the queued pod deployed carries the run's pod name: found by it if the queued pod is gone.
-    target = QueuedTarget(payload.queued_pod_id, name=read_run(state, run_id).pod_name)
+    name = read_run(state, run_id).pod_name
+    target = QueuedTarget(payload.queued_pod_id, name=name, expires_at=payload.queue_expires_at)
     return cancel_queued_verified(pods, target, clock, follow, seen).pod_id
 
 
@@ -48,6 +49,10 @@ def _follow_pod(state: LocalState, run_id: str, clock: Clock, pod: KnownPod) -> 
     update_run(state, run_id, clock.now(), "running", changes)
 
 
-def _mark_seen(state: LocalState, run_id: str, clock: Clock, _pod_id: str) -> None:
-    """Record that a pod read showed the run's pod: from now on a 404 for it means gone."""
-    update_run(state, run_id, clock.now(), changes={"pod_seen": True})
+def mark_seen(state: LocalState, run_id: str, clock: Clock, pod_id: str) -> None:
+    """Record that a pod read showed the run's pod: from now on a 404 for it means gone.
+
+    Only for the pod the run recorded (another pod carrying its name is not the run's).
+    """
+    if read_payload(state, run_id).pod_id == pod_id:
+        update_run(state, run_id, clock.now(), changes={"pod_seen": True})

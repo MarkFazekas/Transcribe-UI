@@ -125,6 +125,8 @@ def test_queued_pod_found_ended_after_a_lost_answer(ready: RunsWorld) -> None:
     ready.cloud.settings.on_request = partial(_cancel_queued_at_lookup, ready.cloud.api.queued_pods.records)
     launched = launch(ready)
     assert (launched.outcome, launched.adopted, launched.run.status) == ("ended", True, "cancelled")
+    payload = run_row(ready, launched.run.run_id)[1]
+    assert (payload.end_reason, payload.ended_at) == ("queue_ended", ready.now())
 
 
 def test_busy_pending_withdrawal_refuses_the_launch(ready: RunsWorld) -> None:

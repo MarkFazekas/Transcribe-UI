@@ -1157,15 +1157,22 @@ database):
   during the cancel, so the run records that pod (not seen) and becomes `running` (followed
   from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED`, `FAILED` or a
   404 verify the cancel. A queued pod that is gone (404) after the cancel may have deployed
-  just before it: the pod an earlier read of it named (`cancel_queued_pod`), else a live pod
-  listed under its name (the run's pod name), is recorded, terminated and verified the same
-  way (`stopping.QueuedTarget`), so no run becomes final while its pod may still bill. Only then
-  the run ends (`runs/stopped.py`): `cancelled` with `ended_at` and the end reason `cancelled`,
-  unless its worker had reported `finished` or `failed` before the stop (the report read best
-  effort from R2), which ends it as the worker reported (answered again for a run already
-  `cancelled`); a stop that does not show gives `stop_unverified` and a failed read
-  `cloud_unreachable`, and the run stays as it was. Other final runs give `run_not_active`,
-  unknown ids `run_not_found`.
+  just before it: the pod an earlier read of it named (`cancel_queued_pod`), else every live
+  pod listed under its name (the run's pod name), is terminated and verified the same way
+  (`stopping.QueuedTarget`; the first one is recorded on the run). With none of these the 404
+  counts as cancelled only when an earlier read showed the queued pod ended without a pod, or
+  `DEPLOY_SETTLE_S` after the queue's `expiresAt` (a pod deployed just before would be listed by
+  then, as `following` settles a vanished queued pod); before that it gives `stop_unverified`.
+  A pod the queued pod deployed is read before it is terminated: a read that shows it is a
+  sighting (recorded as seen on the run), and one that reads `TERMINATED` (or a 404 that
+  already counts as gone) means it had ended, so nothing live was stopped. So no run becomes
+  final while its pod may still bill. The worker's report is read best effort from R2 before
+  the stop (a cancel during that read leaves nothing stopped); once the stop is verified the
+  run ends (`runs/stopped.py`): `cancelled` with `ended_at` and the end reason `cancelled`,
+  unless the report said `finished` or `failed`, which ends it as the worker reported
+  (answered again for a run already `cancelled`); a stop that does not show gives
+  `stop_unverified` and a failed read `cloud_unreachable`, and the run stays as it was. Other
+  final runs give `run_not_active`, unknown ids `run_not_found`.
 - **Reconcile and stragglers** (`runs/reconcile.py`, `stragglers.py`; runs lock):
   `reconcile_cloud` reads both lists once, resolves every `launching` run, and returns every
   run that was not final (as it is now) and the live `transcribe-ui-*` entries: pods in any
@@ -1182,14 +1189,17 @@ database):
   and `cancel_queued_pod` (`queued_pod_id`) read the object first (404 → `pod_not_found`; a name that is not the app's
   → `not_an_app_pod`, left alone), answer `needs_confirmation` (field `confirm`, details: kind,
   id, name, status, run id) until confirmed, then stop it verified as `cancel_worker` does (the
-  pod of `terminate_pod` was read, so it is seen; a pod a queued pod deployed is recorded on
-  the local run that recorded that queued pod before it is terminated). A local run of that id
-  that is not final ends as `cancel_worker` ends it only when what was stopped (verified)
+  pod of `terminate_pod` was read, so it is seen; `runs/straggler_stops.py`). A pod a queued
+  pod deployed is recorded on the open local run that recorded that queued pod and no pod yet,
+  before it is terminated: by `cancel_queued_pod`, and by `terminate_pod` when the run's queued
+  pod names the pod being stopped; a pod read that shows the run's pod marks it seen there, so
+  a retry after an unverified stop does not wait for the deploy to settle. A local run of that
+  id that is not final ends as `cancel_worker` ends it only when what was stopped (verified)
   includes the pod it recorded, or, without a recorded pod, its queued pod, or it recorded
   neither: a stray pod carrying the run's name, or a stop that missed the run's pod, leaves
-  the run followed. A pod or queued pod that had already ended (a `TERMINATED` pod, a queued pod
-  ended without a pod) stopped nothing: its run is left to `refresh_status`, which reads the
-  worker's report. Ids follow the reaper's rule `[A-Za-z0-9_-]{1,64}`.
+  the run followed. A stop that found nothing live (a `TERMINATED` pod, a queued pod ended
+  without a pod, a deployed pod that had ended) leaves the run to `refresh_status`, which reads
+  the worker's report. Ids follow the reaper's rule `[A-Za-z0-9_-]{1,64}`.
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
   `worker.py`, `results.py`, `result_reads.py`, `collect.py`, `progress.py`; request
   `refresh_status`, no fields; runs lock for the whole request, no transaction across a Runpod

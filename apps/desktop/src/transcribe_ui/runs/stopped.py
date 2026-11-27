@@ -1,8 +1,9 @@
 """How a run the user stopped ends (`cancel_worker`, `terminate_pod`, `cancel_queued_pod`).
 
 Once the stop is verified the run is final. It is `cancelled`, unless its worker had already
-reported `finished` or `failed` (its report read best effort from R2): then it ends as the worker
-reported, so a run whose work was done is not recorded as cancelled.
+reported `finished` or `failed` (its report read best effort from R2 before the stop, so a cancel
+during that read leaves nothing stopped): then it ends as the worker reported, so a run whose
+work was done is not recorded as cancelled.
 """
 
 import logging
@@ -12,18 +13,9 @@ from typing import TYPE_CHECKING
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runs.cloud import LazyStore
-from transcribe_ui.runs.constants import FINAL_RUN_STATUSES, WORKER_FAILED, WORKER_FINISHED
+from transcribe_ui.runs.constants import WORKER_FAILED, WORKER_FINISHED
 from transcribe_ui.runs.ending import end_changes
-from transcribe_ui.runs.records import (
-    PayloadChanges,
-    cancel_local_run,
-    read_payload,
-    read_run,
-    reopen_collection,
-    run_statuses,
-    update_run,
-)
-from transcribe_ui.runs.stopping import KnownPod
+from transcribe_ui.runs.records import PayloadChanges, cancel_local_run, read_run, reopen_collection, run_statuses
 from transcribe_ui.runs.worker import WorkerReport, read_worker, stored_report
 from transcribe_ui.state.models import RunStatus
 from transcribe_ui.state.store import LocalState
@@ -74,15 +66,18 @@ def last_report(context: RequestContext, run_id: str) -> WorkerReport | None:
 def end_stopped_run(
     context: RequestContext,
     run_id: str | None,
-    changes: PayloadChanges,
+    stop: tuple[PayloadChanges, frozenset[str]],
+    worker: WorkerReport | None,
     *,
     stopped_now: bool,
 ) -> RunStatus | None:
     """End the local run the stopped pod belonged to, or mark its objects for collection again; return its status.
 
-    A pod or queued pod that had ended before this request stopped nothing: its run is left to
-    `refresh_status`, which reads the worker's report (a finished run is not recorded as
-    cancelled). Otherwise the run ends as `cancel_worker` ends it (`stopped_end`).
+    `stop` is the payload fields of the stop and the ids it stopped (verified); `worker` is the
+    run's report as read before the stop (`last_report`). A pod or queued pod that had ended
+    before this request stopped nothing: its run is left to `refresh_status`, which reads the
+    worker's report (a finished run is not recorded as cancelled). Otherwise the run ends as
+    `cancel_worker` ends it (`stopped_end`).
     """
     ports = context.ports
     state = ports.state
@@ -92,24 +87,5 @@ def end_stopped_run(
     if not stopped_now:
         known = run_id in run_statuses(state)
         return read_run(state, run_id).status if known else None
-    worker = last_report(context, run_id)
     now = ports.clock.now()
-    return cancel_local_run(state, run_id, now, changes, stopped_end(state, worker, now))
-
-
-def follow_deployed(context: RequestContext, run_id: str | None, queued_pod_id: str, pod: KnownPod) -> None:
-    """Record the pod a stopped queued pod deployed on its local run, before that pod is terminated.
-
-    Only for an open run that recorded this queued pod and no pod yet: should the terminate not
-    be verified, the run then follows the pod (`running`) instead of losing it.
-    """
-    if run_id is None:
-        return
-    state = context.ports.state
-    if run_statuses(state).get(run_id) in FINAL_RUN_STATUSES:
-        return
-    payload = read_payload(state, run_id)
-    if payload.queued_pod_id != queued_pod_id or payload.pod_id is not None:
-        return
-    changes = {"pod_id": pod.pod_id, "pod_seen": pod.seen, "pod_deployed_at": pod.deployed_at}
-    update_run(state, run_id, context.ports.clock.now(), "running", changes)
+    return cancel_local_run(state, run_id, now, stop, stopped_end(state, worker, now))

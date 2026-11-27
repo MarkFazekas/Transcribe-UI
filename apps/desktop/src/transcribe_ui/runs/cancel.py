@@ -2,10 +2,11 @@
 
 A queued pod is cancelled, then read again: if it deployed meanwhile, its pod is terminated and
 the termination verified (a queued pod gone after the cancel has its pod looked up by the run's
-name). The run ends only once that is verified (`runs/stopped.py`: `cancelled`, or as its worker
-reported if it had finished or failed); until then it stays as it was (a pod learned on the way
-is recorded and the run follows it as `running`), so `refresh_status` keeps following it. Under
-the runs lock.
+name, and counts as cancelled only once a pod it deployed just before would be listed). The run
+ends only once that is verified (`runs/stopped.py`: `cancelled`, or as its worker reported if it
+had finished or failed, the report read before the stop); until then it stays as it was (a pod
+learned on the way is recorded and the run follows it as `running`), so `refresh_status` keeps
+following it. Under the runs lock.
 """
 
 from datetime import datetime
@@ -27,8 +28,8 @@ from transcribe_ui.state.store import LocalState
 def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> CancelWorkerResponse:
     """Stop the run's queued pod or pod and end the run once that is verified.
 
-    The run becomes `cancelled`, unless its worker had reported `finished` or `failed` before
-    the stop (read best effort from R2): then it ends as the worker reported.
+    The run becomes `cancelled`, unless its worker had reported `finished` or `failed` (its report
+    read best effort from R2 before the stop): then it ends as the worker reported.
 
     Raises:
         RunNotFoundError: The database does not know the run.
@@ -47,8 +48,9 @@ def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> Canc
             return CancelWorkerResponse(run=run)
         if run.status in FINAL_RUN_STATUSES:
             raise RunNotActiveError(run.run_id, run.status)
-        terminated = stop_run(state, client.pods, run.run_id, ports.clock)
+        # Read before the stop, so a cancel during the read leaves the run as it was.
         worker = last_report(context, run.run_id)
+        terminated = stop_run(state, client.pods, run.run_id, ports.clock)
         now = ports.clock.now()
         status, ended = stopped_end(state, worker, now)
         stopped = update_run(state, run.run_id, now, status, ended)
