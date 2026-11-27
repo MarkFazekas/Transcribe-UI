@@ -1391,7 +1391,7 @@ directories, the settings store, the locks and the lazily opened database.
 
 Requirements "Runpod control" (Q28): installations on several computers share one bucket, and
 not all of them hold the Runpod key. Planned in `plans/m6.md` (M6.13 and the GUI parts named
-there); the open parts are A21, A22 and Q35, and an answer that differs changes the part that
+there); the open parts are A21 and A22, and an answer that differs changes the part that
 implements it.
 
 - **Roles.** Every installation needs the four R2 credentials; the Runpod key is optional.
@@ -1472,9 +1472,16 @@ implements it.
   asks a second time while this database has a job without a placement outcome; an unknown
   batch's `everything` asks once, with no download check). Nothing deletes results on its own,
   so both installations can download in any order and as often as they like. The remaining
-  risk is a manual "everything" on one computer before the other one downloaded; Q35 proposes
-  that the confirmation says other computers sharing the cloud storage may still need these
-  subtitles.
+  risk is a manual "everything" on one computer before the other one downloaded (Q35):
+  - Installation id: each installation generates a random id (a ULID from the injected id
+    source, not hardware-based) at its first start and keeps it in the data dir (file
+    `installation_id`, written atomically); it never changes for that data dir.
+  - Every upload writes it into the manifest as the optional field `uploaded_by` (contracts
+    minor version 1.1; the worker ignores it, and older readers ignore unknown fields).
+  - The "delete everything" confirmation (its own confirmation code) is the plain one when the
+    manifest's `uploaded_by` equals this installation's id. Otherwise (another computer, or a
+    manifest without the field) it adds: "Another computer uploaded this job; it may still need
+    to download the subtitles." It is a warning, never a refusal.
 - **Batch ids.** Ids are unique only per database; an upload already checks that nothing exists
   under its id in R2 before its first object (§3.3 upload), so two computers creating a batch in
   the same second do not mix.
@@ -1506,7 +1513,8 @@ Manifest: `schema_version`, `batch_id`, `created_at`, `scan_root` (+ `path_flavo
 `windows|posix`), `items[]`. Item: `item_id` (ULID), `original_path` (absolute), `source_size`,
 `source_mtime_ns`, `media_kind`, `audio[]` (`object_key`, `track_index` (null for an audio
 file), `extension`, `codec`, `duration_s`, `size_bytes`), `jobs[]` (`language`, `mode`,
-`audio_object_key`).
+`audio_object_key`). Planned for 1.1 (M6.13, Q35): the optional `uploaded_by`, the uploading
+installation's id (§3.9).
 
 Implementation: `packages/contracts` (`classes.py` models, `layout.py` key builders/parsers,
 `reading.py`). Readers always go through `reading.read_*(key, body)`: it refuses another major

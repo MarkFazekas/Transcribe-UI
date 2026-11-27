@@ -204,6 +204,10 @@ Naming and conflicts:
   (job id, number of files, audio length) and includes them in the audio length and cost
   estimate. The user can delete such a job from the cloud from that list, with one
   confirmation, before starting *(proposed default, not objected to)*.
+- Deleting a job's subtitles from the cloud when several computers download them *(Q35,
+  architect)*: a machine ID. If the computer that uploaded the job deletes it from the cloud, a
+  plain "Are you sure?" confirmation. If another computer deletes it, a stronger warning (not a
+  refusal).
   - Architect, with the answer: "List them, and include them in the time and cost. Mainly
     because there can be a setup where an employee has access only to R2 but not to Runpod. So
     an instance on one machine uploads the things, and another person starts it from another
