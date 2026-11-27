@@ -1222,9 +1222,30 @@ database):
   read, the worker report (state, current job, done/total, error), `first_running_at`, the
   desktop `deadline`, `elapsed_s` and `cost_so_far_usd` (from the pod's creation until the
   end or now, at its price; a display estimate), `ended_at`, `end_reason`, `stop_error`, the
-  kept `worker_log` path), the checked `ready` batches with their job counts and phase, the
+  kept `worker_log` path, and three progress fields below), the checked `ready` batches with their job counts and phase, the
   `busy` ones, and the manifests `published` or still `held`. `cancel_worker` records
   `ended_at` too.
+
+  Progress fields (`RunProgress`, backend logic, so every frontend shows the same values;
+  `runs/progress.py`, the factors in `runs/constants.py`):
+  - `progress_fraction` (0 to 1): the weighted audio duration of the run's finished jobs over
+    that of all its jobs, `careful` jobs weighted as in the launch estimate; failed and
+    no-speech jobs count as done.
+  - `remaining_estimate_s`: the processing time per second of audio of the files done in this
+    run (weighted the same way), applied to the weighted audio duration of the pending jobs;
+    until the first file is done, the launch estimate's runtime factors. Null when unknown.
+  - `estimated_finish_at`: the refresh time plus `remaining_estimate_s` (UTC), null when the
+    estimate is. All three come from the stored refresh data only and never extrapolate against
+    now, so `list_runs` (which reads the stored values) agrees with `refresh_status`. The clock
+    is the injected one, so the parity goldens are stable.
+  - The GUI polls `refresh_status` every 300 s while a run is not final (the user can refresh
+    by hand) and counts down to `estimated_finish_at` every second in between; a countdown
+    that reaches 0 before the run is final shows "finishing" and never goes negative; each
+    refresh replaces the target. The GUI computes no estimate; the CLI JSON has the same
+    fields. The deadline stop still works with the 5-minute poll: it happens at the first
+    refresh after the deadline, so at most 300 s late, within the 10 min
+    `DESKTOP_DEADLINE_MARGIN_S` already added, and the reaper (`reaper.yml`) remains the
+    backstop when the app is closed.
 
 ### 3.8 Local state, settings and concurrency
 

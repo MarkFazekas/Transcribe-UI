@@ -146,6 +146,9 @@ Naming and conflicts:
   finished uploading. The app then shows the state: waiting for a free cloud machine,
   starting, transcribing (which job and file, elapsed time, cost so far), finished, or failed.
   While waiting for a machine, the user can cancel *(accepted proposal)*.
+- Run monitoring (architect): the status should be refreshed from R2 every 5 minutes, and the
+  remaining time should be estimated from the files' completion. The estimated time should be a
+  countdown, and maybe there should be a progress bar too.
 - The app asks at every start how long to wait for a free machine; default 1 hour, at any time
   of day.
 - Maximum wait for a machine (A19, architect decision): the wait is 5 min to 24 h, with a 1 h
