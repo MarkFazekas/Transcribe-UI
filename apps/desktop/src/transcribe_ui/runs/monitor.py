@@ -65,7 +65,13 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
 
 
 def _collect(context: RequestContext, cloud: CloudAccess, listed: Listed | None) -> None:
-    """Collect the objects of the final runs no live straggler carries the name of."""
+    """Collect the objects of the final runs no live straggler carries the name of (nothing without lists).
+
+    Without lists no final run waits for collection, or they could not be read (logged): either
+    way nothing is collected this time.
+    """
+    if listed is None:
+        return
     now = context.ports.clock.now()
     straggling = straggler_check(listed, cloud.pods, now)
     collect_run_objects(context.ports.state, cloud.store, now, straggling)
