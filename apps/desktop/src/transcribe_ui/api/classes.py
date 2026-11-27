@@ -13,12 +13,13 @@ from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveI
 from transcribe_contracts.constants import WHISPER_LANGUAGES
 from transcribe_ui.api.base import FrozenModel, LocalPath
 from transcribe_ui.discovery.classes import (
+    FileExtension,
     PreviewSelectionRequest,
     PreviewSelectionResponse,
     ScanTreeRequest,
     ScanTreeResponse,
 )
-from transcribe_ui.state.constants import MEDIA_EXTENSION_PATTERN
+from transcribe_ui.discovery.constants import SIDECAR_EXTENSIONS
 
 
 def _check_whisper_language(code: str) -> str:
@@ -37,10 +38,8 @@ def _check_unique[ItemT](entries: tuple[ItemT, ...]) -> tuple[ItemT, ...]:
 
 # A language code of the Whisper language set (machine-independent, so every frontend agrees).
 type WhisperLanguage = Annotated[str, AfterValidator(_check_whisper_language)]
-# A media file extension without the dot, lower case ("mkv").
-type MediaExtension = Annotated[str, StringConstraints(pattern=MEDIA_EXTENSION_PATTERN)]
-# Distinct media file extensions.
-type MediaExtensions = Annotated[tuple[MediaExtension, ...], AfterValidator(_check_unique)]
+# Distinct media file extensions (the scan's extension rule, §3.2).
+type MediaExtensions = Annotated[tuple[FileExtension, ...], AfterValidator(_check_unique)]
 # A non-empty path on this computer.
 type SetPath = Annotated[LocalPath, StringConstraints(min_length=1)]
 # Placement strategies a download can be pre-filled with (§3.5; custom plans are per download).
@@ -89,9 +88,17 @@ class Settings(FrozenModel):
     placement: PlacementDefaults
 
     @model_validator(mode="after")
-    def _extension_classes_are_disjoint(self) -> "Settings":
-        if set(self.video_extensions) & set(self.audio_extensions):
-            msg = "an extension cannot be both a video and an audio extension"
+    def _check_extensions(self) -> "Settings":
+        # The same rules as the scan's (`ScanSpec`), so saved settings always make a valid scan.
+        video = set(self.video_extensions)
+        audio = set(self.audio_extensions)
+        both = sorted(video & audio)
+        if both:
+            msg = f"extensions listed as both video and audio: {both}"
+            raise ValueError(msg)
+        sidecars = sorted((video | audio) & set(SIDECAR_EXTENSIONS))
+        if sidecars:
+            msg = f"subtitle extensions cannot be media extensions: {sidecars}"
             raise ValueError(msg)
         return self
 

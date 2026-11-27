@@ -114,41 +114,6 @@ ERROR_SETTINGS_INVALID: Final = "settings_invalid"
 # Error code: the settings file cannot be written; the previous file is unchanged.
 ERROR_SETTINGS_UNWRITABLE: Final = "settings_unwritable"
 
-# Shape of a media file extension in the settings: without the dot, lower case.
-MEDIA_EXTENSION_PATTERN: Final = r"^[a-z0-9]{1,10}$"
-# Video extensions offered by a fresh installation.
-DEFAULT_VIDEO_EXTENSIONS: Final = (
-    "3gp",
-    "avi",
-    "flv",
-    "m2ts",
-    "m4v",
-    "mkv",
-    "mov",
-    "mp4",
-    "mpeg",
-    "mpg",
-    "mts",
-    "ogv",
-    "ts",
-    "vob",
-    "webm",
-    "wmv",
-)
-# Audio extensions offered by a fresh installation.
-DEFAULT_AUDIO_EXTENSIONS: Final = (
-    "aac",
-    "ac3",
-    "aiff",
-    "flac",
-    "m4a",
-    "mka",
-    "mp3",
-    "ogg",
-    "opus",
-    "wav",
-    "wma",
-)
 # Placement strategy offered by a fresh installation (§3.5).
 DEFAULT_PLACEMENT_STRATEGY: Final = "next_to_media"
 # Folders closest to the file joined into the name by the flat-with-folders placement (X, §3.5).

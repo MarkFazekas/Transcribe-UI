@@ -475,9 +475,9 @@ directories, the settings store, the locks and the lazily opened database.
   loaded is expired after the change, so it reads the new phase.
 - **Settings** (`get_settings`, `update_settings`; no database): enabled languages (default
   `DEFAULT_LANGUAGES`, at least one, validated against `WHISPER_LANGUAGES`, no duplicates),
-  video and audio extensions (lower case, no dot, disjoint), include hidden entries, the
-  ffmpeg/ffprobe path override, and placement defaults (strategy, output folder, folder count,
-  overwrite). `update_settings` replaces the whole document: every field is required, so a
+  video and audio extensions (defaults and rules shared with the scan, §3.2), include hidden
+  entries, the ffmpeg/ffprobe path override, and placement defaults (strategy, output folder,
+  folder count, overwrite). `update_settings` replaces the whole document: every field is required, so a
   partial document is refused with `invalid_request` instead of resetting the missing fields.
   Both responses list every Whisper language with its switch and whether WhisperX has an
   alignment model for it. The file is written atomically (temp file in the same folder, fsync,

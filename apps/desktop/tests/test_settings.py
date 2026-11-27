@@ -74,6 +74,7 @@ def test_settings_round_trip_matches_on_both_legs(tmp_path: Path) -> None:
         ("no_language", _defaults_with(enabled_languages=[])),
         ("bad_extension", _defaults_with(video_extensions=[".MKV"])),
         ("extension_in_both_classes", _defaults_with(video_extensions=["mka"], audio_extensions=["mka"])),
+        ("subtitle_extension", _defaults_with(video_extensions=["mkv", "srt"])),
         ("empty_path", _defaults_with(ffmpeg_path="")),
         ("unknown_field", _defaults_with(theme="dark")),
         # A partial document is refused, never completed with defaults (that would reset fields).

@@ -24,11 +24,10 @@ from pydantic import JsonValue, ValidationError
 
 from transcribe_contracts.constants import DEFAULT_LANGUAGES
 from transcribe_ui.api.classes import PlacementDefaults, Settings
+from transcribe_ui.discovery.constants import DEFAULT_AUDIO_EXTENSIONS, DEFAULT_VIDEO_EXTENSIONS
 from transcribe_ui.state.constants import (
-    DEFAULT_AUDIO_EXTENSIONS,
     DEFAULT_PLACEMENT_FOLDER_COUNT,
     DEFAULT_PLACEMENT_STRATEGY,
-    DEFAULT_VIDEO_EXTENSIONS,
     SETTINGS_REPLACE_DELAYS_S,
     SETTINGS_STALE_TEMP_S,
     SETTINGS_TEMP_PREFIX,

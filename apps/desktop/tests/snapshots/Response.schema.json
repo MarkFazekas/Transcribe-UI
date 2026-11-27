@@ -89,6 +89,10 @@
       "title": "ErrorResponse",
       "type": "object"
     },
+    "FileExtension": {
+      "pattern": "^[a-z0-9]{1,16}$",
+      "type": "string"
+    },
     "FolderSelection": {
       "additionalProperties": false,
       "description": "Check state of a folder with at least one selected media file below it.",
@@ -218,13 +222,9 @@
     "LocalPath": {
       "type": "string"
     },
-    "MediaExtension": {
-      "pattern": "^[a-z0-9]{1,10}$",
-      "type": "string"
-    },
     "MediaExtensions": {
       "items": {
-        "$ref": "#/$defs/MediaExtension"
+        "$ref": "#/$defs/FileExtension"
       },
       "type": "array"
     },

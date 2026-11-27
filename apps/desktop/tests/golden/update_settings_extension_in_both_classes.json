@@ -13,7 +13,7 @@
               "update_settings",
               "settings"
             ],
-            "message": "Value error, an extension cannot be both a video and an audio extension",
+            "message": "Value error, extensions listed as both video and audio: ['mka']",
             "type": "value_error"
           }
         ]

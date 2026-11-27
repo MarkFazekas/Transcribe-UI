@@ -43,13 +43,9 @@
     "LocalPath": {
       "type": "string"
     },
-    "MediaExtension": {
-      "pattern": "^[a-z0-9]{1,10}$",
-      "type": "string"
-    },
     "MediaExtensions": {
       "items": {
-        "$ref": "#/$defs/MediaExtension"
+        "$ref": "#/$defs/FileExtension"
       },
       "type": "array"
     },
