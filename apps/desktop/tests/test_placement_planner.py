@@ -191,7 +191,7 @@ def test_existing_targets_are_skipped_unless_overwrite() -> None:
 
 
 def test_missing_original_folder_is_skipped() -> None:
-    """Q23: a file whose folder is gone is skipped with its reason; the others are placed."""
+    """A file whose folder is gone is skipped with its reason (requirements "Subtitle download options")."""
     probe = FakeProbe(folders=frozenset((f"{POSIX_ROOT}/A",)))
     plan = plan_of(below(POSIX_ROOT, "A/a.mkv,B/b.mkv"), Planning(probe=probe))
     assert outcomes(plan) == ["place", "skip_folder_missing"]
