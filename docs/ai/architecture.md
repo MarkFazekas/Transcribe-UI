@@ -75,7 +75,13 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Frontends only build requests and render responses/progress events:
   - **CLI** (argparse): `transcribe-ui run request.json` validates the file into `Request`,
     prints the `Response` as indented JSON; progress events go to stderr as NDJSON; both UTF-8
-    with `\n` line ends on every OS. Ctrl+C sets the cancel token, a second Ctrl+C stops at
+    with `\n` line ends on every OS. Nothing else reaches stderr (log records and warnings are
+    dropped until the M5.2 log file), and stdout gets a JSON response whatever fails: an
+    unexpected exception outside the backend gives `internal_error` (exit 1), a Ctrl+C before a
+    request was read gives `cancelled` (exit 130). The one exception is `--help`/`-h`: argparse's
+    usage text, exit 0. The request file must be UTF-8; a UTF-8 byte order mark is stripped,
+    and a UTF-16 file (PowerShell 5.1 `>` / `Out-File`) is refused with `invalid_request`
+    ("must be UTF-8"). Ctrl+C sets the cancel token, a second Ctrl+C stops at
     once (every step is idempotent, so the state is consistent either way). Exit codes: 0
     success, 1 error response, 2 request file (or command line) invalid, 3
     `needs_confirmation`, 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
