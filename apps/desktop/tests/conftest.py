@@ -1,18 +1,38 @@
 """Shared fixtures of the desktop tests."""
 
+import logging
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from support.credentials import TEST_ENDPOINT
+from support.credentials import NEVER_SHOWN, TEST_BUCKET, TEST_ENDPOINT, moto_bucket
 from support.discovery import large_tree_names, media_dir
+from support.storage import PART_BYTES, store_client
 from support.trees import build_tree
+from transcribe_ui.storage.r2 import R2ObjectStore
 
 
 def pytest_configure() -> None:
     """Let moto serve the test R2 endpoint (read once, when moto first loads its S3 routes)."""
     os.environ["MOTO_S3_CUSTOM_ENDPOINTS"] = TEST_ENDPOINT
+
+
+@pytest.fixture
+def no_credential_logs(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Capture every log record (DEBUG included) and assert that no credential appears in one."""
+    caplog.set_level(logging.DEBUG)
+    yield
+    for secret in NEVER_SHOWN:
+        assert secret not in caplog.text
+
+
+@pytest.fixture
+def r2_store() -> Iterator[R2ObjectStore]:
+    """Return the object store on an empty moto bucket, with 5 MiB parts."""
+    with moto_bucket():
+        yield R2ObjectStore(store_client(), TEST_BUCKET, part_bytes=PART_BYTES)
 
 
 @pytest.fixture(scope="session")

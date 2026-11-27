@@ -176,6 +176,7 @@ prog
 pyannote
 pydantic
 pysqlite
+pytestmark
 q10
 q27
 qs

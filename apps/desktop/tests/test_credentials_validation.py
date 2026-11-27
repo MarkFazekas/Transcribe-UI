@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from transcribe_ui.api.classes import ErrorResponse
 from transcribe_ui.api.schema import parse_request, request_adapter
 from transcribe_ui.credentials.classes import R2Credentials, StoreCredentialsRequest
+from transcribe_ui.credentials.constants import VALUE_MASKED
 
 # Part of every invalid value; must never show up in an error.
 SENTINEL = "SENTINELvalue42"
@@ -84,6 +85,14 @@ def test_r2_credentials_errors_hide_the_input(field: str) -> None:
     with pytest.raises(ValidationError) as caught:
         R2Credentials.model_validate(fields)
     assert SENTINEL not in str(caught.value)
+
+
+@pytest.mark.parametrize("field", ["r2_access_key_id", "r2_secret_access_key", "runpod_api_key"])
+def test_masked_value_is_refused(field: str) -> None:
+    """A `SecretStr` mask pasted back (only `*` characters) is refused, not stored."""
+    error = _validation_error(_document(field, "**********"))
+    assert error is not None
+    assert [problem["msg"] for problem in error.errors()] == [f"Value error, {VALUE_MASKED}"]
 
 
 def test_valid_request_hides_secrets_in_repr() -> None:

@@ -10,6 +10,7 @@ from keyring.errors import KeyringLocked, NoKeyringError
 from moto import mock_aws
 
 from transcribe_ui.credentials.store import CredentialStore
+from transcribe_ui.storage.client import quiet_sdk_loggers
 
 # Endpoint of the moto bucket; `.invalid` never resolves, so a missing mock cannot reach a network.
 TEST_ENDPOINT = "https://r2.example.invalid"
@@ -21,6 +22,8 @@ TEST_SECRET = "SECRETSENTINEL-r2-0123456789abcdef"  # noqa: S105 -- a fake crede
 TEST_RUNPOD_KEY = "rpa_RUNPODSENTINEL0123456789"
 # Every sentinel credential value.
 SENTINELS = (TEST_ACCESS_KEY_ID, TEST_SECRET, TEST_RUNPOD_KEY)
+# Values that must never show up in a response or a log (the endpoint and bucket included).
+NEVER_SHOWN = (*SENTINELS, TEST_ENDPOINT, TEST_BUCKET)
 
 
 @dataclass
@@ -111,6 +114,7 @@ def moto_bucket() -> Iterator[None]:
     moto learns the endpoint from `MOTO_S3_CUSTOM_ENDPOINTS`, which `conftest.py` sets before
     moto first loads its S3 routes.
     """
+    quiet_sdk_loggers()  # Before the setup client, whose debug records name the endpoint.
     with mock_aws():
         # moto refuses bucket creation in region "auto"; the app's client uses "auto".
         setup = boto3.session.Session().client(

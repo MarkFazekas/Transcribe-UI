@@ -5,15 +5,15 @@ appear in a response, a progress event or a log record, whatever the request and
 """
 
 import dataclasses
-import logging
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from support.credentials import (
+    NEVER_SHOWN,
     SENTINELS,
     TEST_BUCKET,
     TEST_ENDPOINT,
@@ -23,21 +23,27 @@ from support.credentials import (
     moto_bucket,
     store_request,
 )
+from support.fakes import seeded_ports
 from support.golden import assert_golden
 from support.parity import Exchange, run_one, run_parity
 from transcribe_ui.api.backend import Route, Routes
 from transcribe_ui.api.classes import Response
-from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.api.ports import CancelFlag, DiscardProgress, RequestContext
 from transcribe_ui.cli.constants import EXIT_ERROR, EXIT_INVALID_REQUEST, EXIT_OK
+from transcribe_ui.credentials.classes import CheckCredentialsRequest, R2Credentials
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.credentials.store import CredentialStore, SecretBackend
+from transcribe_ui.storage.client import CHECK_LIMITS, ClientLimits, r2_client
+
+if TYPE_CHECKING:
+    from types_boto3_s3.client import S3Client
 
 # Golden files are named after the action first: `.gitignore` drops `credentials*.json`.
 
 STATUS = '{"action": "credentials_status"}'
 CHECK = '{"action": "check_credentials"}'
-# Values that must never show up in a response or a log (the endpoint and bucket included).
-NEVER_SHOWN = (*SENTINELS, TEST_ENDPOINT, TEST_BUCKET)
+# Every test checks the log records for credentials.
+pytestmark = pytest.mark.usefixtures("no_credential_logs")
 # A request handler of any request type.
 type RequestHandler = Callable[[Any, RequestContext], Response]
 # Handlers of the credential requests, for routes that swap the credential store.
@@ -57,15 +63,6 @@ R2_ENVIRONMENT = MappingProxyType(
         "R2_SECRET_ACCESS_KEY": SENTINELS[1],
     },
 )
-
-
-@pytest.fixture(autouse=True)
-def all_logs(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
-    """Capture every log record (DEBUG included); no credential may appear in one."""
-    caplog.set_level(logging.DEBUG)
-    yield
-    for secret in NEVER_SHOWN:
-        assert secret not in caplog.text
 
 
 @pytest.fixture
@@ -234,3 +231,30 @@ def test_keyring_backend_is_built_once() -> None:
     store.statuses()
     store.statuses()
     assert factory.calls == 1
+
+
+@dataclasses.dataclass
+class RecordingClients:
+    """Client factory that records the limits it is asked for."""
+
+    limits: list[ClientLimits] = dataclasses.field(default_factory=list)
+
+    def __call__(self, credentials: R2Credentials, limits: ClientLimits) -> "S3Client":
+        """Record the limits and build the real client."""
+        self.limits.append(limits)
+        return r2_client(credentials, limits)
+
+
+@pytest.mark.usefixtures("bucket")
+def test_check_uses_short_limits(tmp_path: Path) -> None:
+    """`check_credentials` builds its client with 2 attempts and short timeouts."""
+    clients = RecordingClients()
+    store = CredentialStore(NoKeyring, R2_ENVIRONMENT)
+    ports = dataclasses.replace(seeded_ports(tmp_path), credentials=store, r2_clients=clients)
+    context = RequestContext(ports, DiscardProgress(), CancelFlag())
+    response = check_credentials(CheckCredentialsRequest(action="check_credentials"), context)
+    assert [check.outcome for check in response.checks] == ["ok"]
+    assert clients.limits == [CHECK_LIMITS]
+    config: Any = r2_client(store.r2(), CHECK_LIMITS).meta.config  # botocore sets the options dynamically.
+    assert config.retries == {"total_max_attempts": 2, "mode": "standard"}
+    assert (config.connect_timeout, config.read_timeout) == (5, 10)
