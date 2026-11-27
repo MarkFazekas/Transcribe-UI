@@ -47,10 +47,22 @@ def start_upload(context: RequestContext, store: ObjectStore, batch_id: str) -> 
             prefix; nothing was changed.
         StorageError: R2 could not be read; nothing was changed.
     """
-    prefix = batch_prefix(batch_id)
-    manifest = store.head(manifest_key(batch_id))
-    if manifest is not None or store.list_objects(prefix) or store.count_uploads(prefix):
+    if id_in_use(store, batch_id):
         raise BatchIdTakenError(batch_id)
     with context.ports.state.session() as session:
         now = context.ports.clock.now()
         compare_and_set_phase(session, batch_id, REVIEWED_BATCH, UPLOADING_BATCH, now=now)
+
+
+def id_in_use(store: ObjectStore, batch_id: str) -> bool:
+    """Return whether R2 holds the batch id's manifest, an object under its prefix or an open multipart upload there.
+
+    Raises:
+        StorageError: R2 could not be read.
+    """
+    prefix = batch_prefix(batch_id)
+    if store.head(manifest_key(batch_id)) is not None:
+        return True
+    if store.list_objects(prefix):
+        return True
+    return store.count_uploads(prefix) > 0
