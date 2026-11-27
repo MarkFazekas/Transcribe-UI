@@ -32,6 +32,17 @@ UNREADABLE_STATE: Final = "unreadable"
 # Error code: a worker run is active, so the request was refused; nothing was changed.
 ERROR_RUN_ACTIVE: Final = "run_active"
 
+# Request field that confirms a launch (set to the plan's fingerprint).
+CONFIRM_FINGERPRINT_FIELD: Final = "confirm_fingerprint"
+# Request field that confirms stopping a straggler (`terminate_pod`, `cancel_queued_pod`).
+CONFIRM_STOP_FIELD: Final = "confirm"
+# Confirmation code: a worker is started on the launch plan.
+CONFIRMATION_LAUNCH: Final = "launch_plan"
+# Confirmation code: a pod is terminated.
+CONFIRMATION_TERMINATE_POD: Final = "terminate_pod"
+# Confirmation code: a queued pod is cancelled.
+CONFIRMATION_CANCEL_QUEUED_POD: Final = "cancel_queued_pod"
+
 # Launch (plan m5 §1 "Run deadline and wait", "Cost estimate", "Pod create body"). The runtime and
 # cost factors are placeholders until M7 measures a real run.
 
@@ -148,6 +159,10 @@ JOB_FAILED: Final = "failed"
 UNREADABLE_RESULT_ERROR: Final = "unreadable result"
 # Failure reason of a job that has no result JSON although its batch has `_done.json`.
 MISSING_RESULT_ERROR: Final = "missing result"
+# Code of `UNREADABLE_RESULT_ERROR`.
+UNREADABLE_RESULT_CODE: Final = "result_unreadable"
+# Code of `MISSING_RESULT_ERROR`.
+MISSING_RESULT_CODE: Final = "result_missing"
 # Kind of the jobs the worker runs.
 TRANSCRIBE_KIND: Final = "transcribe"
 # Suffix of a job's result JSON (its "done" marker).

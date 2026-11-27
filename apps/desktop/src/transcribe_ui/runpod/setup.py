@@ -151,6 +151,7 @@ def _create[CreatedT](kind: CloudObjectKind, name: str, create: Callable[[], Cre
     try:
         return create()
     except AmbiguousCreateError:
+        reason = "may_exist"
         message = (
             f"Creating the {_label(kind, name)} on Runpod failed after the request was sent, so it may exist "
             "already. Run the cloud setup again in a minute; it adopts what was created."
@@ -159,12 +160,13 @@ def _create[CreatedT](kind: CloudObjectKind, name: str, create: Callable[[], Cre
         if error.status != HTTP_CONFLICT:
             raise
         # Only secret names are unique: this one exists but is not listed yet.
+        reason = "not_listed"
         message = (
             f"Runpod reports the {_label(kind, name)} exists but does not list it yet. "
             "Run the cloud setup again in a minute."
         )
     # Raised outside the `except` blocks, so the Runpod error is not chained.
-    raise DomainError(ERROR_CLOUD_SETUP_INTERRUPTED, message, {"kind": kind, "name": name})
+    raise DomainError(ERROR_CLOUD_SETUP_INTERRUPTED, message, {"kind": kind, "name": name, "reason": reason})
 
 
 def _keep_first(

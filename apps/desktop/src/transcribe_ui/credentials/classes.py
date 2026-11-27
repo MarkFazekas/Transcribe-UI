@@ -8,7 +8,7 @@ import re
 from typing import Annotated, Literal, Self
 from urllib.parse import SplitResult, urlsplit
 
-from pydantic import AfterValidator, BeforeValidator, ConfigDict, Field, SecretStr, model_validator
+from pydantic import AfterValidator, BeforeValidator, ConfigDict, Field, JsonValue, SecretStr, model_validator
 
 from transcribe_ui.api.base import FrozenModel
 from transcribe_ui.credentials.constants import (
@@ -217,9 +217,12 @@ class ServiceCheck(FrozenModel):
 
     service: CheckedService
     outcome: CheckOutcome
-    # Error code when the outcome is not "ok" (the codes of the error responses).
-    code: str | None = None
+    # The service's "check passed" code, or the error code when the outcome is not "ok" (the
+    # codes of the error responses).
+    code: str
     message: str
+    # The error's details when the outcome is not "ok".
+    details: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class CheckCredentialsResponse(FrozenModel):

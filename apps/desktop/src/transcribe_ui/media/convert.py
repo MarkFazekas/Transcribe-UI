@@ -154,7 +154,7 @@ def _replaced(partial: Path, final: Path) -> bool:
 def _unwritable(error: OSError) -> DomainError:
     reason = error.strerror or type(error).__name__
     message = f"The converted audio cannot be written: {reason}"
-    return DomainError(ERROR_MEDIA_OUTPUT_UNWRITABLE, message, {"operation": "convert"})
+    return DomainError(ERROR_MEDIA_OUTPUT_UNWRITABLE, message, {"operation": "convert", "reason": reason})
 
 
 def _remove(path: Path) -> None:

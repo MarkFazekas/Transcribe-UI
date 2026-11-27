@@ -108,6 +108,12 @@ PROBE_STAGE: Final = "probe"
 DELETE_OBJECTS_STAGE: Final = "delete_objects"
 # Request field that confirms `delete_batch` and `exclude_items`.
 CONFIRM_FIELD: Final = "confirm"
+# Confirmation code: the batch is deleted from the local job list.
+CONFIRMATION_DELETE_BATCH: Final = "delete_batch"
+# Confirmation code: items are removed from the batch.
+CONFIRMATION_EXCLUDE_ITEMS: Final = "exclude_items"
+# Confirmation code: selected files already have a subtitle in a target language.
+CONFIRMATION_EXISTING_LANGUAGES: Final = "existing_languages"
 # Separator of the relative paths in confirmation details (the same on every OS).
 RELATIVE_SEPARATOR: Final = "/"
 

@@ -123,7 +123,10 @@ def test_unconfirmed_launch_changes_nothing(ready: RunsWorld) -> None:
     assert response.status == "needs_confirmation"
     confirmation = response.confirmations[0]
     expected = plan_of(ready).model_dump(mode="json")
-    assert (confirmation.field, confirmation.details) == ("confirm_fingerprint", {"plan": expected})
+    shown = {key: confirmation.details[key] for key in ("changed", "jobs", "batches", "unknown_batches", "plan")}
+    jobs = expected["scope"]["pending_jobs"]
+    assert (confirmation.code, confirmation.field) == ("launch_plan", "confirm_fingerprint")
+    assert shown == {"changed": False, "jobs": jobs, "batches": 1, "unknown_batches": 0, "plan": expected}
     assert (run_ids(ready), posts(ready), batch_state(ready)[1]) == ([], 0, True)
     # Confirmed as every frontend does: the field set to its `set_to`, the plan's fingerprint.
     resent = ready.leg.backend.execute_json(confirmed_document(document(LAUNCH), response))

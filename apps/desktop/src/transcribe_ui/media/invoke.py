@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from transcribe_ui.api.errors import DomainError
+from transcribe_ui.api.errors import Details, DomainError
 from transcribe_ui.api.ports import CancelToken
 from transcribe_ui.media.classes import Operation, Tool
 from transcribe_ui.media.constants import (
@@ -49,8 +49,10 @@ class ToolInvoker:
             details = {"tool": tool, "operation": operation, "timeout_s": limits.timeout_s}
             raise DomainError(ERROR_MEDIA_TOOL_TIMEOUT, message, details) from error
         except OSError as error:
-            message = f"{tool} could not be started: {error.strerror or type(error).__name__}"
-            raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, {"tool": tool, "source": "start"}) from error
+            reason = error.strerror or type(error).__name__
+            message = f"{tool} could not be started: {reason}"
+            started: Details = {"tool": tool, "source": "start", "reason": reason}
+            raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, started) from error
 
 
 def require_index(index: int, operation: Operation) -> None:

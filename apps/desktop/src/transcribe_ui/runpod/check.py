@@ -7,10 +7,10 @@ secrets in their `env`).
 
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.credentials.checks import failed_check
 from transcribe_ui.credentials.classes import ServiceCheck
-from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING
 from transcribe_ui.runpod.access import api_failure
-from transcribe_ui.runpod.constants import RUNPOD_CHECK_PASSED
+from transcribe_ui.runpod.constants import RUNPOD_CHECK_PASSED, RUNPOD_CHECK_PASSED_CODE
 from transcribe_ui.runpod.errors import RunpodApiError
 
 
@@ -20,13 +20,12 @@ def check_runpod(context: RequestContext) -> ServiceCheck:
     try:
         api_key = ports.credentials.runpod_api_key()
     except DomainError as error:
-        outcome = "missing" if error.code == ERROR_CREDENTIALS_MISSING else "failed"
-        return ServiceCheck(service="runpod", outcome=outcome, code=error.code, message=error.message)
+        return failed_check("runpod", error)
     try:
         with ports.runpod.check_client(api_key, context.cancel.is_cancelled) as client:
             client.pods.probe()
     except RunpodApiError as error:
         failure = api_failure(error)
     else:
-        return ServiceCheck(service="runpod", outcome="ok", message=RUNPOD_CHECK_PASSED)
-    return ServiceCheck(service="runpod", outcome="failed", code=failure.code, message=failure.message)
+        return ServiceCheck(service="runpod", outcome="ok", code=RUNPOD_CHECK_PASSED_CODE, message=RUNPOD_CHECK_PASSED)
+    return failed_check("runpod", failure)

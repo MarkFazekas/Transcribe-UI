@@ -6,12 +6,14 @@ carries the plan's fingerprint (the scope, the runtime limit and the test mode),
 one gives `needs_confirmation` again.
 """
 
+from typing import TYPE_CHECKING
+
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runpod.account import CatalogApi
 from transcribe_ui.runs.classes import LaunchPlan, PlanLaunchRequest
 from transcribe_ui.runs.cloud import open_cloud_client
-from transcribe_ui.runs.constants import SECONDS_PER_HOUR
+from transcribe_ui.runs.constants import CONFIRM_FINGERPRINT_FIELD, CONFIRMATION_LAUNCH, SECONDS_PER_HOUR
 from transcribe_ui.runs.estimate import launch_plan
 from transcribe_ui.runs.guards import require_no_pending_cleanup
 from transcribe_ui.runs.responses import PlanLaunchResponse
@@ -19,8 +21,8 @@ from transcribe_ui.runs.scope import read_launch_scope
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
 
-# Request field that confirms a launch.
-CONFIRM_FIELD = "confirm_fingerprint"
+if TYPE_CHECKING:
+    from pydantic import JsonValue
 
 
 def plan_launch(request: PlanLaunchRequest, context: RequestContext) -> PlanLaunchResponse:
@@ -49,7 +51,10 @@ def current_plan(state: LocalState, store: ObjectStore, catalog: CatalogApi, *, 
 
 
 def confirmation(plan: LaunchPlan, *, changed: bool) -> NeedsConfirmation:
-    """Return the confirmation of a launch on this plan (`changed`: it differs from the one confirmed)."""
+    """Return the confirmation of a launch on this plan (`changed`: it differs from the one confirmed).
+
+    Details: the values the message shows, then the whole plan.
+    """
     scope = plan.scope
     cost = plan.cost
     unknown = sum(1 for batch in scope.batches if not batch.known)
@@ -63,7 +68,21 @@ def confirmation(plan: LaunchPlan, *, changed: bool) -> NeedsConfirmation:
         parts.append(f"{unknown} of the batches were uploaded from another computer.")
     if changed:
         parts.insert(0, "The plan changed since it was confirmed (the work, the runtime limit or the test mode).")
-    details = {"plan": plan.model_dump(mode="json")}
-    message = " ".join(parts)
-    found = Confirmation(field=CONFIRM_FIELD, set_to=plan.fingerprint, message=message, details=details)
+    details: dict[str, JsonValue] = {
+        "changed": changed,
+        "jobs": scope.pending_jobs,
+        "batches": len(scope.batches),
+        "unknown_batches": unknown,
+        "audio_s": scope.pending_duration_s,
+        "cost_low_usd": cost.low_usd,
+        "cost_high_usd": cost.high_usd,
+        "plan": plan.model_dump(mode="json"),
+    }
+    found = Confirmation(
+        code=CONFIRMATION_LAUNCH,
+        field=CONFIRM_FINGERPRINT_FIELD,
+        set_to=plan.fingerprint,
+        message=" ".join(parts),
+        details=details,
+    )
     return NeedsConfirmation(action="launch_worker", confirmations=(found,))

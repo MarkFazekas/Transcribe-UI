@@ -5,7 +5,7 @@
     "action": null,
     "error": {
       "code": "invalid_request",
-      "message": "The request is not valid (6 problem(s)).",
+      "message": "The request is not valid (7 problem(s)).",
       "details": {
         "problems": [
           {
@@ -58,6 +58,15 @@
               "update_settings",
               "settings",
               "placement"
+            ],
+            "message": "Field required",
+            "type": "missing"
+          },
+          {
+            "location": [
+              "update_settings",
+              "settings",
+              "language"
             ],
             "message": "Field required",
             "type": "missing"

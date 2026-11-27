@@ -563,6 +563,14 @@
       "pattern": "^[a-z]{2,3}$",
       "type": "string"
     },
+    "LanguageSetting": {
+      "enum": [
+        "system",
+        "en",
+        "hu"
+      ],
+      "type": "string"
+    },
     "LaunchWorkerRequest": {
       "additionalProperties": false,
       "description": "Start one worker for every pending manifest; needs the fingerprint of the confirmed plan.\n\nWithout `confirm_fingerprint`, or when the scope changed since the plan it names, the\nanswer is `needs_confirmation` with the current plan, and nothing is changed.",
@@ -1375,6 +1383,9 @@
           "title": "Include Hidden",
           "type": "boolean"
         },
+        "language": {
+          "$ref": "#/$defs/LanguageSetting"
+        },
         "placement": {
           "$ref": "#/$defs/PlacementDefaults"
         },
@@ -1389,7 +1400,8 @@
         "include_hidden",
         "ffmpeg_path",
         "ffprobe_path",
-        "placement"
+        "placement",
+        "language"
       ],
       "title": "Settings",
       "type": "object"

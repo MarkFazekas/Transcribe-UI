@@ -36,6 +36,8 @@ CHECK_READ_TIMEOUT_S: Final = 10.0
 CHECK_RETRY_WAIT_MAX_S: Final = 1.0
 # Message of a passed Runpod credential check.
 RUNPOD_CHECK_PASSED: Final = "Runpod accepted the API key and the pod list can be read."
+# Code of a passed Runpod credential check (a failed check has the code of its error).
+RUNPOD_CHECK_PASSED_CODE: Final = "runpod_check_passed"
 # Longest single sleep while waiting to retry, so a cancel is noticed within this time.
 WAIT_SLICE_S: Final = 0.5
 # Transport failures raised before anything was sent: a create may be retried after them.

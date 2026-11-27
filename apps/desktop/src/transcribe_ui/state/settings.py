@@ -1,7 +1,8 @@
 """The settings file: JSON in the user config dir, written atomically (temp file + `os.replace`).
 
-It is read by `get_settings`/`update_settings`, by the GUI (to fill request fields) and by
-the media tool lookup (the ffmpeg/ffprobe override, `tool_paths`, read when a tool is run).
+It is read by `get_settings`/`update_settings`, by the GUI (to fill request fields), by
+the media tool lookup (the ffmpeg/ffprobe override, `tool_paths`, read when a tool is run) and
+by both frontends at start-up (`language`, through `Backend.language_setting`).
 Other request handling never reads it: machine-dependent inputs are request fields (plan m5
 §1). Several processes may write it; the last writer wins.
 
@@ -18,13 +19,18 @@ from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
 
-from pydantic import JsonValue, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from transcribe_contracts.constants import DEFAULT_LANGUAGES
-from transcribe_ui.api.classes import PlacementDefaults, Settings
+from transcribe_ui.api.classes import LanguageSetting, PlacementDefaults, Settings
 from transcribe_ui.discovery.constants import DEFAULT_AUDIO_EXTENSIONS, DEFAULT_VIDEO_EXTENSIONS
 from transcribe_ui.state.classes import ToolPaths
-from transcribe_ui.state.constants import DEFAULT_PLACEMENT_FOLDER_COUNT, DEFAULT_PLACEMENT_STRATEGY
+from transcribe_ui.state.constants import (
+    DEFAULT_LANGUAGE_SETTING,
+    DEFAULT_PLACEMENT_FOLDER_COUNT,
+    DEFAULT_PLACEMENT_STRATEGY,
+    LANGUAGE_FIELD,
+)
 from transcribe_ui.state.errors import SettingsInvalidError, SettingsUnwritableError
 from transcribe_ui.state.files import remove_stale_temp_files, sync_folder, temp_file, with_sharing_retries
 
@@ -49,6 +55,7 @@ def default_settings() -> Settings:
             folder_count=DEFAULT_PLACEMENT_FOLDER_COUNT,
             overwrite=False,
         ),
+        language=DEFAULT_LANGUAGE_SETTING,
     )
 
 
@@ -103,6 +110,24 @@ class SettingsStore:
             return ToolPaths.model_validate(stored)
         except ValidationError as error:
             raise self._invalid(error) from error
+
+    def language(self) -> LanguageSetting:
+        """Return the language setting; `system` when it cannot be read (other fields are not checked).
+
+        The frontends read it once at start-up, before anything else: a broken settings file must
+        not keep the app from starting, and a broken field elsewhere must not change the language.
+        """
+        try:
+            stored = self._read_object()
+        except SettingsInvalidError:
+            return DEFAULT_LANGUAGE_SETTING
+        if stored is None or LANGUAGE_FIELD not in stored:
+            return DEFAULT_LANGUAGE_SETTING
+        try:
+            return TypeAdapter[LanguageSetting](LanguageSetting).validate_python(stored[LANGUAGE_FIELD])
+        except ValidationError as error:
+            self._invalid(error)
+            return DEFAULT_LANGUAGE_SETTING
 
     def save(self, settings: Settings) -> None:
         """Replace the file with these settings; readers see either the old or the new file.

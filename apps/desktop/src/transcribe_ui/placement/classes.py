@@ -8,7 +8,7 @@ them from a batch.
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
-from pydantic import AfterValidator, Field, NonNegativeInt, PositiveInt, model_validator
+from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, model_validator
 
 from transcribe_contracts.classes import BatchId, LanguageCode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath
@@ -147,6 +147,9 @@ class PlanError(FrozenModel):
     message: str
     item_id: Ulid | None = None
     language: LanguageCode | None = None
+    # The values the message shows (`file`: the media file's name, and `language`; names only,
+    # like the message).
+    details: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class PlacementPlan(FrozenModel):
@@ -243,6 +246,8 @@ class DownloadFailure(FrozenModel):
     message: str
     # The exception type of a failed write (not the OS message: it quotes the path); None otherwise.
     reason: str | None = None
+    # The values the message shows (`file`: the media file's name, and `language`).
+    details: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class DownloadOutcome(FrozenModel):

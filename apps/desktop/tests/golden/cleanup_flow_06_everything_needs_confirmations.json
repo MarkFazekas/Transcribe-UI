@@ -5,6 +5,7 @@
     "action": "cleanup_cloud",
     "confirmations": [
       {
+        "code": "cleanup_everything",
         "field": "confirm",
         "set_to": true,
         "message": "All of the batch's data will be deleted from the cloud: audio, subtitles and its description.",
@@ -15,6 +16,7 @@
         }
       },
       {
+        "code": "cleanup_not_downloaded",
         "field": "confirm_not_downloaded",
         "set_to": true,
         "message": "The batch's subtitles may not be downloaded yet; after this, only the backup on the cloud volume keeps them.",

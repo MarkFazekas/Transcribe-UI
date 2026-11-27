@@ -64,7 +64,8 @@
               "stream_index": 0,
               "status": "pending",
               "resolved": true,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             },
             {
               "language": "hu",
@@ -74,7 +75,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": true,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             }
           ]
         },
@@ -106,7 +108,8 @@
               "stream_index": 0,
               "status": "pending",
               "resolved": true,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             },
             {
               "language": "hu",
@@ -116,7 +119,8 @@
               "stream_index": 0,
               "status": "pending",
               "resolved": true,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             }
           ]
         }
@@ -176,7 +180,8 @@
               "stream_index": 0,
               "status": "pending",
               "resolved": true,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             },
             {
               "language": "hu",
@@ -186,7 +191,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": true,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             }
           ]
         }

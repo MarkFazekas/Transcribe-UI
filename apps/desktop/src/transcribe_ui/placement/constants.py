@@ -137,6 +137,8 @@ TRANSCRIBE_SUBTITLES: Final[Mapping[str, "SubtitleState"]] = MappingProxyType(
 )
 # Request field that confirms overwriting existing files (`run_download`, `import_custom_plan`).
 CONFIRM_OVERWRITE_FIELD: Final = "confirm_overwrite"
+# Confirmation code: existing subtitle files are replaced.
+CONFIRMATION_OVERWRITE: Final = "overwrite_targets"
 # Progress stage of a download: one event per job.
 DOWNLOAD_STAGE: Final = "download"
 # Encoding of the extracted SRT texts written to disk.

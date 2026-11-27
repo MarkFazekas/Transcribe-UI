@@ -15,7 +15,13 @@ from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runs.classes import CancelQueuedPodRequest, TerminatePodRequest
 from transcribe_ui.runs.cloud import open_runpod
-from transcribe_ui.runs.constants import POD_KIND, QUEUED_POD_KIND
+from transcribe_ui.runs.constants import (
+    CONFIRM_STOP_FIELD,
+    CONFIRMATION_CANCEL_QUEUED_POD,
+    CONFIRMATION_TERMINATE_POD,
+    POD_KIND,
+    QUEUED_POD_KIND,
+)
 from transcribe_ui.runs.errors import NotAppPodError, PodNotFoundError, runpod_call
 from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
 from transcribe_ui.runs.stopping import CloudObject
@@ -23,9 +29,6 @@ from transcribe_ui.runs.straggler_stops import stop_app_pod, stop_app_queued_pod
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
-
-# Request field that confirms a stop.
-CONFIRM_FIELD = "confirm"
 
 
 def terminate_pod(request: TerminatePodRequest, context: RequestContext) -> TerminatePodResponse | NeedsConfirmation:
@@ -99,11 +102,19 @@ def _app_run_id(found: CloudObject) -> str | None:
 
 
 def _confirmation(action: str, found: CloudObject, run_id: str | None) -> NeedsConfirmation:
-    what = "Terminate the pod" if found.kind == POD_KIND else "Cancel the queued pod"
+    pod = found.kind == POD_KIND
+    what = "Terminate the pod" if pod else "Cancel the queued pod"
+    code = CONFIRMATION_TERMINATE_POD if pod else CONFIRMATION_CANCEL_QUEUED_POD
     details: dict[str, JsonValue] = {"kind": found.kind, "object_id": found.object_id, "name": found.name}
     details.update({"status": found.status, "run_id": run_id})
     message = (
         f"{what} {found.name} ({found.status})? A worker it runs stops at once; finished results stay in the cloud."
     )
-    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
+    confirmation = Confirmation(
+        code=code,
+        field=CONFIRM_STOP_FIELD,
+        set_to=True,
+        message=message,
+        details=details,
+    )
     return NeedsConfirmation(action=action, confirmations=(confirmation,))

@@ -27,6 +27,14 @@ NOT_DOWNLOADED_PHASES: Final = frozenset(("ready", "transcribed"))
 CONFIRM_FIELD: Final = "confirm"
 # Request field that confirms deleting results that were not downloaded.
 CONFIRM_NOT_DOWNLOADED_FIELD: Final = "confirm_not_downloaded"
+# Confirmation code: the batch's audio is deleted from the cloud (`scope` audio).
+CONFIRMATION_CLEANUP_AUDIO: Final = "cleanup_audio"
+# Confirmation code: all of the batch's cloud data is deleted (`scope` everything).
+CONFIRMATION_CLEANUP_EVERYTHING: Final = "cleanup_everything"
+# Confirmation code: the subtitles deleted may not have been downloaded yet.
+CONFIRMATION_NOT_DOWNLOADED: Final = "cleanup_not_downloaded"
+# Confirmation code: all cloud data of a batch this computer does not know is deleted.
+CONFIRMATION_UNKNOWN_BATCH: Final = "cleanup_unknown_batch"
 # Progress stage of `cleanup_cloud`: objects deleted so far.
 CLEANUP_STAGE: Final = "delete_objects"
 

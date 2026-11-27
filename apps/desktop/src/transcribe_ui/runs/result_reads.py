@@ -6,7 +6,15 @@ from dataclasses import dataclass
 from transcribe_contracts.errors import ContractError
 from transcribe_contracts.layout import parse_result_key, results_prefix
 from transcribe_contracts.reading import read_job_result
-from transcribe_ui.runs.constants import JOB_FAILED, MISSING_RESULT_ERROR, RESULT_SUFFIX, UNREADABLE_RESULT_ERROR
+from transcribe_ui.batches.payloads import ResultErrorCode
+from transcribe_ui.runs.constants import (
+    JOB_FAILED,
+    MISSING_RESULT_CODE,
+    MISSING_RESULT_ERROR,
+    RESULT_SUFFIX,
+    UNREADABLE_RESULT_CODE,
+    UNREADABLE_RESULT_ERROR,
+)
 from transcribe_ui.storage.r2 import ObjectStore
 
 logger = logging.getLogger(__name__)
@@ -23,12 +31,14 @@ class ResultRead:
     status: str
     # The result's `error` (set for `failed`).
     error: str | None = None
+    # The code of a failure the desktop decided (None for the worker's own errors).
+    error_code: ResultErrorCode | None = None
 
 
 # The outcome recorded for a job whose result cannot be read once the batch has `_done.json`.
-UNREADABLE_RESULT = ResultRead(JOB_FAILED, UNREADABLE_RESULT_ERROR)
+UNREADABLE_RESULT = ResultRead(JOB_FAILED, UNREADABLE_RESULT_ERROR, UNREADABLE_RESULT_CODE)
 # The outcome recorded for a job without a result JSON once the batch has `_done.json`.
-MISSING_RESULT = ResultRead(JOB_FAILED, MISSING_RESULT_ERROR)
+MISSING_RESULT = ResultRead(JOB_FAILED, MISSING_RESULT_ERROR, MISSING_RESULT_CODE)
 
 
 def read_results(store: ObjectStore, batch_id: str, pending: PendingJobs) -> dict[int, ResultRead | None]:

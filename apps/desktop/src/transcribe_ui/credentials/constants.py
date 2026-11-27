@@ -74,3 +74,5 @@ ERROR_KEYRING_FAILED: Final = "keyring_failed"
 
 # Message of a passed R2 check.
 R2_CHECK_PASSED: Final = "R2 accepted the credentials and the bucket can be listed."
+# Code of a passed R2 check (a failed check has the code of its error).
+R2_CHECK_PASSED_CODE: Final = "r2_check_passed"

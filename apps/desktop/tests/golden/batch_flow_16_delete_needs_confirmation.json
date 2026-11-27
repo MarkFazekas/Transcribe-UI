@@ -5,6 +5,7 @@
     "action": "delete_batch",
     "confirmations": [
       {
+        "code": "delete_batch",
         "field": "confirm",
         "set_to": true,
         "message": "The batch and its 2 file(s) will be deleted from this computer's job list.",

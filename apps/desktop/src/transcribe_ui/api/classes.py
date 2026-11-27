@@ -44,6 +44,8 @@ from transcribe_ui.upload.responses import RunUploadResponse
 
 # Distinct media file extensions (the scan's extension rule, §3.2).
 type MediaExtensions = Annotated[tuple[FileExtension, ...], AfterValidator(check_distinct)]
+# Language of the frontends' texts: the OS user interface language decides (`system`), or a fixed one.
+type LanguageSetting = Literal["system", "en", "hu"]
 
 
 # Requests
@@ -86,6 +88,8 @@ class Settings(FrozenModel):
     ffmpeg_path: ToolPath | None
     ffprobe_path: ToolPath | None
     placement: PlacementDefaults
+    # Language of the GUI's texts and the CLI's help; each frontend reads it once at start-up.
+    language: LanguageSetting
 
     @model_validator(mode="after")
     def _check_extensions(self) -> "Settings":
@@ -217,6 +221,8 @@ class ErrorResponse(FrozenModel):
 class Confirmation(FrozenModel):
     """One thing the user has to confirm before the request is carried out."""
 
+    # Stable code of what is confirmed; the frontends show its catalog text, formatted with `details`.
+    code: str
     # Request field that confirms it when set.
     field: str
     # The value that confirms it: `true` for a flag, the plan's fingerprint for `confirm_fingerprint`.
