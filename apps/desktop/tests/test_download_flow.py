@@ -95,7 +95,7 @@ def test_next_to_media_skips_the_existing_sidecar(world: RunsWorld) -> None:
 
 
 def test_download_again_with_another_strategy(world: RunsWorld) -> None:
-    """A downloaded batch can be downloaded again with another strategy (Q25); the phase stays."""
+    """A downloaded batch can be downloaded again with another strategy (requirements "Subtitle download options"); the phase stays."""
     leg = world.leg
     _download(leg)
     assert (_download(leg, "flat"), phase_of(leg)) == (expected_outcomes(), DOWNLOADED)
@@ -120,7 +120,7 @@ def ready_world(runs_world: RunsWorld) -> RunsWorld:
 
 
 def test_partial_download_then_the_rest(ready_world: RunsWorld) -> None:
-    """On `ready` only finished jobs are placed (Q24); after `_done.json` a second download reaches `downloaded`."""
+    """On `ready` only finished jobs are placed (requirements "Subtitle download options"); after `_done.json` a second download reaches `downloaded`."""
     world = ready_world
     leg = world.leg
     write_result(world.store, FIRST_BATCH_ID, FILM_ID, RUN_ID, world.now())

@@ -233,7 +233,7 @@ docs/human/, docs/ai/     see CLAUDE.md
 
   Extracted subtitles are placed together with the transcribed ones. A batch with only
   `extract` jobs goes from `uploading` straight to placement (`transcribed` without a manifest).
-  The phases are not a strict line (planned on the proposed defaults of Q24-Q27, `plans/m5.md` §1):
+  The phases are not a strict line (planned on the requirements "Subtitle download options" and "Runpod control", `plans/m5.md` §1):
   a batch in `composing` or `reviewing` can be deleted; finished subtitles can already be
   downloaded in `ready` and again in `downloaded` (extracted ones even in `cleaned`); a batch
   reaches `downloaded` once it has `_done.json` (or is extract-only) and every job has a placement
@@ -262,7 +262,7 @@ docs/human/, docs/ai/     see CLAUDE.md
     running; a live `transcribe-ui-*` pod or queued pod; or a `status.json` younger than its
     heartbeat timeout; `plans/m5.md` §1), so no worker writes after a cleanup.
     A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
-    (`everything` only, Q26) is allowed during a run (unless R2 holds a leftover manifest of an
+    (`everything` only, requirements "Cloud cleanup") is allowed during a run (unless R2 holds a leftover manifest of an
     interrupted manifest step for it) and also aborts open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
     then `_done.json` and results, then audio; a crash in between leaves only objects under the
@@ -605,7 +605,8 @@ docs/human/, docs/ai/     see CLAUDE.md
   subtracted (ffmpeg's default without `-copyts`), since players count from the start of the
   file. Bitmap codecs (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`, `xsub`) and unknown
   ones are transcribe-only.
-- ffmpeg/ffprobe: bundled static LGPL builds inside the executable. Resolution order: the
+- ffmpeg/ffprobe: bundled static LGPL builds inside each executable (GUI and CLI; the CLI needs
+  them for `run_upload`). Resolution order: the
   path set in the settings, then the bundled build (`sys._MEIPASS` of a PyInstaller build),
   then `PATH` (development runs without a bundle), so a `PATH` ffmpeg of unknown version never
   silently replaces the tested one. A settings path that is not absolute on this computer or
@@ -701,7 +702,7 @@ download requests below wire it to the batches):
   parts (`scan_root_invalid`, `source_path_invalid`), so no target leaves its folder. A
   source outside the scan root is `outside_scan_root` for `mirror` and `flat_with_folders`
   (`flat` places it without folder names).
-- Names are worked out for every job, whatever its subtitle state, so a partial download (Q24)
+- Names are worked out for every job, whatever its subtitle state, so a partial download (requirements "Subtitle download options")
   names files as a later one does. Collisions compare under the path-flavour rule
   (case-insensitive on Windows and macOS). In both flat strategies the colliding files get the
   names of their closest folders added (on top of the strategy's chosen ones), one level at a
@@ -726,7 +727,7 @@ download requests below wire it to the batches):
   UTF-16 units (MAX_PATH) or a target folder path over 247 (the 248 that folder creation
   allows, minus the NUL) is `path_too_long`, since long paths may fail on a system without
   long-path support. These name errors are reported for every job, whatever its outcome.
-- Outcomes: `pending` → `not_finished` (Q24), `failed` → `skip_failed`, `empty` →
+- Outcomes: `pending` → `not_finished` (requirements "Subtitle download options"), `failed` → `skip_failed`, `empty` →
   `skip_empty` unless `include_empty`; next to the media a missing original folder gives
   `skip_folder_missing` for that file while the others are placed (requirements "Subtitle download options"); an
   existing file → `skip_existing`, or `overwrite` when asked; a folder in the way is skipped,
@@ -755,8 +756,8 @@ requests `plan_download`, `run_download`, `export_custom_plan`, `import_custom_p
 database):
 
 - **Phases.** Allowed in `ready` (the jobs whose results the last `refresh_status` recorded; the
-  others are `not_finished`, Q24), `transcribed`, `downloaded` (again, any number of times, with
-  any strategy, Q25) and `cleaned` (only the extract jobs are planned: their SRT is in SQLite, the
+  others are `not_finished`, requirements "Subtitle download options"), `transcribed`, `downloaded` (again, any number of times, with
+  any strategy, requirements "Subtitle download options") and `cleaned` (only the extract jobs are planned: their SRT is in SQLite, the
   transcribed results are gone); any other phase is `wrong_phase`. A job's subtitle state comes
   from the database: a transcribe job's status (`ok` → `available`, `no_speech` → `empty`,
   `failed` → `failed`, `pending` → `pending`), an extract job's stored SRT. Sources are the items'
@@ -818,7 +819,7 @@ database):
   and set) when every job has a recorded outcome (placed, overwritten, or skipped as an existing
   file, a missing folder, an empty or a failed result) or its result failed. A failed job never
   blocks the batch: it can fail at `_done.json` after the last download (missing or unreadable
-  result), and retry batches take failed jobs (beyond Q24's default; noted there). A batch whose
+  result), and retry batches take failed jobs (requirements "Subtitle download options"). A batch whose
   every job failed therefore goes straight on to `downloaded`. `run_download` and
   `import_custom_plan` apply the rule after each download; `refresh_status` applies it in the
   transaction that moves a `ready` batch to `transcribed` (a batch downloaded in full while
@@ -1221,9 +1222,30 @@ database):
   read, the worker report (state, current job, done/total, error), `first_running_at`, the
   desktop `deadline`, `elapsed_s` and `cost_so_far_usd` (from the pod's creation until the
   end or now, at its price; a display estimate), `ended_at`, `end_reason`, `stop_error`, the
-  kept `worker_log` path), the checked `ready` batches with their job counts and phase, the
+  kept `worker_log` path, and three progress fields below), the checked `ready` batches with their job counts and phase, the
   `busy` ones, and the manifests `published` or still `held`. `cancel_worker` records
   `ended_at` too.
+
+  Progress fields (`RunProgress`, backend logic, so every frontend shows the same values;
+  `runs/progress.py`, the factors in `runs/constants.py`):
+  - `progress_fraction` (0 to 1): the weighted audio duration of the run's finished jobs over
+    that of all its jobs, `careful` jobs weighted as in the launch estimate; failed and
+    no-speech jobs count as done.
+  - `remaining_estimate_s`: the processing time per second of audio of the files done in this
+    run (weighted the same way), applied to the weighted audio duration of the pending jobs;
+    until the first file is done, the launch estimate's runtime factors. Null when unknown.
+  - `estimated_finish_at`: the refresh time plus `remaining_estimate_s` (UTC), null when the
+    estimate is. All three come from the stored refresh data only and never extrapolate against
+    now, so `list_runs` (which reads the stored values) agrees with `refresh_status`. The clock
+    is the injected one, so the parity goldens are stable.
+  - The GUI polls `refresh_status` every 300 s while a run is not final (the user can refresh
+    by hand) and counts down to `estimated_finish_at` every second in between; a countdown
+    that reaches 0 before the run is final shows "finishing" and never goes negative; each
+    refresh replaces the target. The GUI computes no estimate; the CLI JSON has the same
+    fields. The deadline stop still works with the 5-minute poll: it happens at the first
+    refresh after the deadline, so at most 300 s late, within the 10 min
+    `DESKTOP_DEADLINE_MARGIN_S` already added, and the reaper (`reaper.yml`) remains the
+    backstop when the app is closed.
 
 ### 3.8 Local state, settings and concurrency
 
@@ -1521,7 +1543,7 @@ pods-only key is passed as a Runpod secret.
   share the word's time, or the segment's when untimed, in proportion to length, so the
   line and cue limits hold; lines and cues may break between units. Thai and similar
   scripts therefore break mid-word (no dictionary); CJK lines count characters, not display
-  width (42 characters for every language, requirements "Subtitle download options"); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
+  width (42 characters for every language, requirements "Deployed app (worker)"); the n-gram quality check splits on spaces, so it does not see loops inside unspaced
   text (the compression and segment checks still do).
 - The engine runs in its own process (`engine/host.py`, spawned, models loaded once), because
   a CUDA call cannot be interrupted: the per-job timeout (at least 10 min, 1 s per second of
@@ -1713,8 +1735,9 @@ Few unit tests; mostly regression and flow tests:
 - `release-desktop.yml` on push to `main` when desktop/contracts code changes: PyInstaller
   one-file builds on Windows, macOS arm64, macOS x86_64 and Ubuntu 22.04, two per platform:
   the GUI build (windowed, with Qt) and the CLI build (console, without Qt; it must never
-  import Qt). Smoke-run the CLI build's `--version`, upload only the executables
-  (`actions/upload-artifact` with `archive: false`) and attach the eight executables to a
+  import Qt; it is small and fast to start). Smoke-test both builds: the CLI build's
+  `--version`, and the GUI build's start-and-quit (offscreen platform, on every OS). Upload only the executables
+  (`actions/upload-artifact` with `archive: false`) and attach the eight executables (file names unique per OS and variant) to a
   GitHub Release. Builds are unsigned for now (macOS
   users clear the quarantine flag; Windows SmartScreen may warn).
 - `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
@@ -1770,5 +1793,5 @@ next step are in `docs/ai/status.md`.
   (§3.1).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
-  platforms, eight files (§8; the workflow does not exist yet).
+  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit).
 - **Later**: MCP frontend over the same requests.

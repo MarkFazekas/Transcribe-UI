@@ -191,7 +191,7 @@ def test_existing_targets_are_skipped_unless_overwrite() -> None:
 
 
 def test_missing_original_folder_is_skipped() -> None:
-    """Q23: a file whose folder is gone is skipped with its reason; the others are placed."""
+    """A file whose folder is gone is skipped with its reason (requirements "Subtitle download options")."""
     probe = FakeProbe(folders=frozenset((f"{POSIX_ROOT}/A",)))
     plan = plan_of(below(POSIX_ROOT, "A/a.mkv,B/b.mkv"), Planning(probe=probe))
     assert outcomes(plan) == ["place", "skip_folder_missing"]
@@ -215,7 +215,7 @@ def test_other_strategies_ignore_the_original_folder() -> None:
     ],
 )
 def test_outcome_by_subtitle_state(subtitle: SubtitleState, options: dict[str, object], outcome: str) -> None:
-    """Q24: jobs without a result are "not finished yet"; failed and empty ones are skipped."""
+    """Requirements "Subtitle download options": jobs without a result are "not finished yet"; failed and empty ones are skipped."""
     jobs = jobs_of(below(POSIX_ROOT, MOVIE), subtitle=subtitle)
     plan = plan_placement(jobs, POSIX_ROOT, PlacementOptions.model_validate(options), posix_rules(), FakeProbe())
     assert outcomes(plan) == [outcome]

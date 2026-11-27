@@ -223,7 +223,7 @@ def test_extracted_subtitle_needs_no_r2(batch_leg: Leg) -> None:
 
 
 def test_missing_original_folder_is_skipped(world: RunsWorld) -> None:
-    """Next to the media a vanished original folder skips its files (Q23); the others are placed."""
+    """Next to the media a vanished original folder skips its files (requirements "Subtitle download options"); the others are placed."""
     leg = world.leg
     movies = media_dir(leg.root) / "Movies"
     shutil.rmtree(movies)

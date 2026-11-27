@@ -36,8 +36,7 @@ translated to English.
 
 ## Quality first
 
-- Quality and the end-user experience are the first and main principle; they decide between
-  options (architect).
+- Quality and the end-user experience are the first and main principle (architect).
 - Never compromise quality or usability because of usage quota. Stopping and resuming later is
   fine; nothing is lost.
 - If a stop is imminent (quota or `/exit`), stop in an orderly way: finish the step in progress

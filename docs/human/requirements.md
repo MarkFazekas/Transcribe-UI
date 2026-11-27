@@ -105,6 +105,12 @@ Cleaning up the cloud is available after the download and at any time when the j
 as a maintenance action: "delete audio only" or "delete everything (audio and subtitles)".
 Deleting something that is already gone is not an error.
 
+- Abandoning a job before it is uploaded *(Q26, accepted default)*: a job in the review step
+  can still be deleted (nothing is in the cloud yet; it disappears from the history). A job
+  whose upload has started can be abandoned with the cloud cleanup "delete everything": the
+  uploaded audio and unfinished uploads are deleted, and the job stays in the history as
+  cleaned up.
+
 ## Subtitle download options
 
 - Next to the original video/audio file.
@@ -129,9 +135,20 @@ Naming and conflicts:
   lists the file with the reason "original folder not found" and skips it; every other subtitle
   is placed. The user can download the skipped ones again with another option (for example into
   a chosen folder).
-- Subtitle line length *(Q22, accepted default)*: lines hold at most 42 characters for every
-  language, including Chinese and Japanese (Hungarian and English are the main languages);
-  revisit if Chinese or Japanese subtitles are actually used.
+- Download before the whole job is done *(Q24, accepted default)*: finished subtitles can be
+  downloaded at any time, also while the job is waiting or being transcribed. The download plan
+  lists the files still without a subtitle as "not finished yet" and skips them. The job counts
+  as downloaded once it is fully transcribed and every file has been through a download (placed,
+  or skipped as an existing file, a missing folder or an empty result), whether in one download
+  or several. The next start of transcription does the missing files. A failed file (no subtitle
+  could be made) does not keep the job from counting as downloaded; retry batches handle failed
+  jobs.
+- Download again *(Q25, accepted default)*: a downloaded job can be downloaded again any number
+  of times, with any placement option, as long as its subtitles are still in the cloud (not
+  after "delete everything"; subtitles taken from inside the video files are kept on the
+  computer and can be placed again even after that). Files already in place are listed as
+  existing and skipped unless overwrite is chosen. This is also how the files skipped because
+  their original folder is gone are placed later.
 - Two subtitles that would get the same name in one folder are shown; by default each gets its
   folder name as prefix: `A_movie.hu.srt`, `B_movie.hu.srt`. No numbering.
 
@@ -141,6 +158,9 @@ Naming and conflicts:
   finished uploading. The app then shows the state: waiting for a free cloud machine,
   starting, transcribing (which job and file, elapsed time, cost so far), finished, or failed.
   While waiting for a machine, the user can cancel *(accepted proposal)*.
+- Run monitoring (architect): the status should be refreshed from R2 every 5 minutes, and the
+  remaining time should be estimated from the files' completion. The estimated time should be a
+  countdown, and maybe there should be a progress bar too.
 - The app asks at every start how long to wait for a free machine; default 1 hour, at any time
   of day.
 - Maximum wait for a machine (A19, architect decision): the wait is 5 min to 24 h, with a 1 h
@@ -153,6 +173,13 @@ Naming and conflicts:
   shared by the desktop and the pod. `setup_cloud` creates or updates the Runpod secrets from
   the R2 credentials in the desktop keyring, then the template that references them. Rotating
   the token means re-running `setup_cloud`.
+- Upload finishing during a run *(Q27, accepted default; architect: "let it be the Start
+  button")*: the launch scope is the set of batches that are fully uploaded when the user
+  presses Start. The maximum runtime, the cost estimate and the pod name deadline are worked out
+  from that scope and fixed in the pod request. A batch whose upload finishes after Start, while
+  the run is queued, waiting or running, completes its upload and waits ("uploaded, waits for
+  the current run"). It is not given to that run, and it becomes ready for the next Start once
+  the current run ends.
 
 ## Deployed app (worker)
 
@@ -165,6 +192,9 @@ Naming and conflicts:
   output per batch, then stops the pod.
 - Engine: output quality comes first, so word-timestamp alignment is kept (WhisperX with
   forced alignment rather than plain faster-whisper).
+- Subtitle format *(Q22, accepted default)*: lines hold at most 42 characters for every
+  language, including Chinese and Japanese (Hungarian and English are the main languages);
+  revisit if Chinese or Japanese subtitles are actually used.
 - Model weights are baked into the Docker image so the pod starts faster.
 - No SSH server in the image: SSH goes through Runpod's own system.
 - R2 credentials reach the pod as Runpod secrets.
@@ -213,10 +243,9 @@ Naming and conflicts:
   Python 3.13 everywhere.
 - Desktop stack *(accepted proposal)*: PySide6, PyInstaller one-file, static LGPL ffmpeg
   bundled, unsigned builds for four platforms.
-- Two executables per platform *(A20, architect: option b)*: a GUI executable (windowed, GUI
-  subsystem, contains Qt, opens the GUI) and a CLI executable (console, without Qt, so it is
-  small and fast to start; serves `run`, `schema`, `--version` and `credentials`). The release
-  has eight files, two per platform.
+- Two executables per platform *(A20, architect decision)*: a GUI executable (windowed, GUI
+  subsystem, contains Qt, opens the GUI) and a CLI executable (console, without Qt; serves `run`,
+  `schema`, `--version` and `credentials`). The release has eight files, two per platform.
 - Local state: SQLite with SQLAlchemy and Alembic.
 - Code layout, Django-like: constants per folder / app / sub-app in a `constants.py`, each with
   a roughly one-line explanation of its purpose, not with an underscore at the top of other

@@ -4,12 +4,12 @@ Every job a download handled gets a `placements` row with its outcome (placed, o
 skipped as an existing file, a missing folder, an empty or a failed result), committed as soon as
 the job is done, so an interrupted download keeps what it did. A batch reaches `downloaded` when it
 is `transcribed` (it has its `_done.json`, or it is extract-only) and every job has such a row,
-whether from one download or several (Q24). A job whose result failed counts as having its
+whether from one download or several (requirements "Subtitle download options"). A job whose result failed counts as having its
 outcome even without a row (it can fail at `_done.json`, after the last download): failed jobs
-never block `downloaded`, retry batches take them (proposed in Q24). `run_download` and
+never block `downloaded`, retry batches take them (requirements "Subtitle download options"). `run_download` and
 `import_custom_plan` apply the rule after each download; `refresh_status` applies it when it
 moves a `ready` batch to `transcribed`, and to every `transcribed` batch whose lock is free (a
-download killed after its last outcome). Downloading again (Q25) only adds rows; the phase never
+download killed after its last outcome). Downloading again (requirements "Subtitle download options") only adds rows; the phase never
 moves back.
 """
 

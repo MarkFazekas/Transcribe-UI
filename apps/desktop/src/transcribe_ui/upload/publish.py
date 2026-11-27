@@ -1,4 +1,4 @@
-"""The manifest step and `publish_held_manifests` (plan m5 §1 "Manifest held back during a run", Q27).
+"""The manifest step and `publish_held_manifests` (plan m5 §1 "Manifest held back during a run", requirements "Runpod control").
 
 The manifest is the batch's readiness marker: uploaded last, it makes the batch `ready` for the
 worker. It is never uploaded while a worker run is active, so a running worker never gets work
