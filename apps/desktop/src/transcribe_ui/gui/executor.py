@@ -236,7 +236,9 @@ class _Sequenced:
             started = partial(self._started, key, number, on_started)
         done = partial(self._done, key, number, on_done)
         call = self._executor.submit(request, done, progress, started)
-        self._calls[key] = call
+        if self._current(key, number):
+            # Not answered yet (`SyncExecutor` answers inside `submit`, and the answer pruned it).
+            self._calls[key] = call
         return call
 
     def _current(self, key: Hashable, number: int) -> bool:
@@ -244,6 +246,9 @@ class _Sequenced:
 
     def _done(self, key: Hashable, number: int, on_done: DoneCallback, response: Response) -> None:
         if self._current(key, number):
+            # The key's latest call is over: forget it, so keys do not pile up.
+            self._calls.pop(key, None)
+            self._latest.pop(key, None)
             on_done(response)
 
     def _progress(self, key: Hashable, number: int, on_progress: ProgressCallback, event: ProgressEvent) -> None:
@@ -304,9 +309,11 @@ class SingleFlightChannel(_Sequenced):
     def state(self) -> CallState | None:
         """Return the current tick's state ("queued": waiting to refresh; "running": refreshing), or None."""
         tick = self._calls.get(POLL_KEY)
-        if tick is None or not _active(tick):
+        if tick is None:
             return None
-        return tick.state
+        # Read once: a pool thread may move it on between two reads.
+        state = tick.state
+        return None if state == CALL_DONE else state
 
     def send(
         self,
