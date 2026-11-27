@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.credentials.constants import CREDENTIAL_ORDER
+from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.storage.client import TRANSFER_LIMITS
 from transcribe_ui.storage.r2 import ObjectStore, R2ObjectStore
@@ -30,6 +31,13 @@ def open_cloud(context: RequestContext) -> Iterator[CloudAccess]:
         DomainError: `credentials_missing` or `credentials_invalid` (names, never values), or a
             `StorageError` when the R2 client cannot be built.
     """
+    with open_cloud_client(context) as (cloud, _client):
+        yield cloud
+
+
+@contextmanager
+def open_cloud_client(context: RequestContext) -> Iterator[tuple[CloudAccess, RunpodClient]]:
+    """Like `open_cloud`, also yielding the whole Runpod client (templates, volumes, catalog, create)."""
     ports = context.ports
     lookup = ports.credentials.lookup(CREDENTIAL_ORDER)
     lookup.require(CREDENTIAL_ORDER)
@@ -37,4 +45,16 @@ def open_cloud(context: RequestContext) -> Iterator[CloudAccess]:
     api_key = lookup.runpod_api_key()
     store = R2ObjectStore(ports.r2_clients(r2, TRANSFER_LIMITS), r2.bucket)
     with ports.runpod.client(api_key, context.cancel.is_cancelled) as client:
-        yield CloudAccess(store, client.pods)
+        yield CloudAccess(store, client.pods), client
+
+
+@contextmanager
+def open_runpod(context: RequestContext) -> Iterator[RunpodClient]:
+    """Open the Runpod API alone with the stored API key (no call yet), following the request's cancel token.
+
+    Raises:
+        DomainError: `credentials_missing` or `credentials_invalid` for the Runpod key.
+    """
+    api_key = context.ports.credentials.runpod_api_key()
+    with context.ports.runpod.client(api_key, context.cancel.is_cancelled) as client:
+        yield client

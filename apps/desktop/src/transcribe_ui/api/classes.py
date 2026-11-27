@@ -37,6 +37,8 @@ from transcribe_ui.runpod.classes import (
     SetupCloudRequest,
     SetupCloudResponse,
 )
+from transcribe_ui.runs import classes as run_requests
+from transcribe_ui.runs import responses as run_responses
 from transcribe_ui.upload.classes import RunUploadRequest
 from transcribe_ui.upload.responses import RunUploadResponse
 
@@ -166,7 +168,13 @@ type Request = Annotated[
     | batch_requests.ListBatchesRequest
     | batch_requests.GetBatchRequest
     | batch_requests.SetBatchHiddenRequest
-    | RunUploadRequest,
+    | RunUploadRequest
+    | run_requests.PlanLaunchRequest
+    | run_requests.LaunchWorkerRequest
+    | run_requests.CancelWorkerRequest
+    | run_requests.ReconcileCloudRequest
+    | run_requests.TerminatePodRequest
+    | run_requests.CancelQueuedPodRequest,
     Field(discriminator="action"),
 ]
 
@@ -257,7 +265,13 @@ type SuccessResponse = Annotated[
     | batch_responses.ListBatchesResponse
     | batch_responses.GetBatchResponse
     | batch_responses.SetBatchHiddenResponse
-    | RunUploadResponse,
+    | RunUploadResponse
+    | run_responses.PlanLaunchResponse
+    | run_responses.LaunchWorkerResponse
+    | run_responses.CancelWorkerResponse
+    | run_responses.ReconcileCloudResponse
+    | run_responses.TerminatePodResponse
+    | run_responses.CancelQueuedPodResponse,
     Field(discriminator="action"),
 ]
 # Every response of `Backend.execute`, discriminated on `status`.

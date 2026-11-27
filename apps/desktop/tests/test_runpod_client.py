@@ -343,14 +343,35 @@ def test_missing_objects_read_as_none() -> None:
 
 
 def test_pod_create_direct_and_terminate() -> None:
-    """With capacity a create gives a pod (201); a terminated pod stays listed as TERMINATED."""
+    """With capacity a create gives a pod (201); a terminated pod leaves the list and reads 404."""
     cloud = Cloud()
     with cloud.client() as client:
         pod = client.pods.create(_create_body(queued=False))
         assert isinstance(pod, Pod)
         assert client.pods.terminate(pod.pod_id)
+        gone = (client.pods.list_pods(), client.pods.get_pod(pod.pod_id), client.pods.terminate(pod.pod_id))
+    assert gone == ((), None, False)
+
+
+def test_terminated_pod_kept_listed() -> None:
+    """With `keep_terminal` a terminated pod stays listed as TERMINATED."""
+    cloud = Cloud(settings=FakeSettings(keep_terminal=True))
+    with cloud.client() as client:
+        pod = client.pods.create(_create_body(queued=False))
+        assert isinstance(pod, Pod)
+        client.pods.terminate(pod.pod_id)
         listed = client.pods.list_pods()
     assert [(entry.name, entry.status) for entry in listed] == [(POD_NAME, POD_TERMINATED)]
+
+
+def test_create_with_wrong_status_kind_is_ambiguous() -> None:
+    """A 201 whose body carries a queued-pod status (or an unknown one) is not trusted: ambiguous."""
+    cloud = Cloud()
+    with cloud.client() as client:
+        cloud.api.fail(POST, PODS, Failure(status_in_body="QUEUED"))
+        with pytest.raises(AmbiguousCreateError):
+            client.pods.create(_create_body(queued=False))
+    assert cloud.api.count(POST, PODS) == 1
 
 
 def test_queued_pod_deploys_on_schedule() -> None:

@@ -790,10 +790,10 @@ requests wire it in M5.13):
 - Pod name (`transcribe_contracts.pods`): `transcribe-ui-<run_id>-until-<YYYYMMDDTHHMMZ>`,
   the run's ULID and a UTC deadline rounded up to the whole minute (61 characters; the v2 spec
   sets no maximum, the builder keeps to 63). A queued pod carries the same name as the pod it
-  deploys. The deadline is the moment after which nothing legitimate can still be running:
-  for a direct launch, launch time + start-up margin (image pull, model load) +
-  `MAX_RUNTIME_S` + margin; for a queued launch, the queue's `expiresAt` + start-up margin +
-  `MAX_RUNTIME_S` + margin, because the pod may deploy just before the queue expires. The
+  deploys. The deadline is the moment after which nothing legitimate can still be running: the
+  queue's `expiresAt` + `MAX_RUNTIME_S` (which includes the start-up allowance for the image
+  pull and model load) + 10 min, rounded up. Every launch sends `queue`, so a pod that starts at
+  once gets the same deadline; the pod may deploy just before the queue expires. The
   external reaper (§5.2, layer 4) relies on this name alone; the parser returns nothing for
   any other shape. A deadline must lie at most 32 days after the creation of the pod or
   queued pod (the reaper's plausibility cap, §5.2).
@@ -870,6 +870,102 @@ requests wire it in M5.13):
   covered batch ids, the sorted pending jobs (`<batch>/<item>/<language>/<mode>`) and the total
   pending duration (3 decimals): publishing a held batch keeps it, a new result or another
   batch changes it.
+- **Plan and estimate** (`runs/planning.py`, `estimate.py`; request `plan_launch`, DB, no
+  lock, reads only; field `test_mode`): the launch scope, `MAX_RUNTIME_S`, the cost range and the
+  wait bounds (default 1 h, 5 min to 24 h, open A19). `MAX_RUNTIME_S` = 20 min start-up
+  allowance + per pending job (audio × 0.2 × 2 + 60 s), `careful` jobs counted twice, capped at
+  24 h; test mode a fixed 2 h. Cost = price per hour × (5 to 20 min start-up + weighted audio ×
+  0.05 to 0.2), rounded to cents; in test mode the pod stays up for its whole 2 h, so that
+  replaces the audio term. The price is the secure price of `NVIDIA RTX A5000` from
+  `GET /v2/catalog/gpus`; any failure of that call (a key error included) or a missing entry
+  gives the fallback 0.27 USD/h with a `note` (the plan is informational; the launch reports key
+  errors itself). The factors are placeholders recalibrated at M7.
+- **Launch** (`runs/launch.py`, `creating.py`, `pod_body.py`, `records.py`, `payloads.py`;
+  request `launch_worker`: `wait_s`, `test_mode`, `confirm_fingerprint`). Under the runs lock
+  for the whole sequence, no transaction across a Runpod or R2 call:
+  1. the activity check: any sign of a run (a straggler included) gives `run_active`, an
+     unreadable cloud `cloud_unreachable`;
+  2. `require_cloud_setup` (template and volume ids, or `cloud_not_set_up`,
+     `cloud_setup_outdated`, `cloud_volume_duplicated`);
+  3. the plan again: no pending job gives `nothing_to_launch` (before any confirmation); a
+     missing or different `confirm_fingerprint` gives `needs_confirmation` (field
+     `confirm_fingerprint`, details `plan`, the message saying when the plan changed), and
+     nothing changes. The plan's `fingerprint` hashes the scope's fingerprint, `MAX_RUNTIME_S`
+     and the test mode, so a plan confirmed without test mode cannot start a test-mode run;
+  4. `publish_held_manifests` (pending withdrawals finished, held manifests published; a sign
+     of a run it finds gives `run_active`); a withdrawal left pending because its batch lock
+     was busy gives `batch_busy` before any run is recorded (re-send), since a worker could read
+     the leftover;
+  5. the run row (`launching`, run id from the id source, pod name with the deadline, payload
+     `RunPayload`: runtime, test mode, wait, queue `expiresAt`, name deadline, covered batch
+     ids, fingerprint, pending duration, estimate) is committed;
+  6. one `POST /v2/pods` with the body of plan m5 §1 (template id, no image; GPU with
+     `minCudaVersion` 12.8; `SECURE`; 60 GB disk; the Global Volume at `/workspace`; env
+     `TRANSCRIBE_RUN_ID`, `MAX_RUNTIME_S`, `KEEP_POD_ALIVE`; `queue.expiresAt` = now + wait).
+     The name deadline is `expiresAt` + `MAX_RUNTIME_S` + 10 min, rounded up to the minute.
+  The covered batch ids are the scope's, less a held batch that stayed held (its lock was busy);
+  such a batch only makes the estimate high. Outcomes (`outcome`): 201 → `pod` (run `running`
+  with the pod id), 202 → `queued` (run `queued` with the queued-pod id). Runpod refusing (any
+  4xx after the client's 429 retries, or no connection before sending) created nothing: the run
+  becomes `launch_failed` and the answer is `launch_refused` (details `http_status`), or the key
+  and reachability codes for 401, 403 and a failed connection. A cancel before the request was
+  sent (only a 429 or a failed connection came before) also makes it `launch_failed`. A 2xx
+  whose `status` is not one of the v2 statuses of its kind (pod statuses for 201, queued-pod
+  statuses for 202) is ambiguous too. An ambiguous failure (`AmbiguousCreateError`) is never
+  re-sent: both lists are read once and a pod or queued pod with the run's name is adopted
+  (`adopted`: true; `outcome` `pod`, `queued`, or `ended` for a queued pod found cancelled,
+  expired or failed, the run then `cancelled` or `failed`); otherwise, and when that lookup
+  fails or is cancelled, the answer is a success with `outcome` `unconfirmed` and the run stays
+  `launching`. `sending_at` is written before each attempt of the POST and `posted_at` after it
+  ended, so a crash during the request leaves a time no earlier than the last send.
+- **Resolving a `launching` run** (`runs/settling.py` `resolve_launching`; used by
+  `reconcile_cloud`, `cancel_worker` and the launch's own lookup, and by `refresh_status` from
+  M5.12): a pod in the pod list with the run's name (a live one before a terminated one) is
+  adopted as seen and the run becomes `running` (also when the pod already ended:
+  `refresh_status` reads its end); a queued pod naming its pod gives `running` with that pod
+  recorded as not seen (`pod_seen` false, `pod_deployed_at` = the queued pod's `resolvedAt`);
+  a queued pod alone gives `queued` (`QUEUED`), `cancelled` (`CANCELLED`), `failed` (`EXPIRED`,
+  `FAILED`) or `running` (`DEPLOYED` or an unknown status). With neither, the run becomes
+  `launch_failed` only once `LAUNCH_SETTLE_S` (10 min) has passed since the latest of
+  `posted_at`, `sending_at` and the row's creation (a retry after a 429 may send late), and two
+  lookups after that, at least `LAUNCH_LOOKUP_GAP_S` (60 s) apart, found nothing (the first one
+  is recorded as `first_empty_lookup_at`). A pod that appears after that is a straggler.
+- **Cancel** (`runs/cancel.py`, `stopping.py`; request `cancel_worker` with `run_id`; runs
+  lock): a `launching` run is resolved first (one lookup); still unresolved gives
+  `launch_unresolved`. A run with a pod id: `DELETE` the pod, then `GET` it: `TERMINATED`
+  verifies it, and so does a 404 for a seen pod (a pod read showed it). A pod known only from
+  its queued pod's `podId` is not seen: a 204 on its `DELETE` is no sighting (Runpod may answer
+  it for an id it does not know yet; open item 7 of `research/runpod.md`), only a `GET` that
+  returns the pod (any status; recorded as `pod_seen`) is. A 404 for it (on the `DELETE` or the
+  `GET`) within `DEPLOY_SETTLE_S` of its deploy may be lag, so it gives `stop_unverified` and the
+  run stays `running` with the pod recorded; re-sending the cancel finishes it once the pod is
+  read or the deploy has settled. A run with only a
+  queued-pod id: `DELETE` the queued pod, then `GET` it: a pod id in it means it deployed
+  during the cancel, so the run records that pod (not seen) and becomes `running` (followed
+  from then on), and the pod is terminated and verified; `CANCELLED`, `EXPIRED`, `FAILED` or a
+  404 verify the cancel. Only then the run
+  becomes `cancelled` (answered again for a run already `cancelled`); a stop that does not show
+  gives `stop_unverified` and a failed read `cloud_unreachable`, and the run stays as it was.
+  Other final runs give `run_not_active`, unknown ids `run_not_found`.
+- **Reconcile and stragglers** (`runs/reconcile.py`, `stragglers.py`; runs lock):
+  `reconcile_cloud` reads both lists once, resolves every `launching` run, and returns every
+  run that was not final (as it is now) and the live `transcribe-ui-*` entries: pods in any
+  status but `TERMINATED`, and queued pods by the activity check's rule (`runs/pods.py`
+  `queued_pod_active`): not `FAILED`, `EXPIRED` or `CANCELLED`; a `DEPLOYED` one is skipped
+  past its name deadline, is represented by its pod when that is listed as an app pod, and
+  otherwise is looked up by id (`TERMINATED`, or a 404 `DEPLOY_SETTLE_S` after the deploy,
+  means not live; a failed lookup gives `cloud_unreachable`), shown with its pod's id. Each
+  entry carries the run id and
+  deadline from its name, the local run's status, `role` (`current`: its local run is not
+  final; else `straggler`), `overdue` (past its name deadline) and the response `attention`
+  when any entry is a straggler or overdue. `terminate_pod` (`pod_id`) and `cancel_queued_pod`
+  (`queued_pod_id`) read the object first (404 → `pod_not_found`; a name that is not the app's
+  → `not_an_app_pod`, left alone), answer `needs_confirmation` (field `confirm`, details: kind,
+  id, name, status, run id) until confirmed, then stop it verified as `cancel_worker` does (the
+  pod of `terminate_pod` was read, so it is seen). A local run of that id that is not final
+  becomes `cancelled` only when the stopped pod or queued pod is the one it recorded, or it
+  recorded neither; a stray pod carrying the run's name leaves the run as it is. Ids follow the reaper's rule
+  `[A-Za-z0-9_-]{1,64}`.
 - Progress and cost shown in the app come from `runs/<run_id>/status.json` and the pod's `cost`
   field (USD/h) from the Runpod API. After a run has ended and its pod is gone, the app keeps
   the final status and the worker log locally and deletes `runs/<run_id>/`.
@@ -1319,8 +1415,11 @@ Few unit tests; mostly regression and flow tests:
 - **Runpod client tests**: a stateful fake Runpod API (`tests/support/runpod_api.py`, served
   through `httpx.MockTransport` on the real host name, so nothing leaves the process) with
   injectable statuses, failed connections, responses lost after the create took effect,
-  redirects, list lag, queued pods deploying on a schedule, terminal entries kept in the lists
-  and no capacity. The parity runner builds a fresh fake per leg (`support/runpod.py`). No
+  redirects, list lag, queued pods deploying on a schedule (or at a set moment, such as during a
+  cancel), terminated pods that leave the list and read 404 as documented (or, with
+  `keep_terminal`, stay listed), terminates that do not take effect, a create answer with
+  another `status`, a hook that
+  pauses a request (thread races) and no capacity. The parity runner builds a fresh fake per leg (`support/runpod.py`). No
   automated test calls the real Runpod API, not even read-only.
 - **Reaper flow tests**: a full pass against a fake Runpod API on 127.0.0.1 (pagination,
   overdue / in-grace / in-time / foreign / malformed names, queued pods, a DELETE that fails
@@ -1396,7 +1495,7 @@ next step are in `docs/ai/status.md`.
   §7 "First approved Runpod run" (whether the pod-scoped key deletes its own pod decides if a
   separate pods-only key is passed, §5.2; PID 1 restart behaviour; these include items 1-4 of
   `research/runpod.md` "Items to test with a real key").
-- **M5** (planned in `plans/m5.md`; M5.1-M5.10 built): Desktop backend: façade,
+- **M5** (planned in `plans/m5.md`; M5.1-M5.11 built): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement (§3.1-3.7).
 - **M6**: Desktop frontends: GUI and CLI over the same requests (§3.1).

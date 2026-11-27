@@ -123,6 +123,13 @@ QUEUED_POD_EXPIRED: Final = "EXPIRED"
 # Queued-pod status when Runpod could not deploy it.
 QUEUED_POD_FAILED: Final = "FAILED"
 
+# Every pod status of the v2 API (`PodStatus`).
+POD_STATUSES: Final = frozenset(("PROVISIONING", "STARTING", "RUNNING", "EXITED", "ERROR", POD_TERMINATED))
+# Every queued-pod status of the v2 API (`QueuedPodStatus`).
+QUEUED_POD_STATUSES: Final = frozenset(
+    (QUEUED_POD_QUEUED, QUEUED_POD_DEPLOYED, QUEUED_POD_FAILED, QUEUED_POD_EXPIRED, QUEUED_POD_CANCELLED),
+)
+
 # Wire name of the id field of every Runpod object.
 ID_FIELD: Final = "id"
 # Name of the worker template the cloud setup maintains (the only place naming the image); it

@@ -7,6 +7,51 @@
     "BucketName": {
       "type": "string"
     },
+    "CancelQueuedPodRequest": {
+      "additionalProperties": false,
+      "description": "Cancel one of the app's queued pods, terminating a pod it deployed meanwhile; needs `confirm`.",
+      "properties": {
+        "action": {
+          "const": "cancel_queued_pod",
+          "title": "Action",
+          "type": "string"
+        },
+        "confirm": {
+          "default": false,
+          "title": "Confirm",
+          "type": "boolean"
+        },
+        "queued_pod_id": {
+          "$ref": "#/$defs/RunpodId"
+        }
+      },
+      "required": [
+        "action",
+        "queued_pod_id"
+      ],
+      "title": "CancelQueuedPodRequest",
+      "type": "object"
+    },
+    "CancelWorkerRequest": {
+      "additionalProperties": false,
+      "description": "Stop a run: cancel its queued pod (terminating a pod it deployed meanwhile) or terminate its pod.",
+      "properties": {
+        "action": {
+          "const": "cancel_worker",
+          "title": "Action",
+          "type": "string"
+        },
+        "run_id": {
+          "$ref": "#/$defs/Ulid"
+        }
+      },
+      "required": [
+        "action",
+        "run_id"
+      ],
+      "title": "CancelWorkerRequest",
+      "type": "object"
+    },
     "CheckCredentialsRequest": {
       "additionalProperties": false,
       "description": "Try the credentials against the services (R2: list the bucket; Runpod: read the pod list); changes nothing.",
@@ -342,6 +387,46 @@
       "pattern": "^[a-z]{2,3}$",
       "type": "string"
     },
+    "LaunchWorkerRequest": {
+      "additionalProperties": false,
+      "description": "Start one worker for every pending manifest; needs the fingerprint of the confirmed plan.\n\nWithout `confirm_fingerprint`, or when the scope changed since the plan it names, the\nanswer is `needs_confirmation` with the current plan, and nothing is changed.",
+      "properties": {
+        "action": {
+          "const": "launch_worker",
+          "title": "Action",
+          "type": "string"
+        },
+        "confirm_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confirm Fingerprint"
+        },
+        "test_mode": {
+          "default": false,
+          "title": "Test Mode",
+          "type": "boolean"
+        },
+        "wait_s": {
+          "default": 3600,
+          "maximum": 86400,
+          "minimum": 300,
+          "title": "Wait S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "LaunchWorkerRequest",
+      "type": "object"
+    },
     "ListBatchesRequest": {
       "additionalProperties": false,
       "description": "List the batches, newest first.",
@@ -447,6 +532,27 @@
       ],
       "type": "string"
     },
+    "PlanLaunchRequest": {
+      "additionalProperties": false,
+      "description": "Show what a worker started now would process, its runtime limit and its estimated cost; changes nothing.",
+      "properties": {
+        "action": {
+          "const": "plan_launch",
+          "title": "Action",
+          "type": "string"
+        },
+        "test_mode": {
+          "default": false,
+          "title": "Test Mode",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "PlanLaunchRequest",
+      "type": "object"
+    },
     "PreviewSelectionRequest": {
       "additionalProperties": false,
       "description": "Scan, then apply the selection operations in order; changes nothing.",
@@ -485,6 +591,22 @@
         "scan"
       ],
       "title": "PreviewSelectionRequest",
+      "type": "object"
+    },
+    "ReconcileCloudRequest": {
+      "additionalProperties": false,
+      "description": "List the app's live pods and queued pods, join them with the local runs, resolve `launching` runs.",
+      "properties": {
+        "action": {
+          "const": "reconcile_cloud",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ReconcileCloudRequest",
       "type": "object"
     },
     "ResolveReviewRequest": {
@@ -608,6 +730,10 @@
       ],
       "title": "RunUploadRequest",
       "type": "object"
+    },
+    "RunpodId": {
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "type": "string"
     },
     "ScanSpec": {
       "additionalProperties": false,
@@ -1073,6 +1199,31 @@
       "minItems": 1,
       "type": "array"
     },
+    "TerminatePodRequest": {
+      "additionalProperties": false,
+      "description": "Terminate one of the app's pods (a straggler or an overdue one); needs `confirm`.",
+      "properties": {
+        "action": {
+          "const": "terminate_pod",
+          "title": "Action",
+          "type": "string"
+        },
+        "confirm": {
+          "default": false,
+          "title": "Confirm",
+          "type": "boolean"
+        },
+        "pod_id": {
+          "$ref": "#/$defs/RunpodId"
+        }
+      },
+      "required": [
+        "action",
+        "pod_id"
+      ],
+      "title": "TerminatePodRequest",
+      "type": "object"
+    },
     "Token": {
       "format": "password",
       "type": "string",
@@ -1149,6 +1300,8 @@
   },
   "discriminator": {
     "mapping": {
+      "cancel_queued_pod": "#/$defs/CancelQueuedPodRequest",
+      "cancel_worker": "#/$defs/CancelWorkerRequest",
       "check_credentials": "#/$defs/CheckCredentialsRequest",
       "cloud_setup_status": "#/$defs/CloudSetupStatusRequest",
       "create_batch": "#/$defs/CreateBatchRequest",
@@ -1159,8 +1312,11 @@
       "get_app_info": "#/$defs/GetAppInfoRequest",
       "get_batch": "#/$defs/GetBatchRequest",
       "get_settings": "#/$defs/GetSettingsRequest",
+      "launch_worker": "#/$defs/LaunchWorkerRequest",
       "list_batches": "#/$defs/ListBatchesRequest",
+      "plan_launch": "#/$defs/PlanLaunchRequest",
       "preview_selection": "#/$defs/PreviewSelectionRequest",
+      "reconcile_cloud": "#/$defs/ReconcileCloudRequest",
       "resolve_review": "#/$defs/ResolveReviewRequest",
       "review_batch": "#/$defs/ReviewBatchRequest",
       "run_upload": "#/$defs/RunUploadRequest",
@@ -1169,6 +1325,7 @@
       "setup_cloud": "#/$defs/SetupCloudRequest",
       "start_review": "#/$defs/StartReviewRequest",
       "store_credentials": "#/$defs/StoreCredentialsRequest",
+      "terminate_pod": "#/$defs/TerminatePodRequest",
       "update_settings": "#/$defs/UpdateSettingsRequest"
     },
     "propertyName": "action"
@@ -1236,6 +1393,24 @@
     },
     {
       "$ref": "#/$defs/RunUploadRequest"
+    },
+    {
+      "$ref": "#/$defs/PlanLaunchRequest"
+    },
+    {
+      "$ref": "#/$defs/LaunchWorkerRequest"
+    },
+    {
+      "$ref": "#/$defs/CancelWorkerRequest"
+    },
+    {
+      "$ref": "#/$defs/ReconcileCloudRequest"
+    },
+    {
+      "$ref": "#/$defs/TerminatePodRequest"
+    },
+    {
+      "$ref": "#/$defs/CancelQueuedPodRequest"
     }
   ]
 }

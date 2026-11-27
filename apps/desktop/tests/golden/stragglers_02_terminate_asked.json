@@ -1,0 +1,21 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "terminate_pod",
+    "confirmations": [
+      {
+        "field": "confirm",
+        "message": "Terminate the pod transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR01-until-20261127T1500Z (RUNNING)? A worker it runs stops at once; finished results stay in the cloud.",
+        "details": {
+          "kind": "pod",
+          "object_id": "pod7919",
+          "name": "transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR01-until-20261127T1500Z",
+          "status": "RUNNING",
+          "run_id": "01JDZZZZZZZZZZZZZZZZZZZR01"
+        }
+      }
+    ]
+  },
+  "events": []
+}

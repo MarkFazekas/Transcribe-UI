@@ -348,6 +348,121 @@
       "title": "BatchSummary",
       "type": "object"
     },
+    "CancelQueuedPodResponse": {
+      "additionalProperties": false,
+      "description": "The queued pod is cancelled, or the pod it deployed is terminated (verified).",
+      "properties": {
+        "action": {
+          "const": "cancel_queued_pod",
+          "default": "cancel_queued_pod",
+          "title": "Action",
+          "type": "string"
+        },
+        "local_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/QueuedStop"
+        },
+        "queued_pod_id": {
+          "title": "Queued Pod Id",
+          "type": "string"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Run Id"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "terminated_pod_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminated Pod Id"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "queued_pod_id",
+        "name",
+        "outcome",
+        "terminated_pod_id",
+        "run_id",
+        "local_status"
+      ],
+      "title": "CancelQueuedPodResponse",
+      "type": "object"
+    },
+    "CancelWorkerResponse": {
+      "additionalProperties": false,
+      "description": "The run, now `cancelled`.",
+      "properties": {
+        "action": {
+          "const": "cancel_worker",
+          "default": "cancel_worker",
+          "title": "Action",
+          "type": "string"
+        },
+        "run": {
+          "$ref": "#/$defs/RunInfo"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "terminated_pod_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminated Pod Id"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "run",
+        "terminated_pod_id"
+      ],
+      "title": "CancelWorkerResponse",
+      "type": "object"
+    },
     "CheckCredentialsResponse": {
       "additionalProperties": false,
       "description": "Outcome per service; a failed check is reported here, not as an error response.",
@@ -394,6 +509,93 @@
         "runpod"
       ],
       "type": "string"
+    },
+    "CloudEntry": {
+      "additionalProperties": false,
+      "description": "A live `transcribe-ui-*` pod or queued pod on Runpod.",
+      "properties": {
+        "deadline": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deadline"
+        },
+        "entry_id": {
+          "title": "Entry Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/RunpodKind"
+        },
+        "local_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "overdue": {
+          "title": "Overdue",
+          "type": "boolean"
+        },
+        "pod_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pod Id"
+        },
+        "role": {
+          "$ref": "#/$defs/EntryRole"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Run Id"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "entry_id",
+        "name",
+        "status",
+        "pod_id",
+        "run_id",
+        "deadline",
+        "local_status",
+        "role",
+        "overdue"
+      ],
+      "title": "CloudEntry",
+      "type": "object"
     },
     "CloudObjectKind": {
       "enum": [
@@ -560,6 +762,51 @@
         "details"
       ],
       "title": "Confirmation",
+      "type": "object"
+    },
+    "CostEstimate": {
+      "additionalProperties": false,
+      "description": "Estimated cost range of a run (plan m5 §1 \"Cost estimate\"; factors recalibrated at M7).",
+      "properties": {
+        "high_usd": {
+          "minimum": 0,
+          "title": "High Usd",
+          "type": "number"
+        },
+        "low_usd": {
+          "minimum": 0,
+          "title": "Low Usd",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "price_per_hour_usd": {
+          "minimum": 0,
+          "title": "Price Per Hour Usd",
+          "type": "number"
+        },
+        "price_source": {
+          "$ref": "#/$defs/PriceSource"
+        }
+      },
+      "required": [
+        "low_usd",
+        "high_usd",
+        "price_per_hour_usd",
+        "price_source",
+        "note"
+      ],
+      "title": "CostEstimate",
       "type": "object"
     },
     "CreateBatchResponse": {
@@ -738,6 +985,13 @@
       ],
       "title": "EditBatchResponse",
       "type": "object"
+    },
+    "EntryRole": {
+      "enum": [
+        "current",
+        "straggler"
+      ],
+      "type": "string"
     },
     "ErrorBody": {
       "additionalProperties": false,
@@ -1100,6 +1354,149 @@
       "title": "LanguageOption",
       "type": "object"
     },
+    "LaunchOutcome": {
+      "enum": [
+        "pod",
+        "queued",
+        "unconfirmed",
+        "ended"
+      ],
+      "type": "string"
+    },
+    "LaunchPlan": {
+      "additionalProperties": false,
+      "description": "What `launch_worker` would start: the scope, the runtime limit and the cost estimate.",
+      "properties": {
+        "cost": {
+          "$ref": "#/$defs/CostEstimate"
+        },
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "max_runtime_s": {
+          "exclusiveMinimum": 0,
+          "title": "Max Runtime S",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/LaunchScope"
+        },
+        "test_mode": {
+          "title": "Test Mode",
+          "type": "boolean"
+        },
+        "wait": {
+          "$ref": "#/$defs/WaitBounds"
+        },
+        "weighted_duration_s": {
+          "minimum": 0,
+          "title": "Weighted Duration S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "scope",
+        "test_mode",
+        "weighted_duration_s",
+        "max_runtime_s",
+        "cost",
+        "fingerprint",
+        "wait"
+      ],
+      "title": "LaunchPlan",
+      "type": "object"
+    },
+    "LaunchScope": {
+      "additionalProperties": false,
+      "description": "What the next worker run would process: every manifest without `_done.json`, plus held ones.",
+      "properties": {
+        "batches": {
+          "items": {
+            "$ref": "#/$defs/ScopeBatch"
+          },
+          "title": "Batches",
+          "type": "array"
+        },
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "pending_duration_s": {
+          "minimum": 0,
+          "title": "Pending Duration S",
+          "type": "number"
+        },
+        "pending_jobs": {
+          "minimum": 0,
+          "title": "Pending Jobs",
+          "type": "integer"
+        },
+        "unreadable": {
+          "items": {
+            "$ref": "#/$defs/UnreadableManifest"
+          },
+          "title": "Unreadable",
+          "type": "array"
+        }
+      },
+      "required": [
+        "batches",
+        "unreadable",
+        "pending_jobs",
+        "pending_duration_s",
+        "fingerprint"
+      ],
+      "title": "LaunchScope",
+      "type": "object"
+    },
+    "LaunchWorkerResponse": {
+      "additionalProperties": false,
+      "description": "The run started (or whose outcome is still unknown), and the held manifests published first.",
+      "properties": {
+        "action": {
+          "const": "launch_worker",
+          "default": "launch_worker",
+          "title": "Action",
+          "type": "string"
+        },
+        "adopted": {
+          "default": false,
+          "title": "Adopted",
+          "type": "boolean"
+        },
+        "outcome": {
+          "$ref": "#/$defs/LaunchOutcome"
+        },
+        "published": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Published",
+          "type": "array"
+        },
+        "run": {
+          "$ref": "#/$defs/RunInfo"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "outcome",
+        "adopted",
+        "run",
+        "published"
+      ],
+      "title": "LaunchWorkerResponse",
+      "type": "object"
+    },
     "ListBatchesResponse": {
       "additionalProperties": false,
       "description": "The batches, newest first.",
@@ -1182,6 +1579,36 @@
     "PathFlavor": {
       "type": "string"
     },
+    "PendingJob": {
+      "additionalProperties": false,
+      "description": "A job of a manifest that has no result JSON yet.",
+      "properties": {
+        "duration_s": {
+          "minimum": 0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/TranscriptionMode"
+        }
+      },
+      "required": [
+        "item_id",
+        "language",
+        "mode",
+        "duration_s"
+      ],
+      "title": "PendingJob",
+      "type": "object"
+    },
     "PlacementDefaults": {
       "additionalProperties": false,
       "description": "Placement choices a download request is pre-filled with (§3.5).",
@@ -1226,6 +1653,34 @@
         "flat_with_folders"
       ],
       "type": "string"
+    },
+    "PlanLaunchResponse": {
+      "additionalProperties": false,
+      "description": "What a worker started now would process; confirm it by sending `launch_worker` with its fingerprint.",
+      "properties": {
+        "action": {
+          "const": "plan_launch",
+          "default": "plan_launch",
+          "title": "Action",
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/LaunchPlan"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "plan"
+      ],
+      "title": "PlanLaunchResponse",
+      "type": "object"
     },
     "PreviewSelectionResponse": {
       "additionalProperties": false,
@@ -1291,6 +1746,13 @@
       "title": "PreviewSelectionResponse",
       "type": "object"
     },
+    "PriceSource": {
+      "enum": [
+        "catalog",
+        "fallback"
+      ],
+      "type": "string"
+    },
     "ProblemCode": {
       "enum": [
         "source_missing",
@@ -1298,6 +1760,58 @@
         "source_changing"
       ],
       "type": "string"
+    },
+    "QueuedStop": {
+      "enum": [
+        "cancelled",
+        "pod_terminated"
+      ],
+      "type": "string"
+    },
+    "ReconcileCloudResponse": {
+      "additionalProperties": false,
+      "description": "The app's live pods and queued pods, and the local runs that were not final.",
+      "properties": {
+        "action": {
+          "const": "reconcile_cloud",
+          "default": "reconcile_cloud",
+          "title": "Action",
+          "type": "string"
+        },
+        "attention": {
+          "title": "Attention",
+          "type": "boolean"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/CloudEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/RunInfo"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "entries",
+        "runs",
+        "attention"
+      ],
+      "title": "ReconcileCloudResponse",
+      "type": "object"
     },
     "ResolveReviewResponse": {
       "additionalProperties": false,
@@ -1421,6 +1935,103 @@
       "title": "ReviewFile",
       "type": "object"
     },
+    "RunInfo": {
+      "additionalProperties": false,
+      "description": "A local run as the frontends show it.",
+      "properties": {
+        "covered_batch_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Covered Batch Ids",
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "max_runtime_s": {
+          "exclusiveMinimum": 0,
+          "title": "Max Runtime S",
+          "type": "integer"
+        },
+        "name_deadline": {
+          "format": "date-time",
+          "title": "Name Deadline",
+          "type": "string"
+        },
+        "pod_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pod Id"
+        },
+        "pod_name": {
+          "title": "Pod Name",
+          "type": "string"
+        },
+        "queue_expires_at": {
+          "format": "date-time",
+          "title": "Queue Expires At",
+          "type": "string"
+        },
+        "queued_pod_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Queued Pod Id"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "test_mode": {
+          "title": "Test Mode",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "pod_name",
+        "pod_id",
+        "queued_pod_id",
+        "test_mode",
+        "max_runtime_s",
+        "queue_expires_at",
+        "name_deadline",
+        "covered_batch_ids",
+        "created_at"
+      ],
+      "title": "RunInfo",
+      "type": "object"
+    },
+    "RunStatus": {
+      "enum": [
+        "launching",
+        "queued",
+        "running",
+        "finished",
+        "failed",
+        "cancelled",
+        "launch_failed"
+      ],
+      "type": "string"
+    },
     "RunUploadResponse": {
       "additionalProperties": false,
       "description": "What the upload did, and where the batch stands now.",
@@ -1492,6 +2103,13 @@
       ],
       "title": "RunUploadResponse",
       "type": "object"
+    },
+    "RunpodKind": {
+      "enum": [
+        "pod",
+        "queued_pod"
+      ],
+      "type": "string"
     },
     "ScanCounts": {
       "additionalProperties": false,
@@ -1703,6 +2321,51 @@
         "no_media_at_path"
       ],
       "type": "string"
+    },
+    "ScopeBatch": {
+      "additionalProperties": false,
+      "description": "A batch the next worker run processes: its manifest has no `_done.json` yet.",
+      "properties": {
+        "batch_id": {
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "files": {
+          "minimum": 0,
+          "title": "Files",
+          "type": "integer"
+        },
+        "held": {
+          "title": "Held",
+          "type": "boolean"
+        },
+        "known": {
+          "title": "Known",
+          "type": "boolean"
+        },
+        "pending_duration_s": {
+          "minimum": 0,
+          "title": "Pending Duration S",
+          "type": "number"
+        },
+        "pending_jobs": {
+          "items": {
+            "$ref": "#/$defs/PendingJob"
+          },
+          "title": "Pending Jobs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "batch_id",
+        "known",
+        "held",
+        "files",
+        "pending_jobs",
+        "pending_duration_s"
+      ],
+      "title": "ScopeBatch",
+      "type": "object"
     },
     "SelectedFile": {
       "additionalProperties": false,
@@ -2134,6 +2797,8 @@
     "SuccessResponse": {
       "discriminator": {
         "mapping": {
+          "cancel_queued_pod": "#/$defs/CancelQueuedPodResponse",
+          "cancel_worker": "#/$defs/CancelWorkerResponse",
           "check_credentials": "#/$defs/CheckCredentialsResponse",
           "cloud_setup_status": "#/$defs/CloudSetupStatusResponse",
           "create_batch": "#/$defs/CreateBatchResponse",
@@ -2144,8 +2809,11 @@
           "get_app_info": "#/$defs/GetAppInfoResponse",
           "get_batch": "#/$defs/GetBatchResponse",
           "get_settings": "#/$defs/GetSettingsResponse",
+          "launch_worker": "#/$defs/LaunchWorkerResponse",
           "list_batches": "#/$defs/ListBatchesResponse",
+          "plan_launch": "#/$defs/PlanLaunchResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
+          "reconcile_cloud": "#/$defs/ReconcileCloudResponse",
           "resolve_review": "#/$defs/ResolveReviewResponse",
           "review_batch": "#/$defs/ReviewBatchResponse",
           "run_upload": "#/$defs/RunUploadResponse",
@@ -2154,6 +2822,7 @@
           "setup_cloud": "#/$defs/SetupCloudResponse",
           "start_review": "#/$defs/StartReviewResponse",
           "store_credentials": "#/$defs/StoreCredentialsResponse",
+          "terminate_pod": "#/$defs/TerminatePodResponse",
           "update_settings": "#/$defs/UpdateSettingsResponse"
         },
         "propertyName": "action"
@@ -2221,8 +2890,83 @@
         },
         {
           "$ref": "#/$defs/RunUploadResponse"
+        },
+        {
+          "$ref": "#/$defs/PlanLaunchResponse"
+        },
+        {
+          "$ref": "#/$defs/LaunchWorkerResponse"
+        },
+        {
+          "$ref": "#/$defs/CancelWorkerResponse"
+        },
+        {
+          "$ref": "#/$defs/ReconcileCloudResponse"
+        },
+        {
+          "$ref": "#/$defs/TerminatePodResponse"
+        },
+        {
+          "$ref": "#/$defs/CancelQueuedPodResponse"
         }
       ]
+    },
+    "TerminatePodResponse": {
+      "additionalProperties": false,
+      "description": "The pod is terminated (verified).",
+      "properties": {
+        "action": {
+          "const": "terminate_pod",
+          "default": "terminate_pod",
+          "title": "Action",
+          "type": "string"
+        },
+        "local_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "pod_id": {
+          "title": "Pod Id",
+          "type": "string"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Run Id"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "pod_id",
+        "name",
+        "run_id",
+        "local_status"
+      ],
+      "title": "TerminatePodResponse",
+      "type": "object"
     },
     "ToolPath": {
       "$ref": "#/$defs/SetPath"
@@ -2236,6 +2980,33 @@
     },
     "Ulid": {
       "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    },
+    "UnreadableManifest": {
+      "additionalProperties": false,
+      "description": "An object under `batch_metadata/` the worker skips too (architecture §4).",
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/$defs/UnreadableReason"
+        }
+      },
+      "required": [
+        "key",
+        "reason"
+      ],
+      "title": "UnreadableManifest",
+      "type": "object"
+    },
+    "UnreadableReason": {
+      "enum": [
+        "not_a_manifest",
+        "unsupported_schema",
+        "invalid"
+      ],
       "type": "string"
     },
     "UpdateSettingsResponse": {
@@ -2282,6 +3053,37 @@
         "items_in_review"
       ],
       "type": "string"
+    },
+    "WaitBounds": {
+      "additionalProperties": false,
+      "description": "The wait for a machine `launch_worker` accepts (seconds).",
+      "properties": {
+        "default_s": {
+          "default": 3600,
+          "exclusiveMinimum": 0,
+          "title": "Default S",
+          "type": "integer"
+        },
+        "max_s": {
+          "default": 86400,
+          "exclusiveMinimum": 0,
+          "title": "Max S",
+          "type": "integer"
+        },
+        "min_s": {
+          "default": 300,
+          "exclusiveMinimum": 0,
+          "title": "Min S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "default_s",
+        "min_s",
+        "max_s"
+      ],
+      "title": "WaitBounds",
+      "type": "object"
     },
     "WhisperLanguage": {
       "type": "string"

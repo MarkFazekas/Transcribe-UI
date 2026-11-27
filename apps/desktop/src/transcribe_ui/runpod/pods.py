@@ -5,13 +5,17 @@ from transcribe_ui.runpod.calls import Endpoint
 from transcribe_ui.runpod.constants import (
     HTTP_ACCEPTED,
     LIMIT_PARAMETER,
+    POD_STATUSES,
     PODS_PATH,
+    QUEUED_POD_STATUSES,
     QUEUED_PODS_PATH,
     SCOPE_PODS_READ,
     SCOPE_PODS_WRITE,
 )
+from transcribe_ui.runpod.errors import AmbiguousCreateError
 from transcribe_ui.runpod.parsing import parse_body
 from transcribe_ui.runpod.session import RunpodHttp
+from transcribe_ui.runpod.timing import BeforeAttempt
 from transcribe_ui.runpod.wire import Pod, PodPage, QueuedPod, QueuedPodPage
 
 
@@ -42,17 +46,28 @@ class PodsApi:
         """Return the queued pod, or None if Runpod does not know it (404)."""
         return self._http.fetch(self._queued.read(queued_pod_id), QueuedPod)
 
-    def create(self, body: CreatePod) -> Pod | QueuedPod:
+    def create(self, body: CreatePod, before_attempt: BeforeAttempt | None = None) -> Pod | QueuedPod:
         """Create a pod: 201 gives the pod, 202 (with `queue`) the queued pod.
 
+        `before_attempt` runs before each attempt is sent (the caller records the time).
+
         Raises:
-            AmbiguousCreateError: The outcome is unknown; look the name up instead of retrying.
+            AmbiguousCreateError: The outcome is unknown, or the body's status does not fit the
+                answer (a pod status for 201, a queued-pod status for 202); look the name up
+                instead of retrying.
         """
         call = self._pods.create(body.body())
-        response = self._http.require(call)
+        response = self._http.require(call, before_attempt)
         if response.status_code == HTTP_ACCEPTED:
-            return parse_body(call, response, QueuedPod)
-        return parse_body(call, response, Pod)
+            created: Pod | QueuedPod = parse_body(call, response, QueuedPod)
+            known = QUEUED_POD_STATUSES
+        else:
+            created = parse_body(call, response, Pod)
+            known = POD_STATUSES
+        if created.status not in known:
+            msg = f"{call.label}: unexpected status in the answer; it may have taken effect"
+            raise AmbiguousCreateError(msg, status=response.status_code, scope=call.scope)
+        return created
 
     def terminate(self, pod_id: str) -> bool:
         """Terminate a pod; return False if Runpod does not know it (404)."""

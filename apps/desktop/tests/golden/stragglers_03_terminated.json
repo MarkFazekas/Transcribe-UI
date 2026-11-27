@@ -1,0 +1,12 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "terminate_pod",
+    "pod_id": "pod7919",
+    "name": "transcribe-ui-01JDZZZZZZZZZZZZZZZZZZZR01-until-20261127T1500Z",
+    "run_id": "01JDZZZZZZZZZZZZZZZZZZZR01",
+    "local_status": null
+  },
+  "events": []
+}
