@@ -22,6 +22,17 @@ Two parts:
    audio files in a chosen folder, lists them and lets the user select which ones to
    transcribe.
 
+## Main window
+
+- Main window layout *(Q33, architect: "A+C")*. The options were shown as mockups:
+  - A: a left-side navigation with four pages (New job, Jobs, Cloud, Settings) and an
+    always-visible cloud status bar at the bottom.
+  - B: top tabs.
+  - C: a step-by-step wizard (1 Files → 2 Upload → 3 Transcription → 4 Download) with Back and
+    next buttons.
+- During the conversion to audio, another file selection can be started (architect, with the
+  Q33 answer).
+
 ## UI app: file selection
 
 - Audio/video files and the transcription language(s) are selectable.
@@ -75,6 +86,7 @@ folder, another for another folder).
 - A video file is converted to audio in a temporary folder, losslessly where possible, using
   stream copy (as the reference repo did).
 - Each file's original absolute path is stored in the batch metadata.
+- Absolute paths in the shared manifest *(A22, architect)*: "Keep it."
 - Each file gets a unique ULID; it is stored in object storage under that name.
 
 ## Batches
@@ -96,6 +108,21 @@ folder, another for another folder).
   5. Subtitles downloaded: they can be deleted from storage.
   6. Manual confirmation of deleting the subtitles and the input audio files.
 - Every step must be interruptible and resumable, both during and between steps.
+- Closing the app while work is in progress *(Q30, accepted default)*: if a step is running
+  (converting and uploading, downloading subtitles, cleaning up the cloud), the app asks "Stop
+  and close? The work continues from where it stopped the next time you start it." On yes, it
+  stops the step cleanly (this can take a few seconds; a "Quit now" button ends at once, still
+  without losing finished work). If a cloud machine is waiting or working, the close question
+  also says that the machine keeps working without the app, stops itself when the work is done
+  or at its time limit, and that the app shows its results the next time it starts. Closing
+  never cancels the cloud machine; cancelling is a separate button on the Cloud page.
+- Steps the app starts on its own *(Q31, accepted default)*: the app starts none of these on
+  its own: the upload after the review step, the start of transcription after an upload, the
+  download after transcription, and continuing an interrupted upload or download when the app
+  starts again. Each is one button (Upload at the end of the review step, Start transcription
+  on the Cloud page, Download on the job page, Resume on an interrupted job). The app only
+  checks the cloud machines at start-up and follows a running one, and it shows clearly which
+  jobs are interrupted or have subtitles ready.
 - Job history is kept forever, with an option to hide finished and cleaned-up jobs. History
   only contains file names, paths and statuses (no audio) *(accepted proposal)*.
 
@@ -158,6 +185,10 @@ Naming and conflicts:
   finished uploading. The app then shows the state: waiting for a free cloud machine,
   starting, transcribing (which job and file, elapsed time, cost so far), finished, or failed.
   While waiting for a machine, the user can cancel *(accepted proposal)*.
+- Stopping the cloud machine *(Q34, accepted default)*: the Cloud page offers "Cancel" while
+  waiting for a machine and "Stop" while starting or transcribing, both with a confirmation.
+  Stopping keeps every subtitle already finished; the files not done yet wait for the next start
+  of transcription.
 - Run monitoring (architect): the status should be refreshed from R2 every 5 minutes, and the
   remaining time should be estimated from the files' completion. The estimated time should be a
   countdown, and maybe there should be a progress bar too.
@@ -168,6 +199,21 @@ Naming and conflicts:
 - Before starting, the app shows the total audio length and an estimated cost range and asks
   for confirmation. No separate spending limit in the app; the cloud account's own spending
   limit applies *(accepted proposal)*.
+- Cloud jobs this computer does not know *(Q28, architect)*: the cloud machine transcribes
+  every job it finds in the cloud storage, including jobs uploaded from another computer or by
+  an earlier installation whose local history is gone. The start confirmation lists these jobs
+  (job id, number of files, audio length) and includes them in the audio length and cost
+  estimate. The user can delete such a job from the cloud from that list, with one
+  confirmation, before starting *(proposed default, not objected to)*.
+  - Architect, with the answer: "List them, and include them in the time and cost. Mainly
+    because there can be a setup where an employee has access only to R2 but not to Runpod. So
+    an instance on one machine uploads the things, and another person starts it from another
+    instance on another machine. Afterwards the one who started the process downloads it. But
+    the Runpod supervisor could also download it, keeping the folder and file name structure."
+- Deleting a job's subtitles from the cloud when several computers download them *(Q35,
+  architect)*: a machine ID. If the computer that uploaded the job deletes it from the cloud, a
+  plain "Are you sure?" confirmation. If another computer deletes it, a stronger warning (not a
+  refusal).
 - The S3-compatible credentials and the Runpod API key are stored in the OS credential store.
 - R2 credentials for the pod (A18, accepted default): there is one bucket-scoped R2 token,
   shared by the desktop and the pod. `setup_cloud` creates or updates the Runpod secrets from
@@ -180,6 +226,12 @@ Naming and conflicts:
   the run is queued, waiting or running, completes its upload and waits ("uploaded, waits for
   the current run"). It is not given to that run, and it becomes ready for the next Start once
   the current run ends.
+- Run scope across computers *(A21, architect, choosing option 2: the computer that starts a
+  run lists its jobs in the run's JSON, and the cloud machine processes only those)*: "The
+  problem is exactly that it holds back the job's 'ready for processing' signal (the manifest)
+  and publishes it only after the run. Whatever is not in the run's JSON must not be
+  processed."
+- Trial run on Runpod (architect): "We'll leave the trial run until everything else works."
 
 ## Deployed app (worker)
 
@@ -198,6 +250,12 @@ Naming and conflicts:
 - Model weights are baked into the Docker image so the pod starts faster.
 - No SSH server in the image: SSH goes through Runpod's own system.
 - R2 credentials reach the pod as Runpod secrets.
+- Several cloud backup volumes with the app's name *(Q29, accepted default; architect: "This
+  is over-engineering an edge case.")*: the app keeps one backup volume on Runpod for the cloud
+  machine's result backups. If Runpod holds two or more with the app's name, the app never
+  deletes one itself and refuses to start a cloud machine until only one is left. The cloud
+  setup and the start show an error listing the volumes' ids; the user deletes the unwanted
+  volume in the Runpod console (Storage page) and runs the setup again.
 - Docker Hub repository: `markfazekasgh/transcribe-ui-worker` (public). CI pushes with a
   token kept in a GitHub environment that only the `main` branch can use.
 - In the first test period the pod is not stopped automatically; the architect will SSH in.
@@ -226,6 +284,10 @@ Naming and conflicts:
 ## Architecture and code quality
 
 - Project language: English (code, docs, commits, PR texts, product questions).
+- Language of the app's texts *(Q32, architect)*: "What is Django's language file? .po? Let
+  there be a Hungarian and an English .po file, and the OS language. If the OS language is
+  Hungarian, the app is Hungarian; the default is English." And: "It should be possible to
+  change the language in Settings."
 - Very high code quality standard.
   Quality and the end-user experience are the first and main principle
   (`working-agreements.md`).
