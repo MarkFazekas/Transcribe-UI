@@ -144,6 +144,7 @@ killpg
 lavfi
 levelname
 levelno
+libwayland
 linkname
 linuxfb
 liveness
@@ -322,6 +323,7 @@ writeframes
 wronly
 x11
 xcb
+xdg
 yue
 yyyymmdd
 zoneinfo

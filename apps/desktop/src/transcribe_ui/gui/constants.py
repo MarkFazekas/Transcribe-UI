@@ -91,6 +91,12 @@ QT_PLATFORM_VARIABLE: Final = "QT_QPA_PLATFORM"
 X11_DISPLAY_VARIABLE: Final = "DISPLAY"
 # Environment variable naming the Wayland display.
 WAYLAND_DISPLAY_VARIABLE: Final = "WAYLAND_DISPLAY"
+# Environment variable handing a Wayland client an already connected socket.
+WAYLAND_SOCKET_VARIABLE: Final = "WAYLAND_SOCKET"
+# Environment variable naming the folder of the Wayland sockets.
+RUNTIME_DIR_VARIABLE: Final = "XDG_RUNTIME_DIR"
+# Socket libwayland connects to when WAYLAND_DISPLAY is not set (in XDG_RUNTIME_DIR).
+DEFAULT_WAYLAND_SOCKET: Final = "wayland-0"
 # Environment variables of which the default Qt platform (xcb or Wayland) needs one, on non-macOS POSIX systems.
 DISPLAY_VARIABLES: Final = (X11_DISPLAY_VARIABLE, WAYLAND_DISPLAY_VARIABLE)
 # Qt platform plugin of X11, which needs `DISPLAY`.
@@ -109,7 +115,7 @@ NO_DISPLAY_MESSAGE: Final = (
 # Message of `display_unavailable` when no platform QT_QPA_PLATFORM names can start (`{platforms}`: its value).
 FORCED_PLATFORM_MESSAGE: Final = (
     "No display is available for the GUI: QT_QPA_PLATFORM={platforms} cannot start here "
-    "(xcb needs DISPLAY, wayland needs WAYLAND_DISPLAY, device platforms are not supported). "
+    "(xcb needs DISPLAY, wayland needs WAYLAND_DISPLAY or a wayland-0 socket, device platforms are not supported). "
     "Use the `transcribe-ui` command line instead."
 )
 

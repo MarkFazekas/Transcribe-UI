@@ -12,16 +12,20 @@ whose system libraries are missing (xcb needs `libxcb-cursor0` and friends).
 import os
 import sys
 from collections.abc import Mapping
+from pathlib import Path
 
 from transcribe_ui.gui.constants import (
+    DEFAULT_WAYLAND_SOCKET,
     DESKTOP_PLATFORMS,
     DISPLAY_VARIABLES,
     FORCED_PLATFORM_MESSAGE,
     HEADLESS_PLATFORMS,
     NO_DISPLAY_MESSAGE,
     QT_PLATFORM_VARIABLE,
+    RUNTIME_DIR_VARIABLE,
     WAYLAND_DISPLAY_VARIABLE,
     WAYLAND_PLATFORM_PREFIX,
+    WAYLAND_SOCKET_VARIABLE,
     X11_DISPLAY_VARIABLE,
     X11_PLATFORM,
 )
@@ -47,9 +51,21 @@ def _can_start(name: str, env: Environ) -> bool:
     if name == X11_PLATFORM:
         return bool(env.get(X11_DISPLAY_VARIABLE))
     if name.startswith(WAYLAND_PLATFORM_PREFIX):
-        return bool(env.get(WAYLAND_DISPLAY_VARIABLE))
+        return _wayland_reachable(env)
     # Device platforms (eglfs, linuxfb, minimalegl, vkkhrdisplay, ...) depend on hardware.
     return False
+
+
+def _wayland_reachable(env: Environ) -> bool:
+    """Return whether a Wayland client finds a compositor socket the way libwayland looks for one.
+
+    Qt passes no name to `wl_display_connect`, so libwayland takes `WAYLAND_SOCKET`, else
+    `WAYLAND_DISPLAY`, else `wayland-0` in `XDG_RUNTIME_DIR`.
+    """
+    if env.get(WAYLAND_SOCKET_VARIABLE) or env.get(WAYLAND_DISPLAY_VARIABLE):
+        return True
+    runtime_dir = env.get(RUNTIME_DIR_VARIABLE, "")
+    return bool(runtime_dir) and (Path(runtime_dir) / DEFAULT_WAYLAND_SOCKET).exists()
 
 
 def display_problem(environ: Environ | None = None, platform: str | None = None) -> str | None:
@@ -57,7 +73,7 @@ def display_problem(environ: Environ | None = None, platform: str | None = None)
 
     Windows and macOS always have a display. Elsewhere, a `QT_QPA_PLATFORM` list needs one entry
     that can start: `offscreen`, `minimal` or `vnc` always; `xcb` with `DISPLAY`; `wayland*`
-    with `WAYLAND_DISPLAY`; device platforms (`eglfs`, `linuxfb`, ...) never count. Without
+    with a compositor socket (`_wayland_reachable`); device platforms (`eglfs`, `linuxfb`, ...) never count. Without
     `QT_QPA_PLATFORM`, Qt picks xcb or Wayland, so one of `DISPLAY` and `WAYLAND_DISPLAY` must be set.
     """
     env = os.environ if environ is None else environ

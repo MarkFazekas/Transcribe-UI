@@ -18,11 +18,14 @@ from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.gui import main as gui_main
 from transcribe_ui.gui.constants import (
+    DEFAULT_WAYLAND_SOCKET,
     FORCED_PLATFORM_MESSAGE,
     GUI_LOG_FILE_NAME,
     NO_DISPLAY_MESSAGE,
     QT_PLATFORM_VARIABLE,
+    RUNTIME_DIR_VARIABLE,
     WAYLAND_DISPLAY_VARIABLE,
+    WAYLAND_SOCKET_VARIABLE,
     X11_DISPLAY_VARIABLE,
 )
 from transcribe_ui.gui.display import display_available, display_problem
@@ -175,6 +178,15 @@ def test_no_display_answers_display_unavailable(
     assert response.error.code == ERROR_DISPLAY_UNAVAILABLE
     assert response.error.message == NO_DISPLAY_MESSAGE
     assert NO_DISPLAY_MESSAGE in log_file.read_text(encoding="utf-8")
+
+
+def test_wayland_finds_the_default_socket(tmp_path: Path) -> None:
+    """Forced Wayland without WAYLAND_DISPLAY: libwayland's default `wayland-0` in XDG_RUNTIME_DIR counts."""
+    environ = {QT_PLATFORM_VARIABLE: "wayland", RUNTIME_DIR_VARIABLE: str(tmp_path)}
+    assert not display_available(environ, LINUX)
+    (tmp_path / DEFAULT_WAYLAND_SOCKET).touch()
+    assert display_available(environ, LINUX)
+    assert display_available({QT_PLATFORM_VARIABLE: "wayland", WAYLAND_SOCKET_VARIABLE: "3"}, LINUX)
 
 
 def test_a_forced_platform_is_named_in_the_message() -> None:
