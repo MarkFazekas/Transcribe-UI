@@ -12,7 +12,7 @@ from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import Pod, QueuedPod
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.records import open_run_id, read_run, update_run
-from transcribe_ui.runs.settling import Listed, live_pod_named
+from transcribe_ui.runs.settling import Listed, live_pod_named, queue_waiting
 from transcribe_ui.runs.stop_records import adopt_deployed, queued_stop
 from transcribe_ui.runs.stopped import end_stopped_run, last_report
 from transcribe_ui.runs.stopping import KnownPod, QueuedStopped, cancel_queued_verified, terminate_verified
@@ -78,23 +78,30 @@ def _report_of_open_run(context: RequestContext, run_id: str | None) -> WorkerRe
 
 
 def _follow_other_named(context: RequestContext, pods: PodsApi, run_id: str | None, stopped: frozenset[str]) -> bool:
-    """Make the open local run follow a live pod under its name that this stop did not stop; return whether one exists.
+    """Keep the open local run open while something of it may still bill; return whether it stays open.
 
-    A run never becomes final while a pod carrying its name may still bill: such a pod (another
-    pod its queued pod deployed, say) keeps the run open, followed by `refresh_status`.
+    A run never becomes final while a pod carrying its name may still bill (another pod its
+    queued pod deployed, say) or its queued pod still waits (`QUEUED`). The run keeps the pod it
+    follows when that pod was not stopped and is still listed live; otherwise it follows the
+    live pod under its name, or keeps waiting for its queued pod (followed by `refresh_status`).
 
     Raises:
-        DomainError: The pod list could not be read (the run stays as it is).
+        DomainError: The lists could not be read (the run stays as it is).
     """
     state = context.ports.state
     open_id = open_run_id(state, run_id)
     if open_id is None:
         return False
-    name = read_run(state, open_id).pod_name
-    listed = Listed(runpod_call(pods.list_pods), ())
-    other = live_pod_named(listed, name, stopped)
+    run = read_run(state, open_id)
+    listed = Listed(runpod_call(pods.list_pods), runpod_call(pods.list_queued_pods))
+    followed = run.pod_id
+    if followed is not None and followed not in stopped:
+        named = [pod for pod in listed.pods if pod.pod_id == followed]
+        if any(pod.status != POD_TERMINATED for pod in named):
+            return True
+    other = live_pod_named(listed, run.pod_name, stopped)
     if other is None:
-        return False
+        return queue_waiting(listed, run.queued_pod_id)
     changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
     update_run(state, open_id, context.ports.clock.now(), "running", changes)
     return True

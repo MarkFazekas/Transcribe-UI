@@ -196,7 +196,9 @@ Sources: https://docs.runpod.io/api-reference-v2/templates/create-a-template.md 
    lag after a deploy), and whether `GET /v2/queued-pods/{id}` answers 404 after a cancel
    (cancelled queued pods forgotten) instead of `CANCELLED`: the desktop then counts a cancel as
    done only `DEPLOY_SETTLE_S` after the earlier of the queue's `expiresAt` and the cancel's
-   acknowledgement, after two empty lookups (architecture §3.7 "Cancel").
+   acknowledgement, after two empty lookups (architecture §3.7 "Cancel"). M7 also checks how long
+   a cancelled queued pod can still read `QUEUED` right after the 204 (the desktop keeps the
+   acknowledgement over such a read; a later refresh that still reads `QUEUED` voids it).
 8. Whether a queued pod can still deploy after its `expiresAt` (a scheduler attempt that started
    before it and is still running at that moment), or after a cancel answered 204 (an attempt
    under way when the cancel arrived): the settle rule above assumes neither happens.

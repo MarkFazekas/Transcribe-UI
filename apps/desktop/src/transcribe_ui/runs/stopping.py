@@ -16,7 +16,7 @@ from typing import Literal, NamedTuple
 
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import Clock
-from transcribe_ui.runpod.constants import POD_TERMINATED
+from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_QUEUED
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runpod.wire import QueuedPod
 from transcribe_ui.runs.classes import RunpodKind
@@ -117,6 +117,8 @@ def terminate_verified(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSe
 type VanishVerdict = Literal["gone", "record", "wait"]
 # Told the moment the queued pod's cancel was acknowledged (a success answer to its DELETE).
 type OnAcknowledged = Callable[[datetime], None]
+# Ids of pods terminated by a stop.
+type PodIds = tuple[str, ...]
 # Whether a pod stop found the pod live, or the error that kept the stop from showing.
 type StopOutcome = bool | DomainError
 # A pod whose stop did not show, with the error.
@@ -368,6 +370,31 @@ def _stop_pod(pods: PodsApi, pod: KnownPod, clock: Clock, on_seen: OnSeen | None
         return False
     terminate_verified(pods, KnownPod(pod_id, seen=True), clock, on_seen)
     return True
+
+
+def cancel_waiting_queue(pods: PodsApi, queued_pod_id: str, skip: frozenset[str], clock: Clock) -> PodIds:
+    """Cancel a queued pod that may still be waiting, after the run's pod was stopped; return the pods terminated.
+
+    Done once a read shows it is not `QUEUED` (or Runpod no longer knows it); a pod it names that
+    was not stopped already (`skip`) is terminated and verified. The DELETE is harmless when the
+    queued pod deployed or ended.
+
+    Raises:
+        StopUnverifiedError: It still reads `QUEUED`.
+        DomainError: A Runpod call failed, or the stop of its pod does not show.
+    """
+    runpod_call(lambda: pods.cancel_queued(queued_pod_id))
+    entry = runpod_call(lambda: pods.get_queued_pod(queued_pod_id))
+    if entry is None:
+        return ()
+    if entry.status == QUEUED_POD_QUEUED:
+        raise StopUnverifiedError(QUEUED_POD_KIND, queued_pod_id)
+    pod_id = entry.pod_id
+    if pod_id is None or pod_id in skip:
+        return ()
+    deployed = KnownPod(pod_id, seen=False, deployed_at=entry.resolved_at)
+    _stop_pod(pods, deployed, clock, None)
+    return (pod_id,)
 
 
 def stop_named_pods(

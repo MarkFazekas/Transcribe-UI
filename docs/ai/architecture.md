@@ -1162,22 +1162,33 @@ database):
   (`stopping.QueuedTarget`). Every one is stopped even when one fails; the first failure is
   raised afterwards and the run follows the first pod whose stop did not show, so it stays open
   until all are verified. **Invariant: a run becomes final only while no live pod carries its
-  name.** A stop that is cut short (several failures, a cancel between two pods) may leave
-  pods the run does not record; so `cancel_worker` and the deadline stop (`halting.stop_run`)
-  stop, after the run's own pod or queued pod, every other live pod listed under the run's name
-  (`stopping.stop_named_pods`; one whose stop does not show is recorded, the run follows it),
-  `refresh_status` makes a run whose pod is gone follow another live pod listed under its name
-  instead of ending it, and the straggler stops leave such a run open, following that pod. A
-  pod that appears under the name after the last list (list lag) is caught by the next refresh.
+  name and no queued pod of it can still deploy.** A stop that is cut short (several failures,
+  a cancel between two pods) may leave pods the run does not record, and a run that adopted a
+  pod by its name may still have a waiting queued pod. So `cancel_worker` and the deadline stop
+  (`halting.stop_run`) stop the run's own pod and then cancel its queued pod
+  (`stopping.cancel_waiting_queue`: done once a read shows it is not `QUEUED`, a pod it names
+  terminated too), or stop its queued pod and what it deployed, and then every other live pod
+  listed under the run's name (`stopping.stop_named_pods`, tried even when the run's own stop
+  failed; one whose stop does not show is recorded, unless the run follows its own failed pod,
+  and the first error is raised once all were tried). `refresh_status` makes a run whose pod is
+  gone follow another live pod listed under its name, or keeps it open while its queued pod is
+  listed `QUEUED`, instead of ending it; the straggler stops leave such a run open, keeping the
+  pod it follows when that pod was not stopped and is still listed live. A pod that appears
+  under the name only after the last list (list lag) is caught by the next refresh while the
+  run is open; if the run became final meanwhile, `reconcile_cloud` reports the pod as a
+  straggler, collection waits for it (`lingering`), and the worker's own exit and the reaper
+  bound it.
   With none of these pods the 404 counts as cancelled only by the settle
   rule `refresh_status` uses for a vanished queued pod (`stopping.vanish_verdict`):
   `DEPLOY_SETTLE_S` after the earlier of the queue's `expiresAt` and the cancel's
   acknowledgement (`cancel_acknowledged_at`, recorded on the run only after the DELETE was
   answered with success), and two empty lookups at least `LAUNCH_LOOKUP_GAP_S` apart (the first
   recorded in `first_empty_lookup_at`); before that it gives `stop_unverified`. A read after the
-  cancel that still shows the queued pod voids an earlier empty lookup, and one that still reads
-  `QUEUED` (the cancel did not take effect) also voids the acknowledgement; `refresh_status`
-  clears both the same way when it reads the queued pod. A queued pod an earlier read showed
+  cancel that still shows the queued pod voids an earlier empty lookup. The acknowledgement is
+  kept even when that read still shows `QUEUED`: it follows the 204 in the same call (lag after
+  the cancel), and voiding it could leave the run waiting for hours should Runpod then forget
+  the queued pod. A later `QUEUED` read by `refresh_status` (a cancel that did not take effect)
+  voids it, and that read clears an empty lookup too. A queued pod an earlier read showed
   ended without a pod needs none of this. Without a local run (a straggler of no run of this
   database), the 404 with no pod listed under its name is the final answer `cancelled`: no
   local run can become final, and a pod that shows up later is listed by `reconcile_cloud` as a

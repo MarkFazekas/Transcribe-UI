@@ -13,7 +13,18 @@ from datetime import datetime, timedelta
 import httpx
 import pytest
 
-from support.launch import CANCEL, CANCEL_QUEUED, error_code, ok_as, pods_of, run_row, send, set_up_cloud
+from support.launch import (
+    CANCEL,
+    CANCEL_QUEUED,
+    error_code,
+    ok_as,
+    plan_fingerprint,
+    pods_of,
+    reconcile,
+    run_row,
+    send,
+    set_up_cloud,
+)
 from support.monitor import refreshed_run
 from support.runpod_api import Failure, Json, Record
 from support.runs import RUN_ID, RunsWorld, seed_uploaded
@@ -22,7 +33,8 @@ from transcribe_contracts.pods import pod_name
 from transcribe_ui.runpod.constants import QUEUED_POD_DEPLOYED, QUEUED_POD_EXPIRED
 from transcribe_ui.runs.constants import DEPLOY_SETTLE_S, ERROR_STOP_UNVERIFIED, LAUNCH_LOOKUP_GAP_S
 from transcribe_ui.runs.payloads import RunPayload
-from transcribe_ui.runs.responses import CancelQueuedPodResponse, CancelWorkerResponse
+from transcribe_ui.runs.records import update_run
+from transcribe_ui.runs.responses import CancelQueuedPodResponse, CancelWorkerResponse, LaunchWorkerResponse
 from transcribe_ui.state.models import RunRow
 
 # Run status and end reason of a run the user stopped.
@@ -175,14 +187,18 @@ def test_earliest_acknowledgement_is_kept(world: RunsWorld, waiting: tuple[str, 
     assert _acknowledged(world, run_id) == first
 
 
-def test_still_queued_voids_the_acknowledgement(
+def test_later_queued_read_voids_the_acknowledgement(
     world: RunsWorld, waiting: tuple[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A cancel answered but not taken (the queued pod still reads `QUEUED`): its acknowledgement bounds nothing."""
+    """A cancel answered but not taken: the read right after keeps the acknowledgement, the refresh's voids it."""
     run_id, _queued_id = waiting
     monkeypatch.setattr(world.cloud.api.queued_pods, "delete", _ignored_delete)
-    assert _cancel_at(world, run_id, world.now()) == ERROR_STOP_UNVERIFIED
-    assert _acknowledged(world, run_id) is None
+    acknowledged = world.now()
+    assert _cancel_at(world, run_id, acknowledged) == ERROR_STOP_UNVERIFIED
+    kept = _acknowledged(world, run_id)
+    world.cloud.clock.advance(MINUTE)
+    assert refreshed_run(world, run_id).stage == "waiting"
+    assert (kept, _acknowledged(world, run_id)) == (acknowledged, None)
 
 
 @pytest.mark.parametrize("failing", [0, 1])
@@ -276,3 +292,17 @@ def _first_lookup(world: RunsWorld, run_id: str) -> datetime | None:
 
 def _acknowledged(world: RunsWorld, run_id: str) -> datetime | None:
     return _payload(world, run_id).cancel_acknowledged_at
+
+
+def test_launching_adoption_voids_the_lookup(world: RunsWorld) -> None:
+    """A `launching` run whose pod shows up after an empty lookup was recorded: the adoption clears that lookup."""
+    world.cloud.settings.list_lag = MINUTE
+    world.cloud.api.fail("POST", "/v2/pods", Failure(lost_response=True))
+    launched = ok_as(send(world, "launch_worker", confirm_fingerprint=plan_fingerprint(world)), LaunchWorkerResponse)
+    run_id = launched.run.run_id
+    assert (launched.outcome, run_row(world, run_id)[0]) == ("unconfirmed", "launching")
+    update_run(world.ports.state, run_id, world.now(), changes={"first_empty_lookup_at": world.now()})
+    world.cloud.clock.advance(MINUTE)
+    reconcile(world)
+    status, payload = run_row(world, run_id)
+    assert (status, payload.first_empty_lookup_at) == ("running", None)

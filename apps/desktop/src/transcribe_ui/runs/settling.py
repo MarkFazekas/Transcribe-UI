@@ -55,6 +55,12 @@ def live_pod_named(listed: Listed, name: str, excluding: frozenset[str]) -> Pod 
     return live[0] if live else None
 
 
+def queue_waiting(listed: Listed, queued_pod_id: str | None) -> bool:
+    """Return whether the queued pod is listed and still waits (`QUEUED`): it may still deploy."""
+    waiting = [entry for entry in listed.queued if entry.queued_pod_id == queued_pod_id]
+    return any(entry.status == QUEUED_POD_QUEUED for entry in waiting)
+
+
 @dataclass(frozen=True)
 class Adoption:
     """The pod or queued pod found under a run's name, and the run status it gives."""

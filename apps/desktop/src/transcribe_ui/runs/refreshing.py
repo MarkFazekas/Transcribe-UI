@@ -23,7 +23,7 @@ from transcribe_ui.runs.ending import desktop_deadline, end_run, stop_at_deadlin
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.following import Followed, follow_run
 from transcribe_ui.runs.records import open_runs, read_payload, update_run
-from transcribe_ui.runs.settling import Listed, live_pod_named
+from transcribe_ui.runs.settling import Listed, live_pod_named, queue_waiting
 from transcribe_ui.runs.worker import WorkerReport, read_worker, stored_report
 from transcribe_ui.state.store import LocalState
 
@@ -121,17 +121,18 @@ def _refresh_run(context: RequestContext, pods: PodsApi, store: LazyStore, run_i
 
 
 def _follow_other_pod(state: LocalState, followed: Followed, listed: Listed, now: datetime) -> bool:
-    """Make a run whose pod is gone follow another live pod listed under its name; return whether there was one.
+    """Keep a run whose pod is gone open while something of it may still bill; return whether it stays open.
 
     A run never becomes final while a pod carrying its name may still bill (a queued pod that
     deployed more than one, a stop cut short between pods): it follows such a pod until it too
-    is gone, or stopped at the deadline.
+    is gone, or stopped at the deadline. Nor while its queued pod still waits (`QUEUED`, it may
+    still deploy): the run stays as it is, and a pod it deploys is adopted by its name.
     """
     run = followed.run
     gone = frozenset(() if run.pod_id is None else (run.pod_id,))
     other = live_pod_named(listed, run.pod_name, gone)
     if other is None:
-        return False
+        return queue_waiting(listed, run.queued_pod_id)
     changes = {"pod_id": other.pod_id, "pod_seen": True, "pod_status": other.status}
     update_run(state, run.run_id, now, "running", changes)
     return True
