@@ -175,7 +175,9 @@ def test_child_runs_in_its_own_session() -> None:
 
 def _run_beating(beat: Path, cancel: CancelToken, outcome: list[BaseException | int]) -> None:
     try:
-        outcome.append(SubprocessRunner().run(_python(HEARTBEAT, str(beat)), RUN_TIMEOUT_S, cancel).returncode)
+        # One poll as long as the run: the end is seen by `communicate`, not by a per-poll check.
+        runner = SubprocessRunner(poll_interval_s=RUN_TIMEOUT_S)
+        outcome.append(runner.run(_python(HEARTBEAT, str(beat)), RUN_TIMEOUT_S, cancel).returncode)
     except CancelledError as error:
         outcome.append(error)
 

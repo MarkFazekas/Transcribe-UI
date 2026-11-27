@@ -12,6 +12,7 @@ from pathlib import Path
 
 from pytestqt.qtbot import QtBot
 
+from support.gated import DRAIN_MS
 from support.parity import Exchange, Leg, Prepare, RecordingProgress, RoutesFactory, Template
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.schema import parse_request
@@ -64,7 +65,7 @@ def run_gui_parity(
             assert actual == expected, f"request {index}: the GUI and the backend disagree"
             exchanges.append(actual)
         executor.shutdown()
-        executor.wait_for_threads()
+        assert executor.wait_for_threads(DRAIN_MS)
     return exchanges
 
 

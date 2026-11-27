@@ -9,7 +9,7 @@ import pytest
 from pytestqt.qtbot import QtBot
 
 from support.discovery import build_media_tree, scan_request
-from support.gated import UPLOAD, wait_for
+from support.gated import DRAIN_MS, UPLOAD, wait_for
 from support.golden import assert_golden
 from support.gui_parity import run_gui_one, run_gui_parity, via_backend
 from support.parity import Exchange, Leg, RecordingProgress, RoutesFactory
@@ -157,7 +157,7 @@ def test_mixed_requests_in_parallel(tmp_path: Path, qtbot: QtBot) -> None:
         outcomes = [_submit(executor, parallel, template) for template in MIXED]
         wait_for(qtbot, lambda: executor.pending() == 0)
         actual = [_exchange(parallel, outcome) for outcome in outcomes]
-        executor.wait_for_threads()
+        assert executor.wait_for_threads(DRAIN_MS)
     assert actual == expected
 
 
