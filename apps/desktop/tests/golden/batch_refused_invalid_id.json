@@ -1,0 +1,24 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "get_batch",
+              "batch_id"
+            ],
+            "message": "String should match pattern '^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$'",
+            "type": "string_pattern_mismatch"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

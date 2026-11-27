@@ -1,0 +1,33 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (2 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "create_batch",
+              "languages",
+              "0"
+            ],
+            "message": "Value error, 'xx' is not a language Whisper can transcribe",
+            "type": "value_error"
+          },
+          {
+            "location": [
+              "create_batch",
+              "languages"
+            ],
+            "message": "Tuple should have at least 1 item after validation, not 0",
+            "type": "too_short"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

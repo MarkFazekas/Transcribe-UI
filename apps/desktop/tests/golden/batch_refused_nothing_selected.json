@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "create_batch",
+    "error": {
+      "code": "nothing_selected",
+      "message": "The selection contains no media file.",
+      "details": {}
+    }
+  },
+  "events": []
+}

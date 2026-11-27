@@ -1,0 +1,93 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "exclude_items",
+    "batch": {
+      "summary": {
+        "batch_id": "batch_20261127_130000",
+        "phase": "reviewing",
+        "created_at": "2026-11-27T12:00:00Z",
+        "updated_at": "2026-11-27T12:00:00Z",
+        "items": 2,
+        "jobs": 4,
+        "languages": [
+          "en",
+          "hu"
+        ],
+        "hidden": false,
+        "manifest_held": false,
+        "audio_deleted": false,
+        "extract_only": false
+      },
+      "scan_root": "<root>/media",
+      "path_flavor": "<flavor>",
+      "items": [
+        {
+          "item_id": "01M8EE0VG019SK8EHCKYZD7T8W",
+          "path": "<root>/media/Movies/Film.mkv",
+          "name": "Film.mkv",
+          "kind": "video",
+          "size_bytes": 0,
+          "phase": "reviewed",
+          "subtitle_languages": [
+            "en"
+          ],
+          "problem": null,
+          "jobs": [
+            {
+              "language": "en",
+              "kind": "extract",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": 0,
+              "status": "pending",
+              "resolved": true
+            },
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": 1,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": true
+            }
+          ]
+        },
+        {
+          "item_id": "01M8EE0VG0QQ6ZWWP37EASAXFY",
+          "path": "<root>/media/Movies/Silent.mkv",
+          "name": "Silent.mkv",
+          "kind": "video",
+          "size_bytes": 0,
+          "phase": "reviewed",
+          "subtitle_languages": [],
+          "problem": null,
+          "jobs": [
+            {
+              "language": "en",
+              "kind": "extract",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": 0,
+              "status": "pending",
+              "resolved": true
+            },
+            {
+              "language": "hu",
+              "kind": "extract",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": 0,
+              "status": "pending",
+              "resolved": true
+            }
+          ]
+        }
+      ]
+    },
+    "deleted_objects": 0
+  },
+  "events": []
+}

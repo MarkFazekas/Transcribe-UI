@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "list_batches",
+    "batches": []
+  },
+  "events": []
+}

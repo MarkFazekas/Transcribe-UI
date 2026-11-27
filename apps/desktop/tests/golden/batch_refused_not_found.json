@@ -1,0 +1,15 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "get_batch",
+    "error": {
+      "code": "batch_not_found",
+      "message": "There is no batch with this id.",
+      "details": {
+        "batch_id": "batch_20261127_130000"
+      }
+    }
+  },
+  "events": []
+}

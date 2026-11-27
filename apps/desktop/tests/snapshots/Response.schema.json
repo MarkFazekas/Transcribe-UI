@@ -1,5 +1,307 @@
 {
   "$defs": {
+    "AudioTrack": {
+      "additionalProperties": false,
+      "description": "One audio stream of a media file.",
+      "properties": {
+        "channels": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Channels"
+        },
+        "codec": {
+          "title": "Codec",
+          "type": "string"
+        },
+        "default": {
+          "title": "Default",
+          "type": "boolean"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Language"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        }
+      },
+      "required": [
+        "index",
+        "codec",
+        "language",
+        "title",
+        "default",
+        "channels"
+      ],
+      "title": "AudioTrack",
+      "type": "object"
+    },
+    "BatchDetail": {
+      "additionalProperties": false,
+      "description": "A batch with its items and jobs.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/BatchItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "path_flavor": {
+          "$ref": "#/$defs/PathFlavor"
+        },
+        "scan_root": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "summary": {
+          "$ref": "#/$defs/BatchSummary"
+        }
+      },
+      "required": [
+        "summary",
+        "scan_root",
+        "path_flavor",
+        "items"
+      ],
+      "title": "BatchDetail",
+      "type": "object"
+    },
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
+    "BatchItem": {
+      "additionalProperties": false,
+      "description": "A source file of a batch.",
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "jobs": {
+          "items": {
+            "$ref": "#/$defs/JobView"
+          },
+          "title": "Jobs",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "phase": {
+          "$ref": "#/$defs/ItemPhase"
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemProblem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "subtitle_languages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subtitle Languages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "item_id",
+        "path",
+        "name",
+        "kind",
+        "size_bytes",
+        "phase",
+        "subtitle_languages",
+        "problem",
+        "jobs"
+      ],
+      "title": "BatchItem",
+      "type": "object"
+    },
+    "BatchPhase": {
+      "enum": [
+        "composing",
+        "reviewing",
+        "uploading",
+        "ready",
+        "transcribed",
+        "downloaded",
+        "cleaned"
+      ],
+      "type": "string"
+    },
+    "BatchReview": {
+      "additionalProperties": false,
+      "description": "The review views of a batch, narrowed by the request's filters.",
+      "properties": {
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "complete": {
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "items_in_review": {
+          "minimum": 0,
+          "title": "Items In Review",
+          "type": "integer"
+        },
+        "items_unresolved": {
+          "minimum": 0,
+          "title": "Items Unresolved",
+          "type": "integer"
+        },
+        "phase": {
+          "$ref": "#/$defs/BatchPhase"
+        },
+        "subtitle_view": {
+          "items": {
+            "$ref": "#/$defs/ReviewFile"
+          },
+          "title": "Subtitle View",
+          "type": "array"
+        },
+        "track_view": {
+          "items": {
+            "$ref": "#/$defs/ReviewFile"
+          },
+          "title": "Track View",
+          "type": "array"
+        },
+        "unresolved": {
+          "items": {
+            "$ref": "#/$defs/ReviewFile"
+          },
+          "title": "Unresolved",
+          "type": "array"
+        }
+      },
+      "required": [
+        "batch_id",
+        "phase",
+        "items_in_review",
+        "items_unresolved",
+        "complete",
+        "subtitle_view",
+        "track_view",
+        "unresolved"
+      ],
+      "title": "BatchReview",
+      "type": "object"
+    },
+    "BatchSummary": {
+      "additionalProperties": false,
+      "description": "A batch as the batch list shows it.",
+      "properties": {
+        "audio_deleted": {
+          "title": "Audio Deleted",
+          "type": "boolean"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "extract_only": {
+          "title": "Extract Only",
+          "type": "boolean"
+        },
+        "hidden": {
+          "title": "Hidden",
+          "type": "boolean"
+        },
+        "items": {
+          "minimum": 0,
+          "title": "Items",
+          "type": "integer"
+        },
+        "jobs": {
+          "minimum": 0,
+          "title": "Jobs",
+          "type": "integer"
+        },
+        "languages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Languages",
+          "type": "array"
+        },
+        "manifest_held": {
+          "title": "Manifest Held",
+          "type": "boolean"
+        },
+        "phase": {
+          "$ref": "#/$defs/BatchPhase"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "batch_id",
+        "phase",
+        "created_at",
+        "updated_at",
+        "items",
+        "jobs",
+        "languages",
+        "hidden",
+        "manifest_held",
+        "audio_deleted",
+        "extract_only"
+      ],
+      "title": "BatchSummary",
+      "type": "object"
+    },
     "CheckCredentialsResponse": {
       "additionalProperties": false,
       "description": "Outcome per service; a failed check is reported here, not as an error response.",
@@ -214,6 +516,42 @@
       "title": "Confirmation",
       "type": "object"
     },
+    "CreateBatchResponse": {
+      "additionalProperties": false,
+      "description": "The new batch, in `composing`.",
+      "properties": {
+        "action": {
+          "const": "create_batch",
+          "default": "create_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchDetail"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ScanWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "warnings"
+      ],
+      "title": "CreateBatchResponse",
+      "type": "object"
+    },
     "CredentialName": {
       "enum": [
         "r2_endpoint_url",
@@ -291,6 +629,70 @@
       "title": "CredentialsStatusResponse",
       "type": "object"
     },
+    "DeleteBatchResponse": {
+      "additionalProperties": false,
+      "description": "The batch is gone.",
+      "properties": {
+        "action": {
+          "const": "delete_batch",
+          "default": "delete_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch_id"
+      ],
+      "title": "DeleteBatchResponse",
+      "type": "object"
+    },
+    "EditBatchResponse": {
+      "additionalProperties": false,
+      "description": "The batch with its new items.",
+      "properties": {
+        "action": {
+          "const": "edit_batch",
+          "default": "edit_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchDetail"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ScanWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "warnings"
+      ],
+      "title": "EditBatchResponse",
+      "type": "object"
+    },
     "ErrorBody": {
       "additionalProperties": false,
       "description": "What went wrong: a stable code, a human-readable message and structured details.",
@@ -350,6 +752,40 @@
         "error"
       ],
       "title": "ErrorResponse",
+      "type": "object"
+    },
+    "ExcludeItemsResponse": {
+      "additionalProperties": false,
+      "description": "The batch without the excluded items.",
+      "properties": {
+        "action": {
+          "const": "exclude_items",
+          "default": "exclude_items",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchDetail"
+        },
+        "deleted_objects": {
+          "minimum": 0,
+          "title": "Deleted Objects",
+          "type": "integer"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch",
+        "deleted_objects"
+      ],
+      "title": "ExcludeItemsResponse",
       "type": "object"
     },
     "FileExtension": {
@@ -415,6 +851,34 @@
       "title": "GetAppInfoResponse",
       "type": "object"
     },
+    "GetBatchResponse": {
+      "additionalProperties": false,
+      "description": "One batch with its items and jobs.",
+      "properties": {
+        "action": {
+          "const": "get_batch",
+          "default": "get_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchDetail"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch"
+      ],
+      "title": "GetBatchResponse",
+      "type": "object"
+    },
     "GetSettingsResponse": {
       "additionalProperties": false,
       "description": "The stored settings and every Whisper language, sorted by code.",
@@ -449,6 +913,100 @@
         "languages"
       ],
       "title": "GetSettingsResponse",
+      "type": "object"
+    },
+    "ItemPhase": {
+      "enum": [
+        "composing",
+        "reviewing",
+        "reviewed",
+        "uploaded"
+      ],
+      "type": "string"
+    },
+    "ItemProblem": {
+      "additionalProperties": false,
+      "description": "Why an item cannot be resolved: it must be probed again or excluded.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ProblemCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ItemProblem",
+      "type": "object"
+    },
+    "JobKind": {
+      "enum": [
+        "transcribe",
+        "extract"
+      ],
+      "type": "string"
+    },
+    "JobView": {
+      "additionalProperties": false,
+      "description": "One target language of an item.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/JobKind"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/TranscriptionMode"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "stream_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stream Index"
+        },
+        "track_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Track Index"
+        }
+      },
+      "required": [
+        "language",
+        "kind",
+        "mode",
+        "track_index",
+        "stream_index",
+        "status",
+        "resolved"
+      ],
+      "title": "JobView",
       "type": "object"
     },
     "JsonValue": {},
@@ -488,6 +1046,38 @@
         "alignment"
       ],
       "title": "LanguageOption",
+      "type": "object"
+    },
+    "ListBatchesResponse": {
+      "additionalProperties": false,
+      "description": "The batches, newest first.",
+      "properties": {
+        "action": {
+          "const": "list_batches",
+          "default": "list_batches",
+          "title": "Action",
+          "type": "string"
+        },
+        "batches": {
+          "items": {
+            "$ref": "#/$defs/BatchSummary"
+          },
+          "title": "Batches",
+          "type": "array"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batches"
+      ],
+      "title": "ListBatchesResponse",
       "type": "object"
     },
     "LocalPath": {
@@ -647,6 +1237,135 @@
         "warnings"
       ],
       "title": "PreviewSelectionResponse",
+      "type": "object"
+    },
+    "ProblemCode": {
+      "enum": [
+        "source_missing",
+        "probe_failed"
+      ],
+      "type": "string"
+    },
+    "ResolveReviewResponse": {
+      "additionalProperties": false,
+      "description": "The review views (unfiltered) after the choices.",
+      "properties": {
+        "action": {
+          "const": "resolve_review",
+          "default": "resolve_review",
+          "title": "Action",
+          "type": "string"
+        },
+        "review": {
+          "$ref": "#/$defs/BatchReview"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "review"
+      ],
+      "title": "ResolveReviewResponse",
+      "type": "object"
+    },
+    "ReviewBatchResponse": {
+      "additionalProperties": false,
+      "description": "The review views after probing.",
+      "properties": {
+        "action": {
+          "const": "review_batch",
+          "default": "review_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "review": {
+          "$ref": "#/$defs/BatchReview"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "review"
+      ],
+      "title": "ReviewBatchResponse",
+      "type": "object"
+    },
+    "ReviewFile": {
+      "additionalProperties": false,
+      "description": "A file in review: what was probed and the choice of each of its jobs.",
+      "properties": {
+        "audio_tracks": {
+          "items": {
+            "$ref": "#/$defs/AudioTrack"
+          },
+          "title": "Audio Tracks",
+          "type": "array"
+        },
+        "item_id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "jobs": {
+          "items": {
+            "$ref": "#/$defs/JobView"
+          },
+          "title": "Jobs",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/LocalPath"
+        },
+        "phase": {
+          "$ref": "#/$defs/ItemPhase"
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemProblem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subtitle_streams": {
+          "items": {
+            "$ref": "#/$defs/SubtitleStream"
+          },
+          "title": "Subtitle Streams",
+          "type": "array"
+        }
+      },
+      "required": [
+        "item_id",
+        "path",
+        "name",
+        "kind",
+        "phase",
+        "problem",
+        "audio_tracks",
+        "subtitle_streams",
+        "jobs"
+      ],
+      "title": "ReviewFile",
       "type": "object"
     },
     "ScanCounts": {
@@ -981,6 +1700,34 @@
       "title": "ServiceCheck",
       "type": "object"
     },
+    "SetBatchHiddenResponse": {
+      "additionalProperties": false,
+      "description": "The batch with its new `hidden` flag.",
+      "properties": {
+        "action": {
+          "const": "set_batch_hidden",
+          "default": "set_batch_hidden",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch"
+      ],
+      "title": "SetBatchHiddenResponse",
+      "type": "object"
+    },
     "SetPath": {
       "type": "string"
     },
@@ -1122,6 +1869,34 @@
       "title": "Sidecar",
       "type": "object"
     },
+    "StartReviewResponse": {
+      "additionalProperties": false,
+      "description": "The batch, now in `reviewing`.",
+      "properties": {
+        "action": {
+          "const": "start_review",
+          "default": "start_review",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch": {
+          "$ref": "#/$defs/BatchSummary"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "batch"
+      ],
+      "title": "StartReviewResponse",
+      "type": "object"
+    },
     "StoreCredentialsResponse": {
       "additionalProperties": false,
       "description": "The credentials were stored in the keyring.",
@@ -1164,17 +1939,94 @@
       ],
       "type": "string"
     },
+    "SubtitleKind": {
+      "enum": [
+        "text",
+        "bitmap",
+        "other"
+      ],
+      "type": "string"
+    },
+    "SubtitleStream": {
+      "additionalProperties": false,
+      "description": "One embedded subtitle stream of a media file.",
+      "properties": {
+        "codec": {
+          "title": "Codec",
+          "type": "string"
+        },
+        "default": {
+          "title": "Default",
+          "type": "boolean"
+        },
+        "forced": {
+          "title": "Forced",
+          "type": "boolean"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/SubtitleKind"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Language"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        }
+      },
+      "required": [
+        "index",
+        "codec",
+        "kind",
+        "language",
+        "title",
+        "default",
+        "forced"
+      ],
+      "title": "SubtitleStream",
+      "type": "object"
+    },
     "SuccessResponse": {
       "discriminator": {
         "mapping": {
           "check_credentials": "#/$defs/CheckCredentialsResponse",
           "cloud_setup_status": "#/$defs/CloudSetupStatusResponse",
+          "create_batch": "#/$defs/CreateBatchResponse",
           "credentials_status": "#/$defs/CredentialsStatusResponse",
+          "delete_batch": "#/$defs/DeleteBatchResponse",
+          "edit_batch": "#/$defs/EditBatchResponse",
+          "exclude_items": "#/$defs/ExcludeItemsResponse",
           "get_app_info": "#/$defs/GetAppInfoResponse",
+          "get_batch": "#/$defs/GetBatchResponse",
           "get_settings": "#/$defs/GetSettingsResponse",
+          "list_batches": "#/$defs/ListBatchesResponse",
           "preview_selection": "#/$defs/PreviewSelectionResponse",
+          "resolve_review": "#/$defs/ResolveReviewResponse",
+          "review_batch": "#/$defs/ReviewBatchResponse",
           "scan_tree": "#/$defs/ScanTreeResponse",
+          "set_batch_hidden": "#/$defs/SetBatchHiddenResponse",
           "setup_cloud": "#/$defs/SetupCloudResponse",
+          "start_review": "#/$defs/StartReviewResponse",
           "store_credentials": "#/$defs/StoreCredentialsResponse",
           "update_settings": "#/$defs/UpdateSettingsResponse"
         },
@@ -1210,11 +2062,48 @@
         },
         {
           "$ref": "#/$defs/CloudSetupStatusResponse"
+        },
+        {
+          "$ref": "#/$defs/CreateBatchResponse"
+        },
+        {
+          "$ref": "#/$defs/EditBatchResponse"
+        },
+        {
+          "$ref": "#/$defs/DeleteBatchResponse"
+        },
+        {
+          "$ref": "#/$defs/StartReviewResponse"
+        },
+        {
+          "$ref": "#/$defs/ReviewBatchResponse"
+        },
+        {
+          "$ref": "#/$defs/ResolveReviewResponse"
+        },
+        {
+          "$ref": "#/$defs/ExcludeItemsResponse"
+        },
+        {
+          "$ref": "#/$defs/ListBatchesResponse"
+        },
+        {
+          "$ref": "#/$defs/GetBatchResponse"
+        },
+        {
+          "$ref": "#/$defs/SetBatchHiddenResponse"
         }
       ]
     },
     "ToolPath": {
       "$ref": "#/$defs/SetPath"
+    },
+    "TranscriptionMode": {
+      "enum": [
+        "normal",
+        "careful"
+      ],
+      "type": "string"
     },
     "Ulid": {
       "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",

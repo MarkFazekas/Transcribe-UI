@@ -1,0 +1,16 @@
+{
+  "exit_code": 1,
+  "response": {
+    "status": "error",
+    "action": "resolve_review",
+    "error": {
+      "code": "choice_invalid",
+      "message": "An audio file is uploaded as it is; it takes no track choice.",
+      "details": {
+        "choice": 0,
+        "reason": "track_not_allowed"
+      }
+    }
+  },
+  "events": []
+}

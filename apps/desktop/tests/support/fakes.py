@@ -2,13 +2,14 @@
 
 import random
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 
 from support.credentials import memory_store
 from support.runpod_api import FakeRunpodApi
 from transcribe_ui.api.ports import Ports, UlidSource
 from transcribe_ui.media.fake import FakeMediaTools
+from transcribe_ui.media.ports import MediaTools
 from transcribe_ui.runpod.access import RunpodAccess
 from transcribe_ui.runpod.timing import Stopped
 from transcribe_ui.state.paths import AppPaths
@@ -41,11 +42,18 @@ def app_paths_under(root: Path) -> AppPaths:
     return AppPaths.under(root / APP_STATE_FOLDER)
 
 
-def seeded_ports(root: Path, seed: int = ID_SEED) -> Ports:
+def seeded_ports(
+    root: Path,
+    seed: int = ID_SEED,
+    *,
+    media: MediaTools | None = None,
+    local_zone: tzinfo = UTC,
+) -> Ports:
     """Return seeded test ports with fakes and fixed values.
 
-    Fixed clock, seeded ULIDs, fake media tools, an empty in-memory keyring and a fake Runpod
-    API (never the real one). The local state lives under `root`.
+    Fixed clock, seeded ULIDs, fake media tools (or `media`), an empty in-memory keyring and a
+    fake Runpod API (never the real one); local times (batch ids) are in `local_zone` (UTC
+    unless given). The local state lives under `root`.
 
     Close `ports.state` when done (it may hold the database and its writer lock).
     """
@@ -55,12 +63,13 @@ def seeded_ports(root: Path, seed: int = ID_SEED) -> Ports:
     return Ports(
         clock=clock,
         ids=UlidSource(clock, generator.getrandbits),
-        media=FakeMediaTools(),
+        media=FakeMediaTools() if media is None else media,
         state=state,
         credentials=memory_store(),
         r2_clients=r2_client,
         # Never the real Runpod API: a fake account that accepts the test key.
         runpod=RunpodAccess(transport=FakeRunpodApi(clock.now).transport(), wait=skip_wait),
+        local_zone=local_zone,
     )
 
 

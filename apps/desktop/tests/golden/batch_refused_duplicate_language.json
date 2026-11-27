@@ -1,0 +1,23 @@
+{
+  "exit_code": 2,
+  "response": {
+    "status": "error",
+    "action": null,
+    "error": {
+      "code": "invalid_request",
+      "message": "The request is not valid (1 problem(s)).",
+      "details": {
+        "problems": [
+          {
+            "location": [
+              "create_batch"
+            ],
+            "message": "Value error, every language must appear only once",
+            "type": "value_error"
+          }
+        ]
+      }
+    }
+  },
+  "events": []
+}

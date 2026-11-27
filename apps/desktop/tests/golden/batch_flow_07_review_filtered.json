@@ -1,0 +1,205 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "review_batch",
+    "review": {
+      "batch_id": "batch_20261127_130000",
+      "phase": "reviewing",
+      "items_in_review": 3,
+      "items_unresolved": 1,
+      "complete": false,
+      "subtitle_view": [
+        {
+          "item_id": "01M8EE0VG019SK8EHCKYZD7T8W",
+          "path": "<root>/media/Movies/Film.mkv",
+          "name": "Film.mkv",
+          "kind": "video",
+          "phase": "reviewed",
+          "problem": null,
+          "audio_tracks": [
+            {
+              "index": 0,
+              "codec": "aac",
+              "language": "hun",
+              "title": null,
+              "default": false,
+              "channels": 2
+            },
+            {
+              "index": 1,
+              "codec": "opus",
+              "language": "eng",
+              "title": "Original",
+              "default": true,
+              "channels": 6
+            }
+          ],
+          "subtitle_streams": [
+            {
+              "index": 0,
+              "codec": "subrip",
+              "kind": "text",
+              "language": "eng",
+              "title": null,
+              "default": false,
+              "forced": false
+            },
+            {
+              "index": 1,
+              "codec": "hdmv_pgs_subtitle",
+              "kind": "bitmap",
+              "language": "hun",
+              "title": null,
+              "default": false,
+              "forced": false
+            }
+          ],
+          "jobs": [
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": 0,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": true
+            }
+          ]
+        },
+        {
+          "item_id": "01M8EE0VG0QQ6ZWWP37EASAXFY",
+          "path": "<root>/media/Movies/Silent.mkv",
+          "name": "Silent.mkv",
+          "kind": "video",
+          "phase": "reviewing",
+          "problem": null,
+          "audio_tracks": [],
+          "subtitle_streams": [
+            {
+              "index": 0,
+              "codec": "ass",
+              "kind": "text",
+              "language": "hun",
+              "title": null,
+              "default": true,
+              "forced": false
+            }
+          ],
+          "jobs": [
+            {
+              "language": "hu",
+              "kind": "extract",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": 0,
+              "status": "pending",
+              "resolved": true
+            }
+          ]
+        }
+      ],
+      "track_view": [
+        {
+          "item_id": "01M8EE0VG019SK8EHCKYZD7T8W",
+          "path": "<root>/media/Movies/Film.mkv",
+          "name": "Film.mkv",
+          "kind": "video",
+          "phase": "reviewed",
+          "problem": null,
+          "audio_tracks": [
+            {
+              "index": 0,
+              "codec": "aac",
+              "language": "hun",
+              "title": null,
+              "default": false,
+              "channels": 2
+            },
+            {
+              "index": 1,
+              "codec": "opus",
+              "language": "eng",
+              "title": "Original",
+              "default": true,
+              "channels": 6
+            }
+          ],
+          "subtitle_streams": [
+            {
+              "index": 0,
+              "codec": "subrip",
+              "kind": "text",
+              "language": "eng",
+              "title": null,
+              "default": false,
+              "forced": false
+            },
+            {
+              "index": 1,
+              "codec": "hdmv_pgs_subtitle",
+              "kind": "bitmap",
+              "language": "hun",
+              "title": null,
+              "default": false,
+              "forced": false
+            }
+          ],
+          "jobs": [
+            {
+              "language": "hu",
+              "kind": "transcribe",
+              "mode": "normal",
+              "track_index": 0,
+              "stream_index": null,
+              "status": "pending",
+              "resolved": true
+            }
+          ]
+        }
+      ],
+      "unresolved": [
+        {
+          "item_id": "01M8EE0VG0QQ6ZWWP37EASAXFY",
+          "path": "<root>/media/Movies/Silent.mkv",
+          "name": "Silent.mkv",
+          "kind": "video",
+          "phase": "reviewing",
+          "problem": null,
+          "audio_tracks": [],
+          "subtitle_streams": [
+            {
+              "index": 0,
+              "codec": "ass",
+              "kind": "text",
+              "language": "hun",
+              "title": null,
+              "default": true,
+              "forced": false
+            }
+          ],
+          "jobs": [
+            {
+              "language": "hu",
+              "kind": "extract",
+              "mode": "normal",
+              "track_index": null,
+              "stream_index": 0,
+              "status": "pending",
+              "resolved": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "action": "review_batch",
+      "stage": "probe",
+      "completed": 1,
+      "total": 1,
+      "path": "<root>/media/Movies/Silent.mkv"
+    }
+  ]
+}
