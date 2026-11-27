@@ -22,6 +22,17 @@ Two parts:
    audio files in a chosen folder, lists them and lets the user select which ones to
    transcribe.
 
+## Main window
+
+- Main window layout *(Q33, architect: "A+C")*. The options were shown as mockups:
+  - A: a left-side navigation with four pages (New job, Jobs, Cloud, Settings) and an
+    always-visible cloud status bar at the bottom.
+  - B: top tabs.
+  - C: a step-by-step wizard (1 Files → 2 Upload → 3 Transcription → 4 Download) with Back and
+    next buttons.
+- The architect, with the answer: "During conversion to audio I can start another file
+  selection." (Answer: yes.)
+
 ## UI app: file selection
 
 - Audio/video files and the transcription language(s) are selectable.

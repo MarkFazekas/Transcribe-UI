@@ -10,20 +10,6 @@ machine** is the rented graphics-card computer that does the transcription.
 
 ## Open
 
-### Q33. Main window layout
-
-Proposed default: one main window with four pages in a left-side navigation:
-
-- New job: choose a folder, the file tree with filters and selection, the target languages,
-  Create job.
-- Jobs: the job history (with "show hidden"), and per job its files and statuses, the review
-  step, upload, download, retry and cloud cleanup.
-- Cloud: start transcription (with the cost estimate and the wait for a machine), the current
-  run (waiting, starting, transcribing which job and file, elapsed time, cost so far), the last
-  runs, and the list of the app's cloud machines.
-- Settings: languages, file types, hidden files, ffmpeg, default download options, accounts
-  (R2 and Runpod keys), cloud setup, about.
-
 ### Q34. Stopping the cloud machine while it transcribes
 
 The requirements let the user cancel while waiting for a free cloud machine. The app can also
