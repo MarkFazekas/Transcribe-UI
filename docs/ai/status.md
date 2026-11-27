@@ -10,16 +10,19 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## Resuming a session
 
 1. `git fetch --prune`, then reconcile this file with reality. This copy on `origin/main` lags
-   behind open branches; for each open branch or PR, `git show origin/<branch>:docs/ai/status.md`
-   overrides it.
+   behind open branches: where a branch changed this file
+   (`git diff origin/main...origin/<branch> -- docs/ai/status.md`), apply those changes section
+   by section; a branch that did not change it says nothing about the state.
    - `git worktree list`, and `git status` in every worktree: uncommitted work, stale worktrees.
    - `git branch -a`, `gh pr list`: unfinished branches, open PRs with review / CI state.
    - `gh run list -L 10 --branch main --event push`: CI and release runs on `main`, failures
-     first; `gh run list -L 3 --workflow reaper.yml` for the scheduled reaper.
+     first; `gh run list -L 3 --workflow reaper.yml` for the scheduled reaper (once it is on
+     `main`).
 2. Unmerged work on a branch: inspect it against `origin/main` (`git log origin/main..<branch>`,
    `git diff origin/main...<branch>`) and continue it or start over; record which.
-3. Then take the first item of "Next" that is not blocked; when "Next" is empty, plan the
-   next milestone of architecture §10.
+3. Then take the first item of "Next" that is not blocked. A milestone without its
+   `docs/ai/plans/mN.md` (architecture §10) is planned before its first PR; when "Next" is
+   empty, plan the next milestone.
 
 ## In progress
 
@@ -37,4 +40,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
 1. Merge the reaper; check its first scheduled run.
 2. Check the release-worker run on `main` pushed the image tags `sha-<short>`, `latest` and
    `schema-1` to `markfazekasgh/transcribe-ui-worker`.
-3. M5 desktop backend (M4 runs whenever the architect is available).
+3. Write `docs/ai/plans/m5.md`, then M5 part by part (M4 runs whenever the architect is
+   available).

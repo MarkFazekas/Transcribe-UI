@@ -7,7 +7,7 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 ## Read first
 
 - `docs/ai/status.md` — current state and next steps; start here when asked to continue.
-  Milestones: `docs/ai/architecture.md` §10 (mark a milestone or part **(built)** when merged).
+  Milestones: `docs/ai/architecture.md` §10 (the PR that completes a milestone or part marks it **(built)**).
 - `docs/human/requirements.md` — what was asked (source of truth for scope).
 - `docs/human/working-agreements.md` — roles, communication, git/CI and secret rules.
 - `docs/ai/architecture.md` — current design. `docs/ai/tooling.md` — lint, tests, CI, hooks.
@@ -27,8 +27,9 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
   orderly stop, commit and push it on the current branch, so a new session can continue from
   "continue" without a handoff note.
 - Work until a real blocker; a merged PR is not a stopping point (start the next planned item
-  while `main`'s runs are checked). Record small decisions instead of asking. Never trade quality for
-  quota; stop in an orderly way (finish or save the current step, start nothing new).
+  while `main`'s runs are checked). Record small decisions instead of asking. Never trade
+  quality for quota; stop in an orderly way (finish or save the current step, start nothing
+  new).
 - Use sub-agents only where they give real speed-up; Sonnet/Haiku where quality allows.
 - Effort: the main session runs at medium. `code-reviewer` sub-agents and any agent writing
   concurrency or failure-handling logic (threads, processes, restarts, timeouts, retries) run
@@ -73,8 +74,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
   questions, `plans/` (per-milestone plans) and `research/` for reusable external facts (with
   sources).
 - Keep information that stays useful; no change history or narratives (git has the history).
-- Tables only for short cells; longer entries go in lists, so parallel PRs do not conflict.
   Update the relevant doc in the same PR as the code that changes the behaviour.
+- Tables only for short cells; longer entries go in lists, so parallel PRs do not conflict.
 - When a question is answered, remove it from its file: record the answer in
   `docs/human/requirements.md` (accepted defaults written out) and put its consequences into
   the affected docs and code. Question IDs are never reused.
