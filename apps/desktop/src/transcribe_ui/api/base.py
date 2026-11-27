@@ -5,9 +5,10 @@ while `classes.py` joins them into the `Request`/`Response` unions.
 """
 
 from collections.abc import Callable, Mapping
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, PlainSerializer, SerializationInfo
+from pydantic import AfterValidator, BaseModel, ConfigDict, PlainSerializer, SerializationInfo, StringConstraints
 
 from transcribe_contracts.classes import PathFlavor as ContractPathFlavor
 from transcribe_contracts.constants import WHISPER_LANGUAGES
@@ -39,6 +40,32 @@ def _serialise_path_flavor(flavor: str, serialization: SerializationInfo) -> str
 type LocalPath = Annotated[str, PlainSerializer(_serialise_local_path, return_type=str)]
 # The path flavour of this computer; marked for the golden-file normaliser like `LocalPath`.
 type PathFlavor = Annotated[ContractPathFlavor, PlainSerializer(_serialise_path_flavor, return_type=str)]
+
+
+def _check_absolute(path: str) -> str:
+    if not (PureWindowsPath(path).is_absolute() or PurePosixPath(path).is_absolute()):
+        msg = "the path must be absolute"
+        raise ValueError(msg)
+    return path
+
+
+# A non-empty path on this computer.
+type SetPath = Annotated[LocalPath, StringConstraints(min_length=1)]
+# An absolute path of an executable: absolute in the Windows or the POSIX sense, so the rule
+# does not depend on the machine; the tool lookup also refuses one that is not absolute here.
+type ToolPath = Annotated[SetPath, AfterValidator(_check_absolute)]
+
+
+def check_distinct[ItemT](entries: tuple[ItemT, ...]) -> tuple[ItemT, ...]:
+    """Return the entries if none appears twice (a field validator).
+
+    Raises:
+        ValueError: If an entry appears more than once.
+    """
+    if len(set(entries)) != len(entries):
+        msg = "every entry must appear only once"
+        raise ValueError(msg)
+    return entries
 
 
 def _check_whisper_language(code: str) -> str:

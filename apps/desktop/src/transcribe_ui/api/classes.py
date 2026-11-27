@@ -6,12 +6,11 @@ the `ProgressEvent`s. A response is one of: the request's own success model (`st
 set) or `ErrorResponse`.
 """
 
-from pathlib import PurePosixPath, PureWindowsPath
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, StringConstraints, model_validator
+from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, model_validator
 
-from transcribe_ui.api.base import FrozenModel, LocalPath, WhisperLanguage
+from transcribe_ui.api.base import FrozenModel, LocalPath, SetPath, ToolPath, WhisperLanguage, check_distinct
 from transcribe_ui.batches import classes as batch_requests
 from transcribe_ui.batches import responses as batch_responses
 from transcribe_ui.credentials.classes import (
@@ -42,28 +41,8 @@ from transcribe_ui.runs import responses as run_responses
 from transcribe_ui.upload.classes import RunUploadRequest
 from transcribe_ui.upload.responses import RunUploadResponse
 
-
-def _check_absolute(path: str) -> str:
-    if not (PureWindowsPath(path).is_absolute() or PurePosixPath(path).is_absolute()):
-        msg = "the path must be absolute"
-        raise ValueError(msg)
-    return path
-
-
-def _check_unique[ItemT](entries: tuple[ItemT, ...]) -> tuple[ItemT, ...]:
-    if len(set(entries)) != len(entries):
-        msg = "every entry must appear only once"
-        raise ValueError(msg)
-    return entries
-
-
 # Distinct media file extensions (the scan's extension rule, §3.2).
-type MediaExtensions = Annotated[tuple[FileExtension, ...], AfterValidator(_check_unique)]
-# A non-empty path on this computer.
-type SetPath = Annotated[LocalPath, StringConstraints(min_length=1)]
-# An absolute path of an executable: absolute in the Windows or the POSIX sense, so the rule
-# does not depend on the machine; the tool lookup also refuses one that is not absolute here.
-type ToolPath = Annotated[SetPath, AfterValidator(_check_absolute)]
+type MediaExtensions = Annotated[tuple[FileExtension, ...], AfterValidator(check_distinct)]
 
 
 # Requests
@@ -97,7 +76,7 @@ class Settings(FrozenModel):
     """The user's settings (all fields required; see `state.settings.default_settings`)."""
 
     # Languages the GUI offers in choosers and filters, in the user's order.
-    enabled_languages: Annotated[tuple[WhisperLanguage, ...], Field(min_length=1), AfterValidator(_check_unique)]
+    enabled_languages: Annotated[tuple[WhisperLanguage, ...], Field(min_length=1), AfterValidator(check_distinct)]
     video_extensions: MediaExtensions
     audio_extensions: MediaExtensions
     # Whether scans include hidden and system files and folders.

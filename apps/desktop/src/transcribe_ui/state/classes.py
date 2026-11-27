@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from transcribe_ui.api.classes import ToolPath
+from transcribe_ui.api.base import ToolPath
 
 
 class ToolPaths(BaseModel):
