@@ -26,11 +26,11 @@ from support.actions import (
     PAST_RETRY,
     RETRIED_SOURCE,
     SCENARIOS,
-    SEEDED_ROOT,
     retry_job,
     scenario_batch_id,
     scenario_item_id,
     seed_scenarios,
+    seeded_root,
 )
 from support.fakes import FIXED_NOW, seeded_ports
 from transcribe_contracts.classes import JobRef, RunStatus
@@ -160,7 +160,7 @@ def ports(tmp_path: Path) -> Iterator[Ports]:
     """Return test ports over a database holding every scenario's batch (closed afterwards)."""
     created = seeded_ports(tmp_path)
     with closing(created.state):
-        seed_scenarios(created.state)
+        seed_scenarios(created.state, seeded_root(tmp_path))
         yield created
 
 
@@ -183,13 +183,17 @@ def _detail_actions(backend: Backend, batch_id: str) -> tuple[str, ...]:
     return tuple(document["batch"]["summary"]["actions"])
 
 
-def _fields(action: str, name: str) -> dict[str, object]:
-    """Return the request fields besides `action` and `batch_id` that reach the action's guard."""
+def _fields(action: str, name: str, root: Path) -> dict[str, object]:
+    """Return the request fields besides `action` and `batch_id` that reach the action's guard.
+
+    Paths are below the seeded scan root, absolute on every OS (they do not exist).
+    """
     first_item = scenario_item_id(name, 0)
-    operations = [{"operation": "include", "path": SEEDED_ROOT, "filters": {}}]
-    plan = {"plan_path": f"{SEEDED_ROOT}/plan.json", "placement": {"output_folder": SEEDED_ROOT}}
+    folder = str(root)
+    operations = [{"operation": "include", "path": folder, "filters": {}}]
+    plan = {"plan_path": str(root / "plan.json"), "placement": {"output_folder": folder}}
     shapes: dict[str, dict[str, object]] = {
-        "edit_batch": {"scan": {"root": SEEDED_ROOT}, "operations": operations, "languages": [LANGUAGE]},
+        "edit_batch": {"scan": {"root": folder}, "operations": operations, "languages": [LANGUAGE]},
         "resolve_review": {"choices": [{"kind": "transcribe", "item_id": first_item, "language": LANGUAGE}]},
         EXCLUDE: {"item_ids": [first_item]},
         "import_custom_plan": {**plan, "check_only": True},
@@ -202,9 +206,10 @@ def _fields(action: str, name: str) -> dict[str, object]:
     return shapes.get(action, {})
 
 
-def _request(action: str, name: str) -> str:
+def _request(action: str, name: str, root: Path) -> str:
     request_action = REQUEST_ACTIONS.get(action, action)
-    return json.dumps({"action": request_action, "batch_id": scenario_batch_id(name), **_fields(action, name)})
+    fields = _fields(action, name, root)
+    return json.dumps({"action": request_action, "batch_id": scenario_batch_id(name), **fields})
 
 
 def test_table_lists_every_action_once() -> None:
@@ -238,11 +243,11 @@ def test_no_ops_are_not_listed() -> None:
 
 
 @pytest.mark.parametrize("action", EVERY_ACTION)
-def test_listed_actions_pass_their_guard(backend: Backend, action: str) -> None:
+def test_listed_actions_pass_their_guard(backend: Backend, action: str, tmp_path: Path) -> None:
     """Drift test: every outcome is one the action's listing (or no-op) state allows."""
     listed = _listed(backend)
     for name in SCENARIOS:
-        response = backend.execute_json(_request(action, name))
+        response = backend.execute_json(_request(action, name, seeded_root(tmp_path)))
         expected = _expected_outcomes(action, name, listed[scenario_batch_id(name)])
         assert _outcome(response) in expected, (name, action, response)
 

@@ -6,15 +6,17 @@ them (a review, an edit) fail after their phase guard, which is all the action t
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from types import MappingProxyType
 
 from support.fakes import FIXED_NOW
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, JobPayload, RetryJob, RetryOrigin
+from transcribe_ui.discovery.rules import host_rules
 from transcribe_ui.state.models import BatchRow, ItemRow, JobRow
 from transcribe_ui.state.store import LocalState
 
-# Scan root of every seeded batch (it does not exist).
-SEEDED_ROOT = "/nowhere/media"
+# Scan root of every seeded batch below a test's temp folder (it does not exist): absolute on every OS.
+SEEDED_FOLDERS = ("nowhere", "media")
 # The scenario whose retry batch still copies its audio, and that retry batch.
 COPIED_SOURCE = "copied_source"
 COPYING_RETRY = "copying_retry"
@@ -106,23 +108,28 @@ def retry_job(name: str) -> dict[str, str]:
     return {"item_id": scenario_item_id(name, position), "language": LANGUAGE}
 
 
-def seed_scenarios(state: LocalState) -> None:
-    """Store every scenario's batch."""
+def seeded_root(tmp_path: Path) -> Path:
+    """Return the scan root of the seeded batches (absolute, in this computer's path flavour; it does not exist)."""
+    return tmp_path.joinpath(*SEEDED_FOLDERS)
+
+
+def seed_scenarios(state: LocalState, root: Path) -> None:
+    """Store every scenario's batch, its files below `root`."""
     for name, scenario in SCENARIOS.items():
-        _seed_batch(state, name, scenario)
+        _seed_batch(state, name, scenario, root)
         for position, member in enumerate(scenario.members):
             kind = "extract" if position in scenario.extracting else "transcribe"
-            _seed_item(state, name, position, (*member, kind))
+            _seed_item(state, (name, position), (*member, kind), root)
 
 
-def _seed_batch(state: LocalState, name: str, scenario: Scenario) -> None:
+def _seed_batch(state: LocalState, name: str, scenario: Scenario, root: Path) -> None:
     origin = None
     if scenario.retry_of is not None:
         jobs = (RetryJob.model_validate(retry_job(scenario.retry_of)),)
         origin = RetryOrigin(source_batch_id=scenario_batch_id(scenario.retry_of), jobs=jobs)
     payload = BatchPayload(
-        scan_root=SEEDED_ROOT,
-        path_flavor="posix",
+        scan_root=str(root),
+        path_flavor=host_rules().flavor,
         languages=(LANGUAGE,),
         retry_of=origin,
         cleanup_pending=scenario.cleanup_pending,
@@ -141,14 +148,11 @@ def _seed_batch(state: LocalState, name: str, scenario: Scenario) -> None:
         session.add(row)
 
 
-def _seed_item(state: LocalState, name: str, position: int, member: tuple[str, str, str]) -> None:
-    batch_id = scenario_batch_id(name)
-    item_id = scenario_item_id(name, position)
-    item_phase, status, kind = member
+def _item_payload(position: int, root: Path) -> ItemPayload:
     file_name = f"file{position}.mp3"
-    stored = ItemPayload(
+    return ItemPayload(
         position=position,
-        path=f"{SEEDED_ROOT}/{file_name}",
+        path=str(root / file_name),
         relative_path=file_name,
         name=file_name,
         kind="audio",
@@ -156,11 +160,17 @@ def _seed_item(state: LocalState, name: str, position: int, member: tuple[str, s
         mtime_ns=0,
         subtitle_languages=(),
     )
+
+
+def _seed_item(state: LocalState, where: tuple[str, int], member: tuple[str, str, str], root: Path) -> None:
+    name, position = where
+    batch_id = scenario_batch_id(name)
+    item_id = scenario_item_id(name, position)
+    item_phase, status, kind = member
+    stored = _item_payload(position, root).model_dump(mode="json")
     job = JobPayload(mode="normal").model_dump(mode="json")
     with state.session() as session:
-        session.add(
-            ItemRow(item_id=item_id, batch_id=batch_id, phase=item_phase, payload=stored.model_dump(mode="json"))
-        )
+        session.add(ItemRow(item_id=item_id, batch_id=batch_id, phase=item_phase, payload=stored))
         session.flush()
         session.add(
             JobRow(item_id=item_id, batch_id=batch_id, language=LANGUAGE, kind=kind, status=status, payload=job),
