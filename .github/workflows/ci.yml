@@ -23,6 +23,7 @@ jobs:
       pull-requests: read  # paths-filter lists PR files through the API
     outputs:
       targets: ${{ steps.filter.outputs.changes }}
+      legs: ${{ steps.legs.outputs.legs }}
     steps:
       - uses: actions/checkout@v7
       - id: filter
@@ -35,6 +36,7 @@ jobs:
               - pyproject.toml
               - uv.lock
               - .flake8
+              - .gitattributes
               - whitelist.txt
               - scripts/**
               - .github/workflows/ci.yml
@@ -48,25 +50,40 @@ jobs:
               - *shared
               - packages/contracts/**
               - apps/worker/**
+            desktop:
+              - *shared
+              - packages/contracts/**
+              - apps/desktop/**
+      # One check leg per changed target on Ubuntu; the desktop target also on Windows (the app
+      # ships there; paths, line ends and the entry point differ).
+      - id: legs
+        env:
+          TARGETS: ${{ steps.filter.outputs.changes }}
+        run: |
+          legs=$(jq -c '[.[] | select(. != "shared") | {target: ., os: "ubuntu-24.04"}]
+            + [.[] | select(. == "desktop") | {target: ., os: "windows-2025"}]' <<<"$TARGETS")
+          echo "legs=$legs" >> "$GITHUB_OUTPUT"
 
   check:
     needs: changes
-    if: needs.changes.outputs.targets != '[]'
+    if: needs.changes.outputs.legs != '[]'
+    name: check (${{ matrix.target }}, ${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(needs.changes.outputs.targets) }}
-        exclude:
-          - target: shared
-    runs-on: ubuntu-24.04
+        include: ${{ fromJSON(needs.changes.outputs.legs) }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
         with:
           enable-cache: true
-      - name: Install ffmpeg (worker decode tests)
-        if: matrix.target == 'worker'
+      - name: Install ffmpeg (worker decode tests, desktop media tests)
+        if: runner.os == 'Linux' && (matrix.target == 'worker' || matrix.target == 'desktop')
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: Install ffmpeg (desktop media tests)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg --yes --no-progress
       - run: uv sync --locked --all-packages
       - run: uv run scripts/check.py ${{ matrix.target }}
 
