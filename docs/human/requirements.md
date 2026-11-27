@@ -183,12 +183,12 @@ Naming and conflicts:
 - Before starting, the app shows the total audio length and an estimated cost range and asks
   for confirmation. No separate spending limit in the app; the cloud account's own spending
   limit applies *(accepted proposal)*.
-- Cloud jobs this computer does not know *(Q28, accepted default)*: the cloud machine
-  transcribes every job it finds in the cloud storage, including jobs uploaded from another
-  computer or by an earlier installation whose local history is gone. The start confirmation
-  lists these jobs (job id, number of files, audio length) and includes them in the audio
-  length and cost estimate. The user can delete such a job from the cloud from that list, with
-  one confirmation, before starting.
+- Cloud jobs this computer does not know *(Q28, architect)*: the cloud machine transcribes
+  every job it finds in the cloud storage, including jobs uploaded from another computer or by
+  an earlier installation whose local history is gone. The start confirmation lists these jobs
+  (job id, number of files, audio length) and includes them in the audio length and cost
+  estimate. The user can delete such a job from the cloud from that list, with one
+  confirmation, before starting *(proposed default, not objected to)*.
   - Architect, with the answer: "List them, and include them in the time and cost. Mainly
     because there can be a setup where an employee has access only to R2 but not to Runpod. So
     an instance on one machine uploads the things, and another person starts it from another

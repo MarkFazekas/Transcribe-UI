@@ -40,10 +40,10 @@ another one (for example the cloud supervisor's), each keeping its own history. 
 everything from the cloud on one computer takes the subtitles away from the other, and today a
 computer only knows whether it downloaded them itself.
 
-Proposed default: subtitles are never deleted from the cloud automatically. Each computer that
-downloads a job notes this in the cloud storage. A computer is shown by the name set in its
-Settings (default: the computer's network name). "Delete everything" lists which computers
-have downloaded the job; if the computer that uploaded the job has not downloaded it yet, the
-confirmation says so and asks a second time (as it already does when this computer has not
-downloaded it). The uploading computer's own cleanup needs no extra confirmation for other
-computers.
+Proposed default: subtitles are never deleted from the cloud automatically, and nothing else
+changes, except that the "delete everything" confirmation adds: "Other computers that share the
+cloud storage may still need these subtitles."
+
+Alternative: each computer that downloads a job notes this in the cloud storage (with a
+computer name set in Settings); "delete everything" lists them and asks a second time while the
+uploading computer has not downloaded the job.

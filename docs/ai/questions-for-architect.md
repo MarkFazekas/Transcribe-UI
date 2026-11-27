@@ -28,28 +28,32 @@ itself, whatever any computer publishes later.
 Proposed default: (2). Manifests are then published as soon as an upload is verified, on any
 installation, without an activity check; the held-manifest machinery (`manifest_held`,
 `publish_held_manifests`) is removed, and "uploaded, waits for the current run" is shown when a
-live lease does not list the batch. Withdrawing a leftover manifest (§3.3) is refused only while
-a live lease lists the batch.
-Every installation reads activity from R2 (a lease before its deadline or a fresh heartbeat),
-and an installation with the Runpod key also from the Runpod lists, as now. Upload,
+live lease does not list the batch. A lease is live until its deadline, and stops counting
+once the run's `status.json` is final. Cleanup and the withdrawal of a leftover manifest (§3.3)
+are refused only for batches a live lease lists (or, with the Runpod key, while a run without a
+lease is seen, as now). The worker skips a listed batch whose manifest has disappeared (a
+cleanup between the lease and its start) instead of failing. Every installation reads activity
+from R2 (live leases and fresh heartbeats), and an installation with the Runpod key also from
+the Runpod lists. Upload,
 `refresh_status` (its R2 steps) and cleanup open the Runpod client only when a key is set.
 Changes: contracts (the lease model and key), worker discovery (§5.3), desktop launch, upload
 and cleanup; schema minor version (a new object; the manifest is unchanged).
 
-### A22. No absolute local paths in the shared manifest
+### A22. Absolute local paths in the shared manifest
 
 The manifest stores `scan_root` and every item's `original_path` as absolute paths of the
-uploading computer (§4). Since Q28, other people's installations read manifests (the start list,
-the download of another computer's job, §3.9), so user names and folder layouts of the uploader's
-computer are visible to everyone with bucket access. The worker uses neither field; the desktop
-uses `scan_root` only to recognise its own leftover manifest (`upload/leftover.py`).
+uploading computer (§4), as the requirements ask ("UI app: conversion and upload": "Each file's
+original absolute path is stored in the batch metadata"). Since Q28, other people's
+installations read manifests (the start list, the download of another computer's job, §3.9), so
+user names and folder layouts of the uploader's computer are visible to everyone with bucket
+access. The worker uses neither field; the desktop uses `scan_root` to recognise its own
+leftover manifest (`upload/leftover.py`), and another computer derives the relative folders and
+file names from `scan_root` and `original_path`.
 
-Proposed default: manifest schema 2.0 replaces both with `root_name` (the last folder name of
-the scan root, for display), each item's `relative_path` (the `/`-separated folder names and
-the file name below the scan root; the validator refuses empty, `.`, `..` and absolute parts)
-`origin` (a random installation id, a ULID created with the local database) and
-`origin_name` (the installation's name, Q35). The absolute
-paths stay in the local database only. Leftover recognition compares `created_at` and
-`origin`. Contracts, the worker (it refuses 1.x manifests, per the versioning rule) and the
-desktop manifest builder change together; nothing is deployed yet, so no 1.x manifest needs
-to be read.
+Proposed default: keep the manifest as it is (absolute paths, as the requirement says); other
+computers derive the relative paths locally and refuse unsafe parts (§3.9). No contract change.
+
+Alternative: manifest schema 2.0 with only the scan root's last folder name and each item's
+path relative to it; the absolute paths stay in the uploader's database. This changes the
+requirement above, the contracts, the worker (it refuses 1.x manifests) and leftover
+recognition (it would need an installation id instead of `scan_root`).
