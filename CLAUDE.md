@@ -7,7 +7,8 @@ transcribes them with Whisper into subtitles; the app then places the subtitles 
 ## Read first
 
 - `docs/ai/status.md` — current state and next steps; start here when asked to continue.
-  Milestones: `docs/ai/architecture.md` §10 (the PR that completes a milestone or part marks it **(built)**).
+  Milestones: `docs/ai/architecture.md` §10 (the PR that completes a milestone or part marks
+  it **(built)**).
 - `docs/human/requirements.md` — what was asked (source of truth for scope).
 - `docs/human/working-agreements.md` — roles, communication, git/CI and secret rules.
 - `docs/ai/architecture.md` — current design. `docs/ai/tooling.md` — lint, tests, CI, hooks.
