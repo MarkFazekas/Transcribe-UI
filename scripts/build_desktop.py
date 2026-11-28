@@ -380,6 +380,8 @@ def _published(variant: Variant, version: str, paths: BuildPaths) -> tuple[Path,
     report = macos_report(built, tables, paths.info_plist if app else None)
     for line in report.wheels:
         sys.stdout.write(f"{line}\n")
+    # Flushed before the disk image, so the job log's time stamps tell the floor check and `hdiutil` apart.
+    sys.stdout.flush()
     if report.problems or not app:
         return built, list(report.problems)
     image = paths.dist / asset_name(variant, tag)

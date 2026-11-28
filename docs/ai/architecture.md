@@ -2966,7 +2966,7 @@ Few unit tests; mostly regression and flow tests:
   may ask for keychain access again. The app and an `Applications` link are then packed with `hdiutil create`
   into `transcribe-ui-macos-<arch>-gui.dmg` (HFS+, `ULFO`: lzfse, smaller than `UDZO` at its
   default zlib level and faster to open, readable since macOS 10.11; tried three times with a
-  300 s limit each, since `hdiutil` sometimes reports "Resource busy" on hosted runners, and
+  600 s limit each, since `hdiutil` sometimes reports "Resource busy" on hosted runners, and
   between two tries a device that try left attached is detached as far as that works: only an
   image new in `hdiutil info` since the try started, so a volume attached earlier, such as a
   downloaded release image with the app running from it, is never touched; each try's duration

@@ -75,8 +75,9 @@ IMAGE_FILE_SYSTEM = "HFS+"
 IMAGE_ATTEMPTS = 3
 # Seconds between two tries of `hdiutil create`.
 IMAGE_RETRY_PAUSE_S = 15
-# Seconds one `hdiutil create` may take.
-HDIUTIL_TIMEOUT_S = 300
+# Seconds one `hdiutil create` may take. On the Intel runner the floor check, PyInstaller's signature
+# check and `hdiutil create` together took up to 224 s, so one try may well pass 150 s.
+HDIUTIL_TIMEOUT_S = 600
 # Seconds `hdiutil info` or the detach of a leftover device may take.
 HDIUTIL_CLEANUP_TIMEOUT_S = 60
 # Where a volume named after the app is mounted (`/Volumes/Transcribe-UI`, or with a number appended).
@@ -339,6 +340,8 @@ def make_disk_image(app: Path, staging: Path, image: Path) -> Path:
         seconds = time.monotonic() - started
         outcome = error or "done"
         sys.stdout.write(f"hdiutil create, try {attempt}: {seconds:.1f} s, {outcome}\n")
+        # Flushed, so the job log's time stamps show when each try ended.
+        sys.stdout.flush()
         if error is None:
             return image
         errors.append(f"try {attempt}: {error}")

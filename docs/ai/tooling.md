@@ -248,7 +248,7 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   `TRANSCRIBE_UI_INFO_PLIST`: `packaging/pyinstaller_main.py` passes them to the spec's
   `BUNDLE` as `info_plist`, and the build compares the written `Info.plist` with them. The
   build then moves the app into `<work>/gui/image/` next to an `Applications` link and packs
-  that folder (`hdiutil create -fs HFS+ -format ULFO`, 300 s per try, three tries; between
+  that folder (`hdiutil create -fs HFS+ -format ULFO`, 600 s per try, three tries; between
   tries `hdiutil info -plist`, compared with its listing from before the try, finds a device
   the failed try attached, the image itself or a volume named `Transcribe-UI`, and `hdiutil
   detach -force` detaches it, best effort; an image attached before the try is never touched;
