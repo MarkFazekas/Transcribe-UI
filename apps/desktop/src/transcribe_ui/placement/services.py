@@ -13,12 +13,14 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.phases import load_batch
 from transcribe_ui.batches.records import stored_items, summary_of
 from transcribe_ui.batches.responses import BatchSummary
+from transcribe_ui.discovery.rules import PathRules
 from transcribe_ui.placement import custom
 from transcribe_ui.placement.classes import (
     ExportCustomPlanRequest,
     ExportCustomPlanResponse,
     ImportCustomPlanRequest,
     ImportCustomPlanResponse,
+    PlacementOptions,
     PlacementPlan,
     PlanDownloadRequest,
     PlanDownloadResponse,
@@ -28,7 +30,7 @@ from transcribe_ui.placement.classes import (
 from transcribe_ui.placement.download import Carrying, carry_out
 from transcribe_ui.placement.levels import folder_levels
 from transcribe_ui.placement.plan_files import read_plan, write_plan
-from transcribe_ui.placement.planner import plan_placement
+from transcribe_ui.placement.planner import plan_placement, refuse_next_to_media
 from transcribe_ui.placement.probe import CancelCheckProbe, OsPlacementProbe, PlacementProbe
 from transcribe_ui.placement.sources import DownloadSource, load_source
 
@@ -42,11 +44,10 @@ def plan_download(request: PlanDownloadRequest, context: RequestContext) -> Plan
         CancelledError: Cancelled while planning (nothing is written either way).
     """
     source = load_source(context, request.batch_id)
-    jobs = source.placement_jobs()
     rules = context.ports.path_rules
     probe = CancelCheckProbe(OsPlacementProbe(), context.check_cancelled)
-    plan = plan_placement(jobs, source.scan_root, request.placement, rules, probe)
-    levels = folder_levels(jobs, source.scan_root, rules)
+    plan = _plan(source, request.placement, rules, probe)
+    levels = folder_levels(source.placement_jobs(), source.scan_root, source.names(rules))
     return PlanDownloadResponse(batch=source.summary, plan=plan, folder_levels=levels)
 
 
@@ -62,8 +63,7 @@ def run_download(request: RunDownloadRequest, context: RequestContext) -> RunDow
     placement = request.placement
     with context.ports.state.locks.batch(batch_id):
         source = load_source(context, batch_id)
-        rules = context.ports.path_rules
-        plan = plan_placement(source.placement_jobs(), source.scan_root, placement, rules, OsPlacementProbe())
+        plan = _plan(source, placement, context.ports.path_rules, OsPlacementProbe())
         next_to_media = placement.strategy == "next_to_media"
         carrying = Carrying(request.action, next_to_media=next_to_media, confirm_overwrite=request.confirm_overwrite)
         download = carry_out(context, source, plan, carrying)
@@ -81,7 +81,8 @@ def export_custom_plan(request: ExportCustomPlanRequest, context: RequestContext
         CustomPlanUnwritableError: The plan file could not be written.
     """
     source = load_source(context, request.batch_id)
-    plan = custom.export_custom_plan(source.placement_jobs(), source.scan_root, context.ports.path_rules)
+    names = source.names(context.ports.path_rules)
+    plan = custom.export_custom_plan(source.placement_jobs(), source.scan_root, names)
     if request.path is not None:
         write_plan(Path(request.path), plan)
     return ExportCustomPlanResponse(batch=source.summary, plan=plan, path=request.path)
@@ -121,12 +122,19 @@ def _imported(
 ) -> tuple[DownloadSource, PlacementPlan]:
     source = load_source(context, request.batch_id)
     document = read_plan(Path(request.plan_path))
-    jobs = source.placement_jobs()
-    rules = context.ports.path_rules
-    plan = custom.import_custom_plan(document, jobs, request.placement, rules, probe)
+    names = source.names(context.ports.path_rules)
+    plan = custom.import_custom_plan(document, source.placement_jobs(), request.placement, names, probe)
     return source, plan
 
 
 def _summary(context: RequestContext, batch_id: str) -> BatchSummary:
     with context.ports.state.session() as session:
         return summary_of(session, load_batch(session, batch_id), stored_items(session, batch_id))
+
+
+def _plan(source: DownloadSource, options: PlacementOptions, rules: PathRules, probe: PlacementProbe) -> PlacementPlan:
+    """Return the plan of placing the batch's subtitles; another computer's batch is never placed next to its media."""
+    if source.adopted and options.strategy == "next_to_media":
+        return refuse_next_to_media()
+    names = source.names(rules)
+    return plan_placement(source.placement_jobs(), source.scan_root, options, names, probe)

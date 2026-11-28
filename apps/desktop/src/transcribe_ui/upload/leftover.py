@@ -58,9 +58,12 @@ class OwnManifest:
 
 
 def is_known(session: Session, batch_id: str, body: bytes) -> bool:
-    """Return whether the manifest in R2 is this database's batch: its id is here and the manifest is recognised as ours."""
-    if session.get(BatchRow, batch_id) is None:
+    """Return whether the manifest in R2 is this database's batch: its id is here and it was adopted, or the manifest is recognised as ours."""
+    row = session.get(BatchRow, batch_id)
+    if row is None:
         return False
+    if BatchPayload.model_validate(row.payload).adopted is not None:
+        return True
     return own_manifest(session, batch_id).owns(body)
 
 

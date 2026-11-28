@@ -15,7 +15,7 @@ from typing import cast
 from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
 
-from transcribe_ui.batches.errors import WrongPhaseError
+from transcribe_ui.batches.errors import AdoptedBatchError, WrongPhaseError
 from transcribe_ui.batches.payloads import ItemPhase
 from transcribe_ui.batches.records import stored_item
 from transcribe_ui.state.errors import BatchNotFoundError, PhaseConflictError
@@ -102,3 +102,13 @@ def set_review_phase(session: Session, item_id: str) -> None:
     member = stored_item(session, item_id)
     if member.in_review():
         member.row.phase = "reviewed" if member.resolved() else "reviewing"
+
+
+def require_not_adopted(batch_id: str, *, adopted: bool) -> None:
+    """Refuse a request that is not possible for another computer's job (its retry, its audio cleanup).
+
+    Raises:
+        AdoptedBatchError: The batch was adopted (`adopt_cloud_batch`).
+    """
+    if adopted:
+        raise AdoptedBatchError(batch_id)

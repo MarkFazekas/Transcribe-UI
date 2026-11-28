@@ -5,9 +5,13 @@ from typing import TYPE_CHECKING
 
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.batches.constants import (
+    BATCH_ID_DETAIL,
+    ERROR_ADOPTED_BATCH,
+    ERROR_BATCH_EXISTS,
     ERROR_CHOICE_INVALID,
     ERROR_ITEM_NOT_FOUND,
     ERROR_LAST_ITEM,
+    ERROR_MANIFEST_PATH_INVALID,
     ERROR_NOTHING_SELECTED,
     ERROR_PATH_NOT_SELECTED,
     ERROR_WRONG_PHASE,
@@ -80,3 +84,32 @@ class ChoiceInvalidError(DomainError):
     def __init__(self, index: int, reason: str, message: str) -> None:
         """Name the choice by its index in the request, and why it does not fit."""
         super().__init__(ERROR_CHOICE_INVALID, message, {"choice": index, "reason": reason})
+
+
+class BatchExistsError(DomainError):
+    """This database already has a batch of the id; another computer's job of that id cannot be added."""
+
+    def __init__(self, batch_id: str) -> None:
+        """Name the batch id."""
+        details: dict[str, JsonValue] = {BATCH_ID_DETAIL: batch_id}
+        super().__init__(ERROR_BATCH_EXISTS, "A job with this id is already on this computer.", details)
+
+
+class ManifestPathInvalidError(DomainError):
+    """A path of the manifest below its scan root holds a part that is no single file or folder name; nothing was recorded."""
+
+    def __init__(self, batch_id: str, item_id: str) -> None:
+        """Name the batch and the item whose path is refused."""
+        details: dict[str, JsonValue] = {BATCH_ID_DETAIL: batch_id, "item_id": item_id}
+        message = "The cloud job's description holds a file path that cannot be used safely; it was not added."
+        super().__init__(ERROR_MANIFEST_PATH_INVALID, message, details)
+
+
+class AdoptedBatchError(DomainError):
+    """The request is not possible for another computer's job: its retry and its audio are the uploader's to decide."""
+
+    def __init__(self, batch_id: str) -> None:
+        """Name the batch."""
+        message = "This is not possible for a job uploaded from another computer."
+        details: dict[str, JsonValue] = {BATCH_ID_DETAIL: batch_id}
+        super().__init__(ERROR_ADOPTED_BATCH, message, details)

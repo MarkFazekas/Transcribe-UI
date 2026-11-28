@@ -20,6 +20,7 @@ from typing import get_args
 import pytest
 
 from support.actions import (
+    ADOPTED,
     COPIED_SOURCE,
     COPYING_RETRY,
     LANGUAGE,
@@ -51,6 +52,7 @@ GUARD_CODES = frozenset(
         "retry_job_invalid",
         "results_pending",
         "retry_copying",
+        "adopted_batch",
     ),
 )
 # Every action a summary can list.
@@ -74,7 +76,8 @@ SHOWN = (SHOW,)
 # Review and choices, allowed together while an item is in review.
 REVIEW = ("review_batch", "resolve_review")
 # What each action may answer once its guard let it through (the seeded files do not exist, no
-# credentials are stored, confirmations are not sent, no audio object of a retry source is recorded).
+# credentials are stored, confirmations are not sent, no audio object of a retry source is recorded,
+# the default placement is next to the media).
 AFTER_GUARD = MappingProxyType(
     {
         "edit_batch": frozenset(("root_not_found",)),
@@ -85,7 +88,8 @@ AFTER_GUARD = MappingProxyType(
         EXCLUDE: frozenset((ASKS,)),
         UPLOAD: frozenset(("credentials_missing",)),
         "plan_download": frozenset((OK,)),
-        "run_download": frozenset((OK, "credentials_missing")),
+        # The default strategy (next to the media) is refused for another computer's job: the request's own field.
+        "run_download": frozenset((OK, "credentials_missing", "download_plan_invalid")),
         "export_custom_plan": frozenset((OK,)),
         "import_custom_plan": frozenset(("custom_plan_unreadable",)),
         RETRY: frozenset(("credentials_missing", "copy_source_missing", OK)),
@@ -117,6 +121,7 @@ EXPECTED = MappingProxyType(
         COPYING_RETRY: (*REVIEW, UPLOAD, CLEAN_ALL),
         RETRIED_SOURCE: (*DOWNLOADS, CLEAN_ALL, HIDE),
         PAST_RETRY: (*DOWNLOADS, CLEAN_ALL),
+        ADOPTED: (*DOWNLOADS, CLEAN_ALL),
     },
 )
 # Unlisted actions whose guard lets them through although they would change nothing: showing a
@@ -145,6 +150,7 @@ NO_OPS = MappingProxyType(
         COPYING_RETRY: SHOWN,
         RETRIED_SOURCE: (RETRY, CLEAN_AUDIO, SHOW),
         PAST_RETRY: SHOWN,
+        ADOPTED: SHOWN,
     },
 )
 # The request action of an allowed action that is split by scope or direction.

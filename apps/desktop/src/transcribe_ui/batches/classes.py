@@ -177,3 +177,17 @@ class SetBatchHiddenRequest(FrozenModel):
     action: Literal["set_batch_hidden"]
     batch_id: BatchId
     hidden: bool
+
+
+class ListCloudBatchesRequest(FrozenModel):
+    """List every job in the cloud (R2 only): this computer's and other computers' (architecture §3.9)."""
+
+    action: Literal["list_cloud_batches"]
+
+
+class AdoptCloudBatchRequest(FrozenModel):
+    """Add another computer's cloud job to this computer's jobs, so its subtitles can be downloaded here."""
+
+    action: Literal["adopt_cloud_batch"]
+    batch_id: BatchId
+    confirm: bool = False

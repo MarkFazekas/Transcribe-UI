@@ -10,7 +10,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from support.fakes import FIXED_NOW
-from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, JobPayload, RetryJob, RetryOrigin
+from transcribe_ui.batches.payloads import AdoptedBatch, BatchPayload, ItemPayload, JobPayload, RetryJob, RetryOrigin
 from transcribe_ui.discovery.rules import host_rules
 from transcribe_ui.state.models import BatchRow, ItemRow, JobRow
 from transcribe_ui.state.store import LocalState
@@ -23,6 +23,8 @@ COPYING_RETRY = "copying_retry"
 # The scenario whose retry batch is past its upload (its audio cleaned up since), and that retry batch.
 RETRIED_SOURCE = "retried_source"
 PAST_RETRY = "past_retry"
+# The scenario of another computer's batch (adopted), with a failed job.
+ADOPTED = "adopted_flagged"
 # The language of every seeded job.
 LANGUAGE = "en"
 # Item phases and job statuses of the scenarios.
@@ -52,6 +54,8 @@ class Scenario:
     cleanup_pending: str | None = None
     # Positions of the items whose job extracts an embedded subtitle instead of transcribing.
     extracting: tuple[int, ...] = ()
+    # Another computer's batch (`adopt_cloud_batch`).
+    adopted: bool = False
 
 
 # The seeded batches by name, in seeding order (a retry batch after its source).
@@ -84,6 +88,7 @@ SCENARIOS = MappingProxyType(
         COPYING_RETRY: Scenario("uploading", (REVIEWED,), retry_of=COPIED_SOURCE),
         RETRIED_SOURCE: Scenario("downloaded", (UPLOADED_OK, UPLOADED_FAILED), audio_deleted=True),
         PAST_RETRY: Scenario("ready", (UPLOADED_PENDING,), retry_of=RETRIED_SOURCE),
+        ADOPTED: Scenario("transcribed", (UPLOADED_OK, UPLOADED_FAILED), adopted=True),
     },
 )
 
@@ -133,6 +138,7 @@ def _seed_batch(state: LocalState, name: str, scenario: Scenario, root: Path) ->
         languages=(LANGUAGE,),
         retry_of=origin,
         cleanup_pending=scenario.cleanup_pending,
+        adopted=AdoptedBatch() if scenario.adopted else None,
     )
     row = BatchRow(
         batch_id=scenario_batch_id(name),

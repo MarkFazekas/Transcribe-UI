@@ -112,6 +112,8 @@ class BatchFacts:
     phase: str
     audio_deleted: bool
     hidden: bool
+    # Another computer's batch, recorded from its manifest (`adopt_cloud_batch`).
+    adopted: bool
     cleanup_pending: CleanupScope | None
     item_counts: ItemCounts
     job_counts: JobCounts
@@ -138,12 +140,19 @@ def stored_cleanup_pending(row: BatchRow) -> CleanupScope | None:
     return cast("CleanupScope", found) if found in rules.CLEANUP_SCOPES else None
 
 
+def stored_adopted(row: BatchRow) -> bool:
+    """Return whether the batch was adopted from another computer, read without validating the whole payload."""
+    payload = row.payload
+    return isinstance(payload, dict) and payload.get("adopted") is not None
+
+
 def batch_facts(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], *, copying: bool) -> BatchFacts:
     """Return the facts of a batch from its row, its item counts and its jobs."""
     return BatchFacts(
         phase=row.phase,
         audio_deleted=row.audio_deleted,
         hidden=row.hidden,
+        adopted=stored_adopted(row),
         cleanup_pending=stored_cleanup_pending(row),
         item_counts=item_counts,
         job_counts=JobCounts.of_jobs(jobs),
@@ -197,6 +206,7 @@ def _holds(condition: str, facts: BatchFacts) -> bool:
         rules.CONDITION_AUDIO_KEPT: not facts.audio_deleted,
         rules.CONDITION_NO_COPYING_RETRY: not facts.copying_retry,
         rules.CONDITION_REVIEW_NOT_STARTED: facts.phase == rules.COMPOSING,
+        rules.CONDITION_NOT_ADOPTED: not facts.adopted,
         rules.CONDITION_ITEMS_IN_REVIEW: counted.in_review > 0,
         rules.CONDITION_VISIBLE: not facts.hidden,
         rules.CONDITION_HIDDEN: facts.hidden,

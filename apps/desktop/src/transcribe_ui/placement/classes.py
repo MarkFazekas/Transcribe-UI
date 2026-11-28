@@ -42,6 +42,7 @@ type PlanErrorCode = Literal[
     "target_not_a_file",
     "outside_scan_root",
     "output_not_absolute",
+    "no_local_sources",
     "custom_plan_schema",
     "custom_plan_duplicate_job",
     "custom_plan_unknown_job",

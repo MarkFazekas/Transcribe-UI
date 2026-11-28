@@ -8,7 +8,7 @@ from typing import Any
 from transcribe_ui.api.classes import Response
 from transcribe_ui.api.local_handlers import RequestRunner, local_handlers
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.batches import exclusion, listing, review, services
+from transcribe_ui.batches import adoption, cloud_jobs, exclusion, listing, review, services
 from transcribe_ui.cleanup.services import cleanup_cloud, create_retry_batch
 from transcribe_ui.placement import services as downloads
 from transcribe_ui.runs import cancel, launch, monitor, planning, reconcile, stragglers
@@ -54,6 +54,8 @@ def default_routes() -> Routes:
             "list_batches": Route(run=listing.list_batches, needs_database=True),
             "get_batch": Route(run=listing.get_batch, needs_database=True),
             "set_batch_hidden": Route(run=listing.set_batch_hidden, needs_database=True),
+            "list_cloud_batches": Route(run=cloud_jobs.list_cloud_batches, needs_database=True),
+            "adopt_cloud_batch": Route(run=adoption.adopt_cloud_batch, needs_database=True),
             "run_upload": Route(run=run_upload, needs_database=True),
             "plan_launch": Route(run=planning.plan_launch, needs_database=True),
             "launch_worker": Route(run=launch.launch_worker, needs_database=True),

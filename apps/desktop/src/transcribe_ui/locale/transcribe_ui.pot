@@ -73,6 +73,11 @@ msgid ""
 "cloud instead."
 msgstr ""
 
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "A job with the id {batch_id} is already on this computer."
+msgstr ""
+
 #: src/transcribe_ui/i18n/credential_texts.py
 #, python-brace-format
 msgid ""
@@ -117,6 +122,17 @@ msgstr ""
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Accounts"
 msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Add the cloud job {batch_id} ({files} file), uploaded from another "
+"computer, to this computer's jobs?"
+msgid_plural ""
+"Add the cloud job {batch_id} ({files} files), uploaded from another "
+"computer, to this computer's jobs?"
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Advanced"
@@ -1840,6 +1856,13 @@ msgstr ""
 msgid "The cloud could not be checked; retrying at the next check."
 msgstr ""
 
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The cloud job {batch_id} lists a file path that cannot be used safely on "
+"this computer, so it was not added."
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/display.py
 #, python-brace-format
 msgid ""
@@ -2095,6 +2118,12 @@ msgstr ""
 msgid "The job is uploading; its review waits until the upload stops."
 msgstr ""
 
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job was uploaded from another computer, so its media files are not on"
+" this one; choose another placement."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The job {batch_id} does not exist."
@@ -2307,6 +2336,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "This is not possible at the job's current step."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "This is not possible for a job uploaded from another computer."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py

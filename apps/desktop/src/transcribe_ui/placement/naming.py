@@ -12,6 +12,7 @@ from pathlib import PurePath, PurePosixPath, PureWindowsPath
 
 from pydantic import JsonValue
 
+from transcribe_contracts.classes import PathFlavor
 from transcribe_ui.discovery.rules import PathRules
 from transcribe_ui.placement import constants
 
@@ -38,6 +39,40 @@ def has_subtitle_extension(file_name: str) -> bool:
 def is_clean_absolute(path: PurePath) -> bool:
     """Return whether a path is absolute and has no `..` part (so it cannot leave a folder)."""
     return path.is_absolute() and ".." not in path.parts
+
+
+def unsafe_in(part: str, flavor: PathFlavor) -> bool:
+    """Return whether a part below the scan root is no single file or folder name in that path flavour.
+
+    Empty, `.` and `..` parts, a NUL, the flavour's separators, and a drive or an anchor (`C:x`)
+    are refused; every other character a generated name later sanitises (architecture §3.5).
+    """
+    if part in constants.NOT_NAMES or constants.NUL in part:
+        return True
+    if any(separator in part for separator in constants.FLAVOR_SEPARATORS[flavor]):
+        return True
+    pure = PureWindowsPath(part) if flavor == "windows" else PurePosixPath(part)
+    return bool(pure.anchor)
+
+
+def unsafe_part(part: str) -> bool:
+    """Return whether a part read from another computer's manifest is no single name on every OS (adoption)."""
+    return unsafe_in(part, "windows") or unsafe_in(part, "posix")
+
+
+def target_names(rules: "PathRules | TargetNames") -> "TargetNames":
+    """Return the names of a target given by its rules (sources in its flavour) or by names (sources in theirs)."""
+    return rules if isinstance(rules, TargetNames) else TargetNames(rules)
+
+
+def sources_flavor(names: "TargetNames") -> PathFlavor:
+    """Return the path flavour of the sources and the scan root."""
+    return names.source_flavor or names.rules.flavor
+
+
+def source_pure(names: "TargetNames", path: str) -> PurePath:
+    """Return a source path (or the scan root) as a pure path of the batch's flavour."""
+    return PureWindowsPath(path) if sources_flavor(names) == "windows" else PurePosixPath(path)
 
 
 def _reserved(name: str) -> bool:
@@ -83,9 +118,14 @@ def _windows_problem(name: str) -> NameProblem | None:
 
 @dataclass(frozen=True)
 class TargetNames:
-    """Paths and names under the target OS's rules (the injected path-flavour rule)."""
+    """Paths and names under the target OS's rules (the injected path-flavour rule).
+
+    Source paths and the scan root are split in the batch's own path flavour (`source_flavor`:
+    the OS that scanned it, another computer's for an adopted batch); None means the target's.
+    """
 
     rules: PathRules
+    source_flavor: PathFlavor | None = None
 
     @property
     def windows(self) -> bool:

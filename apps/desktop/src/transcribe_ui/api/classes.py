@@ -12,6 +12,7 @@ from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveI
 
 from transcribe_ui.api.base import FrozenModel, LocalPath, SetPath, ToolPath, WhisperLanguage, check_distinct
 from transcribe_ui.batches import classes as batch_requests
+from transcribe_ui.batches import cloud_responses as cloud_batch_responses
 from transcribe_ui.batches import responses as batch_responses
 from transcribe_ui.cleanup import classes as cleanup_models
 from transcribe_ui.credentials.classes import (
@@ -28,8 +29,8 @@ from transcribe_ui.discovery.classes import (
     PreviewSelectionResponse,
     ScanTreeRequest,
     ScanTreeResponse,
+    check_media_extensions,
 )
-from transcribe_ui.discovery.constants import SIDECAR_EXTENSIONS
 from transcribe_ui.placement import classes as placement_models
 from transcribe_ui.runpod.classes import (
     CloudSetupStatusRequest,
@@ -94,16 +95,7 @@ class Settings(FrozenModel):
     @model_validator(mode="after")
     def _check_extensions(self) -> "Settings":
         # The same rules as the scan's (`ScanSpec`), so saved settings always make a valid scan.
-        video = set(self.video_extensions)
-        audio = set(self.audio_extensions)
-        both = sorted(video & audio)
-        if both:
-            msg = f"extensions listed as both video and audio: {both}"
-            raise ValueError(msg)
-        sidecars = sorted((video | audio) & set(SIDECAR_EXTENSIONS))
-        if sidecars:
-            msg = f"subtitle extensions cannot be media extensions: {sidecars}"
-            raise ValueError(msg)
+        check_media_extensions(self.video_extensions, self.audio_extensions)
         return self
 
 
@@ -157,6 +149,8 @@ type Request = Annotated[
     | batch_requests.ResolveReviewRequest
     | batch_requests.ExcludeItemsRequest
     | batch_requests.ListBatchesRequest
+    | batch_requests.ListCloudBatchesRequest
+    | batch_requests.AdoptCloudBatchRequest
     | batch_requests.GetBatchRequest
     | batch_requests.SetBatchHiddenRequest
     | RunUploadRequest
@@ -276,6 +270,8 @@ type SuccessResponse = Annotated[
     | batch_responses.ResolveReviewResponse
     | batch_responses.ExcludeItemsResponse
     | batch_responses.ListBatchesResponse
+    | cloud_batch_responses.ListCloudBatchesResponse
+    | cloud_batch_responses.AdoptCloudBatchResponse
     | batch_responses.GetBatchResponse
     | batch_responses.SetBatchHiddenResponse
     | RunUploadResponse

@@ -63,6 +63,13 @@ class StoredComposition(BaseModel):
     item_languages: tuple[StoredItemLanguages, ...] = ()
 
 
+class AdoptedBatch(FrozenModel):
+    """Another computer's batch recorded from its manifest (`adopt_cloud_batch`, architecture §3.9)."""
+
+    # The uploading installation's id from the manifest (`uploaded_by`), None when it had none.
+    uploaded_by: str | None = None
+
+
 class BatchPayload(FrozenModel):
     """What a batch row keeps besides its phase and flags."""
 
@@ -78,6 +85,9 @@ class BatchPayload(FrozenModel):
     # A cloud cleanup of this scope was recorded and has not finished its deletes yet; no worker
     # may start until it is repeated (`cleanup_cloud`).
     cleanup_pending: CleanupScope | None = None
+    # Set on a batch of another computer, recorded from its manifest (`adopt_cloud_batch`); None for
+    # a batch composed and uploaded here.
+    adopted: AdoptedBatch | None = None
 
 
 class PendingWithdrawal(FrozenModel):

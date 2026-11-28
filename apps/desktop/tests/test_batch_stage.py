@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import select
 
 from support.actions import (
+    ADOPTED,
     COPIED_SOURCE,
     COPYING_RETRY,
     PAST_RETRY,
@@ -66,6 +67,7 @@ EXPECTED = MappingProxyType(
         COPYING_RETRY: (REVIEW_UPLOAD, (UNFINISHED,)),
         RETRIED_SOURCE: (DONE, (FLAGGED, AUDIO_DELETED)),
         PAST_RETRY: (TRANSCRIPTION, ()),
+        ADOPTED: (DOWNLOAD, (READY, FLAGGED)),
     },
 )
 
@@ -107,6 +109,7 @@ def _facts(phase: str) -> BatchFacts:
         phase=phase,
         audio_deleted=False,
         hidden=False,
+        adopted=False,
         cleanup_pending=None,
         item_counts=ItemCounts(total=1),
         job_counts=JobCounts(pending_results=1, flagged=0, extract=0),
@@ -126,6 +129,7 @@ def test_the_labels_are_shown_in_order() -> None:
         phase="transcribed",
         audio_deleted=True,
         hidden=True,
+        adopted=False,
         cleanup_pending="audio",
         item_counts=ItemCounts(total=2),
         job_counts=JobCounts(pending_results=0, flagged=1, extract=0, subtitles=1),

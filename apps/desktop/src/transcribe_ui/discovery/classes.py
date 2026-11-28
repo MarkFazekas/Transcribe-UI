@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from collections.abc import Iterable
 from typing import Annotated, Literal, Self
 
 from pydantic import Field, NonNegativeInt, StringConstraints, field_validator, model_validator
@@ -35,6 +36,24 @@ type NameMatch = Literal["starts_with", "ends_with", "contains", "regex"]
 # Requests
 
 
+def check_media_extensions(video_extensions: Iterable[str], audio_extensions: Iterable[str]) -> None:
+    """Check that no extension is both video and audio, and none is a subtitle's (scan and settings alike).
+
+    Raises:
+        ValueError: The extensions break a rule (the message names them).
+    """
+    video = set(video_extensions)
+    audio = set(audio_extensions)
+    both = sorted(video & audio)
+    if both:
+        msg = f"extensions listed as both video and audio: {both}"
+        raise ValueError(msg)
+    sidecars = sorted((video | audio) & set(SIDECAR_EXTENSIONS))
+    if sidecars:
+        msg = f"subtitle extensions cannot be media extensions: {sidecars}"
+        raise ValueError(msg)
+
+
 class ScanSpec(FrozenModel):
     """What to scan and how to classify it; the GUI fills the defaults from the settings."""
 
@@ -45,16 +64,7 @@ class ScanSpec(FrozenModel):
 
     @model_validator(mode="after")
     def _check_extensions(self) -> Self:
-        video = set(self.video_extensions)
-        audio = set(self.audio_extensions)
-        both = sorted(video & audio)
-        if both:
-            msg = f"extensions listed as both video and audio: {both}"
-            raise ValueError(msg)
-        sidecars = sorted((video | audio) & set(SIDECAR_EXTENSIONS))
-        if sidecars:
-            msg = f"subtitle extensions cannot be media extensions: {sidecars}"
-            raise ValueError(msg)
+        check_media_extensions(self.video_extensions, self.audio_extensions)
         return self
 
 

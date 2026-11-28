@@ -90,6 +90,11 @@ msgstr ""
 "Egy feladatból nem vehető ki az utolsó fájl; helyette törölje a "
 "feladatot, vagy takarítsa el a felhőből."
 
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "A job with the id {batch_id} is already on this computer."
+msgstr "A(z) {batch_id} azonosítójú feladat már megvan ezen a számítógépen."
+
 #: src/transcribe_ui/i18n/credential_texts.py
 #, python-brace-format
 msgid ""
@@ -143,6 +148,21 @@ msgstr "Névjegy"
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Accounts"
 msgstr "Fiókok"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Add the cloud job {batch_id} ({files} file), uploaded from another "
+"computer, to this computer's jobs?"
+msgid_plural ""
+"Add the cloud job {batch_id} ({files} files), uploaded from another "
+"computer, to this computer's jobs?"
+msgstr[0] ""
+"Hozzáadja ennek a számítógépnek a feladataihoz a(z) {batch_id} felhőbeli "
+"feladatot ({files} fájl), amelyet egy másik számítógépről töltöttek fel?"
+msgstr[1] ""
+"Hozzáadja ennek a számítógépnek a feladataihoz a(z) {batch_id} felhőbeli "
+"feladatot ({files} fájl), amelyet egy másik számítógépről töltöttek fel?"
 
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Advanced"
@@ -1963,6 +1983,16 @@ msgstr ""
 "A felhőt nem sikerült ellenőrizni; a következő ellenőrzés újra "
 "megpróbálja."
 
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The cloud job {batch_id} lists a file path that cannot be used safely on "
+"this computer, so it was not added."
+msgstr ""
+"A(z) {batch_id} felhőbeli feladat olyan fájlútvonalat tartalmaz, amely "
+"ezen a számítógépen nem használható biztonságosan, ezért nem került "
+"hozzáadásra."
+
 #: src/transcribe_ui/gui/cloud/display.py
 #, python-brace-format
 msgid ""
@@ -2255,6 +2285,14 @@ msgstr ""
 "A feladat feltöltése folyamatban van; az ellenőrzés megvárja a feltöltés "
 "leállását."
 
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job was uploaded from another computer, so its media files are not on"
+" this one; choose another placement."
+msgstr ""
+"A feladatot egy másik számítógépről töltötték fel, ezért a médiafájlok "
+"nincsenek ezen a gépen; válasszon másik elhelyezést."
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The job {batch_id} does not exist."
@@ -2502,6 +2540,10 @@ msgstr "Ez nem az alkalmazás felhőgépe; a Runpod konzolján kezelje."
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "This is not possible at the job's current step."
 msgstr "Ez a feladat jelenlegi lépésénél nem lehetséges."
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "This is not possible for a job uploaded from another computer."
+msgstr "Ez nem lehetséges egy másik számítógépről feltöltött feladatnál."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""

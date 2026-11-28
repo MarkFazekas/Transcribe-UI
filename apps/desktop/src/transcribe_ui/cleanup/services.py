@@ -38,12 +38,13 @@ from transcribe_ui.cleanup.classes import (
     CreateRetryBatchRequest,
     CreateRetryBatchResponse,
 )
+from transcribe_ui.cleanup.confirmations import missing_confirmations
 from transcribe_ui.cleanup.known import cleanup_known
 from transcribe_ui.cleanup.manifests import known_in_cloud
 from transcribe_ui.cleanup.origins import ExistingRetry, retry_target
 from transcribe_ui.cleanup.planning import origin_of
 from transcribe_ui.cleanup.retry import retry_batch_id, retry_response, still_uploading
-from transcribe_ui.cleanup.targets import check_target, load_target, missing_confirmations
+from transcribe_ui.cleanup.targets import check_target, load_target
 from transcribe_ui.cleanup.unknown import cleanup_unknown
 from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.upload.services import continue_upload

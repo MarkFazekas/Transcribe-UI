@@ -57,6 +57,8 @@ CONDITION_FLAGGED_JOBS: Final = "flagged_jobs"
 CONDITION_AUDIO_KEPT: Final = "audio_kept"
 # Guard condition of an allowed action: no retry batch of this batch still copies its audio (`cleanup_cloud`).
 CONDITION_NO_COPYING_RETRY: Final = "no_copying_retry"
+# Guard condition of an allowed action: the batch was composed here, not adopted from another computer.
+CONDITION_NOT_ADOPTED: Final = "not_adopted"
 # No-op condition: the review has not started yet (`start_review` in `reviewing` changes nothing).
 CONDITION_REVIEW_NOT_STARTED: Final = "review_not_started"
 # No-op condition: an item is in review (`review_batch`, `resolve_review` have nothing to do otherwise).
@@ -90,8 +92,14 @@ ACTION_RULES: Final[Mapping[str, ActionRule]] = MappingProxyType(
         "run_download": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
         "export_custom_plan": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
         "import_custom_plan": (DOWNLOAD_PHASES, (CONDITION_SUBTITLES_LEFT,)),
-        "create_retry_batch": (RETRY_SOURCE_PHASES, (CONDITION_AUDIO_KEPT, CONDITION_FLAGGED_JOBS)),
-        "cleanup_audio": (AUDIO_PHASES, (CONDITION_NO_COPYING_RETRY, CONDITION_RESULTS_IN, CONDITION_AUDIO_LEFT)),
+        "create_retry_batch": (
+            RETRY_SOURCE_PHASES,
+            (CONDITION_NOT_ADOPTED, CONDITION_AUDIO_KEPT, CONDITION_FLAGGED_JOBS),
+        ),
+        "cleanup_audio": (
+            AUDIO_PHASES,
+            (CONDITION_NOT_ADOPTED, CONDITION_NO_COPYING_RETRY, CONDITION_RESULTS_IN, CONDITION_AUDIO_LEFT),
+        ),
         "cleanup_everything": (EVERYTHING_PHASES, (CONDITION_NO_COPYING_RETRY, CONDITION_CLOUD_DATA_LEFT)),
         "hide_batch": (FINISHED_PHASES, (CONDITION_VISIBLE,)),
         "show_batch": (ALL_PHASES, (CONDITION_HIDDEN,)),
@@ -164,6 +172,19 @@ ERROR_ITEM_NOT_FOUND: Final = "item_not_found"
 ERROR_LAST_ITEM: Final = "last_item"
 # Error code: a choice of `resolve_review` cannot be applied; nothing was changed.
 ERROR_CHOICE_INVALID: Final = "choice_invalid"
+# Details key naming the batch an error is about.
+BATCH_ID_DETAIL: Final = "batch_id"
+# Error code: the request is not possible for another computer's job (retry, the audio cleanup; architecture §3.9).
+ERROR_ADOPTED_BATCH: Final = "adopted_batch"
+# Error code: this database already has a batch of the id another computer's job uses (`adopt_cloud_batch`).
+ERROR_BATCH_EXISTS: Final = "batch_exists"
+# Error code: a path of the manifest below its scan root holds a part that is no single name (`adopt_cloud_batch`).
+ERROR_MANIFEST_PATH_INVALID: Final = "manifest_path_invalid"
+# Confirmation code: another computer's job is added to this computer's jobs (`adopt_cloud_batch`).
+CONFIRMATION_ADOPT: Final = "adopt_cloud_batch"
+# Phase an adopted batch is recorded in: its manifest is published (`refresh_status` reads its results).
+ADOPTED_PHASE: Final = "ready"
+
 
 # Choice reason: the item has no probe result (or a problem) yet; send `review_batch` first.
 REASON_NOT_PROBED: Final = "item_not_probed"

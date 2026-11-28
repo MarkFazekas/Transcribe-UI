@@ -94,6 +94,8 @@ ERROR_TARGET_UNREADABLE: Final = "target_unreadable"
 ERROR_SCAN_ROOT_INVALID: Final = "scan_root_invalid"
 # Plan error: a source path is not an absolute path or contains `..`.
 ERROR_SOURCE_PATH_INVALID: Final = "source_path_invalid"
+# Plan error: next to the media is not possible for another computer's job (its originals are there).
+ERROR_NO_LOCAL_SOURCES: Final = "no_local_sources"
 # Plan error: the target exists and is not a file, so it cannot be overwritten or skipped as one.
 ERROR_TARGET_NOT_A_FILE: Final = "target_not_a_file"
 # Plan error: a source file is not below the scan root the strategy counts folders from.
@@ -182,3 +184,9 @@ ERROR_SUBTITLE_MISSING: Final = "subtitle_missing"
 ERROR_CUSTOM_PLAN_UNREADABLE: Final = "custom_plan_unreadable"
 # Error code: the custom plan file cannot be written.
 ERROR_CUSTOM_PLAN_UNWRITABLE: Final = "custom_plan_unwritable"
+# Path parts that name no file or folder ("" between two separators, the folder itself, its parent).
+NOT_NAMES: Final = frozenset(("", ".", ".."))
+# The NUL character, never part of a name.
+NUL: Final = "\x00"
+# Characters that separate path parts, by path flavour.
+FLAVOR_SEPARATORS: Final[Mapping[str, str]] = MappingProxyType({"windows": r"\/", "posix": "/"})
