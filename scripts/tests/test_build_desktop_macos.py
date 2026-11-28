@@ -5,25 +5,51 @@ from importlib.metadata import PathDistribution
 from pathlib import Path
 from types import MappingProxyType
 
-from build_desktop_macos import Bundled, bundled_binaries, floor_report, minimum_versions
+import pytest
+from build_desktop_macos import (
+    Bundled,
+    bundled_binaries,
+    check_bundle,
+    executable_problems,
+    floor_report,
+    minimum_versions,
+)
 from build_desktop_wheels import MacosVersion, Wheel, installed_wheels, wheel_tags
 
 # The binding library of Qt: its wheel is tagged for macOS 14, its own dylib says 26.0.
 BINDING = Wheel("shiboken6", "6.12.0", ("cp310-abi3-macosx_14_0_universal2",))
 # A wheel built for a newer macOS than the floor.
 TOO_NEW = Wheel("newer", "1.0", ("cp313-cp313-macosx_15_0_arm64",))
-# The bundled binaries of the floor tests: two from wheels, two collected from elsewhere.
+# A wheel whose tags name no macOS (its binaries follow the minos rule).
+UNTAGGED = Wheel("untagged", "1.0", ("py3-none-any",))
+# The bundled binaries of the floor tests: three from wheels, three collected from elsewhere.
 BINARIES = (
     Bundled("shiboken6/libshiboken6.abi3.6.12.dylib", Path("/site/shiboken6/libshiboken6.abi3.6.12.dylib")),
     Bundled("newer/_ext.so", Path("/site/newer/_ext.so")),
+    Bundled("untagged/_ext.so", Path("/site/untagged/_ext.so")),
     Bundled("libpython3.13.dylib", Path("/py/lib/libpython3.13.dylib")),
     Bundled("libav.dylib", Path("/ffmpeg/libav.dylib")),
+    # Named like the wheel's file, but collected from elsewhere (a package manager's copy): no wheel's tag covers it.
+    Bundled("shiboken6/Shiboken.abi3.so", Path("/opt/homebrew/lib/Shiboken.abi3.so")),
+)
+# The wheels of the floor tests, by the resolved source of their files.
+OWNERS = MappingProxyType(
+    {
+        "/site/shiboken6/libshiboken6.abi3.6.12.dylib": BINDING,
+        "/site/shiboken6/Shiboken.abi3.so": BINDING,
+        "/site/newer/_ext.so": TOO_NEW,
+        "/site/untagged/_ext.so": UNTAGGED,
+    },
 )
 # The minimum macOS `otool` would report for each source.
 MINIMUMS: Mapping[str, list[MacosVersion]] = MappingProxyType(
     {
         "/site/shiboken6/libshiboken6.abi3.6.12.dylib": [(26, 0), (26, 0)],
         "/site/newer/_ext.so": [(15, 0)],
+        "/site/untagged/_ext.so": [(14, 4)],
+        "/opt/homebrew/lib/Shiboken.abi3.so": [(15, 0)],
+        "/out/dist/transcribe-ui-macos-arm64-gui": [(11, 0)],
+        "/out/dist/too-new": [(14, 0), (15, 0)],
         "/py/lib/libpython3.13.dylib": [(14, 0)],
         "/ffmpeg/libav.dylib": [(14, 0), (15, 2)],
     }
@@ -43,8 +69,13 @@ def test_wheel_tags_and_their_macos_floor() -> None:
     assert Wheel("pure", "1", ("py3-none-any",)).macos_floor() is None
 
 
+def test_a_compressed_tag_counts_its_highest_macos() -> None:
+    """`macosx_10_9_x86_64.macosx_15_0_arm64` is one tag naming two platforms: 15.0 counts."""
+    assert Wheel("x", "1", ("cp313-cp313-macosx_10_9_x86_64.macosx_15_0_arm64",)).macos_floor() == (15, 0)
+
+
 def test_installed_files_map_to_their_wheel(tmp_path: Path) -> None:
-    """Every file of a RECORD is found by its resolved path and by its path inside site-packages."""
+    """Every file of a RECORD is found by its resolved path only (not by its path inside site-packages)."""
     dist_info = tmp_path / "shiboken6-6.12.0.dist-info"
     dist_info.mkdir()
     (dist_info / "METADATA").write_text("Metadata-Version: 2.1\nName: shiboken6\nVersion: 6.12.0\n", encoding="utf-8")
@@ -54,16 +85,20 @@ def test_installed_files_map_to_their_wheel(tmp_path: Path) -> None:
     (tmp_path / "shiboken6").mkdir()
     (tmp_path / "shiboken6" / "Shiboken.abi3.so").write_bytes(b"")
     owners = installed_wheels([PathDistribution(dist_info)])
-    assert owners["shiboken6/Shiboken.abi3.so"] == BINDING
-    assert owners[str((tmp_path / "shiboken6" / "Shiboken.abi3.so").resolve())] == BINDING
+    assert owners == {str((tmp_path / "shiboken6" / "Shiboken.abi3.so").resolve()): BINDING}
 
 
 def test_floor_follows_the_tag_else_the_minos() -> None:
-    """A wheel's dylib above the floor passes when its tag is at the floor; a too-new tag or binary fails."""
-    owners = {"shiboken6/libshiboken6.abi3.6.12.dylib": BINDING, "/site/newer/_ext.so": TOO_NEW}
-    report = floor_report(BINARIES, owners, _read)
+    """A wheel's dylib above the floor passes when its tag is at the floor; a too-new tag or binary fails.
+
+    A binary of a wheel without a `macosx` tag, and one named like a wheel's file but collected
+    from elsewhere, follow the minos rule.
+    """
+    report = floor_report(BINARIES, OWNERS, _read)
     assert report.problems == (
+        "untagged/_ext.so needs macOS 14.4 (the floor is 14.0)",
         "libav.dylib needs macOS 15.2 (the floor is 14.0)",
+        "shiboken6/Shiboken.abi3.so needs macOS 15.0 (the floor is 14.0)",
         "wheel newer 1.0 is tagged for macOS 15.0",
     )
     assert report.wheels == (
@@ -107,3 +142,16 @@ def test_bundled_binaries_from_the_table_of_contents(tmp_path: Path) -> None:
         Bundled("_ssl.so", Path("/py/lib/_ssl.so")),
         Bundled("libpython3.13.dylib", Path("/py/lib/libpython3.13.dylib")),
     ]
+
+
+def test_the_executable_follows_the_minos_rule() -> None:
+    """The bootloader is checked by its own minimum macOS, whatever wheel PyInstaller came in."""
+    assert not executable_problems(Path("/out/dist/transcribe-ui-macos-arm64-gui"), _read)
+    assert executable_problems(Path("/out/dist/too-new"), _read) == ["too-new needs macOS 15.0 (the floor is 14.0)"]
+
+
+def test_check_bundle_without_otool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Without `otool` the check reports it as a problem instead of passing."""
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+    report = check_bundle(tmp_path / "PKG-00.toc", tmp_path / "executable")
+    assert report.problems == ("otool not found",)

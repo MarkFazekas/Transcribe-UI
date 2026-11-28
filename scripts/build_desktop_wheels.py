@@ -2,9 +2,11 @@
 
 Used by `scripts/build_desktop_macos.py`. A wheel's `WHEEL` file names its tags
 (`Tag: cp310-abi3-macosx_14_0_universal2`); the macOS version in a `macosx_<major>_<minor>`
-tag is the oldest macOS the wheel supports. Its `RECORD` file lists every file it installed,
-relative to `site-packages`, which maps a bundled file to its wheel (by the file's path, or by
-its name inside the bundle, which PyInstaller keeps relative to `site-packages`).
+tag is the oldest macOS the wheel supports (a compressed tag set such as
+`macosx_10_9_x86_64.macosx_15_0_arm64` counts with its highest). Its `RECORD` file lists every
+file it installed, which maps a bundled file to its wheel by the file's resolved path
+(PyInstaller's table of contents keeps the original source paths), so a file from anywhere else
+never gets a wheel's tag.
 """
 
 import re
@@ -15,7 +17,7 @@ from pathlib import Path
 
 # A macOS version as numbers, such as (14, 0).
 type MacosVersion = tuple[int, ...]
-# The wheel of each installed file, by its resolved path and by its path inside `site-packages`.
+# The wheel of each installed file, by its resolved path.
 type Owners = Mapping[str, Wheel]
 
 # The macOS version of a platform tag, such as 14.0 of a wheel tagged for macOS 14.
@@ -34,9 +36,8 @@ class Wheel:
 
     def macos_floor(self) -> MacosVersion | None:
         """Return the oldest macOS the wheel's tags state (the highest of its `macosx` tags), or None."""
-        found = [MACOS_TAG.search(tag) for tag in self.tags]
-        versions = [_version(match) for match in found if match is not None]
-        return max(versions, default=None)
+        found = [match for tag in self.tags for match in MACOS_TAG.finditer(tag)]
+        return max(map(_version, found), default=None)
 
 
 def _version(tag: re.Match[str]) -> MacosVersion:
@@ -59,19 +60,17 @@ def _wheel(distribution: Distribution) -> Wheel:
 def installed_wheels(installed: Iterable[Distribution] | None = None) -> dict[str, Wheel]:
     """Return the wheel of every file the distributions installed (default: this interpreter's).
 
-    Each file is a key twice: by its resolved path, and by its path inside `site-packages`.
+    Each file is a key by its resolved path.
     """
     owners: dict[str, Wheel] = {}
     for distribution in distributions() if installed is None else installed:
         wheel = _wheel(distribution)
         for installed_file in distribution.files or ():
-            owners[installed_file.as_posix()] = wheel
             location = Path(str(distribution.locate_file(installed_file)))
             owners[str(location.resolve())] = wheel
     return owners
 
 
-def owner(owners: Owners, name: str, source: Path) -> Wheel | None:
-    """Return the wheel a bundled file comes from (by its source, else its name in the bundle), or None."""
-    by_source = owners.get(str(source.resolve()))
-    return by_source or owners.get(name)
+def owner(owners: Owners, source: Path) -> Wheel | None:
+    """Return the wheel that installed the bundled file collected from `source`, or None."""
+    return owners.get(str(source.resolve()))

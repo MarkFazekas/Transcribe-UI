@@ -2,14 +2,17 @@
 
 Used by `scripts/build_desktop.py` after a macOS build (docs/ai/plans/m8.md §1 "Platforms and
 runners": macOS 14 or later). PyInstaller's package table of contents (`PKG-00.toc` in its work
-folder) names every binary and extension it bundled, with its source. Two rules:
+folder) names every binary and extension it bundled, with its original source; the executable
+itself (PyInstaller's bootloader, which `EXE` adds separately) is read from `dist/`. Two rules:
 
 - A binary from an installed wheel follows the wheel's platform tag (`macosx_14_0` passes, a
   higher one fails). The `minos` of a wheel's own binaries is no floor signal: Qt's wheels
   regularly carry a higher one than their tag (shiboken6 6.12.0, tagged `macosx_14_0`, has
   `minos 26.0`; its Qt libraries 14.4), so it is only reported, per wheel, for information.
-- Everything else (PyInstaller's bootloader, python-build-standalone's libpython, later the
-  ffmpeg this repository builds) must have a minimum macOS of at most the floor, read with
+- Everything else must have a minimum macOS of at most the floor: the executable (the one
+  Mach-O whose minimum macOS macOS enforces at start; never exempted by the PyInstaller
+  wheel's tag), python-build-standalone's libpython and extensions, a binary of a wheel without
+  a `macosx` tag, later the ffmpeg this repository builds. It is read with
   `otool -arch all -l` for every architecture of a universal file (`minos` of
   `LC_BUILD_VERSION`, or `version` of the older `LC_VERSION_MIN_MACOSX`; only those, never the
   linker's `version` that `LC_BUILD_VERSION` also lists).
@@ -177,7 +180,7 @@ def floor_report(
     highest: dict[Wheel, MacosVersion] = {}
     for binary in binaries:
         newest = max(read(binary.source), default=(0,))
-        wheel = owner(owners, binary.name, binary.source)
+        wheel = owner(owners, binary.source)
         if wheel is not None and wheel.macos_floor() is not None:
             highest[wheel] = max(newest, highest.get(wheel, newest))
         elif newest > floor:
@@ -187,8 +190,14 @@ def floor_report(
     return FloorReport(tuple(problems), tuple(lines))
 
 
-def check_bundle(table_of_contents: Path) -> FloorReport:
-    """Check what PyInstaller bundled (its package table of contents) against the macOS floor.
+def executable_problems(executable: Path, read: MinimumReader, floor: MacosVersion = MACOS_FLOOR) -> list[str]:
+    """Return the problem of the built executable (the bootloader) when it needs a newer macOS than `floor`."""
+    newest = max(read(executable), default=(0,))
+    return [_too_new(executable.name, newest, floor)] if newest > floor else []
+
+
+def check_bundle(table_of_contents: Path, executable: Path) -> FloorReport:
+    """Check the built executable and what PyInstaller bundled (its package table of contents) against the floor.
 
     Raises:
         OtoolError: A binary could not be read.
@@ -197,4 +206,6 @@ def check_bundle(table_of_contents: Path) -> FloorReport:
     read = otool_reader()
     if read is None:
         return FloorReport(("otool not found",), ())
-    return floor_report(bundled_binaries(table_of_contents), installed_wheels(), read)
+    report = floor_report(bundled_binaries(table_of_contents), installed_wheels(), read)
+    problems = (*executable_problems(executable, read), *report.problems)
+    return FloorReport(problems, report.wheels)

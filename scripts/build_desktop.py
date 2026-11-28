@@ -333,10 +333,10 @@ def _stamp() -> int:
     return 0
 
 
-def _macos_floor_problems(variant: Variant, paths: BuildPaths) -> list[str]:
-    """Return what in the bundle needs a newer macOS than the release supports; print each wheel's line."""
+def _macos_floor_problems(variant: Variant, paths: BuildPaths, executable: Path) -> list[str]:
+    """Return what in the executable needs a newer macOS than the release supports; print each wheel's line."""
     stem = asset_stem(variant, platform_tag(sys.platform, platform.machine()))
-    report = check_bundle(paths.work / "build" / stem / "PKG-00.toc")
+    report = check_bundle(paths.work / "build" / stem / "PKG-00.toc", executable)
     for line in report.wheels:
         sys.stdout.write(f"{line}\n")
     return list(report.problems)
@@ -349,7 +349,7 @@ def _build(variants: Sequence[Variant], version: str, dist: Path, work: Path) ->
         paths = BuildPaths(dist.resolve(), work.resolve() / variant)
         try:
             executable = build_variant(variant, version, paths)
-            problems = _macos_floor_problems(variant, paths) if sys.platform == "darwin" else []
+            problems = _macos_floor_problems(variant, paths, executable) if sys.platform == "darwin" else []
         except (RuntimeError, OSError, subprocess.SubprocessError) as error:
             sys.stderr.write(f"{error}\n")
             return 1
