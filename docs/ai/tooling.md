@@ -155,7 +155,7 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
   `update` would change a file (the `.pot` equals a fresh extraction and each `.po` the merge
   of it, ignoring `POT-Creation-Date`; each `.mo` equals a fresh compile), when a Hungarian
   text is missing or fuzzy, or when a Hungarian text does not use exactly the `{fields}` of
-  its English text.
+  its English text, format specs included (`{cost:.2f}`, `{audio_s:duration}`).
 - PyInstaller (M8) bundles the `.mo` files in both executables (data of the `transcribe_ui`
   package, `transcribe_ui/locale/**/*.mo`) and, in the GUI executable, Qt's `qtbase_hu.qm`
   (Qt's translations folder; without it Qt's own buttons stay English); the release smoke test

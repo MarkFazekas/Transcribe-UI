@@ -181,13 +181,17 @@ docs/human/, docs/ai/     see CLAUDE.md
     variants `<code>.<value>` (`ERROR_VARIANTS`: the `source` of `media_tool_not_found`, the
     `operation` of `media_tool_failed` and `media_output_unwritable`, the `reason` of
     `choice_invalid` and `cloud_setup_interrupted`, the `part` of `cloud_unreachable`, the
-    `keyring` of `credentials_missing`). Values are shown as the language writes them: numbers
+    `keyring` of `credentials_missing`), and so has the plan error `custom_plan_invalid_name`
+    (`PLAN_ERROR_VARIANTS`: its `problem`, a code such as `forbidden_characters` with its
+    values, `characters` or `max_length`). Values are shown as the language writes them: numbers
     with its separators (`{cost:.2f}`), `{seconds:duration}` as a duration, lists joined with
     commas, booleans as yes or no. The GUI's texts call the backend's batches "jobs" and its
     jobs "transcriptions". The CLI's JSON (requests, responses, progress NDJSON) is a machine
     contract and is not translated; its human texts (the texts the app passes to argparse for
     `--help`, `cli/parser.py`; later `--progress text` and the `credentials` prompts) are,
-    through `tr()`; argparse's own fixed strings are not. Numbers, dates and durations are
+    through `tr()`; argparse's own fixed strings are not, nor the names of the arguments
+    (argparse quotes them in its errors, which become the `invalid_arguments` JSON). The CLI
+    writes `--help` as UTF-8 (a Windows pipe would use the ANSI code page). Numbers, dates and durations are
     formatted by one helper per language (`i18n/formats.py`; English `1,234.5`, `2026-11-27`;
     Hungarian `1 234,5` with a no-break space, `2026. 11. 27.`; both 24-hour time; durations
     `1 h 5 min` / `1 ó 5 p`).
@@ -214,11 +218,11 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   it as the JSON `ErrorResponse` with the code `display_unavailable` to stdout (when the
   process has one) and exits 1. Then it
   imports `gui/app.py` and runs `run_gui(make_backend)` (tests inject seeded ports) inside
-  `log_to_file(transcribe-ui-gui.log)`. `run_gui` first activates the language of the texts
-  (`gui/language.py`: the `language` setting, the app's catalog and Qt's own translation;
-  §3.1 "Language of the texts"), then routes Qt's messages to the log
+  `log_to_file(transcribe-ui-gui.log)`. `run_gui` routes Qt's messages to the log
   (`qInstallMessageHandler`, logger `transcribe_ui.gui.qt`) and exceptions escaping a slot
-  (`sys.excepthook`) there too, never to stderr. When the event loop ends (normally through the
+  (`sys.excepthook`) there too, never to stderr; then it builds the backend and activates the
+  language of the texts (`gui/language.py`: the `language` setting, the app's catalog and Qt's
+  own translation; §3.1 "Language of the texts") before it builds the window. When the event loop ends (normally through the
   close dialog, or without it, as when the session ends) it hides the window, runs the
   executor's `shutdown`, closes it (answers still on their way are dropped, no callback runs
   any more) and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s, one deadline for
