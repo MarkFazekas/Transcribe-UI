@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QPushButton
 from pytestqt.qtbot import QtBot
 
@@ -68,11 +70,13 @@ def world(runs_world: RunsWorld) -> RunsWorld:
 
 @pytest.fixture
 def window(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> Iterator[MainWindow]:
-    """Return the window over the seeded backend; drained afterwards."""
+    """Return the window over the seeded backend.
+
+    pytest-qt closes the window before the fixtures' teardown, so each test waits for its answers
+    itself (`_settle`); answers still on their way after that are dropped here.
+    """
     created = window_over(qtbot, world.leg.backend, tmp_path)
     yield created
-    wait_for(qtbot, lambda: not created.busy())
-    # Answers still on their way must not reach the widgets pytest-qt deletes next.
     created.context.executor.close()
 
 
@@ -115,12 +119,37 @@ def _button(dialog: DownloadDialog, text: str) -> QPushButton:
 def test_open_download_shows_the_plan(qtbot: QtBot, window: MainWindow) -> None:
     """`open_download` opens the job's dialog at step 4 with the plan of the default choices; again, the same one."""
     dialog = _open(qtbot, window)
-    assert dialog.isVisible()
-    assert _outcomes(dialog)[0] == "Skipped: the file already exists"
-    assert not dialog.options.output_folder.isEnabled()
+    shown = (dialog.isVisible(), dialog.options.output_folder.isEnabled(), _outcomes(dialog)[0])
+    assert shown == (True, False, "Skipped: the file already exists")
     dialog.reject()
     assert not dialog.isVisible()
+    before = dialog.model.loaded
     assert _open(qtbot, window) is dialog
+    wait_for(qtbot, lambda: dialog.model.loaded is not before and not dialog.model.loaded.loading)
+    assert _outcomes(dialog)[0] == "Skipped: the file already exists"
+    _settle(qtbot, window)
+
+
+def test_enter_in_the_output_folder_only_ends_typing(
+    qtbot: QtBot,
+    window: MainWindow,
+    chooser: FakeChooser,
+    world: RunsWorld,
+) -> None:
+    """Enter takes the typed folder; it neither opens the folder chooser nor closes the dialog."""
+    out = str(world.leg.root / "out")
+    dialog = _open(qtbot, window)
+    dialog.options.strategy.setCurrentIndex(STRATEGY_CHOICES.index("mirror"))
+    field = dialog.options.output_folder
+    wait_for(qtbot, field.isEnabled)
+    field.setFocus()
+    QTest.keyClicks(field, out)
+    QTest.keyClick(field, Qt.Key.Key_Return)
+    wait_for(qtbot, dialog.download_button.isEnabled)
+    assert (chooser.asked, dialog.isVisible(), dialog.model.form.output_folder) == ([], True, out)
+    # No button becomes the default of the dialog, whichever has the focus when it shows.
+    buttons = dialog.findChildren(QPushButton)
+    assert not any(button.autoDefault() for button in buttons)
     _settle(qtbot, window)
 
 

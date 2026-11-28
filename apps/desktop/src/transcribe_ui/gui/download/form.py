@@ -17,6 +17,7 @@ from transcribe_ui.gui.download.constants import (
     FLAT_WITH_FOLDERS,
     FOLDER_COUNT_MODE,
     FOLDER_LEVELS_MODE,
+    MAX_FOLDER_COUNT,
     NEXT_TO_MEDIA,
     FolderMode,
     StrategyChoice,
@@ -68,7 +69,8 @@ def form_from_settings(defaults: PlacementDefaults) -> DownloadForm:
     return DownloadForm(
         strategy=defaults.strategy,
         output_folder=defaults.output_folder or "",
-        folder_count=defaults.folder_count,
+        # The dialog offers at most `MAX_FOLDER_COUNT` (a larger count keeps every folder anyway).
+        folder_count=min(defaults.folder_count, MAX_FOLDER_COUNT),
         overwrite=defaults.overwrite,
     )
 
@@ -81,7 +83,7 @@ def placement_options(form: DownloadForm) -> PlacementOptions:
     """Return the placement options of a strategy (not the custom plan).
 
     Raises:
-        ValidationError: The options do not fit the strategy (an output folder is missing or invalid).
+        ValidationError: The options do not fit the strategy (an output folder is missing).
     """
     counted = form.strategy == FLAT_WITH_FOLDERS and form.folder_mode == FOLDER_COUNT_MODE
     levels = tuple(sorted(form.folder_levels)) if _levels_chosen(form) else ()
@@ -144,7 +146,8 @@ def plan_request(batch_id: str, form: DownloadForm, plan_path: str | None) -> Pl
         return None
 
 
-def _missing(form: DownloadForm, plan_path: str | None) -> str | None:
+def form_hint(form: DownloadForm, plan_path: str | None) -> str | None:
+    """Return what the user still has to choose before the download can start, or None."""
     if form.strategy != NEXT_TO_MEDIA and not form.output_folder:
         return tr("Choose the output folder.")
     if form.strategy == CUSTOM and plan_path is None:
@@ -154,17 +157,11 @@ def _missing(form: DownloadForm, plan_path: str | None) -> str | None:
     return None
 
 
-def form_hint(batch_id: str, form: DownloadForm, plan_path: str | None) -> str | None:
-    """Return what the user still has to choose before the download can start, or None."""
-    missing = _missing(form, plan_path)
-    if missing is None and plan_request(batch_id, form, plan_path) is None:
-        return tr("The output folder is not a valid path.")
-    return missing
-
-
 def download_request(batch_id: str, form: DownloadForm, plan_path: str | None) -> DownloadLoad | None:
     """Return the request that downloads as the form says, or None while something is missing."""
-    if form_hint(batch_id, form, plan_path) is not None:
+    if form_hint(form, plan_path) is not None:
+        return None
+    if plan_request(batch_id, form, plan_path) is None:
         return None
     if form.strategy == CUSTOM and plan_path is not None:
         return _import_request(batch_id, form, plan_path, check_only=False)

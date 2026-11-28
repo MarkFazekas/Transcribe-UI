@@ -232,7 +232,7 @@ msgid "Browse..."
 msgstr "Tallózás..."
 
 #: src/transcribe_ui/gui/activity_view.py
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Cancel"
 msgstr "Megszakítás"
 
@@ -421,7 +421,7 @@ msgstr "Költség"
 msgid "Cost so far"
 msgstr "Eddigi költség"
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Could not be placed"
 msgstr "Nem sikerült elhelyezni"
 
@@ -485,7 +485,7 @@ msgid "Detail"
 msgstr "Adat"
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr "Részletek"
@@ -592,7 +592,7 @@ msgid "Failed"
 msgstr "Sikertelen"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/download/view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
 msgid "File"
 msgstr "Fájl"
 
@@ -650,7 +650,7 @@ msgstr "Az aktuális lépés befejezése..."
 msgid "Fix the marked fields, then save again."
 msgstr "Javítsa a megjelölt mezőket, majd mentsen újra."
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Folder"
 msgstr "Mappa"
 
@@ -762,7 +762,7 @@ msgstr "Feladatok"
 msgid "Kind"
 msgstr "Típus"
 
-#: src/transcribe_ui/gui/download/view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
 #: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -930,7 +930,7 @@ msgstr "Még nincs kész"
 msgid "Not set"
 msgstr "Nincs megadva"
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Note"
 msgstr "Megjegyzés"
 
@@ -938,7 +938,7 @@ msgstr "Megjegyzés"
 msgid "Notes"
 msgstr "Megjegyzések"
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Nothing can be downloaded until these are fixed:"
 msgstr "Amíg ezek nincsenek kijavítva, semmi sem tölthető le:"
 
@@ -1160,7 +1160,7 @@ msgid "Restore defaults"
 msgstr "Alapértékek visszaállítása"
 
 #: src/transcribe_ui/gui/activity_view.py
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Resume"
 msgstr "Folytatás"
 
@@ -1598,7 +1598,7 @@ msgstr "Legkésőbb leáll"
 msgid "Stored in the keyring"
 msgstr "A kulcstartóban tárolva"
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Subtitle file"
 msgstr "Feliratfájl"
 
@@ -2095,10 +2095,6 @@ msgstr "A névszűrő nem érvényes reguláris kifejezés (legfeljebb {count} k
 msgid "The name is not valid Unicode; rename it to include it."
 msgstr "A név nem érvényes Unicode-szöveg; nevezze át, hogy bekerülhessen."
 
-#: src/transcribe_ui/gui/download/form.py
-msgid "The output folder is not a valid path."
-msgstr "A kimeneti mappa nem érvényes útvonal."
-
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "The output folder is not an absolute path."
 msgstr "A kimeneti mappa nem abszolút útvonal."
@@ -2443,7 +2439,7 @@ msgstr "Figyelmeztetés"
 msgid "Warnings ({count})"
 msgstr "Figyelmeztetések ({count})"
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "What happens"
 msgstr "Mi történik vele"
 

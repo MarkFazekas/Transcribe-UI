@@ -198,7 +198,7 @@ msgid "Browse..."
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Cancel"
 msgstr ""
 
@@ -380,7 +380,7 @@ msgstr ""
 msgid "Cost so far"
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Could not be placed"
 msgstr ""
 
@@ -441,7 +441,7 @@ msgid "Detail"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr ""
@@ -546,7 +546,7 @@ msgid "Failed"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/download/view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
 msgid "File"
 msgstr ""
 
@@ -602,7 +602,7 @@ msgstr ""
 msgid "Fix the marked fields, then save again."
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Folder"
 msgstr ""
 
@@ -712,7 +712,7 @@ msgstr ""
 msgid "Kind"
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
 #: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -874,7 +874,7 @@ msgstr ""
 msgid "Not set"
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Note"
 msgstr ""
 
@@ -882,7 +882,7 @@ msgstr ""
 msgid "Notes"
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Nothing can be downloaded until these are fixed:"
 msgstr ""
 
@@ -1096,7 +1096,7 @@ msgid "Restore defaults"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Resume"
 msgstr ""
 
@@ -1499,7 +1499,7 @@ msgstr ""
 msgid "Stored in the keyring"
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Subtitle file"
 msgstr ""
 
@@ -1933,10 +1933,6 @@ msgstr ""
 msgid "The name is not valid Unicode; rename it to include it."
 msgstr ""
 
-#: src/transcribe_ui/gui/download/form.py
-msgid "The output folder is not a valid path."
-msgstr ""
-
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "The output folder is not an absolute path."
 msgstr ""
@@ -2252,7 +2248,7 @@ msgstr ""
 msgid "Warnings ({count})"
 msgstr ""
 
-#: src/transcribe_ui/gui/download/view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "What happens"
 msgstr ""
 

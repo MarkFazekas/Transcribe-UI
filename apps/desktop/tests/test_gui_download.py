@@ -161,7 +161,7 @@ def test_the_plan_table_shows_outcomes_and_reasons(area: DownloadArea) -> None:
         "Episode.mkv": ("Episode.en.srt", "Skipped: the transcription failed"),
         "Silent.mkv": ("Silent.hu.srt", "Will be placed"),
     }
-    expected = "2 subtitles will be placed, 0 files will be replaced, 2 skipped, 0 not finished yet"
+    expected = "2 subtitles will be placed, 2 skipped"
     assert shown.plan.summary == expected
 
 
@@ -293,6 +293,7 @@ def test_import_problems_are_listed(area: DownloadArea) -> None:
     assert not shown.can_download
     assert not area.model.download()
     activate("hu")
+    area.model.reload(batch=False)
     assert area.shown().plan.errors[0] == "Film.mkv (en): az output_file_name nem .srt végű."
 
 

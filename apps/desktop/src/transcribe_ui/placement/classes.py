@@ -13,7 +13,7 @@ from transcribe_contracts.classes import BatchId, LanguageCode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath
 from transcribe_ui.batches.responses import BatchSummary, OkResponse
 from transcribe_ui.placement.constants import CUSTOM_PLAN_VERSION, DEFAULT_FOLDER_COUNT
-from transcribe_ui.placement.naming import check_absolute_file
+from transcribe_ui.placement.validators import check_absolute_file
 
 # How a download places its subtitles (§3.5 strategies 1-4; custom plans are imported instead);
 # also what the placement settings pre-fill a download with (`api.classes.PlacementDefaults`).

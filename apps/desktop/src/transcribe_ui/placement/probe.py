@@ -5,6 +5,7 @@ Injected, so plans for the Windows rules are tested on any OS with a fake.
 
 import os
 import stat
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -55,3 +56,31 @@ class OsPlacementProbe:
     def resolve(self, path: str) -> str:
         """Return the path with symbolic links resolved."""
         return os.path.realpath(path)
+
+
+class CancelCheckProbe:
+    """A probe that checks for cancellation before each question, so a plan stops between its jobs.
+
+    Planning asks the file system once or twice per job; a frontend that replaces a plan with a
+    newer one (latest wins) cancels the old one, which then stops at its next question.
+    """
+
+    def __init__(self, probe: PlacementProbe, check_cancelled: Callable[[], None]) -> None:
+        """Ask `probe`; `check_cancelled` raises `CancelledError` once cancellation was requested."""
+        self._probe = probe
+        self._check_cancelled = check_cancelled
+
+    def folder_exists(self, path: str) -> bool:
+        """Return whether the path is an existing folder (after checking for cancellation)."""
+        self._check_cancelled()
+        return self._probe.folder_exists(path)
+
+    def target_kind(self, path: str) -> TargetKind:
+        """Return what is at a target path (after checking for cancellation)."""
+        self._check_cancelled()
+        return self._probe.target_kind(path)
+
+    def resolve(self, path: str) -> str:
+        """Return the path with symbolic links resolved (after checking for cancellation)."""
+        self._check_cancelled()
+        return self._probe.resolve(path)

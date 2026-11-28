@@ -3,11 +3,11 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, QTimer
 
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.download.chooser import FileChooser, QtFileChooser
-from transcribe_ui.gui.download.constants import OPEN_DOWNLOAD_SIGNAL
+from transcribe_ui.gui.download.constants import OPEN_DOWNLOAD_SIGNAL, PLAN_DELAY_MS
 from transcribe_ui.gui.download.view import DownloadDialog
 from transcribe_ui.gui.download.viewmodel import DownloadModel
 from transcribe_ui.gui.feedback import ConfirmationView, ErrorView
@@ -35,17 +35,51 @@ class DialogOutlet:
 
     def confirm(self, view: ConfirmationView, on_confirm: Callable[[], None]) -> None:
         """Ask over the download dialog (shown again if it was closed); Confirm calls `on_confirm`."""
-        parent = self.parent or self._window
-        parent.show()
-        parent.raise_()
-        dialog = ConfirmationDialog(view, parent)
+        self.show_dialog()
+        dialog = ConfirmationDialog(view, self.parent or self._window)
+        # Deleted once answered (one per question).
+        dialog.finished.connect(dialog.deleteLater)
         dialog.accepted.connect(on_confirm)
         self.dialog = dialog
         dialog.open()
 
     def show_error(self, view: ErrorView, retry: Callable[[], object] | None) -> None:
-        """Open the window's error dialog (its fix buttons open pages, its Retry calls `retry`)."""
-        self._window.show_error(view, retry)
+        """Open the window's error dialog over the download dialog (its fix buttons open pages, Retry calls `retry`)."""
+        self._window.show_error(view, retry, self.parent)
+
+    def show_dialog(self) -> None:
+        """Show the download dialog again if it was closed, on top, without taking the focus."""
+        if self.parent is not None:
+            self.parent.show()
+            self.parent.raise_()
+
+
+class QtDeferral:
+    """The `Deferral` of the download dialog: a single-shot Qt timer of `PLAN_DELAY_MS`."""
+
+    def __init__(self, parent: QObject) -> None:
+        """Run the timer on the GUI thread, owned by `parent`."""
+        self._timer = QTimer(parent)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(PLAN_DELAY_MS)
+        self._timer.timeout.connect(self._fire)
+        self._callback: Callable[[], None] | None = None
+
+    def call_later(self, callback: Callable[[], None]) -> None:
+        """Call `callback` after the delay (a pending call is replaced and its delay starts again)."""
+        self._callback = callback
+        self._timer.start()
+
+    def cancel(self) -> None:
+        """Drop the pending call, if any."""
+        self._timer.stop()
+        self._callback = None
+
+    def _fire(self) -> None:
+        callback = self._callback
+        self._callback = None
+        if callback is not None:
+            callback()
 
 
 class DownloadArea(QObject):
@@ -80,7 +114,7 @@ class DownloadArea(QObject):
     def _build(self, batch_id: str) -> DownloadDialog:
         context = self._window.context
         outlet = DialogOutlet(self._window)
-        model = DownloadModel(context.executor, context.activity, outlet, batch_id)
+        model = DownloadModel(context.executor, context.activity, outlet, batch_id, QtDeferral(self))
         dialog = DownloadDialog(model, self.chooser, self._window)
         outlet.parent = dialog
         return dialog

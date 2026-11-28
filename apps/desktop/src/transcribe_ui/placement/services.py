@@ -29,7 +29,7 @@ from transcribe_ui.placement.download import Carrying, carry_out
 from transcribe_ui.placement.levels import folder_levels
 from transcribe_ui.placement.plan_files import read_plan, write_plan
 from transcribe_ui.placement.planner import plan_placement
-from transcribe_ui.placement.probe import OsPlacementProbe
+from transcribe_ui.placement.probe import CancelCheckProbe, OsPlacementProbe, PlacementProbe
 from transcribe_ui.placement.sources import DownloadSource, load_source
 
 
@@ -39,11 +39,13 @@ def plan_download(request: PlanDownloadRequest, context: RequestContext) -> Plan
     Raises:
         BatchNotFoundError: There is no such batch.
         WrongPhaseError: The batch's subtitles cannot be downloaded in its phase.
+        CancelledError: Cancelled while planning (nothing is written either way).
     """
     source = load_source(context, request.batch_id)
     jobs = source.placement_jobs()
     rules = context.ports.path_rules
-    plan = plan_placement(jobs, source.scan_root, request.placement, rules, OsPlacementProbe())
+    probe = CancelCheckProbe(OsPlacementProbe(), context.check_cancelled)
+    plan = plan_placement(jobs, source.scan_root, request.placement, rules, probe)
     levels = folder_levels(jobs, source.scan_root, rules)
     return PlanDownloadResponse(batch=source.summary, plan=plan, folder_levels=levels)
 
@@ -95,14 +97,16 @@ def import_custom_plan(
         BatchBusyError: Another request works on the batch.
         CustomPlanUnreadableError: The plan file could not be read.
         DownloadPlanInvalidError: The plan has errors and it was not only checked (nothing was written).
+        CancelledError: Cancelled while only checking (nothing is written either way).
         DomainError: See `placement.download.carry_out`; what was placed is recorded.
     """
     batch_id = request.batch_id
     if request.check_only:
-        source, plan = _imported(context, request)
+        checked = CancelCheckProbe(OsPlacementProbe(), context.check_cancelled)
+        source, plan = _imported(context, request, checked)
         return ImportCustomPlanResponse(batch=source.summary, plan=plan, download=None)
     with context.ports.state.locks.batch(batch_id):
-        source, plan = _imported(context, request)
+        source, plan = _imported(context, request, OsPlacementProbe())
         carrying = Carrying(request.action, next_to_media=False, confirm_overwrite=request.confirm_overwrite)
         download = carry_out(context, source, plan, carrying)
         if isinstance(download, NeedsConfirmation):
@@ -110,12 +114,16 @@ def import_custom_plan(
         return ImportCustomPlanResponse(batch=_summary(context, batch_id), plan=plan, download=download)
 
 
-def _imported(context: RequestContext, request: ImportCustomPlanRequest) -> tuple[DownloadSource, PlacementPlan]:
+def _imported(
+    context: RequestContext,
+    request: ImportCustomPlanRequest,
+    probe: PlacementProbe,
+) -> tuple[DownloadSource, PlacementPlan]:
     source = load_source(context, request.batch_id)
     document = read_plan(Path(request.plan_path))
     jobs = source.placement_jobs()
     rules = context.ports.path_rules
-    plan = custom.import_custom_plan(document, jobs, request.placement, rules, OsPlacementProbe())
+    plan = custom.import_custom_plan(document, jobs, request.placement, rules, probe)
     return source, plan
 
 

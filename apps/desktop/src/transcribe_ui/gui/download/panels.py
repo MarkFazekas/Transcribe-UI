@@ -32,6 +32,7 @@ from transcribe_ui.gui.download.form import DownloadForm
 from transcribe_ui.gui.download.state import DialogData
 from transcribe_ui.gui.download.viewmodel import DownloadModel
 from transcribe_ui.gui.download.widgets import show_text
+from transcribe_ui.gui.jobs.widgets import ErrorBanner
 from transcribe_ui.i18n.catalog import tr
 
 # A folder level to choose: its number and its text.
@@ -109,7 +110,7 @@ class FolderNames(QWidget):
         self._model.edit(folder_mode=constants.FOLDER_COUNT_MODE if by_count else constants.FOLDER_LEVELS_MODE)
 
     def _count_changed(self, count: int) -> None:
-        self._model.edit(folder_count=count)
+        self._model.edit(folder_count=count, soon=True)
 
     def _level_changed(self, entry: QListWidgetItem) -> None:
         level = int(entry.data(Qt.ItemDataRole.UserRole))
@@ -118,7 +119,7 @@ class FolderNames(QWidget):
             chosen.add(level)
         else:
             chosen.discard(level)
-        self._model.edit(folder_levels=frozenset(chosen))
+        self._model.edit(folder_levels=frozenset(chosen), soon=True)
 
 
 class OptionsPanel(QWidget):
@@ -222,13 +223,15 @@ class CustomPanel(QWidget):
             buttons.addWidget(button)
         buttons.addStretch()
         layout.addLayout(buttons)
+        self.export_banner = ErrorBanner(model.export.retry, self)
         self._exported = wrapped_label("", self)
-        layout.addWidget(self._exported)
         self._imported = wrapped_label("", self)
-        layout.addWidget(self._imported)
+        for widget in (self.export_banner, self._exported, self._imported):
+            layout.addWidget(widget)
 
     def show_files(self, shown: DialogData) -> None:
-        """Show where the plan was exported to and which file was imported."""
+        """Show where the plan was exported to (or why not, with Retry) and which file was imported."""
+        self.export_banner.show_error(shown.export_error)
         show_text(self._exported, shown.exported)
         show_text(self._imported, shown.imported)
         self.check_button.setEnabled(bool(shown.imported))

@@ -21,6 +21,8 @@ STRATEGY_CHOICES: Final[tuple[StrategyChoice, ...]] = (NEXT_TO_MEDIA, "mirror", 
 FOLDER_COUNT_MODE: Final[FolderMode] = "count"
 # Folder mode of explicitly chosen levels (`folder_levels`).
 FOLDER_LEVELS_MODE: Final[FolderMode] = "levels"
+# How long the plan waits for the next folder count step or level tick, in milliseconds.
+PLAN_DELAY_MS: Final = 250
 # Largest folder count the dialog offers (a count past a file's depth keeps all of its folders).
 MAX_FOLDER_COUNT: Final = 99
 
@@ -42,8 +44,6 @@ EXPORT_KEY: Final = "export"
 ACTIVITY_KEY: Final = "download"
 # Action signal the download dialog handles (`batch_id`).
 OPEN_DOWNLOAD_SIGNAL: Final = "open_download"
-# Bus signal that tells the pages a batch changed (a tuple of batch ids).
-BATCHES_CHANGED_SIGNAL: Final = "batches_changed"
 # File name suggested for an exported custom plan (`{batch_id}`: the job's id).
 PLAN_FILE_NAME: Final = "subtitle-plan-{batch_id}.json"
 # Separator of the reasons in one cell.

@@ -5,20 +5,22 @@ choices. The first opening pre-fills the choices from the settings' placement de
 (`get_settings`); every opening loads the batch (`get_batch`, for the step header) and the plan.
 Each change of a choice asks for the plan again (`plan_download`, or for a custom plan the
 `check_only` import of its file), latest wins, so the table always shows what the download would
-do with the current choices. Download runs in the activity panel (`running.py`); the custom
+do with the current choices; the folder count and level ticks wait `PLAN_DELAY_MS` for the next
+step or tick first (`Deferral`), and a plan of choices changed since is cancelled and ignored. Download runs in the activity panel (`running.py`); the custom
 plan is exported to a file the user picks (`PlanExport`).
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import Unpack
 
-from transcribe_ui.api.classes import ErrorResponse, GetSettingsRequest, GetSettingsResponse, Response
+from transcribe_ui.api.classes import GetSettingsRequest, GetSettingsResponse, Response
 from transcribe_ui.batches.classes import GetBatchRequest
-from transcribe_ui.batches.responses import BatchSummary, GetBatchResponse
 from transcribe_ui.gui.activity import Activity
+from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.download import constants
+from transcribe_ui.gui.download.export import PlanExport
 from transcribe_ui.gui.download.form import (
     DownloadForm,
     FormChanges,
@@ -27,73 +29,28 @@ from transcribe_ui.gui.download.form import (
     form_hint,
     plan_request,
 )
+from transcribe_ui.gui.download.loading import Deferral, Loaded, after_load, failed_some
 from transcribe_ui.gui.download.running import DownloadOutlet, DownloadRun
-from transcribe_ui.gui.executor import ExclusiveChannel, Executor, LatestChannel
-from transcribe_ui.gui.feedback import ErrorView, error_view
+from transcribe_ui.gui.executor import CallHandle, Executor, LatestChannel
 from transcribe_ui.gui.viewmodel import ViewModel
-from transcribe_ui.placement.classes import (
-    ExportCustomPlanRequest,
-    ExportCustomPlanResponse,
-    FolderLevel,
-    ImportCustomPlanResponse,
-    PlacementPlan,
-    PlanDownloadResponse,
-)
-
-
-@dataclass(frozen=True)
-class Loaded:
-    """What the dialog loaded: the batch, its folder levels and the plan of the current choices."""
-
-    summary: BatchSummary | None = None
-    levels: tuple[FolderLevel, ...] = ()
-    # The plan of the current choices (or of the imported custom plan); None before one arrived.
-    plan: PlacementPlan | None = None
-    # Whether a plan for the current choices is on its way (the plan shown may be the previous one).
-    loading: bool = False
-    # The error of the last load, shown in the dialog with Retry; None after a load that succeeded.
-    error: ErrorView | None = None
-
-
-class PlanExport:
-    """The export of the batch's custom plan to a file the user picked."""
-
-    def __init__(self, executor: Executor, batch_id: str, on_change: Callable[[], None]) -> None:
-        """Send through `executor`, one export at a time; `on_change` is told about each answer."""
-        self._channel = ExclusiveChannel(executor)
-        self._batch_id = batch_id
-        self._on_change = on_change
-        # The file the plan was written to, or None.
-        self.path: str | None = None
-        # The error of the last export, or None.
-        self.error: ErrorView | None = None
-
-    def build_request(self, path: str) -> ExportCustomPlanRequest:
-        """Return the export of the plan to `path` (made absolute: a file dialog's answer)."""
-        target = str(Path(path).absolute())
-        return ExportCustomPlanRequest(action="export_custom_plan", batch_id=self._batch_id, path=target)
-
-    def export(self, path: str) -> None:
-        """Write the custom plan to `path`, pre-filled with the mirror folders and the default names."""
-        self._channel.send(constants.EXPORT_KEY, self.build_request(path), self._exported)
-
-    def _exported(self, response: Response) -> None:
-        if isinstance(response, ExportCustomPlanResponse):
-            self.path = response.path
-            self.error = None
-        elif isinstance(response, ErrorResponse):
-            self.error = error_view(response)
-        self._on_change()
 
 
 class DownloadModel(ViewModel):
     """One batch's download dialog: the choices, the plan they make, the custom plan, and the download."""
 
-    def __init__(self, executor: Executor, activity: Activity, outlet: DownloadOutlet, batch_id: str) -> None:
-        """Load through `executor`; download in `activity`; ask and tell the window through `outlet`."""
+    def __init__(
+        self,
+        executor: Executor,
+        activity: Activity,
+        outlet: DownloadOutlet,
+        batch_id: str,
+        deferral: Deferral,
+    ) -> None:
+        """Load through `executor`; download in `activity`; tell the window through `outlet`; delay through `deferral`."""
         super().__init__(executor)
         self.batch_id = batch_id
         self._outlet = outlet
+        self._deferral = deferral
         self._loads = LatestChannel(executor)
         self.form = DownloadForm()
         # The imported custom plan file, or None.
@@ -101,38 +58,52 @@ class DownloadModel(ViewModel):
         self.loaded = Loaded()
         self.export = PlanExport(executor, batch_id, self.changed)
         self.run = DownloadRun(activity, outlet, batch_id, self.changed, self._downloaded)
-        self._settings_read = False
-        # Set while this dialog tells the window about its own change, which it has reloaded for already.
-        self._emitting = False
+        self._state = _ModelState()
 
     def on_open(self) -> None:
         """Pre-fill the choices from the settings (the first time only), then load the batch and the plan."""
-        if self._settings_read:
+        if self._state.settings_asked:
             self.reload()
             return
+        self._state.settings_asked = True
         settings = GetSettingsRequest(action="get_settings")
         self._loads.send(constants.SETTINGS_KEY, settings, self._settings_loaded)
 
-    def reload(self, *, batch: bool = True) -> None:
-        """Load the batch (unless `batch` is false) and the plan of the current choices (the last load in flight is replaced)."""
+    def reload(self, *, batch: bool = True, soon: bool = False) -> None:
+        """Load the batch (unless `batch` is false) and the plan of the current choices (`soon`: after the delay).
+
+        The plan of earlier choices still on its way is cancelled and its answer ignored.
+        """
+        state = self._state
+        self._deferral.cancel()
+        state.generation += 1
+        if state.plan_call is not None:
+            state.plan_call.cancel()
+            state.plan_call = None
         if batch:
             loaded = GetBatchRequest(action="get_batch", batch_id=self.batch_id)
-            self._loads.send(constants.BATCH_KEY, loaded, self._loaded)
+            self._loads.send(constants.BATCH_KEY, loaded, partial(self._loaded, None))
         request = plan_request(self.batch_id, self.form, self.plan_path)
-        if request is None:
-            self.loaded = replace(self.loaded, plan=None, loading=False)
-        else:
-            self.loaded = replace(self.loaded, loading=True)
+        self.loaded = replace(self.loaded, loading=request is not None)
         self.changed()
-        if request is not None:
-            self._loads.send(constants.PLAN_KEY, request, self._loaded)
+        if request is None:
+            return
+        if soon:
+            self._deferral.call_later(partial(self.reload, batch=False))
+            return
+        answered = partial(self._loaded, state.generation)
+        state.plan_call = self._loads.send(constants.PLAN_KEY, request, answered)
 
-    def edit(self, **changes: Unpack[FormChanges]) -> None:
-        """Take changed choices and ask for their plan."""
+    def edit(self, *, soon: bool = False, **changes: Unpack[FormChanges]) -> None:
+        """Take changed choices and ask for their plan (`soon`: after the delay, for steps and ticks in a row)."""
         form = replace(self.form, **changes)
-        if form != self.form:
-            self.form = form
-            self.reload(batch=False)
+        if form == self.form:
+            return
+        if form.strategy != self.form.strategy:
+            self.export.clear()
+        self.form = form
+        self._state.edited = True
+        self.reload(batch=False, soon=soon)
 
     def import_plan(self, path: str) -> None:
         """Check the edited custom plan file at `path` (made absolute: a file dialog's answer) and show its plan."""
@@ -148,57 +119,57 @@ class DownloadModel(ViewModel):
 
     def on_batches_changed(self, batch_ids: object) -> None:
         """Load again when the batch changed elsewhere (an empty tuple: any batch)."""
-        if not isinstance(batch_ids, tuple) or self._emitting:
+        if not isinstance(batch_ids, tuple) or self._state.emitting:
             return
         if not batch_ids or self.batch_id in batch_ids:
             self.reload()
 
     def _settings_loaded(self, response: Response) -> None:
-        # Without settings (unreadable file) the dialog starts from the request's defaults.
-        if isinstance(response, GetSettingsResponse):
+        # Without settings (unreadable file) the dialog starts from the request's defaults; a late
+        # answer never replaces choices the user has made meanwhile.
+        if isinstance(response, GetSettingsResponse) and not self._state.edited:
             self.form = form_from_settings(response.settings.placement)
-        self._settings_read = True
         self.reload()
 
-    def _loaded(self, response: Response) -> None:
-        self.loaded = _after_load(self.loaded, response)
-        self.changed()
+    def _loaded(self, generation: int | None, response: Response) -> None:
+        # A plan (`generation` set) of choices changed since is ignored; batch loads always count.
+        if generation is None or generation == self._state.generation:
+            self.loaded = after_load(self.loaded, response)
+            self.changed()
 
-    def _downloaded(self, _response: Response) -> None:
+    def _downloaded(self, response: Response) -> None:
         # Whatever the answer (done, stopped, failed), outcomes may have been recorded: every page
         # showing the batch reloads, and so does the dialog (the plan then shows what is placed).
         # (Signals reach their slots before `emit` returns; an exception in a slot stays in Qt.)
-        self._emitting = True
-        self._outlet.emit(constants.BATCHES_CHANGED_SIGNAL, (self.batch_id,))
-        self._emitting = False
+        self._state.emitting = True
+        self._outlet.emit(BATCHES_CHANGED_SIGNAL, (self.batch_id,))
+        self._state.emitting = False
         self.reload()
+        if failed_some(response):
+            # Failures would hide behind the activity panel's "Finished": show them.
+            self._outlet.show_dialog()
 
 
-def _after_error(loaded: Loaded, response: ErrorResponse) -> Loaded:
-    error = error_view(response)
-    if response.action == "get_batch":
-        return replace(loaded, error=error)
-    # The plan of the current choices could not be made: none is shown.
-    return replace(loaded, plan=None, loading=False, error=error)
+@dataclass
+class _ModelState:
+    """The view-model's bookkeeping, apart from what the dialog shows."""
 
-
-def _after_load(loaded: Loaded, response: Response) -> Loaded:
-    """Return what the dialog has loaded once a load answered."""
-    if isinstance(response, GetBatchResponse):
-        return replace(loaded, summary=response.batch.summary)
-    if isinstance(response, PlanDownloadResponse):
-        return Loaded(summary=response.batch, levels=response.folder_levels, plan=response.plan)
-    if isinstance(response, ImportCustomPlanResponse):
-        return Loaded(summary=response.batch, levels=loaded.levels, plan=response.plan)
-    if isinstance(response, ErrorResponse):
-        return _after_error(loaded, response)
-    return loaded
+    # `get_settings` was sent (the pre-fill happens once).
+    settings_asked: bool = False
+    # The user changed a choice (a late settings answer then pre-fills nothing).
+    edited: bool = False
+    # Number of the latest plan load; an answer of an older one is ignored.
+    generation: int = 0
+    # The plan load in flight, cancelled when the choices change.
+    plan_call: CallHandle | None = None
+    # Set while this dialog tells the window about its own change, which it has reloaded for already.
+    emitting: bool = False
 
 
 def can_download(model: DownloadModel) -> bool:
     """Return whether Download can start: nothing missing, the plan of the current choices shown without errors."""
     plan = model.loaded.plan
-    if form_hint(model.batch_id, model.form, model.plan_path) is not None:
+    if form_hint(model.form, model.plan_path) is not None:
         return False
     if plan is None or model.loaded.loading or plan.errors:
         return False

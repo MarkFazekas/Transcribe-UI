@@ -114,21 +114,40 @@ def _with_count(text: str, count: int) -> str:
     return text.format(count=format_number(count))
 
 
-def plan_summary(entries: Sequence[PlannedPlacement]) -> str:
-    """Return the summary line of a plan: how many subtitles are placed, replaced, skipped, not finished yet."""
-    counts = Counter(entry.outcome for entry in entries)
-    placed = counts["place"]
+def _other_parts(counts: Counter[PlacementOutcome]) -> list[str]:
+    """Return the summary's parts after the placed count, each only when there are some."""
     replaced = counts["overwrite"]
     skipped = sum(counts[outcome] for outcome in SKIPPED_OUTCOMES)
     unfinished = counts["not_finished"]
     counted = (
-        (ntr("{count} subtitle will be placed", "{count} subtitles will be placed", placed), placed),
         (ntr("{count} file will be replaced", "{count} files will be replaced", replaced), replaced),
         (ntr("{count} skipped", "{count} skipped", skipped), skipped),
         (ntr("{count} not finished yet", "{count} not finished yet", unfinished), unfinished),
     )
-    parts = [_with_count(text, count) for text, count in counted]
-    return LIST_SEPARATOR.join(parts)
+    return [_with_count(text, count) for text, count in counted if count]
+
+
+def plan_summary(entries: Sequence[PlannedPlacement]) -> str:
+    """Return the summary line of a plan: how many subtitles are placed, and replaced, skipped, not finished yet."""
+    counts = Counter(entry.outcome for entry in entries)
+    placed = counts["place"]
+    text = ntr("{count} subtitle will be placed", "{count} subtitles will be placed", placed)
+    return LIST_SEPARATOR.join((_with_count(text, placed), *_other_parts(counts)))
+
+
+@dataclass(frozen=True)
+class PlanView:
+    """A plan as the dialog shows it: its rows, its errors from the catalog and its summary line."""
+
+    rows: tuple[PlanRow, ...]
+    errors: tuple[str, ...]
+    summary: str
+
+
+def plan_view(plan: PlacementPlan) -> PlanView:
+    """Return how a plan is shown (built once per plan, not at every repaint)."""
+    summary = plan_summary(plan.entries)
+    return PlanView(rows=plan_rows(plan), errors=plan_error_texts(plan), summary=summary)
 
 
 def outcome_summary(outcome: DownloadOutcome) -> str:

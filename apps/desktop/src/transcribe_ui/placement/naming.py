@@ -8,7 +8,7 @@ names and trailing dots or spaces avoided), imported names are checked and refus
 import ntpath
 import posixpath
 from dataclasses import dataclass, field
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
+from pathlib import PurePath, PurePosixPath, PureWindowsPath
 
 from pydantic import JsonValue
 
@@ -17,20 +17,6 @@ from transcribe_ui.placement import constants
 
 # Rule keys of a path, part by part: equal keys are the same path.
 type PathKey = tuple[str, ...]
-
-
-def check_absolute_file(path: str) -> str:
-    """Return the path of a file read or written on this computer, which must be absolute (a request validator).
-
-    This computer's rule decides: a relative path would depend on the frontend's working folder.
-
-    Raises:
-        ValueError: The path is not absolute.
-    """
-    if not Path(path).is_absolute():
-        msg = "the path must be absolute"
-        raise ValueError(msg)
-    return path
 
 
 def split_name(file_name: str) -> tuple[str, str]:

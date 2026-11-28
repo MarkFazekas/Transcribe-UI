@@ -10,16 +10,7 @@ from dataclasses import dataclass
 from transcribe_ui.batches.responses import BatchStage
 from transcribe_ui.gui.activity import ActivityEntry
 from transcribe_ui.gui.download.constants import CELL_SEPARATOR
-from transcribe_ui.gui.download.display import (
-    FailureRow,
-    PlanRow,
-    failure_rows,
-    level_text,
-    outcome_summary,
-    plan_error_texts,
-    plan_rows,
-    plan_summary,
-)
+from transcribe_ui.gui.download.display import FailureRow, PlanRow, failure_rows, level_text, outcome_summary
 from transcribe_ui.gui.download.form import form_hint
 from transcribe_ui.gui.download.viewmodel import DownloadModel, can_download
 from transcribe_ui.gui.feedback import ErrorView
@@ -32,7 +23,7 @@ class PlanData:
 
     # What the user still has to choose, or None.
     hint: str | None
-    # The error of the last load or export (with Retry), or None.
+    # The error of the last load (with a Retry that loads again), or None.
     error: ErrorView | None
     # "Updating the plan…" while the plan of the current choices is on its way, else "".
     loading: str
@@ -67,20 +58,22 @@ class DialogData:
     # Where the custom plan was exported to, and the imported plan file ("" for none).
     exported: str
     imported: str
+    # The error of the last export (with a Retry that exports again), or None.
+    export_error: ErrorView | None
 
 
 def _plan_data(model: DownloadModel) -> PlanData:
     loaded = model.loaded
-    hint = form_hint(model.batch_id, model.form, model.plan_path)
+    hint = form_hint(model.form, model.plan_path)
     # While a choice is missing the plan (if any) is not the one a download would carry out.
-    plan = loaded.plan if hint is None else None
+    view = loaded.view if hint is None else None
     return PlanData(
         hint=hint,
-        error=loaded.error or model.export.error,
+        error=loaded.error,
         loading=tr("Updating the plan…") if loaded.loading else "",
-        errors=() if plan is None else plan_error_texts(plan),
-        summary="" if plan is None else plan_summary(plan.entries),
-        rows=() if plan is None else plan_rows(plan),
+        errors=() if view is None else view.errors,
+        summary="" if view is None else view.summary,
+        rows=() if view is None else view.rows,
     )
 
 
@@ -120,4 +113,5 @@ def dialog_data(model: DownloadModel) -> DialogData:
         run=_run_data(model),
         exported=_file_text(exported, model.export.path),
         imported=_file_text(tr("Imported plan: {path}"), model.plan_path),
+        export_error=model.export.error,
     )

@@ -57,10 +57,15 @@ class MainWindow(QMainWindow):
             fallback = partial(self._unhandled, signal_name)
             getattr(self.context.signals, signal_name).connect(fallback)
 
-    def show_error(self, view: ErrorView, retry: Callable[[], object] | None = None) -> ErrorDialog:
-        """Open the error dialog; its fix opens a page, or (`app_busy`) calls `retry` and probes the lock."""
+    def show_error(
+        self,
+        view: ErrorView,
+        retry: Callable[[], object] | None = None,
+        over: QWidget | None = None,
+    ) -> ErrorDialog:
+        """Open the error dialog (over `over`, default the window); its fix opens a page, or (`app_busy`) calls `retry`."""
         fix = partial(self._apply_fix, retry)
-        dialog = ErrorDialog(view, self.context.log_dir, fix, self)
+        dialog = ErrorDialog(view, self.context.log_dir, fix, over or self)
         self.dialog = dialog
         dialog.open()
         return dialog

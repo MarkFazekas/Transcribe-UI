@@ -540,38 +540,50 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     without editing them; the start dialog is reached from the Cloud page (the job page has no
     action for it, since a launch covers every uploaded job).
 - **Download** (`gui/download/`; Qt-free `constants.py`, `form.py`, `display.py`,
-  `running.py`, `viewmodel.py`, `state.py`; widgets `panels.py`, `widgets.py`, `view.py`;
-  file dialogs behind the `FileChooser` port in `chooser.py`; `install.py`). `open_download`
+  `loading.py`, `export.py`, `running.py`, `viewmodel.py`, `state.py`; widgets `panels.py`,
+  `results.py`, `widgets.py`, `view.py`; file dialogs behind the `FileChooser` port in
+  `chooser.py`; `install.py` with the Qt `Deferral`). `open_download`
   opens the job's download dialog, step 4 of the step header: non-modal and one per job,
   kept while the window lives, so it reopens with the user's choices and the window stays
   usable while it is open.
   - The first opening pre-fills the choices from `get_settings` (the placement defaults:
     strategy, output folder, folder count, overwrite); every opening loads `get_batch` (the
-    stage) and the plan. Each change of a choice sends the plan again on a `latest` channel:
-    `plan_download` for a strategy, the `check_only` import for a custom plan. A choice the
-    request needs but lacks (an output folder, an imported plan, a folder level) shows a hint
-    instead of the table and sends nothing; `next_to_media` sends no output folder.
+    stage) and the plan. A settings answer that arrives after the user changed a choice
+    pre-fills nothing. Each change of a choice sends the plan again on a `latest` channel:
+    `plan_download` for a strategy, the `check_only` import for a custom plan (on the `short`
+    pool: the bridge picks a pool by request, `pool_for`); folder count steps and level ticks
+    wait `PLAN_DELAY_MS` (250 ms) for the next one. A plan of choices changed since is
+    cancelled (`plan_download` and a checked import stop at their next file system question)
+    and its answer ignored. A choice the request needs but lacks (an output folder, an
+    imported plan, a folder level) shows a hint instead of the table and sends nothing;
+    `next_to_media` sends no output folder. A plan's rows, errors and summary are built once,
+    when it arrives; a closed dialog does not repaint and refreshes when shown.
   - The folders kept in the name: the closest ones (`folder_count`) or chosen levels
     (`folder_levels`), offered from `PlanDownloadResponse.folder_levels` (§3.5), each with
     some of its folder names. With levels chosen but none ticked the plan is still asked
     for, only to list the levels.
   - The plan table shows each job's file, language, target name and folder, what happens
     (planned outcome; `not_finished` is "Not finished yet", `skip_folder_missing` "the
-    original folder was not found") and the rename reasons; a summary line counts them. Plan
+    original folder was not found") and the rename reasons; a summary line counts them (the
+    placed count always, the others when there are some). Plan
     errors are listed from the catalog; Download is enabled only for a plan of the current
     choices without errors.
   - Download runs `run_download` (or `import_custom_plan` without `check_only`) as an
     activity keyed by the job (`running.py`), so it shows in the activity panel and in the
     dialog with Cancel, Resume (the same request) and Details. A `needs_confirmation`
     answer (files would be replaced) removes the entry and asks over the dialog; Confirm
-    starts the confirmed request. Any answer of a download emits `batches_changed` (outcomes
-    may have been recorded) and reloads the dialog, which then shows the last download's
-    counts and its `failures`, each with the catalog text of its code; new failures show a
-    dialog closed meanwhile again (the activity panel's "Finished" would hide them).
+    starts the confirmed request; Details opens the error dialog over the download dialog.
+    Any answer of a download emits `batches_changed` (outcomes may have been recorded) and
+    reloads the dialog once (it ignores its own signal), which then shows the last download's
+    counts and its `failures`, each with the catalog text of its code; a download with
+    failures shows its dialog again (raised, without taking the focus), since the activity
+    panel's "Finished" would hide them. The dialog has no default button, so Enter in the
+    output folder only ends the typing.
   - Custom: Export plan (save-file dialog → `export_custom_plan` with `path`), Import plan
     (open-file dialog → the `check_only` import; its problems listed per plan error), Check
-    again after more edits, then Download. A load or export error shows in the dialog with
-    Retry.
+    again after more edits, then Download. A load error shows above the plan with a Retry
+    that loads again; an export error shows with the custom plan, with a Retry that exports
+    to the same file, and is forgotten when a new export starts or the strategy changes.
 - **Writer lock**: the `database` start-up step sends `list_batches` (read-only) to take the
   lock. While another process holds it (`app_busy` from any response), a page that needs the
   database is replaced by a notice with Retry; Settings stays usable. A Retry that gets the
@@ -1386,7 +1398,8 @@ database):
   (`folder_levels`: each level with up to three of its folder names, sorted, and how many it
   has; `placement/levels.py`, split like the planner splits, names equal under the target's
   rule counted once), so a frontend offers `folder_levels` without splitting paths, and
-  writes nothing. `run_download` (the same, plus
+  writes nothing. It and a `check_only` import check the cancel token before each file system
+  question (`CancelCheckProbe`), so a plan replaced by a newer one stops early. `run_download` (the same, plus
   `confirm_overwrite`) carries it out. `export_custom_plan` returns the batch's custom plan and,
   with an absolute `path`, also writes it there as JSON (through a temp file, below;
   `custom_plan_unwritable` with the exception type). `import_custom_plan` reads the edited plan

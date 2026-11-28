@@ -177,13 +177,18 @@ def _confirmation_item(confirmation: Confirmation) -> ConfirmationItem:
     return ConfirmationItem(text, details_view(confirmation.details))
 
 
+def confirmation_mismatch(request: Request) -> ErrorView:
+    """Return the `internal_error` view shown when a confirmation's field or `set_to` does not fit the request."""
+    body = ErrorBody(code=ERROR_INTERNAL, message="The confirmation does not fit the request.")
+    return error_view(ErrorResponse(action=request.action, error=body))
+
+
 def confirmed_request(request: Request, response: NeedsConfirmation) -> Request:
     """Return the same request with each confirmation's field set to its `set_to` (validated).
 
     The backend names the confirming value (`true` for a flag, the plan's fingerprint for
     `confirm_fingerprint`), so every frontend confirms the same way and decides nothing. A
-    failure here is a backend bug; the caller (the first one is in M6.4) shows it with the
-    `internal_error` dialog.
+    failure here is a backend bug; the caller shows `confirmation_mismatch` in the error dialog.
 
     Raises:
         ValidationError: If a confirmation's field or its `set_to` does not fit the request.
