@@ -1,0 +1,71 @@
+"""Whether this computer has a Runpod key (`credentials_status`; architecture §3.9 "Roles").
+
+Qt-free. Without the key, Start transcription, Stop and Cancel and the cloud machines list are
+shown as unavailable with the reason: another computer with a Runpod key starts the
+transcription of every uploaded job, while this one uploads, checks for results and downloads.
+A key that is not known (the status or the keyring could not be read) counts as present: the
+backend then answers with its own error. The Cloud page asks again each time it is shown, so a key stored in
+Settings meanwhile takes effect there.
+"""
+
+from collections.abc import Callable
+from functools import partial
+
+from transcribe_ui.api.classes import Response
+from transcribe_ui.credentials.classes import CredentialsStatusRequest, CredentialsStatusResponse
+from transcribe_ui.credentials.constants import KEYRING_FAILED
+from transcribe_ui.gui.cloud.constants import CREDENTIAL_MISSING, CREDENTIALS_KEY, RUNPOD_KEY_NAME
+from transcribe_ui.gui.executor import ExclusiveChannel, Executor
+from transcribe_ui.gui.viewmodel import ViewModel
+from transcribe_ui.i18n.catalog import tr
+
+# Called once a start-up step's request answered.
+type Proceed = Callable[[], None]
+
+
+def needs_key_hint() -> str:
+    """Return the hint of an action that needs the Runpod key (a disabled button's tooltip, the machines list)."""
+    return tr("Needs a Runpod API key on this computer.")
+
+
+def missing_key_text() -> str:
+    """Return the Cloud page's note while this computer has no Runpod key."""
+    return tr(
+        "This computer has no Runpod API key, so it cannot start or stop transcription or list the cloud "
+        "machines. Another computer with a Runpod key starts the transcription of every uploaded job; this "
+        "computer still uploads, checks for results and downloads the subtitles.",
+    )
+
+
+class RunpodKey(ViewModel):
+    """Whether a Runpod key is set, as `credentials_status` answered last (None: not known yet)."""
+
+    def __init__(self, executor: Executor) -> None:
+        """Ask through `executor`."""
+        super().__init__(executor)
+        self._channel = ExclusiveChannel(executor)
+        self.present: bool | None = None
+
+    @property
+    def missing(self) -> bool:
+        """Return whether the last answer said that no Runpod key is set."""
+        return self.present is False
+
+    def check(self, proceed: Proceed | None = None) -> None:
+        """Ask whether the key is set; `proceed` once answered (an error keeps the last answer)."""
+        request = CredentialsStatusRequest(action="credentials_status")
+        answered = partial(self._answered, proceed)
+        sent = self._channel.send(CREDENTIALS_KEY, request, answered)
+        if sent is None and proceed is not None:
+            # A check is in flight (the page was shown): go on without waiting for it.
+            proceed()
+
+    def _answered(self, proceed: Proceed | None, response: Response) -> None:
+        if isinstance(response, CredentialsStatusResponse):
+            sources = {credential.name: credential.source for credential in response.credentials}
+            stored = sources.get(RUNPOD_KEY_NAME, CREDENTIAL_MISSING) != CREDENTIAL_MISSING
+            # A keyring that failed while reading may hold the key (the backend reports its error).
+            self.present = stored or response.keyring == KEYRING_FAILED
+        self.changed()
+        if proceed is not None:
+            proceed()

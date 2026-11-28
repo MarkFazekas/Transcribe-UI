@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.credentials.constants import CREDENTIAL_ORDER, RUNPOD_API_KEY
+from transcribe_ui.credentials.constants import CREDENTIAL_ORDER, KEYRING_FAILED, RUNPOD_API_KEY
 from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.storage.client import TRANSFER_LIMITS, open_object_store
@@ -37,9 +37,13 @@ def open_store(context: RequestContext) -> ObjectStore:
 
 
 def runpod_key_set(context: RequestContext) -> bool:
-    """Return whether a Runpod API key is stored (or set in the environment); its validity is not checked."""
+    """Return whether a Runpod API key is stored (or set in the environment); its validity is not checked.
+
+    A keyring that failed while reading counts as holding it, so the Runpod step reports the
+    keyring's error instead of being skipped as if this computer had no key.
+    """
     lookup = context.ports.credentials.lookup((RUNPOD_API_KEY,))
-    return RUNPOD_API_KEY in lookup.found
+    return RUNPOD_API_KEY in lookup.found or lookup.keyring == KEYRING_FAILED
 
 
 @contextmanager

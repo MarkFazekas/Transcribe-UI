@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from transcribe_ui.gui.cloud.key import RunpodKey
 from transcribe_ui.gui.cloud.machines import MachinesModel
 from transcribe_ui.gui.cloud.poll import CloudPoll
 from transcribe_ui.gui.cloud.ports import CloudOutlet, TimerFactory
@@ -20,6 +21,8 @@ class CloudModels:
     actions: RunActions
     machines: MachinesModel
     start: StartModel
+    # Whether a Runpod key is set: without one, start, stop and the machines list are unavailable.
+    key: RunpodKey
 
 
 def build_models(executor: Executor, outlet: CloudOutlet, timers: TimerFactory) -> CloudModels:
@@ -31,4 +34,4 @@ def build_models(executor: Executor, outlet: CloudOutlet, timers: TimerFactory) 
     start = StartModel(executor, outlet, actions.launched, runs.run_active)
     # Start follows whether a run is active.
     runs.subscribe(start.changed)
-    return CloudModels(runs, poll, actions, machines, start)
+    return CloudModels(runs, poll, actions, machines, start, RunpodKey(executor))

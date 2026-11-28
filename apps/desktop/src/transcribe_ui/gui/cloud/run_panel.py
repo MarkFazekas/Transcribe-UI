@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QHBoxLayout, QLabel, QProg
 from transcribe_ui.gui.cloud.area import CloudModels
 from transcribe_ui.gui.cloud.constants import COUNTDOWN_TICK_MS, PROGRESS_SCALE
 from transcribe_ui.gui.cloud.display import RunView, countdown_text, run_view
+from transcribe_ui.gui.cloud.key import needs_key_hint
 from transcribe_ui.gui.cloud.ports import Clock
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.i18n.catalog import tr
@@ -112,16 +113,20 @@ class RunButtons(QWidget):
         layout.addStretch()
 
     def show_run(self, view: RunView | None) -> None:
-        """Enable and label the buttons for the shown run."""
+        """Enable and label the buttons for the shown run (Start and Stop need the Runpod key; shown with the reason)."""
+        models = self._models
         active = view is not None and not view.final
-        self.start_button.setEnabled(not active)
-        busy = tr("A transcription is running; it ends by itself, or stop it first.")
-        self.start_button.setToolTip(busy if active else "")
+        missing = models.key.missing
+        no_key = needs_key_hint() if missing else ""
+        self.start_button.setEnabled(not active and not missing)
+        busy = tr("A transcription is running; it ends by itself, or stop it first.") if active else ""
+        self.start_button.setToolTip(no_key or busy)
         label = None if view is None else view.stop_label
         self.stop_button.setVisible(label is not None)
         self.stop_button.setText(label or "")
-        self.stop_button.setEnabled(not self._models.actions.stopping)
-        self.refresh_button.setEnabled(not self._models.poll.checking)
+        self.stop_button.setEnabled(not models.actions.stopping and not missing)
+        self.stop_button.setToolTip(no_key)
+        self.refresh_button.setEnabled(not models.poll.checking)
 
 
 class RunFields(QWidget):
@@ -227,6 +232,7 @@ class RunPanel(QGroupBox):
             column.addRow(widget)
         self.countdown.setInterval(COUNTDOWN_TICK_MS)
         self.countdown.timeout.connect(self.show_countdown)
-        for model in (self._models.runs, self._models.poll, self._models.actions):
+        models = self._models
+        for model in (models.runs, models.poll, models.actions, models.key):
             model.subscribe(self.refresh)
         self.refresh()

@@ -29,10 +29,9 @@ from support.runs import RUN_ID, app_pod_name
 from support.worker_sim import SimulatedJob, finished, transcribing
 from transcribe_contracts.classes import JobRef
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, Request
-from transcribe_ui.credentials.classes import CredentialsStatusResponse, CredentialStatus
 from transcribe_ui.gui.activity import Activity
 from transcribe_ui.gui.cloud.display import RunView, countdown_text, run_view
-from transcribe_ui.gui.cloud.startup import RunpodKey, register_startup
+from transcribe_ui.gui.cloud.startup import register_startup
 from transcribe_ui.gui.cloud.status import status_items
 from transcribe_ui.gui.executor import SyncExecutor
 from transcribe_ui.gui.signals import StartupHooks
@@ -291,7 +290,7 @@ def test_the_start_up_checks_and_a_straggler(world: CloudWorld, area: CloudArea)
     """At start-up a straggler shows as attention (status bar link); Terminate asks, stops it, and checks again."""
     world.cloud.api.pods.add(app_pod_name(RUN_ID, FIXED_NOW))
     hooks = StartupHooks()
-    register_startup(hooks, area.models, RunpodKey(SyncExecutor(area.runner)))
+    register_startup(hooks, area.models)
     done: list[bool] = []
     hooks.run(lambda: done.append(True))
     machines = area.models.machines
@@ -303,19 +302,6 @@ def test_the_start_up_checks_and_a_straggler(world: CloudWorld, area: CloudArea)
     machines.stop(machines.rows[0])
     assert (machines.attention, machines.rows, len(area.outlet.asked)) == (False, (), 1)
     assert_golden("gui_cloud_machines.json", documents(_picked(area, "reconcile_cloud", "terminate_pod")))
-
-
-def test_no_cloud_check_without_a_runpod_key(world: CloudWorld) -> None:
-    """A missing Runpod key leaves out `reconcile_cloud` and `refresh_status`; the sequence still finishes."""
-    area, manual = _manual(world)
-    hooks = StartupHooks()
-    register_startup(hooks, area.models, RunpodKey(manual))
-    done: list[bool] = []
-    hooks.run(lambda: done.append(True))
-    manual.answer(LIST)
-    key = CredentialStatus(name="runpod_api_key", environment_variable="RUNPOD_API_KEY", source="missing")
-    manual.answer("credentials_status", CredentialsStatusResponse(keyring="available", credentials=(key,)))
-    assert (done, [held.request.action for held in manual.held]) == ([True], [LIST, "credentials_status"])
 
 
 def test_the_plan_lists_another_computers_job(area: CloudArea) -> None:

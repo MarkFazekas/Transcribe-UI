@@ -1,12 +1,16 @@
-"""The checks of the cloud: the poll while a run is not final, Refresh now, the start-up check (§3.1 "GUI").
+"""The checks of the cloud: the poll, Refresh now, the start-up check (§3.1 "GUI"; §3.9 "Results poll").
 
-Qt-free. While the run list holds a run that is not final (or right after a launch), the page
-sends `refresh_status` every `REFRESH_INTERVAL_S` on a single-flight channel: a tick is skipped
-while the previous one is queued or running, and the timer stops once the list holds only
-final runs. A check's `runs_busy`, `state_busy` or `cloud_unreachable` shows as "retrying" (the
+Qt-free. While the run list holds a run that is not final (or right after a launch), or the last
+check said that results are still awaited (`awaiting_results`, with or without a Runpod key), the
+page sends `refresh_status` every `REFRESH_INTERVAL_S` on a single-flight channel: a tick is
+skipped while the previous one is queued or running, and the timer stops once neither holds (the
+GUI does not derive the condition itself). A change of jobs elsewhere (an upload, an adoption)
+starts the timer again if it stopped, so the next tick asks the backend whether something is
+awaited now. A check's `runs_busy`, `state_busy` or `cloud_unreachable` shows as "retrying" (the
 next tick tries again), never as an error dialog; another error shows in the page. Each check
 reloads the run list (what the page shows), even a failed one, and reloads the jobs it reported.
-The timer is injected, so the poll's timing is tested without sleeping.
+Refresh now asked while a check is in flight checks once more after it, so a job added meanwhile
+is covered. The timer is injected, so the poll's timing is tested without sleeping.
 """
 
 from collections.abc import Callable
@@ -41,8 +45,12 @@ class CloudPoll(ViewModel):
         self._timer = timer(REFRESH_INTERVAL_MS, self._timed)
         # The error of the last check (None after one that succeeded).
         self.error: ErrorView | None = None
+        # Whether the last check said that some uploaded job still waits for its results.
+        self.awaiting = False
         # `proceed` of the start-up step waiting for the check in flight.
         self._waiting: list[Proceed] = []
+        # Refresh now was asked while a check was in flight: check again once that one answers.
+        self._again = False
         runs.subscribe(self.follow)
 
     @property
@@ -51,14 +59,17 @@ class CloudPoll(ViewModel):
         return self._channel.state is not None
 
     def follow(self) -> None:
-        """Poll while a listed run is not final; stop once every run is final."""
-        if not self._runs.run_active():
+        """Poll while a listed run is not final or results are awaited; stop once neither holds."""
+        if not self._runs.run_active() and not self.awaiting:
             self._timer.stop()
         elif not self._timer.active:
             self._timer.start()
 
-    def start(self) -> None:
-        """Poll from now on (a run was launched; its list entry may not be loaded yet)."""
+    def start(self, *_batch_ids: object) -> None:
+        """Poll from now on, if stopped: a run was launched (its list entry may not be loaded yet), or jobs changed.
+
+        After a change of jobs elsewhere (`batches_changed`), the next check tells whether results are awaited now.
+        """
         if not self._timer.active:
             self._timer.start()
 
@@ -75,8 +86,10 @@ class CloudPoll(ViewModel):
         return True
 
     def refresh_now(self) -> None:
-        """Check the cloud now ("Refresh now"); the next automatic check comes a whole interval later."""
-        if self.tick() and self._timer.active:
+        """Check the cloud now ("Refresh now"; after the check in flight, if any); the next automatic one waits an interval."""
+        if self.checking:
+            self._again = True
+        elif self.tick() and self._timer.active:
             self._timer.start()
 
     def note(self) -> str:
@@ -107,6 +120,7 @@ class CloudPoll(ViewModel):
         reported: tuple[str, ...] = ()
         if isinstance(response, RefreshStatusResponse):
             self.error = None
+            self.awaiting = response.awaiting_results
             reported = tuple(batch.batch_id for batch in response.batches)
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
@@ -114,8 +128,13 @@ class CloudPoll(ViewModel):
         self._runs.announce()
         if reported:
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, reported)
+        # After the signal: this check has answered for the jobs it reported.
+        self.follow()
         self.changed()
         waiting = self._waiting
         self._waiting = []
         for proceed in waiting:
             proceed()
+        if self._again:
+            self._again = False
+            self.refresh_now()
