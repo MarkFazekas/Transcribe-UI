@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 02:18+0100\n"
+"POT-Creation-Date: 2026-11-28 03:04+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -13,6 +13,10 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.19.0\n"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "A change applies after a restart."
+msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A choice does not fit its file."
@@ -73,6 +77,30 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "API key"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "About"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Access key ID"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Accounts"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "All in one output folder"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "All in one output folder, with folder names in the file name"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "All jobs"
 msgstr ""
@@ -110,8 +138,24 @@ msgstr ""
 msgid "Audio deleted from the cloud"
 msgstr ""
 
-#: src/transcribe_ui/gui/steps/view.py
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Audio files"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Back"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Backup volume"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/widgets.py
+msgid "Browse..."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Bucket"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
@@ -125,12 +169,49 @@ msgid ""
 "once; finished results stay in the cloud."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Check"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+#, python-brace-format
+msgid ""
+"Check the extensions: one cannot be both a video and an audio extension, "
+"nor a subtitle extension ({extensions})."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Checking files"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Checking the cloud setup..."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Choose a folder (a full path), or leave it empty."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the audio track to transcribe."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Choose the ffmpeg program"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Choose the ffprobe program"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Choose the output folder"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid ""
+"Choose the program file (a full path), or leave it empty to use the "
+"bundled one."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -151,6 +232,22 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Cloud cleanup interrupted; repeat it"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_setup.py
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Cloud setup"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid ""
+"Cloud setup done: {created} created, {updated} updated, {unchanged} "
+"unchanged."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/languages_view.py
+msgid "Code"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -203,6 +300,7 @@ msgid "Detail"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
+#: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr ""
 
@@ -218,12 +316,20 @@ msgstr ""
 msgid "Download"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Download defaults"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Downloaded"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Downloading subtitles"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Duplicated"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
@@ -234,10 +340,37 @@ msgstr ""
 msgid "Embedded subtitle"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Endpoint URL"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Enter a whole number of at least 1."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Enter the R2 storage values under Settings, Accounts to start."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"Enter the S3 API endpoint of R2 without a path: https://<account "
+"ID>.r2.cloudflarestorage.com"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Enter the value"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Extensions without the dot, separated by spaces."
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Extracted"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
 #: src/transcribe_ui/gui/texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Failed"
 msgstr ""
@@ -250,8 +383,20 @@ msgstr ""
 msgid "File status"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "File types"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/languages_view.py
+msgid "Filter languages"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Finish"
 msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
@@ -262,6 +407,15 @@ msgstr ""
 msgid "Finishing the current step..."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/accounts.py
+#: src/transcribe_ui/gui/settings/viewmodel.py
+msgid "Fix the marked fields, then save again."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Folder names in the file name"
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folder names were added to tell apart files of different folders."
 msgstr ""
@@ -270,16 +424,30 @@ msgstr ""
 msgid "Folders this deep are not scanned."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "From the environment variable {variable}"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Hidden"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Hide"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "In an output folder, mirroring the folders"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "In review"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Include hidden and system files and folders"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
@@ -299,24 +467,59 @@ msgstr ""
 msgid "Kind"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
+#: src/transcribe_ui/gui/settings/languages_view.py
+#: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Language"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Language of the app"
+msgstr ""
+
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
 msgid "Languages"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/notice_view.py
+msgid "Later"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Leave a field empty to use the bundled program."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Links are not followed."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Loading the settings..."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/about_view.py
+#, python-brace-format
+msgid "Log folder: {folder}"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Missing"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Name"
+msgstr ""
+
 #: src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr ""
 
-#: src/transcribe_ui/gui/steps/view.py
+#: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Next"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Next to the media file"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -337,8 +540,24 @@ msgstr ""
 msgid "Not available yet."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Not chosen"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Not set"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Notes"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "OK"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Object"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -358,11 +577,27 @@ msgid "Open cloud setup"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
+#: src/transcribe_ui/gui/settings/about_view.py
 msgid "Open log folder"
 msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Open the job"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "Outdated ({fields})"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Output folder"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"Paste the whole value: no spaces, at most 1024 characters, not the masked"
+" one (*****)."
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
@@ -375,8 +610,16 @@ msgid ""
 "transcribed."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Place subtitles"
+msgstr ""
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Please confirm"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Preferences"
 msgstr ""
 
 #: src/transcribe_ui/cli/credentials_command.py
@@ -427,6 +670,18 @@ msgstr ""
 msgid "R2 secret access key"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "R2 storage"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "R2 storage (required)"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Ready"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Ready for transcription"
 msgstr ""
@@ -439,6 +694,22 @@ msgstr ""
 msgid "Repeat cleanup"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Replace existing subtitle files"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/notice_view.py
+msgid "Restart now"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Restart now to change the language?"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Restore defaults"
+msgstr ""
+
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Resume"
 msgstr ""
@@ -448,7 +719,9 @@ msgid "Resume upload"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/jobs/widgets.py
-#: src/transcribe_ui/gui/pages.py src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/pages.py
+#: src/transcribe_ui/gui/settings/preferences_view.py
+#: src/transcribe_ui/gui/texts.py
 msgid "Retry"
 msgstr ""
 
@@ -474,6 +747,14 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Running"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Runpod"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "Runpod (optional)"
 msgstr ""
 
 #: src/transcribe_ui/i18n/credential_texts.py
@@ -522,8 +803,31 @@ msgid ""
 " setup again in a minute."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/accounts_view.py
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Save"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/accounts.py
+#: src/transcribe_ui/gui/settings/viewmodel.py
+msgid "Saved."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/accounts.py
+#: src/transcribe_ui/gui/settings/viewmodel.py
+msgid "Saving..."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Scanning folders"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Secret"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Secret access key"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -536,6 +840,18 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Selecting files"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Set up"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Set up Transcribe-UI"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Set up later"
 msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
@@ -598,6 +914,10 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "State"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Status"
 msgstr ""
@@ -611,6 +931,14 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Step"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Step 1 of 2: accounts"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Step 2 of 2: cloud setup"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -631,8 +959,16 @@ msgstr ""
 msgid "Stopped; continue any time."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Stored in the keyring"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Subtitles ready to download"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "System language"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -640,6 +976,14 @@ msgstr ""
 msgid ""
 "Terminate the cloud machine {name} ({status})? Its work stops at once; "
 "finished results stay in the cloud."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "Test"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "Testing the accounts..."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -652,6 +996,13 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The R2 request failed; the details are in the log."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"The Runpod API key is optional. Without it, this computer prepares, "
+"uploads and downloads jobs, and another computer that has the key starts "
+"the transcription."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -671,6 +1022,10 @@ msgstr ""
 msgid ""
 "The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
 "starting or ending with a hyphen."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "The bundled program"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -706,12 +1061,45 @@ msgstr ""
 msgid "The cloud run {run_id} does not exist."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "The cloud setup could not be checked: {error}"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid ""
+"The cloud setup creates the Runpod objects the transcription needs: a "
+"volume for result backups, the R2 secrets and the worker template. Run it"
+" again after the R2 values change."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"The cloud setup is incomplete or outdated, so transcription cannot start "
+"from this computer yet."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "The cloud setup is incomplete or outdated; run Set up."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The cloud setup is incomplete. Run the cloud setup first."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The cloud setup is outdated. Run the cloud setup again."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "The cloud setup is ready."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid ""
+"The cloud setup needs the Runpod API key (Settings, Accounts). Without "
+"it, this computer uploads and downloads, and another computer that has "
+"the key starts the transcription."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -745,6 +1133,10 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The custom plan file cannot be written ({reason})."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "The download dialog starts with these choices."
 msgstr ""
 
 #: src/transcribe_ui/i18n/credential_texts.py
@@ -890,11 +1282,23 @@ msgstr ""
 msgid "The job's upload is not complete yet; finish the upload first."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"The keyring cannot be used right now (it may be locked). Unlock it, or "
+"use the environment variables."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid ""
 "The keyring refused to store the credentials ({reason}). Unlock it and "
 "try again, or use the environment variables."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid ""
+"The languages offered when you choose what to transcribe. Word timing: "
+"the subtitles get word-level timing in these languages."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -1017,6 +1421,16 @@ msgid ""
 "variables {variables} instead."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"This system has no keyring, so the values cannot be stored here. Set the "
+"environment variables instead, then restart the app."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "This value is not valid."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Transcribe-UI is already running in another window or process; close it "
@@ -1039,10 +1453,26 @@ msgstr ""
 msgid "Transcriptions"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Turn on at least one language."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Type a new value to replace it"
+msgstr ""
+
 #: src/transcribe_ui/cli/credentials_command.py
 msgid ""
 "Type each credential and press Enter; the keys and the secret are not "
 "shown as you type."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Undo changes"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Update"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
@@ -1069,8 +1499,29 @@ msgstr ""
 msgid "Uploading files"
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"Use 3-63 lower-case letters, digits and hyphens, not starting or ending "
+"with a hyphen."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid ""
+"Use lower-case letters and digits without the dot, each extension only "
+"once."
+msgstr ""
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Value"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/about_view.py
+#, python-brace-format
+msgid "Version {version}, data format {schema}"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Video files"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -1091,6 +1542,14 @@ msgstr ""
 msgid ""
 "Whether a cloud run is active cannot be checked, so nothing was started "
 "or published; try again later."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/languages_view.py
+msgid "Word timing"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Worker template"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
@@ -1141,9 +1600,18 @@ msgstr ""
 msgid "run the request in a JSON file and print the response as JSON"
 msgstr ""
 
-#: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
+#: src/transcribe_ui/gui/feedback.py
+#: src/transcribe_ui/gui/settings/languages_view.py
+#: src/transcribe_ui/i18n/codes.py
 msgid "yes"
 msgstr ""
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "{count} duplicate removed."
+msgid_plural "{count} duplicates removed."
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format

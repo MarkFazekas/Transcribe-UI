@@ -33,6 +33,7 @@ from transcribe_ui.gui.constants import (
 from transcribe_ui.gui.dialogs import ErrorDialog
 from transcribe_ui.gui.feedback import confirmation_view, error_view
 from transcribe_ui.gui.jobs.view import JobsPage
+from transcribe_ui.gui.settings.view import SettingsPage
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.gui.texts import activity_state_text
 from transcribe_ui.state.logs import log_to_file
@@ -68,7 +69,8 @@ def test_the_shell_shows_four_placeholder_pages(window: MainWindow) -> None:
     assert window.pages.navigation.count() == len(PAGES)
     assert window.pages.current_page() == PAGE_NEW_JOB
     assert isinstance(window.pages.page(PAGE_JOBS), JobsPage)
-    for key in (PAGE_NEW_JOB, PAGE_CLOUD, PAGE_SETTINGS):
+    assert isinstance(window.pages.page(PAGE_SETTINGS), SettingsPage)
+    for key in (PAGE_NEW_JOB, PAGE_CLOUD):
         page = window.pages.page(key)
         assert isinstance(page, QLabel)
         assert page.text() == "This page is not available yet."

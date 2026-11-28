@@ -74,8 +74,13 @@ class CloseGuard:
         self._run_active = run_active
         self._allowed = False
         self._asking = False
+        self._kept_open: list[Callable[[], None]] = []
         self.question: CloseQuestion | None = None
         self.finishing: FinishingDialog | None = None
+
+    def when_kept_open(self, listener: Callable[[], None]) -> None:
+        """Call `listener` each time the user answers the close question by keeping the window open."""
+        self._kept_open.append(listener)
 
     def allows_close(self) -> bool:
         """Return whether the window may close now; if not, ask (once) and close later."""
@@ -97,6 +102,8 @@ class CloseGuard:
 
     def _keep_open(self) -> None:
         self._asking = False
+        for listener in list(self._kept_open):
+            listener()
 
     def _stop_and_close(self) -> None:
         self._executor.shutdown()

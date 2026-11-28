@@ -1,0 +1,27 @@
+{
+  "action": "update_settings",
+  "settings": {
+    "enabled_languages": [
+      "hu",
+      "en"
+    ],
+    "video_extensions": [
+      "mkv",
+      "mp4"
+    ],
+    "audio_extensions": [
+      "mp3",
+      "mp4"
+    ],
+    "include_hidden": false,
+    "ffmpeg_path": null,
+    "ffprobe_path": null,
+    "placement": {
+      "strategy": "next_to_media",
+      "output_folder": null,
+      "folder_count": 1,
+      "overwrite": false
+    },
+    "language": "system"
+  }
+}

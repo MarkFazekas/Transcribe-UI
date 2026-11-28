@@ -28,6 +28,12 @@ logger = logging.getLogger(__name__)
 type BackendFactory = Callable[[], Backend]
 # Returns the OS user interface language (`i18n.system.SystemLanguage`; tests replace the OS's).
 type OsLanguage = Callable[[], str | None]
+# Starts the GUI again after its window closed (tests record the call instead).
+type Relaunch = Callable[[], None]
+# What runs once the window closed and the backend is closed: the restart, or nothing.
+type AfterClose = Relaunch | None
+# The exit code of the event loop, and what runs after the close.
+type WindowRun = tuple[int, AfterClose]
 # Called with the window before the event loop starts (tests close it from a timer).
 type WindowHook = Callable[[MainWindow], None]
 
@@ -40,7 +46,7 @@ def application() -> QApplication:
     return QApplication([DISTRIBUTION_NAME])
 
 
-def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHook | None) -> int:
+def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHook | None) -> WindowRun:
     app = application()
     context = build_context(backend, quit_now)
     window = build_shell(context)
@@ -60,7 +66,7 @@ def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHoo
         context.quit_now()
     # No event loop runs any more, so `deleteLater` would never happen: delete the window now.
     shiboken6.delete(window)
-    return code
+    return code, context.restart.relaunch if context.restart.requested else None
 
 
 def run_gui(
@@ -69,14 +75,21 @@ def run_gui(
     quit_now: QuitNow | None = None,
     on_window: WindowHook | None = None,
     os_language: OsLanguage | None = None,
+    relaunch: Relaunch | None = None,
 ) -> int:
     """Run the GUI until its window closes; return the exit code.
 
     The language of the texts is resolved first (the `language` setting, with `system` the OS
     language; `os_language` replaces the OS's in tests), so every text is shown in it. The
     start-up hooks run once the window shows. On a normal close the local state of the backend
-    is closed last.
+    is closed last. When the user chose to restart (a language change, Q32), the GUI is started
+    again after that, so the new process can take the writer lock (`relaunch` replaces the start
+    in tests).
     """
     with qt_messages_to_log(), exceptions_to_log(), closing(make_backend()) as backend, ExitStack() as stack:
         use_language(backend.language_setting(), application(), stack, os_language)
-        return _run_window(backend, quit_now, on_window)
+        code, after_close = _run_window(backend, quit_now, on_window)
+    if after_close is not None:
+        logger.info("Starting the GUI again to change the language")
+        (after_close if relaunch is None else relaunch)()
+    return code

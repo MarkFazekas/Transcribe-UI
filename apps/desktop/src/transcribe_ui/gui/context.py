@@ -8,6 +8,7 @@ from transcribe_ui.api.backend import Backend
 from transcribe_ui.gui.activity import Activity
 from transcribe_ui.gui.bridge import QtExecutor
 from transcribe_ui.gui.closing import QuitNow
+from transcribe_ui.gui.settings.restart import RestartRequest
 from transcribe_ui.gui.signals import GuiSignals, StartupHooks
 from transcribe_ui.gui.writer_lock import WriterLockGate
 
@@ -30,6 +31,8 @@ class GuiContext:
     quit_now: QuitNow = field(default_factory=QuitNow)
     # Whether a run is not final (the cloud page sets it); the close question then adds the cloud note.
     run_active: Callable[[], bool] = _never_active
+    # Whether the GUI starts again once the window closed (after a language change).
+    restart: RestartRequest = field(default_factory=RestartRequest)
 
 
 def build_context(backend: Backend, quit_now: QuitNow | None = None) -> GuiContext:
