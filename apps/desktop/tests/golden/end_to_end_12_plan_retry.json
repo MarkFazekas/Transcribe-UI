@@ -9,7 +9,6 @@
           {
             "batch_id": "batch_20261127_132100",
             "known": true,
-            "held": false,
             "files": 2,
             "pending_jobs": [
               {

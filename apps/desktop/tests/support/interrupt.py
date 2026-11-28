@@ -6,8 +6,7 @@ A `Tripwire` counts the calls the upload makes to R2 (through `TripStore`) and t
 stays, nothing else runs), or sets the request's cancel flag.
 """
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from functools import partial
 from pathlib import Path
@@ -21,7 +20,7 @@ from transcribe_ui.api.ports import CancelFlag, CancelToken, Ports, RequestConte
 from transcribe_ui.credentials.classes import R2Credentials
 from transcribe_ui.media.classes import ConvertedAudio, ProbeResult
 from transcribe_ui.media.ports import MediaTools
-from transcribe_ui.runs.cloud import CloudAccess, open_cloud
+from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.storage.client import ClientLimits, r2_client
 from transcribe_ui.storage.multipart import UploadProgress
 from transcribe_ui.storage.r2 import ObjectInfo, ObjectStore
@@ -169,19 +168,17 @@ class _ClientCache:
 _shared_client = _ClientCache()
 
 
-# Builds the object store `run_upload` uses from the one `open_cloud` opened.
+# Builds the object store `run_upload` uses from the one `open_store` opened.
 type StoreWrap = Callable[[ObjectStore], ObjectStore]
 
 
 def patch_upload_store(monkeypatch: pytest.MonkeyPatch, wrap: StoreWrap) -> None:
     """Make `run_upload` (and its manifest step) use a wrapped object store."""
-    monkeypatch.setattr("transcribe_ui.upload.services.open_cloud", partial(_wrapped_cloud, wrap))
+    monkeypatch.setattr("transcribe_ui.upload.services.open_store", partial(_wrapped_store, wrap))
 
 
-@contextmanager
-def _wrapped_cloud(wrap: StoreWrap, context: RequestContext) -> Iterator[CloudAccess]:
-    with open_cloud(context) as cloud:
-        yield CloudAccess(wrap(cloud.store), cloud.pods)
+def _wrapped_store(wrap: StoreWrap, context: RequestContext) -> ObjectStore:
+    return wrap(open_store(context))
 
 
 @dataclass(frozen=True)

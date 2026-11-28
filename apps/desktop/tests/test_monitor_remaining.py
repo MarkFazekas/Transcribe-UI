@@ -27,7 +27,7 @@ from support.launch import (
     write_foreign,
 )
 from support.monitor import ENGINE, LIST_RUNS, REFRESH, WORKER_POD_ID, end_pod, refreshed_run, write_done, write_result
-from support.runs import JSON_TYPE, OTHER_RUN_ID, RunsWorld, seed_uploaded
+from support.runs import JSON_TYPE, OTHER_RUN_ID, RunsWorld, make_careful, seed_ready
 from transcribe_contracts.classes import JobRef, JobResult, RunState, RunStatus
 from transcribe_contracts.classes import JobStatus as ResultStatus
 from transcribe_contracts.layout import result_json_key, run_status_key
@@ -41,7 +41,7 @@ from transcribe_ui.runs.constants import (
 )
 from transcribe_ui.runs.remaining import done_share
 from transcribe_ui.runs.responses import CancelWorkerResponse, ListRunsResponse, RunProgress
-from transcribe_ui.state.models import JobRow, RunRow
+from transcribe_ui.state.models import RunRow
 
 # Length of `PODCAST` (the fake's default probe).
 PODCAST_SECONDS = FAKE_DEFAULT_DURATION_S
@@ -72,17 +72,10 @@ SEEDED_IDS = MappingProxyType({FILM: "01JDZZZZZZZZZZZZZZZZZZZZ01", PODCAST: "01J
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
-
-
-def _make_careful(world: RunsWorld, item_id: str) -> None:
-    """Switch the item's job to `careful` (before the launch)."""
-    with world.ports.state.session() as session:
-        row = session.query(JobRow).filter(JobRow.item_id == item_id).one()
-        row.payload = {**row.payload, "mode": "careful"}
 
 
 @dataclass(frozen=True)
@@ -264,7 +257,7 @@ def test_another_runs_result(world: RunsWorld, worker: Worker) -> None:
 
 def test_careful_jobs_count_twice(world: RunsWorld) -> None:
     """A `careful` job weighs twice in the followed audio, the done share, the launch factors and the pace."""
-    _make_careful(world, SEEDED_IDS[FILM])
+    make_careful(world, SEEDED_IDS[FILM])
     run_id = launch_run(world).run_id
     worker = Worker(world, run_id)
     film_s = FILM_SECONDS * CAREFUL_WEIGHT

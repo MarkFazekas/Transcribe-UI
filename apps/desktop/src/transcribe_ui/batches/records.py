@@ -192,7 +192,6 @@ def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey]
         jobs=len(jobs),
         languages=tuple(languages),
         hidden=row.hidden,
-        manifest_held=row.manifest_held,
         audio_deleted=row.audio_deleted,
         cleanup_pending=stored_cleanup_pending(row),
         extract_only=_extract_only(jobs),

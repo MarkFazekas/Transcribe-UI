@@ -137,7 +137,6 @@ def _seed_batch(state: LocalState, name: str, scenario: Scenario, root: Path) ->
     row = BatchRow(
         batch_id=scenario_batch_id(name),
         phase=scenario.phase,
-        manifest_held=False,
         audio_deleted=scenario.audio_deleted,
         hidden=scenario.hidden,
         created_at=FIXED_NOW,

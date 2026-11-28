@@ -107,8 +107,7 @@ class CloudPoll(ViewModel):
         reported: tuple[str, ...] = ()
         if isinstance(response, RefreshStatusResponse):
             self.error = None
-            found = (*(batch.batch_id for batch in response.batches), *response.published)
-            reported = tuple(dict.fromkeys(found))
+            reported = tuple(batch.batch_id for batch in response.batches)
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
         # Even a failed check may have changed a run before it failed: the list shows what is stored.

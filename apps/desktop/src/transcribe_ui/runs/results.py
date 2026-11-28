@@ -1,6 +1,6 @@
 """Results of `ready` batches: job results and `_done.json` (plan m5 §1 "Run scope", architecture §3.3).
 
-For every `ready` batch (not only the run's: the worker processes every manifest), each pending
+For every `ready` batch (not only the run's: another computer's run may list it), each pending
 transcribe job whose result JSON is listed gets its status (`ok`, `no_speech` or `failed`, read
 through `reading.read_job_result`, with the result's `error`, its run and the worker's times on the
 job for the remaining-time estimate), and a batch whose `_done.json`
@@ -38,6 +38,7 @@ from transcribe_ui.runs.result_reads import (
     read_results,
 )
 from transcribe_ui.state.models import BatchPhase, BatchRow, JobRow
+from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
 
 
@@ -48,6 +49,14 @@ class ReadyCheck:
     batches: tuple[BatchResults, ...] = ()
     # Skipped because another request holds the batch's lock.
     busy: tuple[str, ...] = ()
+
+
+def awaiting_results(state: LocalState) -> bool:
+    """Return whether some `ready` batch still waits for its results (`refresh_status` keeps being sent)."""
+    is_ready = BatchRow.phase == READY_PHASE
+    query = select(BatchRow.batch_id).where(is_ready).limit(1)
+    with state.session() as session:
+        return session.scalar(query) is not None
 
 
 def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyCheck:

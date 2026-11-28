@@ -16,7 +16,7 @@ import pytest
 from support.launch import QUEUED_PODS, launch_run, pods_of, queued_of, run_row, set_up_cloud
 from support.monitor import refresh, refreshed_run
 from support.runpod_api import FakeRunpodApi, iso
-from support.runs import RunsWorld, seed_uploaded
+from support.runs import RunsWorld, seed_ready
 from transcribe_ui.runs.constants import (
     DEPLOY_SETTLE_S,
     ERROR_STOP_UNVERIFIED,
@@ -38,7 +38,7 @@ HIDDEN_POD = "pod-hidden"
 def world(runs_world: RunsWorld) -> RunsWorld:
     """The cloud set up, the seeded batch uploaded, no capacity: the launch queues."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     runs_world.cloud.settings.capacity = False
     return runs_world
 

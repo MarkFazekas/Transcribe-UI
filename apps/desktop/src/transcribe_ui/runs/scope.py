@@ -1,50 +1,39 @@
 """The launch scope (plan m5 §1 "Run scope"): what the next worker run would process.
 
-The worker processes every manifest under `batch_metadata/` without `_done.json` (§5.3),
-including manifests this database does not know (another computer, a deleted database), so the
-scope is read from R2 the way the worker plans its run (`runs/manifests.py`). Batches whose
-manifest is still held back locally are added (`launch_worker` publishes them before the run
-starts). The fingerprint lets `launch_worker` check that the scope it launches is the one the
-user confirmed.
+A run processes the batches its lease lists (A21); the launch lists every manifest under
+`batch_metadata/` without `_done.json`, including manifests this database does not know (another
+computer's, a deleted database's: `known` false, architecture §3.9 "Known batches"), read the way
+the worker plans its run (`runs/manifests.py`). The fingerprint lets `launch_worker` check that
+the scope it launches is the one the user confirmed.
 """
 
 import hashlib
 import json
 from collections.abc import Iterable
+from functools import partial
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from transcribe_contracts.classes import Manifest
 from transcribe_ui.runs.classes import LaunchScope, PendingJob, ScopeBatch
 from transcribe_ui.runs.constants import FINGERPRINT_DURATION_DECIMALS
-from transcribe_ui.runs.manifests import LocalBatches, published_batches, scope_batch, total_duration
-from transcribe_ui.state.models import BatchRow
+from transcribe_ui.runs.manifests import LocalBatches, published_batches, total_duration
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
-from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
-from transcribe_ui.upload.leftover import withdrawing_digests
-from transcribe_ui.upload.manifest import build_manifest, held_batch_ids
+from transcribe_ui.upload.leftover import is_known, withdrawing_digests
 
 
 def read_launch_scope(state: LocalState, store: ObjectStore) -> LaunchScope:
-    """Return the scope of the next run: the pending manifests in R2 plus the held ones.
+    """Return the scope of the next run: the pending manifests in R2.
 
-    The database is read first (one transaction), then R2 (outside any transaction). A held
-    batch whose manifest is in R2 already (an interrupted manifest step) is counted from R2 when
-    it is pending or finished there; an unreadable or vanished copy, or a leftover a pending
-    withdrawal will delete (`publish_held_manifests` does so before a launch), counts the held
-    version.
+    The pending withdrawals are read first (one transaction), then R2 (outside any transaction;
+    each manifest's recognition opens its own short transaction). A leftover a pending withdrawal
+    will delete counts as absent, so no lease lists it.
 
     Raises:
         StorageError: R2 could not be read.
     """
-    local, held = _local_view(state)
-    published = published_batches(store, local)
-    waiting = [scope_batch(manifest, (), known=True, held=True) for manifest in held]
-    in_r2 = {batch.batch_id for batch in published.batches} | published.finished_ids
-    fresh = [batch for batch in waiting if batch.batch_id not in in_r2]
-    batches = sorted((*published.batches, *fresh), key=_batch_id)
+    with state.session() as session:
+        withdrawing = withdrawing_digests(session)
+    published = published_batches(store, LocalBatches(partial(_known, state), withdrawing))
+    batches = sorted(published.batches, key=_batch_id)
     durations = [job.duration_s for batch in batches for job in batch.pending_jobs]
     return LaunchScope(
         batches=tuple(batches),
@@ -78,18 +67,6 @@ def _batch_id(batch: ScopeBatch) -> str:
     return batch.batch_id
 
 
-def _local_view(state: LocalState) -> tuple[LocalBatches, list[Manifest]]:
-    """Return what the database knows about the batches in R2, and the manifests held back."""
+def _known(state: LocalState, batch_id: str, body: bytes) -> bool:
     with state.session() as session:
-        known = frozenset(session.scalars(select(BatchRow.batch_id)))
-        built = [_held_manifest(session, batch_id) for batch_id in held_batch_ids(session)]
-        local = LocalBatches(known, withdrawing_digests(session))
-    return local, [manifest for manifest in built if manifest is not None]
-
-
-def _held_manifest(session: Session, batch_id: str) -> Manifest | None:
-    """Return a held batch's manifest, or None if its upload is not complete (it is not published then)."""
-    try:
-        return build_manifest(session, batch_id)
-    except (UploadIncompleteError, NothingToTranscribeError):
-        return None
+        return is_known(session, batch_id, body)

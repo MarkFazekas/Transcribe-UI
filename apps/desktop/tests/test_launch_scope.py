@@ -1,15 +1,14 @@
-"""The launch scope (plan m5 M5.9): pending manifests in R2 as the worker sees them, plus held ones."""
+"""The launch scope (plan m5 M5.9, M6.13): pending manifests in R2 as the worker sees them, and the known rule."""
 
 import json
 from datetime import datetime
 
 from support.batches import FILM, FIRST_BATCH_ID, PODCAST
-from support.runs import JSON_TYPE, RunsWorld, seed_uploaded
+from support.runs import JSON_TYPE, RunsWorld, seed_ready
 from transcribe_contracts.classes import AudioObject, Manifest, ManifestItem, TranscribeJob
 from transcribe_contracts.layout import audio_key, done_key, manifest_key, result_json_key
 from transcribe_ui.runs.classes import ScopeBatch
 from transcribe_ui.runs.scope import scope_fingerprint
-from transcribe_ui.upload.manifest import build_manifest
 
 # A batch of another computer: its manifest is in R2, this database does not know it.
 UNKNOWN_BATCH_ID = "batch_20260101_090000"
@@ -60,8 +59,7 @@ def _write(world: RunsWorld, key: str, body: bytes) -> None:
 
 def _seed_cloud(world: RunsWorld) -> dict[str, str]:
     """Publish the seeded batch with the film done, plus foreign, newer, broken, stray and finished objects."""
-    ids = seed_uploaded(world)
-    assert world.step().outcome == "published"
+    ids = seed_ready(world)
     _write(world, result_json_key(FIRST_BATCH_ID, ids[FILM], "en"), b"{}")
     _write(world, manifest_key(UNKNOWN_BATCH_ID), _foreign_manifest(UNKNOWN_BATCH_ID).model_dump_json().encode())
     newer = json.loads(_foreign_manifest(NEWER_BATCH_ID).model_dump_json()) | {"schema_version": "2.0"}
@@ -81,10 +79,9 @@ def test_scope_counts_unfinished_manifests(runs_world: RunsWorld) -> None:
     known_jobs = [(job.item_id, job.language) for job in known.pending_jobs]
     unknown_jobs = [(job.language, job.mode) for job in unknown.pending_jobs]
     unreadable = [(entry.key, entry.reason) for entry in scope.unreadable]
-    assert (known.batch_id, known.known, known.held, known.files, known_jobs) == (
+    assert (known.batch_id, known.known, known.files, known_jobs) == (
         FIRST_BATCH_ID,
         True,
-        False,
         len(EVERY_SEEDED),
         [(ids[PODCAST], "en")],
     )
@@ -109,22 +106,12 @@ def test_scope_counts_unfinished_manifests(runs_world: RunsWorld) -> None:
     )
 
 
-def test_held_batches_count_with_the_same_fingerprint(runs_world: RunsWorld) -> None:
-    """A held manifest counts with every job pending; once published, the scope (and fingerprint) is the same."""
-    seed_uploaded(runs_world, held=True)
-    held = runs_world.scope()
-    batch = held.batches[0]
-    assert (len(held.batches), batch.batch_id, batch.known, batch.held, len(batch.pending_jobs)) == (
-        1,
-        FIRST_BATCH_ID,
-        True,
-        True,
-        len(EVERY_SEEDED),
-    )
-    assert runs_world.publish_held().published == (FIRST_BATCH_ID,)
-    published = runs_world.scope()
-    assert published.batches[0].held is False
-    assert published.fingerprint == held.fingerprint
+def test_same_id_of_another_computer_is_unknown(runs_world: RunsWorld) -> None:
+    """A manifest under this database's batch id that it does not recognise (another creation) is unknown."""
+    seed_ready(runs_world)
+    _write(runs_world, manifest_key(FIRST_BATCH_ID), _foreign_manifest(FIRST_BATCH_ID).model_dump_json().encode())
+    scope = runs_world.scope()
+    assert [(batch.batch_id, batch.known) for batch in scope.batches] == [(FIRST_BATCH_ID, False)]
 
 
 def test_fingerprint_follows_the_scope() -> None:
@@ -134,7 +121,6 @@ def test_fingerprint_follows_the_scope() -> None:
         {
             "batch_id": UNKNOWN_BATCH_ID,
             "known": False,
-            "held": False,
             "files": 1,
             "pending_jobs": [job],
             "pending_duration_s": FOREIGN_SECONDS,
@@ -148,23 +134,3 @@ def test_fingerprint_follows_the_scope() -> None:
     prints = {scope_fingerprint(batches) for batches in scopes}
     assert len(prints) == len(scopes)
     assert scope_fingerprint([base, other]) == scope_fingerprint([other, base])
-
-
-def test_held_batch_done_in_r2_is_not_counted(runs_world: RunsWorld) -> None:
-    """A held batch whose manifest is in R2 already is taken from R2, even when it is finished there."""
-    seed_uploaded(runs_world, held=True)
-    with runs_world.ports.state.session() as session:
-        manifest = build_manifest(session, FIRST_BATCH_ID)
-    _write(runs_world, manifest_key(FIRST_BATCH_ID), manifest.model_dump_json().encode())
-    _write(runs_world, done_key(FIRST_BATCH_ID), b"{}")
-    scope = runs_world.scope()
-    assert (scope.batches, scope.pending_jobs) == ((), 0)
-
-
-def test_held_batch_counts_over_an_unreadable_copy(runs_world: RunsWorld) -> None:
-    """A held batch whose manifest key holds an unreadable object is counted from the database."""
-    seed_uploaded(runs_world, held=True)
-    _write(runs_world, manifest_key(FIRST_BATCH_ID), b"{broken")
-    scope = runs_world.scope()
-    held = [(batch.batch_id, batch.held) for batch in scope.batches]
-    assert (held, [entry.reason for entry in scope.unreadable]) == ([(FIRST_BATCH_ID, True)], ["invalid"])

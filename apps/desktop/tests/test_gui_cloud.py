@@ -23,7 +23,7 @@ from support.credentials import moto_bucket
 from support.fakes import FIXED_NOW
 from support.golden import GOLDEN_DIR, assert_golden
 from support.launch import FOREIGN_BATCH_ID, write_foreign
-from support.launch_legs import LaunchLegs, seed_held_leg
+from support.launch_legs import LaunchLegs, seed_ready_leg
 from support.parity import run_parity
 from support.runs import RUN_ID, app_pod_name
 from support.worker_sim import SimulatedJob, finished, transcribing
@@ -75,7 +75,7 @@ QT_FREE_MODULES = (
 
 @pytest.fixture
 def world(tmp_path: Path) -> Iterator[CloudWorld]:
-    """Return a launch leg: the cloud set up, the held batch and another computer's job waiting."""
+    """Return a launch leg: the cloud set up, the published batch and another computer's job waiting."""
     with cloud_world(tmp_path) as created:
         yield created
 
@@ -408,7 +408,7 @@ def test_gui_requests_are_valid_cli_requests(tmp_path: Path, golden: Path) -> No
     """Each request the Cloud area built is valid for the CLI and answers alike from the backend and the CLI."""
     templates = [json.dumps(document) for document in json.loads(golden.read_text(encoding="utf-8"))]
     with moto_bucket():
-        exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=LaunchLegs(seed=seed_held_leg))
+        exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=LaunchLegs(seed=seed_ready_leg))
     codes = [json.loads(exchange.response).get("error", {}).get("code") for exchange in exchanges]
     assert "invalid_request" not in codes
 

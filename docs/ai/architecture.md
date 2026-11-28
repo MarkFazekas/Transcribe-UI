@@ -715,7 +715,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     event per stage tagged with the call it came from, so a Resume shows only its own progress.
     The page's upload box shows the files uploaded (`upload_item`), the current object's bytes
     with a progress bar (`upload_bytes`, dropped once the next file's event arrives), Cancel upload, Resume upload (a new start of the same
-    request) and Details of an error; once finished, the outcome: ready, held, extracted only,
+    request) and Details of an error; once finished, the outcome: ready, extracted only,
     or the files back in review by name (also named in the status bar). Every end (also a stop
     or a failure) emits `batches_changed`, which reloads the job page and the review (the files
     the upload sent back to review are probed again there; their choices stay when they probe the

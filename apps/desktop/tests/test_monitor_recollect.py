@@ -8,15 +8,15 @@ import pytest
 
 from support.launch import launch_run, pods_of, reconcile, run_row, set_up_cloud
 from support.monitor import FailingDeletes, end_pod, refresh, run_objects, write_log, write_status
-from support.runs import RunsWorld, seed_uploaded, set_run_status
+from support.runs import RunsWorld, seed_ready, set_run_status
 from transcribe_ui.runs.collect import collect_run_objects
 
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

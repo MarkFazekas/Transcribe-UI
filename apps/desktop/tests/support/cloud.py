@@ -1,6 +1,6 @@
 """The Cloud area's view-models over a seeded launch world, with a manual timer, clock and executor (plan m6 M6.6).
 
-The world is one launch parity leg (`LaunchLegs` with the held batch and another computer's
+The world is one launch parity leg (`LaunchLegs` with the published batch and another computer's
 manifest, on the fixed clock), so the requests the view-models build replay alike through the
 parity runner. Nothing sleeps: the poll's timer fires when the test says so, and the manual
 executor answers a call only when the test lets it.
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from support.batches import build_batch_tree
 from support.credentials import moto_bucket
-from support.launch_legs import LaunchLegs, seed_held_leg
+from support.launch_legs import LaunchLegs, seed_ready_leg
 from support.runpod import Cloud
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Request, Response
@@ -224,11 +224,11 @@ class CloudWorld:
 
 @contextmanager
 def cloud_world(tmp_path: Path) -> Iterator[CloudWorld]:
-    """Return a launch leg like the launch parity's (held batch, another computer's job); closed afterwards."""
+    """Return a launch leg like the launch parity's (published batch, another computer's job); closed afterwards."""
     root = tmp_path / "gui"
     root.mkdir()
     build_batch_tree(root)
-    legs = LaunchLegs(seed=seed_held_leg)
+    legs = LaunchLegs(seed=seed_ready_leg)
     with moto_bucket():
         ports = legs(root)
         with closing(ports.state):

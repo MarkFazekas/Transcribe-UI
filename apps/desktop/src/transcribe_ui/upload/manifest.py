@@ -75,13 +75,6 @@ def withdrawing_batch_ids(session: Session) -> list[str]:
     return list(session.scalars(query.order_by(BatchRow.batch_id)))
 
 
-def held_batch_ids(session: Session) -> list[str]:
-    """Return the ids of the batches whose manifest is held back (`uploading` with `manifest_held`), sorted."""
-    is_held = (BatchRow.phase == "uploading", BatchRow.manifest_held.is_(True))
-    query = select(BatchRow.batch_id).where(*is_held)
-    return list(session.scalars(query.order_by(BatchRow.batch_id)))
-
-
 def _collect(
     members: Sequence[StoredItem],
     audio: Mapping[str, ItemAudio],

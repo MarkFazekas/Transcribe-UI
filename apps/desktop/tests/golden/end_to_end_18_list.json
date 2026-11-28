@@ -15,7 +15,6 @@
           "en"
         ],
         "hidden": false,
-        "manifest_held": false,
         "audio_deleted": true,
         "cleanup_pending": null,
         "extract_only": false,
@@ -37,7 +36,6 @@
           "hu"
         ],
         "hidden": false,
-        "manifest_held": false,
         "audio_deleted": true,
         "cleanup_pending": null,
         "extract_only": false,

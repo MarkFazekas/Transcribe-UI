@@ -1,52 +1,5 @@
 {
   "$defs": {
-    "ActivityKind": {
-      "enum": [
-        "local_run",
-        "pod",
-        "queued_pod",
-        "heartbeat",
-        "lease"
-      ],
-      "type": "string"
-    },
-    "ActivitySource": {
-      "additionalProperties": false,
-      "description": "One sign of a live worker run.",
-      "properties": {
-        "kind": {
-          "$ref": "#/$defs/ActivityKind"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "run_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Run Id"
-        },
-        "status": {
-          "title": "Status",
-          "type": "string"
-        }
-      },
-      "required": [
-        "kind",
-        "name",
-        "status",
-        "run_id"
-      ],
-      "title": "ActivitySource",
-      "type": "object"
-    },
     "AudioTrack": {
       "additionalProperties": false,
       "description": "One audio stream of a media file.",
@@ -244,7 +197,6 @@
       "enum": [
         "cleanup_pending",
         "upload_unfinished",
-        "manifest_held",
         "subtitles_ready",
         "flagged_jobs",
         "audio_deleted",
@@ -476,10 +428,6 @@
           "title": "Languages",
           "type": "array"
         },
-        "manifest_held": {
-          "title": "Manifest Held",
-          "type": "boolean"
-        },
         "phase": {
           "$ref": "#/$defs/BatchPhase"
         },
@@ -501,7 +449,6 @@
         "jobs",
         "languages",
         "hidden",
-        "manifest_held",
         "audio_deleted",
         "cleanup_pending",
         "extract_only",
@@ -1090,14 +1037,6 @@
           "title": "Action",
           "type": "string"
         },
-        "activity": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/ActivitySource"
-          },
-          "title": "Activity",
-          "type": "array"
-        },
         "batch": {
           "$ref": "#/$defs/BatchSummary"
         },
@@ -1141,8 +1080,7 @@
         "outcome",
         "copied_objects",
         "deleted_objects",
-        "sweep_skipped",
-        "activity"
+        "sweep_skipped"
       ],
       "title": "CreateRetryBatchResponse",
       "type": "object"
@@ -2110,7 +2048,7 @@
     },
     "LaunchScope": {
       "additionalProperties": false,
-      "description": "What the next worker run would process: every manifest without `_done.json`, plus held ones.",
+      "description": "What the next worker run would process (its lease lists the batches): every manifest without `_done.json`.",
       "properties": {
         "batches": {
           "items": {
@@ -2153,7 +2091,7 @@
     },
     "LaunchWorkerResponse": {
       "additionalProperties": false,
-      "description": "The run started (or whose outcome is still unknown), and the held manifests published first.",
+      "description": "The run started (or whose outcome is still unknown).",
       "properties": {
         "action": {
           "const": "launch_worker",
@@ -2168,14 +2106,6 @@
         },
         "outcome": {
           "$ref": "#/$defs/LaunchOutcome"
-        },
-        "published": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "title": "Published",
-          "type": "array"
         },
         "run": {
           "$ref": "#/$defs/RunInfo"
@@ -2192,8 +2122,7 @@
         "action",
         "outcome",
         "adopted",
-        "run",
-        "published"
+        "run"
       ],
       "title": "LaunchWorkerResponse",
       "type": "object"
@@ -2781,13 +2710,17 @@
     },
     "RefreshStatusResponse": {
       "additionalProperties": false,
-      "description": "The runs that were not final, the `ready` batches' results, and the held manifests published.",
+      "description": "The runs that were not final, the `ready` batches' results, and whether results are still awaited.",
       "properties": {
         "action": {
           "const": "refresh_status",
           "default": "refresh_status",
           "title": "Action",
           "type": "string"
+        },
+        "awaiting_results": {
+          "title": "Awaiting Results",
+          "type": "boolean"
         },
         "batches": {
           "items": {
@@ -2802,22 +2735,6 @@
             "type": "string"
           },
           "title": "Busy",
-          "type": "array"
-        },
-        "held": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "title": "Held",
-          "type": "array"
-        },
-        "published": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "title": "Published",
           "type": "array"
         },
         "runs": {
@@ -2840,8 +2757,7 @@
         "runs",
         "batches",
         "busy",
-        "published",
-        "held"
+        "awaiting_results"
       ],
       "title": "RefreshStatusResponse",
       "type": "object"
@@ -3447,14 +3363,6 @@
           "title": "Action",
           "type": "string"
         },
-        "activity": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/ActivitySource"
-          },
-          "title": "Activity",
-          "type": "array"
-        },
         "batch": {
           "$ref": "#/$defs/BatchSummary"
         },
@@ -3503,8 +3411,7 @@
         "uploaded_objects",
         "extracted_subtitles",
         "deleted_objects",
-        "sweep_skipped",
-        "activity"
+        "sweep_skipped"
       ],
       "title": "RunUploadResponse",
       "type": "object"
@@ -3818,10 +3725,6 @@
           "title": "Files",
           "type": "integer"
         },
-        "held": {
-          "title": "Held",
-          "type": "boolean"
-        },
         "known": {
           "title": "Known",
           "type": "boolean"
@@ -3842,7 +3745,6 @@
       "required": [
         "batch_id",
         "known",
-        "held",
         "files",
         "pending_jobs",
         "pending_duration_s"
@@ -4686,7 +4588,6 @@
     "UploadOutcome": {
       "enum": [
         "ready",
-        "held",
         "transcribed",
         "items_in_review"
       ],

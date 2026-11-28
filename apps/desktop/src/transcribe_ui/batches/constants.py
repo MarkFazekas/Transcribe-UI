@@ -119,8 +119,6 @@ PHASE_STAGES: Final[Mapping[str, BatchStage]] = MappingProxyType(
         CLEANED: "done",
     },
 )
-# Stage of an `uploading` batch whose upload is complete and whose manifest is held while a run is active.
-STAGE_WHEN_HELD: Final[BatchStage] = "transcription"
 # Batch phases in which the results are arriving or in, but not all placed yet.
 RESULT_PHASES: Final = frozenset(("ready", "transcribed"))
 
@@ -128,8 +126,6 @@ RESULT_PHASES: Final = frozenset(("ready", "transcribed"))
 LABEL_CLEANUP_PENDING: Final[BatchLabel] = "cleanup_pending"
 # Label: the upload started and is not finished; `run_upload` resumes it.
 LABEL_UPLOAD_UNFINISHED: Final[BatchLabel] = "upload_unfinished"
-# Label: the upload is complete; its manifest is held until the active run ends.
-LABEL_MANIFEST_HELD: Final[BatchLabel] = "manifest_held"
 # Label: subtitles can be downloaded that no download placed yet (while `ready` or `transcribed`).
 LABEL_SUBTITLES_READY: Final[BatchLabel] = "subtitles_ready"
 # Label: a transcription failed or found no speech (a retry can take it).

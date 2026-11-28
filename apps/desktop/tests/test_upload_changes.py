@@ -1,4 +1,4 @@
-"""Sources that change during the upload, and a manifest held back during a run (plan m5 M5.10)."""
+"""Sources that change during the upload, and a manifest published during a run (plan m5 M5.10, M6.13)."""
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -9,7 +9,7 @@ from support.batch_backend import item_phase, run_ok
 from support.batches import FILM, FIRST_BATCH_ID, PODCAST, batch_request
 from support.credentials import moto_bucket
 from support.interrupt import EditDuringConversion, TripMedia, trip_media
-from support.runs import RUN_ID, RunsWorld, seed_run, set_run_status
+from support.runs import RunsWorld, seed_run
 from support.upload import (
     audio_keys,
     change_source,
@@ -89,19 +89,9 @@ def test_source_changing_during_upload_back_to_review(world: RunsWorld) -> None:
     assert (_under(world, film), [key for key in recorded_keys(world) if film in key]) == ([], [])
 
 
-def test_held_during_a_run_then_published(world: RunsWorld) -> None:
-    """A run active when the upload completes keeps the manifest back; the next upload request publishes it."""
+def test_published_during_a_run(world: RunsWorld) -> None:
+    """A run active when the upload completes does not keep the manifest back (it is not in that run's lease)."""
     review(world)
     seed_run(world, "running")
-    held = upload(world)
-    document = held.model_dump(mode="json")
-    sources = [(source["kind"], source["run_id"]) for source in document["activity"]]
-    assert (outcome_of(held), document["batch"]["manifest_held"], sources) == ("held", True, [("local_run", RUN_ID)])
-    assert world.store.head(MANIFEST) is None
-    set_run_status(world, "finished")
     published = upload(world)
-    assert (outcome_of(published), published.model_dump(mode="json")["uploaded_objects"], phase_of(world)) == (
-        "ready",
-        0,
-        "ready",
-    )
+    assert (outcome_of(published), phase_of(world), world.store.head(MANIFEST) is not None) == ("ready", "ready", True)

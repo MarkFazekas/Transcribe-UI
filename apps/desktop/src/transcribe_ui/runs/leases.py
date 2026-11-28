@@ -80,16 +80,26 @@ def lease_sources(leases: tuple[LiveLease, ...]) -> list[ActivitySource]:
     return [_source(lease) for lease in leases]
 
 
+def batch_leases(store: ObjectStore, batch_id: str, now: datetime) -> tuple[LiveLease, ...]:
+    """Return the live leases that list the batch: their runs may be working on it.
+
+    Raises:
+        StorageError: R2 could not be read (fail closed).
+    """
+    leases = live_leases(store, now)
+    return tuple(lease for lease in leases if lease.lists(batch_id))
+
+
 def refuse_if_leased(store: ObjectStore, batch_id: str, now: datetime) -> None:
-    """Refuse while a live lease lists the batch: its run may be working on it.
+    """Refuse while a live lease lists the batch (the per-batch check of cleanup and withdrawals).
 
     Raises:
         RunActiveError: A live lease lists the batch (`run_active`; nothing was changed).
         StorageError: R2 could not be read (fail closed).
     """
-    listing = [lease for lease in live_leases(store, now) if lease.lists(batch_id)]
+    listing = batch_leases(store, batch_id, now)
     if listing:
-        raise RunActiveError(lease_sources(tuple(listing)))
+        raise RunActiveError(lease_sources(listing))
 
 
 def _bound(found: ObjectInfo, now: datetime) -> datetime:

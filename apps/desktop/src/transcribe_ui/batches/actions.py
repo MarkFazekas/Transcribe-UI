@@ -112,7 +112,6 @@ class BatchFacts:
     phase: str
     audio_deleted: bool
     hidden: bool
-    manifest_held: bool
     cleanup_pending: CleanupScope | None
     item_counts: ItemCounts
     job_counts: JobCounts
@@ -145,7 +144,6 @@ def batch_facts(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], 
         phase=row.phase,
         audio_deleted=row.audio_deleted,
         hidden=row.hidden,
-        manifest_held=row.manifest_held,
         cleanup_pending=stored_cleanup_pending(row),
         item_counts=item_counts,
         job_counts=JobCounts.of_jobs(jobs),
@@ -166,22 +164,17 @@ def allowed_actions(facts: BatchFacts) -> tuple[BatchAction, ...]:
 
 
 def batch_stage(facts: BatchFacts) -> BatchStage:
-    """Return the step of the guided flow the batch is at: by its phase, a held upload already at transcription."""
-    if facts.phase == UPLOADING_BATCH and facts.manifest_held:
-        return rules.STAGE_WHEN_HELD
+    """Return the step of the guided flow the batch is at, by its phase."""
     return rules.PHASE_STAGES[facts.phase]
 
 
 def batch_labels(facts: BatchFacts) -> tuple[BatchLabel, ...]:
     """Return the labels that apply to the batch, in the order to show them."""
-    uploading = facts.phase == UPLOADING_BATCH
-    held = facts.manifest_held
     jobs = facts.job_counts
     results_in = facts.phase in rules.RESULT_PHASES
     applies: dict[BatchLabel, bool] = {
         rules.LABEL_CLEANUP_PENDING: facts.cleanup_pending is not None,
-        rules.LABEL_UPLOAD_UNFINISHED: uploading and not held,
-        rules.LABEL_MANIFEST_HELD: uploading and held,
+        rules.LABEL_UPLOAD_UNFINISHED: facts.phase == UPLOADING_BATCH,
         rules.LABEL_SUBTITLES_READY: results_in and jobs.subtitles > 0,
         rules.LABEL_FLAGGED_JOBS: jobs.flagged > 0,
         rules.LABEL_AUDIO_DELETED: facts.audio_deleted and facts.phase != CLEANED,

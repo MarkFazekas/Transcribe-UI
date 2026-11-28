@@ -8,12 +8,11 @@ from transcribe_contracts.classes import BatchId
 from transcribe_ui.api.base import FrozenModel, check_distinct
 from transcribe_ui.batches.payloads import CleanupScope, RetryJob
 from transcribe_ui.batches.responses import BatchSummary, OkResponse
-from transcribe_ui.runs.classes import ActivitySource
 from transcribe_ui.upload.responses import UploadOutcome
 
 # The jobs of a retry: at least one, each once.
 type RetryJobs = Annotated[tuple[RetryJob, ...], Field(min_length=1), AfterValidator(check_distinct)]
-# Where `create_retry_batch` left the retry batch: as `run_upload` (`ready`, or `held` during a run),
+# Where `create_retry_batch` left the retry batch: as `run_upload` (`ready`),
 # or `past_upload` when the existing retry batch had already left `uploading` (nothing was done).
 type RetryOutcome = UploadOutcome | Literal["past_upload"]
 
@@ -66,8 +65,6 @@ class CreateRetryBatchResponse(OkResponse):
     deleted_objects: NonNegativeInt
     # The sweep of those objects was put off (see `run_upload`).
     sweep_skipped: bool
-    # The signs of the run that holds the manifest back (`held`; empty otherwise).
-    activity: tuple[ActivitySource, ...] = ()
 
 
 class CleanupCloudResponse(OkResponse):

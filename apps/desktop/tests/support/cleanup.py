@@ -6,8 +6,6 @@ and the batch `transcribed` with the job flags recorded.
 """
 
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
@@ -24,10 +22,10 @@ from transcribe_contracts.layout import batch_prefix, manifest_key
 from transcribe_ui.api.classes import Response
 from transcribe_ui.api.ports import CancelFlag, RequestContext
 from transcribe_ui.batches.payloads import BatchPayload, JobPayload
-from transcribe_ui.runs.cloud import CloudAccess, open_cloud
+from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.state.models import BatchRow, JobRow
 from transcribe_ui.state.store import LocalState
-from transcribe_ui.storage.r2 import R2ObjectStore
+from transcribe_ui.storage.r2 import ObjectStore, R2ObjectStore
 from transcribe_ui.upload.manifest import build_manifest, write_manifest
 
 # Item ids of the seeded source batch (`seed_uploading_batch`).
@@ -51,7 +49,7 @@ def seed_transcribed(
     podcast: ResultStatus = "ok",
 ) -> None:
     """Seed the source batch finished by a run: the film failed, the podcast `ok` (or `podcast`), `_done.json`."""
-    seed_uploading_batch(state, root, manifest_held=False)
+    seed_uploading_batch(state, root)
     for key in seeded_keys(state):
         store.write(key, b"a" * SEEDED_OBJECT_BYTES, "audio/x-matroska")
     with state.session() as session:
@@ -122,13 +120,11 @@ def flags(world: RunsWorld, batch_id: str = FIRST_BATCH_ID) -> tuple[str, bool]:
 
 def patch_store(monkeypatch: pytest.MonkeyPatch, module: str, wrap: StoreWrap) -> None:
     """Make the handlers of `transcribe_ui.cleanup.<module>` use a wrapped object store."""
-    monkeypatch.setattr(f"transcribe_ui.cleanup.{module}.open_cloud", partial(_wrapped_cloud, wrap))
+    monkeypatch.setattr(f"transcribe_ui.cleanup.{module}.open_store", partial(_wrapped_store, wrap))
 
 
-@contextmanager
-def _wrapped_cloud(wrap: StoreWrap, context: RequestContext) -> Iterator[CloudAccess]:
-    with open_cloud(context) as cloud:
-        yield CloudAccess(wrap(cloud.store), cloud.pods)
+def _wrapped_store(wrap: StoreWrap, context: RequestContext) -> ObjectStore:
+    return wrap(open_store(context))
 
 
 def cleanup_pending(world: RunsWorld, batch_id: str = FIRST_BATCH_ID) -> str | None:

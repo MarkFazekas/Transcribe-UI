@@ -7,7 +7,7 @@ missing.
 """
 
 import math
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from typing import NamedTuple
 
 from transcribe_contracts.classes import Manifest, ManifestItem, TranscribeJob
@@ -33,8 +33,8 @@ type ScopeEntry = ScopeBatch | UnreadableManifest | FinishedBatch | None
 class LocalBatches(NamedTuple):
     """What this database says about the batches in R2."""
 
-    # Every batch id it knows.
-    known: frozenset[str]
+    # Whether a manifest (batch id, bytes) is this database's batch (`upload/leftover.py` `is_known`).
+    known: Callable[[str, bytes], bool]
     # Batch id -> digest of its leftover manifest that a pending withdrawal will delete.
     withdrawing: Mapping[str, str]
 
@@ -53,7 +53,8 @@ class PublishedView(NamedTuple):
 def published_batches(store: ObjectStore, local: LocalBatches) -> PublishedView:
     """Return the pending batches in R2, the unreadable objects under `batch_metadata/` and the finished batches.
 
-    A leftover manifest a pending withdrawal will delete (same digest) counts as absent.
+    A leftover manifest a pending withdrawal will delete (same digest) counts as absent, and so
+    does one deleted since the listing.
 
     Raises:
         StorageError: R2 could not be listed or read.
@@ -66,7 +67,7 @@ def published_batches(store: ObjectStore, local: LocalBatches) -> PublishedView:
     return PublishedView(batches, unreadable, finished)
 
 
-def scope_batch(manifest: Manifest, finished: Collection[str], *, known: bool, held: bool) -> ScopeBatch:
+def scope_batch(manifest: Manifest, finished: Collection[str], *, known: bool) -> ScopeBatch:
     """Return the manifest's batch with its jobs whose result JSON is not among `finished` (keys)."""
     done = frozenset(finished)
     pending: list[PendingJob] = []
@@ -75,7 +76,6 @@ def scope_batch(manifest: Manifest, finished: Collection[str], *, known: bool, h
     return ScopeBatch(
         batch_id=manifest.batch_id,
         known=known,
-        held=held,
         files=len(manifest.items),
         pending_jobs=tuple(pending),
         pending_duration_s=total_duration(job.duration_s for job in pending),
@@ -105,29 +105,24 @@ def _published_entry(store: ObjectStore, key: str, local: LocalBatches) -> Scope
     batch_id = batch_id_from_manifest_key(key)
     if batch_id is None:
         return UnreadableManifest(key=key, reason="not_a_manifest")
-    if _being_withdrawn(store, key, local.withdrawing.get(batch_id)):
+    body = store.read(key)
+    if body is None or _being_withdrawn(body, local.withdrawing.get(batch_id)):
         return None
     if store.head(done_key(batch_id)) is not None:
         return FinishedBatch(batch_id)
-    manifest = _read_manifest(store, key)
+    manifest = _read_manifest(key, body)
     if not isinstance(manifest, Manifest):
         return manifest
     finished = [found.key for found in store.list_objects(results_prefix(batch_id))]
-    return scope_batch(manifest, finished, known=batch_id in local.known, held=False)
+    return scope_batch(manifest, finished, known=local.known(batch_id, body))
 
 
-def _being_withdrawn(store: ObjectStore, key: str, digest: str | None) -> bool:
-    if digest is None:
-        return False
-    body = store.read(key)
-    return body is not None and manifest_digest(body) == digest
+def _being_withdrawn(body: bytes, digest: str | None) -> bool:
+    return digest is not None and manifest_digest(body) == digest
 
 
-def _read_manifest(store: ObjectStore, key: str) -> Manifest | UnreadableManifest | None:
-    """Return the manifest, why it is unreadable, or None if it was deleted since the listing."""
-    body = store.read(key)
-    if body is None:
-        return None
+def _read_manifest(key: str, body: bytes) -> Manifest | UnreadableManifest:
+    """Return the manifest, or why it is unreadable."""
     try:
         return read_manifest(key, body)
     except UnsupportedSchemaError:

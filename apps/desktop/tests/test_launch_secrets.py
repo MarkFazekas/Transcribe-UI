@@ -7,14 +7,14 @@ import pytest
 
 from support.credentials import NEVER_SHOWN, TEST_SECRET
 from support.launch import CANCEL, LAUNCH, PLAN, RECONCILE, launch_run, plan_fingerprint, send, set_up_cloud
-from support.runs import OTHER_RUN_ID, RunsWorld, app_pod_name, seed_uploaded
+from support.runs import OTHER_RUN_ID, RunsWorld, app_pod_name, seed_ready
 
 
 @pytest.mark.usefixtures("no_credential_logs")
 def test_no_secret_in_responses_or_logs(runs_world: RunsWorld) -> None:
     """Plan, launch (asked and confirmed), reconcile and cancel answer without any credential."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     env = {"R2_SECRET_ACCESS_KEY": TEST_SECRET}
     pods = runs_world.cloud.api.pods
     pods.add(app_pod_name(OTHER_RUN_ID, runs_world.now()), status="EXITED", env=env)

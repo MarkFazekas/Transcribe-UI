@@ -3,7 +3,8 @@
 The request's batch id is a `BatchId` (the R2 layout's pattern, checked when the request is read).
 Before anything is deleted, `batch_metadata/<id>.json` must read as a manifest through
 `reading.read_manifest`: the prefix is then a published batch, not, say, another computer's upload
-in progress. Only `everything` is possible (one confirmation), refused while a run is active;
+in progress. Only `everything` is possible (one confirmation), refused while a live run lease
+lists the batch;
 the deletes run with the manifest last (`cleanup/stages.py`), so an interrupted cleanup is
 resumed by repeating it.
 """
@@ -17,8 +18,8 @@ from transcribe_ui.cleanup.classes import CleanupCloudRequest, CleanupCloudRespo
 from transcribe_ui.cleanup.constants import CONFIRM_FIELD, CONFIRMATION_UNKNOWN_BATCH
 from transcribe_ui.cleanup.manifests import read_unknown_manifest
 from transcribe_ui.cleanup.stages import Purge, delete_unknown
-from transcribe_ui.runs.cloud import open_cloud
-from transcribe_ui.runs.guards import require_no_run
+from transcribe_ui.runs.cloud import open_store
+from transcribe_ui.runs.leases import refuse_if_leased
 from transcribe_ui.state.errors import BatchNotFoundError
 
 if TYPE_CHECKING:
@@ -33,20 +34,19 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
     Raises:
         BatchNotFoundError: The scope is `audio`, or R2 has no manifest under the id either.
         ManifestUnreadableError: The manifest cannot be read (nothing was deleted).
-        RunActiveError: A run is active (nothing was deleted).
-        ActivityUnknownError: The run activity cannot be checked (nothing was deleted).
+        RunActiveError: A live run lease lists the batch (nothing was deleted).
         DomainError: R2 failed or the request was cancelled; repeating it resumes.
     """
     batch_id = request.batch_id
     if request.scope != "everything":
         raise BatchNotFoundError(batch_id)
-    with open_cloud(context) as cloud:
-        manifest = read_unknown_manifest(cloud.store, batch_id)
-        if not request.confirm:
-            return _confirmation(request, manifest)
-        require_no_run(context, cloud)
-        purge = Purge(cloud.store, context, request.action)
-        aborted = delete_unknown(purge, batch_id)
+    store = open_store(context)
+    manifest = read_unknown_manifest(store, batch_id)
+    if not request.confirm:
+        return _confirmation(request, manifest)
+    refuse_if_leased(store, batch_id, context.ports.clock.now())
+    purge = Purge(store, context, request.action)
+    aborted = delete_unknown(purge, batch_id)
     return CleanupCloudResponse(
         batch_id=batch_id,
         scope=request.scope,

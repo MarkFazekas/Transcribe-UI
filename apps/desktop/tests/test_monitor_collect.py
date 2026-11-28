@@ -10,7 +10,7 @@ import pytest
 
 from support.launch import TERMINATE, launch_run, ok_as, pods_of, run_row, send, set_up_cloud
 from support.monitor import WORKER_LOG, FailingDeletes, end_pod, refresh, run_objects, write_log, write_status
-from support.runs import RunsWorld, seed_uploaded, set_run_status
+from support.runs import RunsWorld, seed_ready, set_run_status
 from transcribe_ui.runs.collect import collect_run_objects
 from transcribe_ui.runs.responses import TerminatePodResponse
 from transcribe_ui.runs.worker_logs import worker_log_path
@@ -24,9 +24,9 @@ STRAGGLER_LOG = "straggler started\n"
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

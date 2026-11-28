@@ -27,7 +27,6 @@ def insert_retry(session: Session, new: NewBatch, plan: RetryPlan, ids: IdSource
         BatchRow(
             batch_id=new.batch_id,
             phase=UPLOADING_BATCH,
-            manifest_held=False,
             audio_deleted=False,
             hidden=False,
             created_at=new.now,

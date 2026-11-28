@@ -11,6 +11,7 @@ from typing import NamedTuple
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.errors import RunNotFoundError
 from transcribe_ui.runs.payloads import RunPayload
@@ -118,6 +119,12 @@ def update_run(
         row.updated_at = now
         session.flush()
         return run_info(row)
+
+
+def note_key_missing(state: LocalState, now: datetime) -> None:
+    """Record on every open run that it cannot be followed: no Runpod key is set (`credentials_missing`)."""
+    for run in open_runs(state):
+        update_run(state, run.run_id, now, changes={"stop_error": ERROR_CREDENTIALS_MISSING})
 
 
 def run_statuses(state: LocalState) -> dict[str, str]:

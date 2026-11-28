@@ -899,7 +899,7 @@
     },
     "RefreshStatusRequest": {
       "additionalProperties": false,
-      "description": "Follow the runs that are not final, look for results of `ready` batches, publish held manifests.\n\nPast its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is\nended, its `runs/<run_id>/` objects kept locally and deleted.",
+      "description": "Follow the runs that are not final (with a Runpod key) and look for results of `ready` batches.\n\nPast its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is\nended, its `runs/<run_id>/` objects kept locally and deleted.",
       "properties": {
         "action": {
           "const": "refresh_status",

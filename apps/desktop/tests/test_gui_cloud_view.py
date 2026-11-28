@@ -65,7 +65,7 @@ class HeldUploads:
 
 @pytest.fixture
 def world(tmp_path: Path) -> Iterator[CloudWorld]:
-    """Return a launch leg: the held batch and another computer's job wait."""
+    """Return a launch leg: the published batch and another computer's job wait."""
     with cloud_world(tmp_path) as created:
         yield created
 

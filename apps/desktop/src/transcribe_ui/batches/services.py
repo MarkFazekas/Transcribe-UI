@@ -62,7 +62,6 @@ def create_batch(request: CreateBatchRequest, context: RequestContext) -> Create
         row = BatchRow(
             batch_id=batch_id,
             phase=COMPOSING,
-            manifest_held=False,
             audio_deleted=False,
             hidden=False,
             created_at=now,

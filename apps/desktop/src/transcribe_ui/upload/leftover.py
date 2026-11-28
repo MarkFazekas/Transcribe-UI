@@ -5,6 +5,10 @@ this database built (the one a pending withdrawal recorded, or the one the curre
 gives), or when it reads as a manifest with the batch's own `created_at` and `scan_root` (the
 same batch written from an earlier state). Another computer's batch with the same id has
 another creation time, so it is never taken for ours.
+
+The same recognition decides which batches in R2 count as this database's (`known`,
+architecture §3.9 "Known batches"): the launch scope, `list_cloud_batches` and the cleanup of
+unknown batches use `is_known`.
 """
 
 import hashlib
@@ -18,6 +22,7 @@ from transcribe_contracts.layout import manifest_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.batches.payloads import BatchPayload, PendingWithdrawal
 from transcribe_ui.batches.phases import load_batch
+from transcribe_ui.state.models import BatchRow
 from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
 from transcribe_ui.upload.manifest import build_manifest, manifest_body, withdrawing_batch_ids
 
@@ -50,6 +55,13 @@ class OwnManifest:
         except ContractError:
             return False
         return (manifest.created_at, manifest.scan_root) == (self.created_at, self.scan_root)
+
+
+def is_known(session: Session, batch_id: str, body: bytes) -> bool:
+    """Return whether the manifest in R2 is this database's batch: its id is here and the manifest is recognised as ours."""
+    if session.get(BatchRow, batch_id) is None:
+        return False
+    return own_manifest(session, batch_id).owns(body)
 
 
 def own_manifest(session: Session, batch_id: str) -> OwnManifest:

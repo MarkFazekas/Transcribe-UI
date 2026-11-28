@@ -6,8 +6,7 @@
     "runs": [],
     "batches": [],
     "busy": [],
-    "published": [],
-    "held": []
+    "awaiting_results": false
   },
   "events": []
 }

@@ -12,22 +12,18 @@ from transcribe_ui.runs.classes import LaunchPlan, ScopeBatch
 from transcribe_ui.runs.estimate import job_runtime_s, weighted_duration
 from transcribe_ui.runs.manifests import total_duration
 from transcribe_ui.runs.payloads import RunPayload
-from transcribe_ui.upload.classes import HeldPublication
 
 
 @dataclass(frozen=True)
 class Decided:
-    """What a launch was decided on: the plan, the cloud setup and the held manifests just published."""
+    """What a launch was decided on: the plan and the cloud setup."""
 
     plan: LaunchPlan
     setup: CloudSetup
-    published: HeldPublication
 
     def covered(self) -> tuple[str, ...]:
-        """Return the batches the run covers: the scope, less held ones that stay held (busy)."""
-        still_held = {*self.published.busy, *self.published.incomplete}
-        scope = self.plan.scope.batches
-        return tuple(batch.batch_id for batch in scope if _covered(batch, still_held))
+        """Return the batches the run covers (its lease lists them): the scope's."""
+        return tuple(batch.batch_id for batch in self.plan.scope.batches)
 
     def run_payload(self, named: "NamedRun", *, wait_s: int, test_mode: bool) -> RunPayload:
         """Return the payload of the run launched on this decision under that name."""
@@ -62,10 +58,6 @@ class Decided:
         covered = frozenset(self.covered())
         of_run = [batch for batch in self.plan.scope.batches if batch.batch_id in covered]
         return [batch for batch in of_run if batch.known == known]
-
-
-def _covered(batch: ScopeBatch, still_held: set[str]) -> bool:
-    return not batch.held or batch.batch_id not in still_held
 
 
 class NamedRun(NamedTuple):

@@ -54,8 +54,7 @@ class RunActions(ViewModel):
         """Follow a run the start dialog launched: poll from now on, show it, reload the jobs it covers."""
         self._poll.start()
         self._runs.announce()
-        covered = (*response.run.covered_batch_ids, *response.published)
-        self._outlet.emit(BATCHES_CHANGED_SIGNAL, tuple(dict.fromkeys(covered)))
+        self._outlet.emit(BATCHES_CHANGED_SIGNAL, response.run.covered_batch_ids)
 
     def _stopped(self, covered: tuple[str, ...], response: Response) -> None:
         # A failed stop may have recorded a pod or ended the run before it failed: reload either way.

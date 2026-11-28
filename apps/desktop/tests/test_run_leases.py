@@ -30,7 +30,7 @@ from support.launch import (
 )
 from support.monitor import end_pod, refresh, refreshed_run, write_status
 from support.runpod_api import Failure
-from support.runs import JSON_TYPE, OTHER_RUN_ID, RUN_ID, RunsWorld, seed_uploaded
+from support.runs import JSON_TYPE, OTHER_RUN_ID, RUN_ID, RunsWorld, seed_ready
 from transcribe_contracts.classes import RunLease
 from transcribe_contracts.layout import run_lease_key
 from transcribe_contracts.reading import read_run_lease
@@ -54,7 +54,7 @@ OTHER_BATCHES = ("batch_20260101_090000",)
 def world(runs_world: RunsWorld) -> RunsWorld:
     """The cloud set up and the seeded batch uploaded (the launch publishes its manifest)."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

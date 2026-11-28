@@ -4,6 +4,7 @@ import contextlib
 import itertools
 import json
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -15,11 +16,12 @@ from support.confirm import confirmed_document
 from support.credentials import moto_bucket
 from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import FOREIGN_BATCH_ID, ok_as, write_foreign
-from support.runs import JSON_TYPE, RunsWorld, seed_run
+from support.runs import JSON_TYPE, RUN_ID, RunsWorld
 from support.upload import upload_world
 from transcribe_contracts.layout import audio_key, done_key, manifest_key, result_json_key
 from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.cleanup.classes import CleanupCloudResponse
+from transcribe_ui.runs.leases import write_lease
 
 # Objects of the other computer's batch: manifest, audio, result and `_done.json`.
 FOREIGN_OBJECTS = 4
@@ -78,11 +80,11 @@ def test_unknown_batch_with_an_invalid_id_is_refused(world: RunsWorld, batch_id:
 
 
 def test_unknown_batch_refusals(world: RunsWorld) -> None:
-    """Only `everything`, and not during a run; a batch nobody has is `batch_not_found`."""
+    """Only `everything`, and not while a run's lease lists it; a batch nobody has is `batch_not_found`."""
     kept = _seed_foreign(world)
     audio = cleanup_document(AUDIO, FOREIGN_BATCH_ID, confirm=True)
     assert error_code(send(world, audio)) == "batch_not_found"
-    seed_run(world, "queued")
+    write_lease(world.store, RUN_ID, (FOREIGN_BATCH_ID,), world.now() + timedelta(hours=1))
     assert error_code(send(world, _foreign(confirm=True))) == "run_active"
     assert keys_under(world.store, FOREIGN_BATCH_ID) == kept
     missing = cleanup_document(EVERYTHING, MISSING_BATCH_ID, confirm=True)

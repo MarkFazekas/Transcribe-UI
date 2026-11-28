@@ -1,4 +1,4 @@
-"""`refresh_status` (plan m5 M5.12): held manifests, run objects, `launching` runs, failing closed."""
+"""`refresh_status` (plan m5 M5.12): awaited results, run objects, `launching` runs, failing closed."""
 
 import shutil
 from datetime import timedelta
@@ -9,7 +9,7 @@ from support.launch import PODS, POST, error_code, launch_run, pods_of, run_row,
 from support.launch_seed import seed_audio_batch
 from support.monitor import end_pod, progress_of, refresh, refreshed_run, run_objects, write_log, write_status
 from support.runpod_api import Failure
-from support.runs import HELD, OTHER_RUN_ID, OUTAGE, READY, RunsWorld, app_pod_name, batch_state, seed_uploaded
+from support.runs import OUTAGE, READY, RunsWorld, batch_state, seed_ready
 from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE
 from transcribe_ui.runs.worker_logs import worker_log_path
 
@@ -26,43 +26,24 @@ WORKER_OBJECTS = 2
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 
-def test_held_manifest_published_after_the_run(world: RunsWorld) -> None:
-    """A manifest held during the run is published by the refresh that sees the run end."""
-    run_id = launch_run(world).run_id
-    seed_audio_batch(world, OTHER_BATCH_ID, OTHER_ITEM_ID)
-    assert world.step(OTHER_BATCH_ID).outcome == "held"
-    during = refresh(world)
-    assert (during.held, during.published, batch_state(world, OTHER_BATCH_ID)) == ((OTHER_BATCH_ID,), (), HELD)
-    write_status(world.store, run_id, "finished", world.now(), done_jobs=2)
-    end_pod(world, pods_of(world)[0][0])
-    after = refresh(world)
-    assert (progress_of(after, run_id).run.status, after.published, after.held) == (
-        "finished",
-        (OTHER_BATCH_ID,),
-        (),
-    )
-    assert batch_state(world, OTHER_BATCH_ID) == READY
-
-
-def test_held_while_a_straggler_runs(world: RunsWorld) -> None:
-    """With no local run open, a straggler pod still keeps a held manifest back."""
+def test_batch_published_during_a_run_stays_awaited(world: RunsWorld) -> None:
+    """A batch published during a run is not in its lease: still `ready` and awaited after the run ends."""
     run_id = launch_run(world).run_id
     seed_audio_batch(world, OTHER_BATCH_ID, OTHER_ITEM_ID)
     world.step(OTHER_BATCH_ID)
+    during = refresh(world)
+    assert (during.awaiting_results, batch_state(world, OTHER_BATCH_ID)) == (True, READY)
+    write_status(world.store, run_id, "finished", world.now(), done_jobs=2)
     end_pod(world, pods_of(world)[0][0])
-    world.cloud.api.pods.add(app_pod_name(OTHER_RUN_ID, world.now()))
     after = refresh(world)
-    assert (progress_of(after, run_id).run.status, after.published, after.held) == (
-        "failed",
-        (),
-        (OTHER_BATCH_ID,),
-    )
+    assert (progress_of(after, run_id).run.status, after.awaiting_results) == ("finished", True)
+    assert batch_state(world, OTHER_BATCH_ID) == READY
 
 
 def test_run_objects_kept_until_collected(world: RunsWorld) -> None:

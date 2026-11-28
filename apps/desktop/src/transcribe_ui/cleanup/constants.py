@@ -19,8 +19,6 @@ RETRY_ID_ATTEMPTS: Final = 10
 AUDIO_PHASES: Final = frozenset(("ready", "transcribed", "downloaded"))
 # Batch phases from which the `everything` scope deletes all of a batch's cloud data (`cleaned`: again).
 EVERYTHING_PHASES: Final = frozenset(("uploading", "ready", "transcribed", "downloaded", CLEANED))
-# Batch phases whose manifest is published: their cleanup needs no active run, whatever R2 shows.
-PUBLISHED_PHASES: Final = frozenset(("ready", "transcribed", "downloaded"))
 # Batch phases whose results may not be downloaded yet: `everything` needs a second confirmation.
 NOT_DOWNLOADED_PHASES: Final = frozenset(("ready", "transcribed"))
 # Request field that confirms a cleanup.

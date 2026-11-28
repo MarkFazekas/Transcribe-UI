@@ -86,8 +86,6 @@ class ScopeBatch(FrozenModel):
     batch_id: str
     # Whether this database knows the batch (a batch of another computer is unknown).
     known: bool
-    # Whether its manifest is still held back locally (published by `launch_worker` before the run).
-    held: bool
     # Files (manifest items) of the batch.
     files: NonNegativeInt
     pending_jobs: tuple[PendingJob, ...]
@@ -102,7 +100,7 @@ class UnreadableManifest(FrozenModel):
 
 
 class LaunchScope(FrozenModel):
-    """What the next worker run would process: every manifest without `_done.json`, plus held ones."""
+    """What the next worker run would process (its lease lists the batches): every manifest without `_done.json`."""
 
     # By batch id.
     batches: tuple[ScopeBatch, ...]
@@ -177,7 +175,7 @@ class LaunchWorkerRequest(FrozenModel):
 
 
 class RefreshStatusRequest(FrozenModel):
-    """Follow the runs that are not final, look for results of `ready` batches, publish held manifests.
+    """Follow the runs that are not final (with a Runpod key) and look for results of `ready` batches.
 
     Past its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is
     ended, its `runs/<run_id>/` objects kept locally and deleted.

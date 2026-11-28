@@ -15,8 +15,8 @@ from transcribe_ui.storage.r2 import ObjectStore
 def forget_uploads(session: Session, batch_id: str, item_ids: Collection[str]) -> None:
     """Delete the items' `audio_objects` and `extracted_subtitles` rows (only rows of the batch).
 
-    Done in the transaction that clears `manifest_held`, before any object is deleted: a held
-    manifest is then never published with audio that is gone; the objects an interruption
+    Done in the transaction that changes the batch, before any object is deleted: a manifest built
+    later never lists audio that is gone; the objects an interruption
     leaves behind stay under the item's audio prefix until something deletes that prefix.
     """
     wanted = list(item_ids)

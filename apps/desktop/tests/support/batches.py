@@ -163,7 +163,7 @@ def item_ids(exchange: Exchange) -> dict[str, str]:
     return {member["name"]: member["item_id"] for member in found}
 
 
-def seed_uploading_batch(state: LocalState, root: Path, *, manifest_held: bool = True) -> dict[str, str]:
+def seed_uploading_batch(state: LocalState, root: Path) -> dict[str, str]:
     """Store a batch in `uploading` with `FILM` and `PODCAST` uploaded; return file name -> item id.
 
     Each item has one recorded audio object; the caller uploads the objects if it needs them.
@@ -176,7 +176,6 @@ def seed_uploading_batch(state: LocalState, root: Path, *, manifest_held: bool =
             BatchRow(
                 batch_id=FIRST_BATCH_ID,
                 phase="uploading",
-                manifest_held=manifest_held,
                 audio_deleted=False,
                 hidden=False,
                 created_at=FIXED_NOW,

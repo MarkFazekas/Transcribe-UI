@@ -63,8 +63,7 @@
       }
     ],
     "busy": [],
-    "published": [],
-    "held": []
+    "awaiting_results": true
   },
   "events": []
 }

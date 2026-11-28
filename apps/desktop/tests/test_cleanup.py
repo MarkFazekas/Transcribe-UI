@@ -3,6 +3,7 @@
 import contextlib
 import itertools
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -28,15 +29,18 @@ from support.confirm import confirmed_document
 from support.credentials import TEST_BUCKET, moto_bucket
 from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import PLAN, document, ok_as
-from support.runs import RUN_ID, RunsWorld, seed_run, seed_uploaded
+from support.runs import RUN_ID, RunsWorld, seed_uploaded
 from support.upload import open_uploads, set_phase, temp_files, upload_world
 from transcribe_contracts.layout import done_key, manifest_key
 from transcribe_ui.api.classes import NeedsConfirmation, Response
 from transcribe_ui.cleanup.classes import CleanupCloudResponse
+from transcribe_ui.runs.leases import write_lease
 from transcribe_ui.state.models import JobRow
 from transcribe_ui.upload.manifest import build_manifest, write_manifest
 from transcribe_ui.upload.temp import temp_dir
 
+# Another batch a live run's lease lists.
+OTHER_BATCH_ID = "batch_20260101_090000"
 # Objects of the seeded source batch: two audio objects, the manifest, `_done.json`, two results of two objects.
 SOURCE_OBJECTS = 8
 # Audio objects of the seeded source batch.
@@ -102,9 +106,14 @@ def test_audio_cleanup_waits_for_every_result(tmp_path: Path) -> None:
         assert len(keys_under(world.store)) == SOURCE_OBJECTS
 
 
+def _lease(world: RunsWorld, *batch_ids: str) -> None:
+    """Write the live lease of a run (`RUN_ID`) listing the batches."""
+    write_lease(world.store, RUN_ID, batch_ids, world.now() + timedelta(hours=1))
+
+
 def test_cleanup_refused_during_an_active_run(world: RunsWorld) -> None:
-    """A published batch cannot be cleaned up while a run is active: `run_active`, nothing changes."""
-    seed_run(world, "running")
+    """A batch a live run lease lists cannot be cleaned up: `run_active`, nothing changes."""
+    _lease(world, FIRST_BATCH_ID)
     for scope in (AUDIO, EVERYTHING):
         code, details = error_of(send(world, confirmed(scope)))
         assert (code, details["run_ids"]) == ("run_active", [RUN_ID])
@@ -114,19 +123,19 @@ def test_cleanup_refused_during_an_active_run(world: RunsWorld) -> None:
 
 @pytest.fixture
 def uploading(tmp_path: Path) -> Iterator[RunsWorld]:
-    """An `uploading` batch with its audio in the bucket, an open multipart upload, a temp file and a run active."""
+    """An `uploading` batch with its audio in the bucket, an open multipart upload, a temp file, and a run active on another batch."""
     with moto_bucket(), upload_world(tmp_path / "leg") as created:
         seed_uploaded(created)
         shared_client().create_multipart_upload(Bucket=TEST_BUCKET, Key=f"{FIRST_BATCH_ID}/audio/partial.mka")
         folder = temp_dir(created.ports.state.paths, FIRST_BATCH_ID)
         folder.mkdir(parents=True)
         (folder / "left.a1.mka").write_bytes(b"partial")
-        seed_run(created, "running")
+        _lease(created, OTHER_BATCH_ID)
         yield created
 
 
 def test_uploading_batch_is_cleaned_up_during_a_run(uploading: RunsWorld) -> None:
-    """No manifest, so no worker sees it: allowed during a run; uploads aborted, objects and temp file gone."""
+    """No lease lists it, so no worker sees it: allowed during a run; uploads aborted, objects and temp file gone."""
     assert _fields(send(uploading, cleanup_document(EVERYTHING))) == ["confirm"]
     cleaned = _cleaned(uploading, cleanup_document(EVERYTHING, confirm=True))
     assert (cleaned.aborted_uploads, cleaned.deleted_objects) == (1, SOURCE_AUDIO)
@@ -136,17 +145,19 @@ def test_uploading_batch_is_cleaned_up_during_a_run(uploading: RunsWorld) -> Non
 
 
 def test_leftover_manifest_waits_for_the_run(uploading: RunsWorld) -> None:
-    """A manifest left in R2 by an interrupted manifest step may be read by the run: `run_active`."""
+    """A manifest left in R2 by an interrupted manifest step that a run's lease lists: `run_active`."""
     with uploading.ports.state.session() as session:
         write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID))
+    _lease(uploading, FIRST_BATCH_ID)
     assert error_code(send(uploading, cleanup_document(EVERYTHING, confirm=True))) == "run_active"
     assert (flags(uploading), open_uploads()) == (("uploading", False), 1)
 
 
 def test_cleaned_batch_with_a_leftover_manifest_waits(uploading: RunsWorld) -> None:
-    """A batch already `cleaned` whose manifest is still in R2 (an interrupted cleanup): `run_active`."""
+    """A batch already `cleaned` whose manifest is still in R2 (an interrupted cleanup), listed by a run: `run_active`."""
     with uploading.ports.state.session() as session:
         write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID))
+    _lease(uploading, FIRST_BATCH_ID)
     set_phase(uploading, "cleaned")
     assert error_code(send(uploading, confirmed(EVERYTHING))) == "run_active"
     assert manifest_key(FIRST_BATCH_ID) in keys_under(uploading.store)

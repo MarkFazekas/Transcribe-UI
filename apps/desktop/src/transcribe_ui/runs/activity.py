@@ -1,7 +1,7 @@
 """The run-activity check (plan m5 §1 "Run activity"): is a worker run active right now?
 
-Used by `launch_worker`, `cleanup_cloud`, the manifest step and `publish_held_manifests`,
-always under the runs lock. A run is active when any of these holds:
+Used only by `launch_worker` (one run at a time), under the runs lock; cleanup and withdrawals
+use the per-batch lease check instead (`runs/leases.py`), which needs no Runpod key. A run is active when any of these holds:
 
 - a local run is not final (`launching`, `queued`, `running`, or a status this version does not
   know);

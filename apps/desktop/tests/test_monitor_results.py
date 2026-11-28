@@ -6,7 +6,7 @@ from support.batches import FIRST_BATCH_ID
 from support.launch import launch_run, pods_of, run_ids, set_up_cloud
 from support.launch_seed import seed_audio_batch
 from support.monitor import end_pod, job_statuses, progress_of, refresh, write_done, write_result
-from support.runs import READY, RunsWorld, batch_state, seed_uploaded
+from support.runs import READY, RunsWorld, batch_state, seed_ready
 from transcribe_contracts.layout import manifest_key, result_json_key
 from transcribe_ui.state.models import BatchRow
 
@@ -18,14 +18,14 @@ OTHER_ITEM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ03"
 FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
 PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
 # Batch state of a batch that has its `_done.json`.
-TRANSCRIBED = ("transcribed", False, True)
+TRANSCRIBED = ("transcribed", True)
 
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

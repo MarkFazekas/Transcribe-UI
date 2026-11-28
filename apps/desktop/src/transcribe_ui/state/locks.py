@@ -157,7 +157,7 @@ class LockRegistry:
     def try_batch(self, batch_id: str) -> Iterator[bool]:
         """Hold the batch's lock while the block runs if it is free; yield whether it was taken.
 
-        For work that skips a busy batch instead of failing (`publish_held_manifests`).
+        For work that skips a busy batch instead of failing (`refresh_status` checking the `ready` batches).
         """
         self._check_order()
         with self._guard:

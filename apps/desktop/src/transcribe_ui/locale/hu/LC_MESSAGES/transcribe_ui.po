@@ -2666,10 +2666,6 @@ msgstr "Feltöltés: {state}"
 msgid "Uploaded"
 msgstr "Feltöltve"
 
-#: src/transcribe_ui/i18n/state_texts.py
-msgid "Uploaded; the transcription starts with the next run"
-msgstr "Feltöltve; az átírás a következő futással indul"
-
 #: src/transcribe_ui/i18n/code_texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Uploading"
 msgstr "Feltöltés"

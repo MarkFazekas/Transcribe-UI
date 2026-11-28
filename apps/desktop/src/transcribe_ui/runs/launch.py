@@ -1,12 +1,11 @@
 """`launch_worker`: start one worker for every pending manifest (architecture §3.7).
 
-Everything runs under the runs lock, so no manifest step, cleanup or other launch can change the
-run activity or the scope in between: an interrupted cloud cleanup refuses (`cleanup_pending`), as
-does the activity check (a live run or straggler), then the
-cloud setup check, the plan and its fingerprint (a plan other than the confirmed one asks for
-confirmation again), `publish_held_manifests` (which also finishes pending withdrawals of leftover
-manifests; one left pending because its batch is busy refuses the launch), the run row (committed
-before the pod request), the run's lease (`runs/<run_id>/launch.json`: the covered batches, which
+Everything runs under the runs lock, so no cleanup, withdrawal or other launch of this computer
+can change the run activity or the scope in between: an interrupted cloud cleanup refuses
+(`cleanup_pending`), as does the activity check (a live run, a straggler, another computer's
+live lease), then the cloud setup check, the plan and its fingerprint (a plan other than the
+confirmed one asks for confirmation again), the run row (committed before the pod request), the
+run's lease (`runs/<run_id>/launch.json`: the covered batches, which
 the worker alone processes; a failed write makes the run `launch_failed` before anything is
 created) and the single `POST /pods`. No database transaction is open across a
 Runpod or R2 call.
@@ -21,7 +20,7 @@ from transcribe_ui.runpod.inventory import require_cloud_setup
 from transcribe_ui.runs.classes import LaunchWorkerRequest
 from transcribe_ui.runs.cloud import open_cloud_client
 from transcribe_ui.runs.errors import NothingToLaunchError
-from transcribe_ui.runs.guards import publish_before_launch, require_no_pending_cleanup, require_no_run
+from transcribe_ui.runs.guards import require_no_pending_cleanup, require_no_run
 from transcribe_ui.runs.lease_release import releasing_leases
 from transcribe_ui.runs.planning import confirmation, current_plan
 from transcribe_ui.runs.pod_body import Decided, NewRun, create_body, name_run
@@ -39,8 +38,6 @@ def launch_worker(request: LaunchWorkerRequest, context: RequestContext) -> Laun
         CleanupPendingError: A cloud cleanup was interrupted; it must be repeated first.
         RunActiveError: A run is active or a straggler pod exists (`run_active`; nothing changed).
         ActivityUnknownError: The run activity cannot be checked (`cloud_unreachable`).
-        BatchBusyError: A leftover manifest's withdrawal stays pending (its batch is busy); no
-            run was recorded, re-send.
         DomainError: The cloud setup is missing or outdated, nothing is pending, R2 failed, or
             Runpod refused the pod (the run is then `launch_failed`).
         RunsBusyError: Another request held the runs lock for the whole wait.
@@ -57,8 +54,7 @@ def launch_worker(request: LaunchWorkerRequest, context: RequestContext) -> Laun
         fingerprint = request.confirm_fingerprint
         if fingerprint != plan.fingerprint:
             return confirmation(plan, changed=fingerprint is not None)
-        published = publish_before_launch(context, cloud)
-        return _launch(request, context, client, Decided(plan, setup, published), cloud.store)
+        return _launch(request, context, client, Decided(plan, setup), cloud.store)
 
 
 def _launch(
@@ -80,5 +76,4 @@ def _launch(
         outcome=launched.outcome,
         adopted=launched.adopted,
         run=launched.run,
-        published=decided.published.published,
     )

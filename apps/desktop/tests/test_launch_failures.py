@@ -27,12 +27,11 @@ from support.launch import (
     set_up_cloud,
 )
 from support.runpod_api import Failure, Record
-from support.runs import RunsWorld, seed_uploaded
+from support.runs import RunsWorld, seed_ready
 from transcribe_ui.api.constants import ERROR_CANCELLED, ERROR_INTERNAL
 from transcribe_ui.batches.payloads import PendingWithdrawal
 from transcribe_ui.runpod.constants import QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import ERROR_RUN_ACTIVE, LAUNCH_LOOKUP_GAP_S, LAUNCH_SETTLE_S
-from transcribe_ui.state.constants import ERROR_BATCH_BUSY
 from transcribe_ui.state.models import BatchRow
 
 # Settle time after the pod request, and the gap between the two empty lookups.
@@ -56,9 +55,9 @@ class CancelWhen:
 
 @pytest.fixture
 def ready(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 
@@ -129,17 +128,16 @@ def test_queued_pod_found_ended_after_a_lost_answer(ready: RunsWorld) -> None:
     assert (payload.end_reason, payload.ended_at) == ("queue_ended", ready.now())
 
 
-def test_busy_pending_withdrawal_refuses_the_launch(ready: RunsWorld) -> None:
-    """A leftover manifest's withdrawal left pending (its batch busy): `batch_busy`, no run, no pod."""
+def test_pending_withdrawal_does_not_hold_the_launch(ready: RunsWorld) -> None:
+    """A withdrawal left pending (its batch busy) does not refuse the launch: the scope already leaves its leftover out."""
     pending = PendingWithdrawal(manifest_sha256=NO_DIGEST, item_ids=()).model_dump(mode="json")
     with ready.ports.state.session() as session:
         row = session.get(BatchRow, FIRST_BATCH_ID)
         assert row is not None
         row.pending_withdrawal = pending
     with ready.ports.state.locks.batch(FIRST_BATCH_ID):
-        refused = launch_confirmed(ready)
-    assert (error_code(refused), run_ids(ready), posts(ready)) == (ERROR_BATCH_BUSY, [], 0)
-    assert launch(ready).run.status == "running"
+        launched = launch(ready)
+    assert (launched.run.status, posts(ready)) == ("running", 1)
 
 
 def test_test_mode_needs_its_own_confirmation(ready: RunsWorld) -> None:

@@ -91,7 +91,6 @@ def retry_response(
         copied_objects=report.tally.uploaded,
         deleted_objects=report.deleted or 0,
         sweep_skipped=report.deleted is None,
-        activity=report.finish.activity,
     )
 
 

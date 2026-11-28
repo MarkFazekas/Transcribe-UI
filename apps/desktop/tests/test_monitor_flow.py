@@ -23,7 +23,7 @@ from support.monitor import (
     write_result,
     write_status,
 )
-from support.runs import READY, RunsWorld, batch_state, seed_uploaded
+from support.runs import READY, RunsWorld, batch_state, seed_ready
 from transcribe_contracts.classes import JobRef
 from transcribe_ui.runs.constants import DESKTOP_DEADLINE_MARGIN_S, WAIT_MIN_S
 from transcribe_ui.runs.worker_logs import worker_log_path
@@ -45,9 +45,9 @@ SEEDED_IDS = MappingProxyType({FILM: "01JDZZZZZZZZZZZZZZZZZZZZ01", PODCAST: "01J
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

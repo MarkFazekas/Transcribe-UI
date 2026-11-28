@@ -17,12 +17,10 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
     """Send an item of an `uploading` batch back to review (its source changed, plan m5 §1).
 
     The caller holds the batch lock and not the runs lock. A leftover manifest of ours (an
-    interrupted manifest step) is withdrawn under the runs lock while no run is active
-    (`upload/withdraw.py`); with a run active the request is refused and nothing changes. One
+    interrupted manifest step) is withdrawn under the runs lock while no live run lease lists the
+    batch (`upload/withdraw.py`); while one does the request is refused and nothing changes. One
     transaction sets the item to `reviewing`, deletes its `audio_objects` and
-    `extracted_subtitles` rows, sets its jobs back to pending, clears the batch's
-    `manifest_held` (the held manifest would list the old audio) and records the pending
-    withdrawal; then the withdrawal is carried out and the item's objects are deleted. Objects
+    `extracted_subtitles` rows, sets its jobs back to pending and records the pending withdrawal; then the withdrawal is carried out and the item's objects are deleted. Objects
     an interruption leaves behind stay under the item's audio prefix, unrecorded, where the
     orphan sweep of the next `run_upload` (or the batch's cleanup) removes them. Returns whether a withdrawal
     stays pending (R2 failed after the change was saved; logged, not an error).
@@ -30,8 +28,8 @@ def return_item_to_review(context: RequestContext, batch_id: str, item_id: str) 
     Raises:
         WrongPhaseError: If the batch is not `uploading`.
         ItemNotFoundError: If the item is not an item of the batch.
-        RunActiveError: A leftover manifest is ours and a run is active (nothing changed).
-        ActivityUnknownError: The cloud could not be checked (nothing changed).
+        RunActiveError: A leftover manifest is ours and a live lease lists the batch (nothing changed).
+        StorageError: R2 could not be read (nothing changed).
         CancelledError: If cancelled between two object deletes.
     """
     with context.ports.state.session() as session:
@@ -52,7 +50,7 @@ def _send_back(context: RequestContext, batch_id: str, item_id: str, leftover: s
         of_item = (JobRow.batch_id == batch_id, JobRow.item_id == item_id)
         pending = update(JobRow).where(*of_item).values(status=JOB_PENDING)
         session.execute(pending.execution_options(synchronize_session=False))
-        changes: dict[str, object] = {"manifest_held": False}
+        changes: dict[str, object] = {}
         if leftover is not None:
             changes["pending_withdrawal"] = recorded_withdrawal(session, batch_id, leftover, (item_id,))
         now = context.ports.clock.now()
