@@ -7,12 +7,13 @@ Usage, from the repository root, in the build environment (PyInstaller lists the
 
 The checks run in order on fresh per-user state (a temporary folder for the app's data,
 settings, cache and logs, so none of the machine's own is read or changed) and with `PATH`
-stripped of every folder holding ffmpeg or ffprobe. The exception is the OS keyring:
-`credentials_status` reads the real Windows Credential Manager or macOS Keychain (read only;
-nothing is stored), which has no override. Each prints one line; a summary (sizes, the CLI's cold start) follows and is appended
-to the job summary (`GITHUB_STEP_SUMMARY`). A failing check prints the process output and the
-app's log files. Every process has a timeout, after which it is killed with everything it
-started. `linux-floor` runs only on Linux and needs `--floor-image`; `--skip` leaves a check out
+stripped of every folder holding ffmpeg or ffprobe; `cli-probe` gets only the OS's own folders
+on `PATH` (without one holding ffmpeg or ffprobe), so it passes only with the bundled ffprobe.
+The exception is the OS keyring: `credentials_status` reads the real Windows Credential Manager
+or macOS Keychain (read only; nothing is stored), which has no override. Each prints one line;
+a summary (sizes, the CLI's cold start) follows and is appended to the job summary
+(`GITHUB_STEP_SUMMARY`). A failing check prints the process output and the app's log files.
+Every process has a timeout, after which it is killed with everything it started. `linux-floor` runs only on Linux and needs `--floor-image`; `--skip` leaves a check out
 (for a local run without Docker or Xvfb; CI skips nothing). Exit code 1 if any check failed.
 """
 
@@ -38,6 +39,7 @@ from smoke_desktop_checks import (
     failed,
 )
 from smoke_desktop_floor import FLOOR_CHECK, check_linux_floor
+from smoke_desktop_probe import PROBE_CHECK, ProbeSetup, check_cli_probe, minimal_path
 from smoke_desktop_process import HostLauncher, isolated_environment
 
 # A check, ready to run.
@@ -49,6 +51,7 @@ type Plan = list[tuple[str, Check]]
 CHECKS = (
     "cli-version",
     "cli-database",
+    PROBE_CHECK,
     "cli-help-hu",
     "cli-bundle",
     "gui-bundle",
@@ -70,13 +73,14 @@ VIRTUAL_DISPLAY = ("xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280
 MEGABYTE = 1_000_000
 
 
-def planned_checks(smoke: Smoke, floor_image: str | None, skipped: Sequence[str]) -> Plan:
+def planned_checks(smoke: Smoke, probe: ProbeSetup, floor_image: str | None, skipped: Sequence[str]) -> Plan:
     """Return the checks of this platform in their order, without the skipped ones."""
     native = NATIVE_PLATFORMS[sys.platform]
     on_display = VIRTUAL_DISPLAY if sys.platform == "linux" else ()
     checks: dict[str, Check] = {
         "cli-version": partial(check_cli_version, smoke),
         "cli-database": partial(check_cli_database, smoke),
+        PROBE_CHECK: partial(check_cli_probe, smoke, probe),
         "cli-help-hu": partial(check_cli_help_hu, smoke),
         "cli-bundle": partial(check_bundle, "cli-bundle", smoke.cli, cli_problems),
         "gui-bundle": partial(check_bundle, "gui-bundle", smoke.gui, gui_problems),
@@ -147,7 +151,10 @@ def run_all(executables: Sequence[Path], args: argparse.Namespace) -> list[Outco
     with tempfile.TemporaryDirectory(prefix="transcribe-ui-smoke-", ignore_cleanup_errors=True) as folder:
         state_root = Path(folder)
         smoke = _smoke(executables, args.version, state_root)
-        plan = planned_checks(smoke, args.floor_image, args.skip)
+        media = state_root / "probe-media"
+        media.mkdir()
+        probe = ProbeSetup(media, str(media), minimal_path())
+        plan = planned_checks(smoke, probe, args.floor_image, args.skip)
         outcomes = [run_check(*planned) for planned in plan]
         if not all(outcome.passed for outcome in outcomes):
             print_logs(state_root)
