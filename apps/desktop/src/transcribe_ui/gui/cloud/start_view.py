@@ -119,7 +119,7 @@ class PlanSection(QWidget):
 
     def _ask_delete(self, batch_id: str, *_qt_arguments: object) -> None:
         # After the click returns: the handler may plan again and rebuild the table (and this button).
-        QTimer.singleShot(0, partial(self._on_delete_unknown, batch_id))
+        QTimer.singleShot(0, self, partial(self._on_delete_unknown, batch_id))
 
 
 class StartOptions(QWidget):
@@ -205,9 +205,7 @@ class StartDialog(QDialog):
             if self.isVisible():
                 self.accept()
             return
-        if model.phase != "closed" and not self.isVisible():
-            # Reopened by the model: a Start answered with a changed plan after the dialog closed.
-            self.open()
+        self._show_reopened()
         self._show_phase()
         self.changed_notice.setVisible(model.form.plan_changed)
         self.plan.show_plan(model.form.view)
@@ -242,7 +240,9 @@ class StartDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
         buttons.addButton(self.start_button, QDialogButtonBox.ButtonRole.ActionRole)
         self.start_button.clicked.connect(self.model.start)
-        self.start_button.setDefault(True)
+        # Enter starts only as the default button, never because Start has the focus.
+        self.start_button.setAutoDefault(False)
+        self._close_button = buttons.button(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         return buttons
 
@@ -251,6 +251,15 @@ class StartDialog(QDialog):
         if fix.kind != "retry":
             self.reject()
         self._on_fix(fix)
+
+    def _show_reopened(self) -> None:
+        # Reopened by the model (a Start answered with a changed plan after a close): a stray Enter
+        # must not start a paid machine, so Start is not the default there and Close has the focus.
+        model = self.model
+        self.start_button.setDefault(not model.reopened)
+        if model.reopened and model.phase != "closed" and not self.isVisible():
+            self.open()
+            self._close_button.setFocus()
 
     def _show_phase(self) -> None:
         texts = (_phase_text(self.model.phase), self.model.notice)

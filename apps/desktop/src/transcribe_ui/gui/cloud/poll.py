@@ -10,7 +10,6 @@ The timer is injected, so the poll's timing is tested without sleeping.
 """
 
 from collections.abc import Callable
-from functools import partial
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
@@ -18,6 +17,7 @@ from transcribe_ui.gui.cloud.constants import REFRESH_INTERVAL_MS, RETRYING_CODE
 from transcribe_ui.gui.cloud.display import local_time
 from transcribe_ui.gui.cloud.ports import CloudOutlet, TimerFactory
 from transcribe_ui.gui.cloud.runs import RunList
+from transcribe_ui.gui.constants import CALL_QUEUED, CALL_RUNNING
 from transcribe_ui.gui.executor import Executor, SingleFlightChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.jobs.constants import BATCHES_CHANGED_SIGNAL
@@ -42,6 +42,8 @@ class CloudPoll(ViewModel):
         self._timer = timer(REFRESH_INTERVAL_MS, self._timed)
         # The error of the last check (None after one that succeeded).
         self.error: ErrorView | None = None
+        # `proceed` of the start-up step waiting for the check in flight.
+        self._waiting: list[Proceed] = []
         runs.subscribe(self.follow)
 
     @property
@@ -63,10 +65,13 @@ class CloudPoll(ViewModel):
 
     def tick(self, proceed: Proceed | None = None) -> bool:
         """Check the cloud unless the previous check is still queued or running; return whether one was sent."""
-        request = RefreshStatusRequest(action="refresh_status")
-        answered = partial(self._answered, proceed)
-        if self._channel.send(request, answered, self.changed) is None:
+        if self.checking:
             return False
+        if proceed is not None:
+            # Before the send: an executor may answer inside it.
+            self._waiting.append(proceed)
+        request = RefreshStatusRequest(action="refresh_status")
+        self._channel.send(request, self._answered, self.changed)
         self.changed()
         return True
 
@@ -78,9 +83,9 @@ class CloudPoll(ViewModel):
     def note(self) -> str:
         """Return what the page says about the checks: one running or waiting, or the last one retrying."""
         state = self._channel.state
-        if state == "running":
+        if state == CALL_RUNNING:
             return tr("Checking the cloud...")
-        if state == "queued":
+        if state == CALL_QUEUED:
             return tr("Waiting to check the cloud...")
         if self.error is None or self.error.code not in RETRYING_CODES:
             return ""
@@ -99,7 +104,7 @@ class CloudPoll(ViewModel):
     def _timed(self) -> None:
         self.tick()
 
-    def _answered(self, proceed: Proceed | None, response: Response) -> None:
+    def _answered(self, response: Response) -> None:
         reported: tuple[str, ...] = ()
         if isinstance(response, RefreshStatusResponse):
             self.error = None
@@ -112,5 +117,7 @@ class CloudPoll(ViewModel):
         if reported:
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, reported)
         self.changed()
-        if proceed is not None:
+        waiting = self._waiting
+        self._waiting = []
+        for proceed in waiting:
             proceed()

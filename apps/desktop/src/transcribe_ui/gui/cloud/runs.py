@@ -75,6 +75,7 @@ class RunList(ViewModel):
         """Reload the runs, then tell the other pages that runs changed."""
         self.load()
         self._announcing = True
+        # An `ExitStack` callback: the style checks refuse try/finally without `except` (their rule 501).
         with ExitStack() as reset:
             reset.callback(self._announced)
             self._outlet.emit(RUNS_CHANGED_SIGNAL)

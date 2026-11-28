@@ -33,6 +33,14 @@ def _manual(world: CloudWorld) -> tuple[CloudArea, ManualExecutor]:
     return created, manual
 
 
+def _start(area: CloudArea, manual: ManualExecutor) -> None:
+    """Open the dialog, let it plan, press Start (the launch is held)."""
+    start = area.models.start
+    start.show_dialog()
+    manual.answer(PLAN)
+    start.start()
+
+
 def _down(action: str) -> ErrorResponse:
     return ErrorResponse(action=action, error=ErrorBody(code="cloud_unreachable", message="Down."))
 
@@ -50,9 +58,7 @@ def test_answers_after_the_dialog_closed(world: CloudWorld) -> None:
 
 def _close_while_starting(area: CloudArea, manual: ManualExecutor) -> None:
     start = area.models.start
-    start.show_dialog()
-    manual.answer(PLAN)
-    start.start()
+    _start(area, manual)
     start.close()
     manual.answer(LAUNCH)
     assert (start.phase, area.timers.poll.active, len(manual.pending(LIST))) == ("launched", True, 1)
@@ -64,9 +70,7 @@ def test_a_changed_plan_after_close_reopens_the_dialog(world: CloudWorld) -> Non
     """Closed while starting, a Start answered with a changed plan reopens the dialog with that plan."""
     area, manual = _manual(world)
     start = area.models.start
-    start.show_dialog()
-    manual.answer(PLAN)
-    start.start()
+    _start(area, manual)
     start.close()
     write_foreign(world.store, LATE_BATCH_ID)
     manual.answer(LAUNCH)
@@ -79,16 +83,15 @@ def test_a_reopened_dialog_waits_for_the_earlier_start(world: CloudWorld) -> Non
     """While an earlier Start is in flight, a reopened dialog cannot start; its answer leaves a note, not a close."""
     area, manual = _manual(world)
     start = area.models.start
-    start.show_dialog()
-    manual.answer(PLAN)
-    start.start()
+    _start(area, manual)
     start.close()
     start.show_dialog()
     manual.answer(PLAN)
     assert (start.phase, start.can_start, start.notice) == ("ready", False, "Your earlier Start is still being sent.")
     manual.answer(LAUNCH)
     note = "The cloud machine of your earlier Start is starting; the Cloud page shows it."
-    assert (start.phase, start.notice, area.timers.poll.active) == ("ready", note, True)
+    assert (start.phase, start.notice, area.timers.poll.active) == ("planning", note, True)
+    assert len(manual.pending(PLAN)) == 1, "the plan shown before that run is planned again"
 
 
 def test_retry_after_a_failed_plan_plans_again(world: CloudWorld) -> None:
@@ -107,9 +110,7 @@ def test_retry_after_a_failed_start_starts_again(world: CloudWorld) -> None:
     """Retry after a failed Start sends the launch again."""
     area, manual = _manual(world)
     start = area.models.start
-    start.show_dialog()
-    manual.answer(PLAN)
-    start.start()
+    _start(area, manual)
     manual.answer(LAUNCH, _down(LAUNCH))
     start.retry()
     assert len(manual.pending(LAUNCH)) == 1
@@ -126,3 +127,21 @@ def test_a_check_asked_during_a_check_is_sent_after_it(world: CloudWorld) -> Non
     assert (proceeded, len(manual.pending("reconcile_cloud"))) == ([], 1)
     manual.answer("reconcile_cloud")
     assert proceeded == ["first", "second"]
+
+
+def test_a_second_close_still_reopens_the_dialog(world: CloudWorld) -> None:
+    """Start, close, reopen, close: the first Start answered with a changed plan reopens the dialog and plans."""
+    area, manual = _manual(world)
+    start = area.models.start
+    _start(area, manual)
+    start.close()
+    start.show_dialog()
+    start.close()
+    write_foreign(world.store, LATE_BATCH_ID)
+    manual.answer(LAUNCH)
+    note = "Your earlier Start started nothing, as the work changed; check the plan here."
+    assert (start.phase, start.reopened, start.notice) == ("planning", True, note)
+    manual.answer_all()
+    view = start.form.view
+    assert view is not None
+    assert (start.phase, len(view.batches), start.can_start) == ("ready", 3, True)

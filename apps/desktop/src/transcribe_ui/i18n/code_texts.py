@@ -118,8 +118,8 @@ def confirmation_texts() -> CodeTable:
         ),
         "cancel_worker": _cancel_worker,
         "cancel_queued_pod": tr(
-            "Cancel the queued cloud machine {name} ({status})? Its work stops at once; finished results stay "
-            "in the cloud.",
+            "Stop waiting for the queued cloud machine {name} ({status})? A machine it has started meanwhile is "
+            "stopped too; finished results stay in the cloud.",
         ),
     }
 

@@ -50,6 +50,8 @@ class StartModel(ViewModel):
         self.error: ErrorView | None = None
         # A note about a Start sent from an earlier opening of the dialog, or "".
         self.notice = ""
+        # Whether the model opened the dialog itself (a Start answered with a changed plan after a close).
+        self.reopened = False
         # Which request failed last (Retry sends it again), or None.
         self._failed: StartStep | None = None
         # Each opening of the dialog has its own number; a launch answers the opening it was sent from.
@@ -67,6 +69,7 @@ class StartModel(ViewModel):
         self._opening += 1
         self.form = StartForm()
         self.error = None
+        self.reopened = False
         self.notice = tr("Your earlier Start is still being sent.") if self._launch.busy(LAUNCH_KEY) else ""
         self.phase = "planning"
         self.plan_again()
@@ -84,12 +87,14 @@ class StartModel(ViewModel):
         if test_mode is not None:
             self.form.test_mode = test_mode
         self.error = None
+        self._failed = None
         self.phase = "planning"
         self._plans.send(PLAN_KEY, self.form.plan_request(), self._planned)
         self.changed()
 
     def retry(self) -> None:
         """Send the request that failed again: the launch after a failed Start, else the plan."""
+        self.notice = ""
         if self._failed == "launch" and self.form.plan is not None:
             self.error = None
             self.start()
@@ -103,6 +108,9 @@ class StartModel(ViewModel):
         # Before the send: an executor may answer inside it.
         self.phase = "launching"
         self.error = None
+        self.notice = ""
+        self.reopened = False
+        self._failed = None
         self.changed()
         answered = partial(self._answered, self._opening)
         self._launch.send(LAUNCH_KEY, self.form.launch_request(), answered)
@@ -126,20 +134,23 @@ class StartModel(ViewModel):
                 self.phase = "launched"
             else:
                 self.notice = tr("The cloud machine of your earlier Start is starting; the Cloud page shows it.")
+                # Its plan is covered by that run now.
+                self.plan_again()
             self.changed()
             self._launched(response)
             return
         error = None
         if isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             error = error_view(response)
-            self._failed = "launch"
         asked = isinstance(response, NeedsConfirmation)
         if opening != self._opening or (self.phase == "closed" and not asked):
             self._not_started(error, asked=asked)
             return
         # The Start of this opening (reopened if it was closed: a changed plan asks to confirm again).
+        self.reopened = self.phase == "closed"
         self.phase = "ready"
         self.error = error
+        self._failed = None if error is None else "launch"
         if isinstance(response, NeedsConfirmation):
             changed_plan = asked_plan(response)
             if changed_plan is None:
@@ -149,11 +160,18 @@ class StartModel(ViewModel):
         self.changed()
 
     def _not_started(self, error: ErrorView | None, *, asked: bool) -> None:
-        """A Start from an earlier opening, or from a closed dialog, started nothing: say so."""
+        """A Start from an earlier opening, or from a closed dialog, started nothing: say so.
+
+        An error goes to the window's error dialog. A changed plan plans again here, reopening
+        the dialog when it was closed meanwhile (the user meant to start).
+        """
         self.notice = ""
         if error is not None:
             self._outlet.show_error(error, None)
         elif asked:
-            self.notice = tr("Your earlier Start started nothing, as the work changed; check the plan here.")
+            if self.phase == "closed":
+                self.reopened = True
+                self.phase = "planning"
             self.plan_again()
+            self.notice = tr("Your earlier Start started nothing, as the work changed; check the plan here.")
         self.changed()

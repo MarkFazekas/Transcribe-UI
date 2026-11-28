@@ -487,9 +487,10 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     without its details table (the question names what it stops; the same for the machines'
     stops); Stop runs on the `short` pool, so a full `long` pool never delays it. Every answer
     of a stop except a declined question and `cancelled` reloads the run list, a failed one
-    too (it may have changed the run before it failed). Start transcription is disabled while the shown run is not final. Closing the window
-    never stops a run: the shell reads `GuiContext.run_active` (the run list's) when asked, so
-    the close question adds its cloud note.
+    too (it may have changed the run before it failed). Start transcription is disabled while
+    the shown run is not final. Closing the window never stops a run: the shell reads
+    `GuiContext.run_active` (the run list's) when asked, so the close question adds its cloud
+    note.
   - The start dialog (`start.py`, `start_view.py`; step 3 of the step header): opening it
     plans (`plan_launch`, latest wins); it shows the transcriptions, jobs, audio length, cost
     range with the price per hour (and the fallback price's note), the time limit, one row per
@@ -506,7 +507,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     transcribe and while a Start is in flight. The dialog may be closed while the machine
     starts: the launch's answer still reaches the run list (and starts the poll); a changed
     plan answered then reopens the dialog with that plan (nothing started, and the user meant
-    to start), an error opens the error dialog. A reopened dialog shows a note while an
+    to start; there Start is not the default button and Close has the focus, so a stray Enter
+    starts nothing), an error opens the error dialog; a reopened dialog that is closed again
+    is reopened the same way. A reopened dialog shows a note while an
     earlier opening's Start is in flight, and when it answers (started: "the Cloud page shows
     it"; a changed plan: it plans again); that answer never closes it. "Delete from cloud"
     emits its signal after the click returns, and the table is rebuilt only when a row

@@ -18,17 +18,21 @@ from support.cloud import CloudWorld, cloud_world
 from support.fakes import FIXED_NOW
 from support.gated import POLL_S, upload, uploads, wait_for
 from support.gui import window_over
-from support.launch import FOREIGN_BATCH_ID
+from support.launch import FOREIGN_BATCH_ID, write_foreign
 from support.runs import RUN_ID, app_pod_name
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
+from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.cloud.status_view import StatusLine
 from transcribe_ui.gui.cloud.view import CloudPage
 from transcribe_ui.gui.constants import CALL_RUNNING, LONG_POOL_THREADS, PAGE_CLOUD
 from transcribe_ui.gui.dialogs import CloseQuestion, ConfirmationDialog
 from transcribe_ui.gui.executor import cancelled_response
 from transcribe_ui.gui.shell import MainWindow
+
+# Another computer's second job, written while the start dialog is open.
+LATE_BATCH_ID = "batch_20260102_090000"
 
 
 class HeldUploads:
@@ -60,9 +64,14 @@ def world(tmp_path: Path) -> Iterator[CloudWorld]:
         yield created
 
 
+def _settled(qtbot: QtBot, window: MainWindow) -> None:
+    """Wait until every answer was delivered."""
+    wait_for(qtbot, lambda: not window.busy())
+
+
 def _drained(qtbot: QtBot, window: MainWindow) -> None:
     # The tests drain first: pytest-qt deletes the window's widgets before the fixtures end.
-    wait_for(qtbot, lambda: not window.busy())
+    _settled(qtbot, window)
     # Answers still on their way must not reach the widgets pytest-qt deletes next.
     window.context.executor.close()
 
@@ -111,6 +120,16 @@ def _start_a_run(qtbot: QtBot, window: MainWindow) -> None:
     wait_for(qtbot, lambda: not dialog.isVisible() and page.history.runs.run_active())
 
 
+def _planned_dialog(qtbot: QtBot, window: MainWindow) -> StartDialog:
+    """Run the start-up steps, open the start dialog and wait for its plan."""
+    window.context.hooks.run()
+    page = _page(window)
+    page.run_panel.buttons.start_button.click()
+    dialog = page.start_dialog
+    wait_for(qtbot, dialog.start_button.isEnabled)
+    return dialog
+
+
 def test_a_straggler_at_start_up(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
     """The start-up check shows the banner and a status bar link; Terminate (confirmed) clears both."""
     world.cloud.api.pods.add(app_pod_name(RUN_ID, FIXED_NOW))
@@ -130,7 +149,7 @@ def test_a_straggler_at_start_up(qtbot: QtBot, world: CloudWorld, window: MainWi
     _confirm(qtbot, window)
     wait_for(qtbot, lambda: not machines.model.attention and machines.model.checked and not window.busy())
     assert (page.attention.isHidden(), line.shown) == (True, ())
-    wait_for(qtbot, lambda: not window.busy())
+    _settled(qtbot, window)
 
 
 def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
@@ -156,13 +175,13 @@ def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None
     panel = page.run_panel
     assert (panel.buttons.stop_button.text(), panel.buttons.start_button.isEnabled()) == ("Stop", False)
     assert "Cloud: Starting" in _status_line(window).text()
-    wait_for(qtbot, lambda: not window.busy())
+    _settled(qtbot, window)
 
 
 def test_closing_during_a_run_adds_the_cloud_note(qtbot: QtBot, window: MainWindow) -> None:
     """With a run that is not final, closing asks first and says that the machine keeps working."""
     _start_a_run(qtbot, window)
-    wait_for(qtbot, lambda: not window.busy())
+    _settled(qtbot, window)
     assert not window.close()
     question = window.closing.question
     assert isinstance(question, CloseQuestion)
@@ -186,4 +205,16 @@ def test_stop_is_answered_while_the_long_pool_is_busy(qtbot: QtBot, held: HeldUp
     assert all(call.state == CALL_RUNNING for call in uploading)
     queued.cancel()
     held.release()
-    wait_for(qtbot, lambda: not window.busy())
+    _settled(qtbot, window)
+
+
+def test_a_reopened_dialog_does_not_start_on_enter(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
+    """Closed while starting on a plan that changed, the dialog reopens with the new plan; Start is not the default."""
+    dialog = _planned_dialog(qtbot, window)
+    write_foreign(world.store, LATE_BATCH_ID)
+    dialog.start_button.click()
+    dialog.reject()
+    wait_for(qtbot, lambda: dialog.isVisible() and dialog.model.reopened and dialog.start_button.isEnabled())
+    assert (dialog.start_button.isDefault(), dialog.changed_notice.isHidden()) == (False, False)
+    dialog.reject()
+    _settled(qtbot, window)
