@@ -69,6 +69,11 @@ class TripStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
     inner: ObjectStore
     wire: Tripwire
 
+    @property
+    def identity(self) -> str:
+        """Return the wrapped store's bucket identity."""
+        return self.inner.identity
+
     def check_access(self) -> None:
         """Pass on."""
         self.wire.around(self.inner.check_access)

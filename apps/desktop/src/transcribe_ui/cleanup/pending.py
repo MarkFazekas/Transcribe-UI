@@ -12,11 +12,13 @@ under the runs lock and the batch's lock (only tried), with no transaction open 
   batch stays as it was;
 - neither: nothing is left to do.
 
-The record is then dropped. Each record names its bucket (endpoint and bucket name): only the
-records of the configured bucket are settled, the others wait until it is configured again. A
-record with neither object is dropped only once the bucket is proven to exist. A batch a live run
-lease lists, or whose lock is busy, waits for a later refresh, and so does one R2 fails for
-(logged; the other records go on). Two computers cleaning the same job at once may delete each
+The record is then dropped. Each record names its bucket (the store's identity, a hash of the
+endpoint and bucket name the store was opened with): only the records of the configured bucket
+are settled, the others wait until it is configured again. A
+record with neither object is dropped only once the bucket is proven to exist (once per refresh).
+A batch a live run lease lists, or whose lock is busy, waits for a later refresh, and so does one
+R2 fails for: an error about the object is logged and the others go on, one about R2 itself stops
+the settling until the next refresh. Two computers cleaning the same job at once may delete each
 other's marker; each one's own steps then still finish or undo it. Repeating `cleanup_cloud` with the id still works as before.
 """
 
@@ -27,9 +29,8 @@ from sqlalchemy.orm import Session
 
 from transcribe_contracts.layout import deleting_key, manifest_key
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.cleanup.constants import FINISH_PENDING_ACTION
+from transcribe_ui.cleanup.constants import FINISH_PENDING_ACTION, SETTLE_STOPPING_CODES
 from transcribe_ui.cleanup.stages import Purge, finish_unknown
-from transcribe_ui.credentials.constants import R2_BUCKET, R2_ENDPOINT_URL
 from transcribe_ui.runs.leases import batch_leases
 from transcribe_ui.state.models import PendingCleanupRow
 from transcribe_ui.storage.errors import StorageError
@@ -38,79 +39,91 @@ from transcribe_ui.storage.r2 import ObjectStore
 logger = logging.getLogger(__name__)
 
 
-def bucket_identity(context: RequestContext) -> str:
-    """Return the bucket the stored R2 credentials name: endpoint and bucket name (what a record belongs to)."""
-    lookup = context.ports.credentials.lookup((R2_ENDPOINT_URL, R2_BUCKET))
-    endpoint = lookup.text(R2_ENDPOINT_URL).rstrip("/")
-    return f"{endpoint}/{lookup.text(R2_BUCKET)}"
-
-
-def record_pending(context: RequestContext, batch_id: str) -> None:
-    """Record that the cleanup of a batch this database does not know starts (before its marker), in this bucket."""
+def record_pending(context: RequestContext, store: ObjectStore, batch_id: str) -> None:
+    """Record that the cleanup of a batch this database does not know starts (before its marker), in the store's bucket."""
     now = context.ports.clock.now()
-    row = PendingCleanupRow(bucket=bucket_identity(context), batch_id=batch_id, started_at=now)
+    row = PendingCleanupRow(bucket=store.identity, batch_id=batch_id, started_at=now)
     with context.ports.state.session() as session:
         session.merge(row)
 
 
-def drop_pending(context: RequestContext, batch_id: str) -> None:
-    """Drop the record of a cleanup that ended (after its marker was deleted), in this bucket."""
+def drop_pending(context: RequestContext, store: ObjectStore, batch_id: str) -> None:
+    """Drop the record of a cleanup that ended (after its marker was deleted), in the store's bucket."""
     with context.ports.state.session() as session:
-        _drop(session, bucket_identity(context), batch_id)
+        _drop(session, store.identity, batch_id)
 
 
 def finish_pending_cleanups(context: RequestContext, store: ObjectStore) -> tuple[str, ...]:
-    """Finish or undo every recorded cleanup of this bucket; return the batches whose deletion was finished now.
+    """Finish or undo every recorded cleanup of the store's bucket; return the batches whose deletion was finished now.
 
-    The caller holds the runs lock. Records of another bucket wait until it is configured again;
-    one that R2 fails for is logged and kept for the next refresh, and the others go on.
+    The caller holds the runs lock. Records of another bucket wait until it is configured again.
+    An R2 error about one object is logged and its record kept, and the others go on; one about
+    R2 itself (unreachable, the credentials, the bucket) stops the loop, logged once: the records
+    left wait for the next refresh, and the refresh goes on.
 
     Raises:
         CancelledError: Cancelled between two deletes (the records left stay).
     """
     state = context.ports.state
-    bucket = bucket_identity(context)
-    of_bucket = PendingCleanupRow.bucket == bucket
+    of_bucket = PendingCleanupRow.bucket == store.identity
     query = select(PendingCleanupRow.batch_id).where(of_bucket).order_by(PendingCleanupRow.batch_id)
     with state.session() as session:
         pending = list(session.scalars(query))
-    finished: list[str] = []
+    settling = _Settling(context, store)
     for batch_id in pending:
         with state.locks.try_batch(batch_id) as taken:
-            if taken and _settled(context, store, batch_id):
-                finished.append(batch_id)
-    return tuple(finished)
+            if taken and not settling.settle(batch_id):
+                break
+    return tuple(settling.finished)
 
 
-def _settled(context: RequestContext, store: ObjectStore, batch_id: str) -> bool:
-    """Settle one record; R2 failing for it is logged and the record kept (the next refresh resumes)."""
-    try:
-        return _settle(context, store, batch_id)
-    except StorageError as error:
-        logger.warning("The interrupted cleanup of %s could not be settled (%s); it is kept", batch_id, error.code)
-        return False
+class _Settling:
+    """The settling of the records of one refresh: the bucket is proven once, the finished ones are kept."""
 
+    def __init__(self, context: RequestContext, store: ObjectStore) -> None:
+        self._context = context
+        self._store = store
+        self._proven = False
+        self.finished: list[str] = []
 
-def _settle(context: RequestContext, store: ObjectStore, batch_id: str) -> bool:
-    """Finish or undo one recorded cleanup; return whether its deletion was finished now.
+    def settle(self, batch_id: str) -> bool:
+        """Settle one record; return False when R2 itself failed (the loop stops)."""
+        try:
+            self._settle(batch_id)
+        except StorageError as error:
+            if error.code in SETTLE_STOPPING_CODES:
+                logger.warning("Interrupted cleanups are not settled now (%s); they are kept", error.code)
+                return False
+            logger.warning("The interrupted cleanup of %s could not be settled (%s); it is kept", batch_id, error.code)
+        return True
 
-    Raises:
-        StorageError: R2 failed, or the bucket does not exist (before a record without either
-            object is dropped).
-    """
-    if batch_leases(store, batch_id, context.ports.clock.now()):
-        return False
-    manifest = store.head(manifest_key(batch_id)) is not None
-    marker = store.head(deleting_key(batch_id)) is not None
-    if manifest and marker:
-        store.delete(deleting_key(batch_id))
-    elif marker:
-        finish_unknown(Purge(store, context, FINISH_PENDING_ACTION), batch_id)
-    elif not manifest:
-        # A HEAD in a missing bucket also finds nothing: prove the bucket before dropping the record.
-        store.check_access()
-    drop_pending(context, batch_id)
-    return marker and not manifest
+    def _settle(self, batch_id: str) -> None:
+        """Finish or undo one recorded cleanup.
+
+        Raises:
+            StorageError: R2 failed, or the bucket does not exist (before a record without
+                either object is dropped).
+        """
+        context = self._context
+        store = self._store
+        if batch_leases(store, batch_id, context.ports.clock.now()):
+            return
+        manifest = store.head(manifest_key(batch_id)) is not None
+        marker = store.head(deleting_key(batch_id)) is not None
+        if manifest and marker:
+            store.delete(deleting_key(batch_id))
+        elif marker:
+            finish_unknown(Purge(store, context, FINISH_PENDING_ACTION), batch_id)
+            self.finished.append(batch_id)
+        elif not manifest:
+            self._prove()
+        drop_pending(context, store, batch_id)
+
+    def _prove(self) -> None:
+        """Prove once per refresh that the bucket exists (a HEAD in a missing bucket also finds nothing)."""
+        if not self._proven:
+            self._store.check_access()
+            self._proven = True
 
 
 def _drop(session: Session, bucket: str, batch_id: str) -> None:

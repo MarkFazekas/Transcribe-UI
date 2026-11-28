@@ -2,6 +2,13 @@
 
 from typing import Final
 
+from transcribe_ui.storage.constants import (
+    ERROR_R2_ACCESS_DENIED,
+    ERROR_R2_AUTH_FAILED,
+    ERROR_R2_BUCKET_NOT_FOUND,
+    ERROR_R2_UNREACHABLE,
+)
+
 # Batch phases a retry batch can be made from: the source's results are in (failed and no-speech flags).
 RETRY_SOURCE_PHASES: Final = frozenset(("transcribed", "downloaded"))
 # Job statuses a retry takes: the job failed or found no speech.
@@ -51,6 +58,10 @@ CONFIRMATION_UNKNOWN_LEFTOVER: Final = "cleanup_unknown_leftover"
 DELETING_CONTENT_TYPE: Final = "application/json"
 # Action named by the progress events of the interrupted cleanups the refresh finishes (`cleanup/pending.py`).
 FINISH_PENDING_ACTION: Final = "refresh_status"
+# R2 errors that stop the settling of interrupted cleanups (R2 itself failed, not one object).
+SETTLE_STOPPING_CODES: Final = frozenset(
+    (ERROR_R2_UNREACHABLE, ERROR_R2_AUTH_FAILED, ERROR_R2_ACCESS_DENIED, ERROR_R2_BUCKET_NOT_FOUND),
+)
 # Progress stage of `cleanup_cloud`: objects deleted so far.
 CLEANUP_STAGE: Final = "delete_objects"
 

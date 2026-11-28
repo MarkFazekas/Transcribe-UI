@@ -31,6 +31,7 @@ from transcribe_ui.api.ports import CancelFlag
 from transcribe_ui.batches.cloud_responses import ListCloudBatchesResponse
 from transcribe_ui.cleanup.pending import record_pending
 from transcribe_ui.cleanup.stages import Purge, delete_unknown
+from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.runs.responses import RefreshStatusResponse
 from transcribe_ui.state.models import PendingCleanupRow
 from transcribe_ui.storage.r2 import R2ObjectStore
@@ -83,6 +84,12 @@ def _seed(world: RunsWorld) -> list[str]:
     return keys_under(world.store, FOREIGN_BATCH_ID)
 
 
+def _record(world: RunsWorld, batch_id: str) -> None:
+    """Record a pending cleanup as the backend does, in the bucket its stored credentials name."""
+    context = world.context()
+    record_pending(context, open_store(context), batch_id)
+
+
 def _pending(world: RunsWorld) -> list[str]:
     with world.ports.state.session() as session:
         return list(session.scalars(select(PendingCleanupRow.batch_id)))
@@ -129,7 +136,7 @@ def test_a_cancelled_cleanup_is_dropped_by_the_refresh(world: RunsWorld) -> None
     """Cancelled before the point of no return: the refresh drops the record, the job stays listed."""
     flag = CancelFlag()
     purge = Purge(_CancelAfterMarker(world.store, flag), world.context(flag), "cleanup_cloud")
-    record_pending(world.context(), FOREIGN_BATCH_ID)
+    _record(world, FOREIGN_BATCH_ID)
     with pytest.raises(CancelledError):
         delete_unknown(purge, FOREIGN_BATCH_ID)
     refreshed = ok_as(send(world, "refresh_status", recheck=True), RefreshStatusResponse)
@@ -148,7 +155,7 @@ def test_a_withdrawal_drops_the_marker_first(
     """
     ids = seed_leftover(runs_world)
     runs_world.store.write(deleting_key(FIRST_BATCH_ID), b"{}", JSON_TYPE)
-    record_pending(r2_only_world.context(), FIRST_BATCH_ID)
+    _record(r2_only_world, FIRST_BATCH_ID)
     fail_deleting(monkeypatch, deleting_key(FIRST_BATCH_ID))
     assert exclude_film(runs_world, ids).status == "ok", "the withdrawal stays pending"
     refreshed = ok_as(send(r2_only_world, "refresh_status", recheck=True), RefreshStatusResponse)
@@ -163,7 +170,7 @@ def _use_bucket(world: RunsWorld, bucket: str) -> None:
 
 def test_a_record_waits_for_its_bucket(world: RunsWorld) -> None:
     """A record of another bucket is kept, not dropped, until that bucket is configured again; then it is finished."""
-    record_pending(world.context(), FOREIGN_BATCH_ID)
+    _record(world, FOREIGN_BATCH_ID)
     world.store.write(deleting_key(FOREIGN_BATCH_ID), b"{}", JSON_TYPE)
     world.store.delete(manifest_key(FOREIGN_BATCH_ID))
     create_bucket(OTHER_BUCKET)

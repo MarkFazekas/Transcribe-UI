@@ -45,6 +45,11 @@ class ObjectInfo:
 class ObjectStore(Protocol):  # noqa: WPS214 -- one method per object operation of the app.
     """The object operations of the desktop app on one bucket; missing objects are not errors."""
 
+    @property
+    def identity(self) -> str:
+        """Return which bucket this is (`storage.client.bucket_identity`; "" when not opened from credentials)."""
+        ...
+
     def check_access(self) -> None:
         """List one key of the bucket, to prove the credentials and the bucket work."""
         ...
@@ -107,12 +112,24 @@ class ObjectStore(Protocol):  # noqa: WPS214 -- one method per object operation 
 class R2ObjectStore:  # noqa: WPS214 -- one method per `ObjectStore` operation.
     """`ObjectStore` on an S3-compatible API (Cloudflare R2 in production, moto in tests)."""
 
-    def __init__(self, client: "S3Client", bucket: str, part_bytes: int = MULTIPART_BYTES) -> None:
-        """Wrap a boto3 S3 client for one bucket; `part_bytes` is lowered only by tests."""
+    def __init__(
+        self,
+        client: "S3Client",
+        bucket: str,
+        part_bytes: int = MULTIPART_BYTES,
+        identity: str = "",
+    ) -> None:
+        """Wrap a boto3 S3 client for one bucket; `part_bytes` is lowered only by tests; `identity` names the bucket."""
         self._client = client
         self._bucket = bucket
+        self._identity = identity
         self._part_bytes = part_bytes
         self._transfer = TransferConfig(multipart_threshold=part_bytes, multipart_chunksize=part_bytes)
+
+    @property
+    def identity(self) -> str:
+        """Return which bucket this is, as the credentials it was opened with name it."""
+        return self._identity
 
     def check_access(self) -> None:
         """List one key of the bucket.

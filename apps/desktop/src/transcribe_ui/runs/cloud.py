@@ -13,7 +13,7 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.credentials.constants import CREDENTIAL_ORDER, RUNPOD_API_KEY
 from transcribe_ui.runpod.client import RunpodClient
 from transcribe_ui.runpod.pods import PodsApi
-from transcribe_ui.storage.client import TRANSFER_LIMITS, open_object_store
+from transcribe_ui.storage.client import TRANSFER_LIMITS, bucket_identity, open_object_store
 from transcribe_ui.storage.r2 import ObjectStore, R2ObjectStore
 
 
@@ -56,7 +56,8 @@ def open_cloud_client(context: RequestContext) -> Iterator[tuple[CloudAccess, Ru
     lookup.require(CREDENTIAL_ORDER)
     r2 = lookup.r2()
     api_key = lookup.runpod_api_key()
-    store = R2ObjectStore(ports.r2_clients(r2, TRANSFER_LIMITS), r2.bucket)
+    client_of_r2 = ports.r2_clients(r2, TRANSFER_LIMITS)
+    store = R2ObjectStore(client_of_r2, r2.bucket, identity=bucket_identity(r2))
     with ports.runpod.client(api_key, context.cancel.is_cancelled) as client:
         yield CloudAccess(store, client.pods), client
 

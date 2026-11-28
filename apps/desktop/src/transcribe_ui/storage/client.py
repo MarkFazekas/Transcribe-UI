@@ -1,9 +1,11 @@
 """The boto3 client for R2, built with the worker's settings (architecture §6)."""
 
+import hashlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import boto3
 from botocore.config import Config
@@ -12,6 +14,7 @@ from transcribe_ui.storage.constants import (
     CHECK_CONNECT_TIMEOUT_S,
     CHECK_READ_TIMEOUT_S,
     CHECK_TOTAL_ATTEMPTS,
+    DEFAULT_PORTS,
     R2_REGION,
     S3_CONNECT_TIMEOUT_S,
     S3_READ_TIMEOUT_S,
@@ -93,4 +96,24 @@ def open_object_store(
             client cannot be built.
     """
     r2 = credentials.r2()
-    return R2ObjectStore(clients(r2, limits), r2.bucket)
+    return R2ObjectStore(clients(r2, limits), r2.bucket, identity=bucket_identity(r2))
+
+
+def bucket_identity(r2: "R2Credentials") -> str:
+    """Return a stable, non-secret name of the bucket: a SHA-256 of the normalised endpoint and the bucket name.
+
+    The endpoint carries the account id and is treated as a credential, so only its hash is
+    kept. Normalised: scheme and host lowercased, the default port of the scheme dropped, the
+    trailing slash stripped.
+    """
+    parts = urlsplit(str(r2.endpoint_url))
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").lower()
+    port = parts.port
+    default = DEFAULT_PORTS.get(scheme)
+    netloc = host
+    if port not in {None, default}:
+        netloc = f"{host}:{port}"
+    path = parts.path.rstrip("/")
+    named = f"{scheme}://{netloc}{path}/{r2.bucket}"
+    return hashlib.sha256(named.encode()).hexdigest()

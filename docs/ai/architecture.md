@@ -1404,16 +1404,22 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     stays as it was. The uploading computer deletes the marker whenever it reclaims its prefix
     (`finish_withdrawal`, before its own deletes, and `clear_leftovers`), so a stale marker
     cannot purge a withdrawn job or a new upload.
-    The cleanup is also recorded locally (table `pending_cleanups`: the bucket, as the R2
-    endpoint and bucket name, the batch id and when it started; written before the marker,
+    The cleanup is also recorded locally (table `pending_cleanups`: the bucket, as the
+    identity of the store it runs on, the batch id and when it started; written before the marker,
     dropped after it; `cleanup/pending.py`), since the batch is gone from every listing once
     its manifest is: `refresh_status` with `recheck` (start-up, Refresh now) settles every
     record of the configured bucket (another bucket's records wait until it is configured
-    again), under the batch's lock (only tried) and unless a live lease lists it; a record R2
-    fails for is logged and kept, and the others go on. Manifest gone, marker there: the deletion passed its point
+    again), under the batch's lock (only tried) and unless a live lease lists it. An R2 error
+    about one object keeps that record (logged) and the others go on; one about R2 itself
+    (unreachable, the credentials, the bucket: `SETTLE_STOPPING_CODES`) stops the settling,
+    logged once, and the refresh goes on. A store's identity (`storage/client.py`
+    `bucket_identity`, `ObjectStore.identity`) is a SHA-256 of the normalised endpoint (scheme
+    and host lowercased, default port and trailing slash dropped) and the bucket name, taken
+    from the credentials the store was opened with: no second keyring read, and the endpoint,
+    which carries the account id, is never stored. Manifest gone, marker there: the deletion passed its point
     of no return and was confirmed, so the rest is deleted without a question; manifest still
     there: the marker is deleted and the batch stays as it was; neither: nothing to do, once
-    the bucket is proven to exist (`check_access`). Two computers cleaning the same job at once
+    the bucket is proven to exist (`check_access`, once per refresh). Two computers cleaning the same job at once
     may delete each other's marker; this is accepted (each one's own steps still finish or
     undo its cleanup). The
     record is then dropped, and the response lists the finished ones (`finished_cleanups`; the
