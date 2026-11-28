@@ -6,6 +6,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 import pytest
+from PySide6.QtCore import QTimer
 from pytestqt.qtbot import QtBot
 
 from support.fakes import seeded_ports
@@ -14,11 +15,16 @@ from transcribe_ui.api.classes import Response
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.api.routes import Route, default_routes
+from transcribe_ui.gui import app as gui_app
 from transcribe_ui.gui import language
 from transcribe_ui.gui.app import run_gui
 from transcribe_ui.gui.constants import SMOKE_TEST_FAILED_EXIT_CODE, SMOKE_TEST_ON, SMOKE_TEST_VARIABLE
+from transcribe_ui.gui.context import GuiContext
+from transcribe_ui.gui.shell import MainWindow, build_shell
 from transcribe_ui.runs.classes import ListRunsRequest
 
+# Message of the exception a slot raises during start-up.
+SLOT_FAILURE = "a slot failed during start-up"
 # Error code the failing start-up request answers with.
 FAILING_CODE = "smoke_test_failure"
 
@@ -79,3 +85,30 @@ def test_smoke_mode_fails_without_qt_hungarian(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setattr(language, "qt_translator", lambda _language: None)
     code = run_gui(partial(_backend, tmp_path, failing=False), os_language=_hungarian)
     assert code == SMOKE_TEST_FAILED_EXIT_CODE
+
+
+def _raise_in_a_slot() -> None:
+    raise RuntimeError(SLOT_FAILURE)
+
+
+def _shell_with_a_failing_slot(context: GuiContext) -> MainWindow:
+    window = build_shell(context)
+    # Runs on the event loop during start-up, like any slot; its exception goes to the log only.
+    QTimer.singleShot(0, window, _raise_in_a_slot)
+    return window
+
+
+@pytest.mark.usefixtures("smoke_mode")
+def test_smoke_mode_fails_when_a_slot_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An exception escaping a Qt slot is only logged, yet it fails the smoke run; the window still closes."""
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(gui_app, "build_shell", _shell_with_a_failing_slot)
+    code = run_gui(partial(_backend, tmp_path, failing=False), os_language=_english)
+    assert code == SMOKE_TEST_FAILED_EXIT_CODE
+    # The traceback of the slot's exception is in the log (the smoke test names the record).
+    assert SLOT_FAILURE in caplog.text
+    assert "Smoke test: closing the window" in caplog.messages

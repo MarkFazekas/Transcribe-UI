@@ -97,6 +97,8 @@ def run_gui(
         languages = use_language(backend.language_setting(), application(), stack, os_language)
         if on_window is None and smoke_test_requested():
             smoke = SmokeTest(languages)
+            # Stops watching the log however the run ends; `exit_code` does it too.
+            stack.callback(smoke.detach)
             on_window = smoke.attach
         code, after_close = _run_window(backend, quit_now, on_window, languages)
     if smoke is not None:

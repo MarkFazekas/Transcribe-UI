@@ -4,19 +4,22 @@ With `TRANSCRIBE_UI_SMOKE_TEST=1`, `run_gui` hands this module's hook the window
 answer the window receives, waits until the last start-up step proceeded and nothing is in flight,
 then closes the window through its normal close handling (the set-up wizard, open on a machine
 without R2 credentials, closes with it). The exit code is 0 only when every answer was `ok`,
-start-up finished in time and, for Hungarian, Qt's own translation was installed. Without the
-variable nothing changes.
+start-up finished in time, nothing was logged at ERROR or above while the window was watched
+(an exception escaping a Qt slot, which `gui/messages.py` logs; a critical or fatal message of
+Qt, whose logger is a child of the app's) and, for Hungarian, Qt's own translation was
+installed. Without the variable nothing changes.
 """
 
 import logging
 import os
 from collections.abc import Callable, Mapping
-from functools import partial
+from typing import override
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from transcribe_ui.api.classes import ErrorResponse, Request, Response
+from transcribe_ui.constants import PACKAGE_NAME
 from transcribe_ui.gui.constants import (
     SMOKE_TEST_DEADLINE_MS,
     SMOKE_TEST_FAILED_EXIT_CODE,
@@ -36,6 +39,20 @@ def smoke_test_requested(environ: Mapping[str, str] = os.environ) -> bool:
     return environ.get(SMOKE_TEST_VARIABLE) == SMOKE_TEST_ON
 
 
+class _ErrorRecords(logging.Handler):
+    """Fails the smoke test on every record at ERROR or above that the smoke test did not write."""
+
+    def __init__(self, fail: Callable[[str], None]) -> None:
+        super().__init__(logging.ERROR)
+        self._fail = fail
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.name != logger.name:
+            source = f"{record.levelname} by {record.name}"
+            self._fail(f"logged {source}: {record.getMessage()}")
+
+
 class SmokeTest:
     """Watches one window's start-up, closes the window when it is done and gives the exit code."""
 
@@ -44,6 +61,7 @@ class SmokeTest:
         self.failures: list[str] = []
         self._window: MainWindow | None = None
         self._finished = False
+        self._errors = _ErrorRecords(self._fail)
         logger.info(
             "Smoke test: language %s, Qt's own translation %s",
             languages.shown,
@@ -55,6 +73,8 @@ class SmokeTest:
     def attach(self, window: MainWindow) -> None:
         """Watch `window` (the `on_window` hook of `run_gui`, called before the event loop starts)."""
         self._window = window
+        # The app's loggers (the messages of Qt included) propagate to the package's logger.
+        logging.getLogger(PACKAGE_NAME).addHandler(self._errors)
         context = window.context
         context.executor.observe(self._note)
         # Registered last in the last slot, so it runs after every other start-up step proceeded.
@@ -64,8 +84,13 @@ class SmokeTest:
         deadline.timeout.connect(self._overdue)
         deadline.start(SMOKE_TEST_DEADLINE_MS)
 
+    def detach(self) -> None:
+        """Stop watching the log (idempotent)."""
+        logging.getLogger(PACKAGE_NAME).removeHandler(self._errors)
+
     def exit_code(self, loop_code: int) -> int:
         """Return the GUI's exit code: the event loop's when it failed, else the smoke test's verdict."""
+        self.detach()
         if loop_code:
             return loop_code
         if not self._finished:
@@ -91,21 +116,22 @@ class SmokeTest:
     def _steps_done(self, proceed: Callable[[], None]) -> None:
         proceed()
         logger.info("Smoke test: every start-up step proceeded")
-        self._when_idle()
+        self._close_later()
 
-    def _when_idle(self) -> None:
+    def _close_later(self) -> None:
         window = self._window
         if window is not None:
-            # Close from the event loop, not from inside the callback that delivered the last answer.
-            window.context.executor.when_idle(partial(QTimer.singleShot, 0, self._close))
+            # Close from the event loop, not from inside the callback that delivered the last answer;
+            # with the window as context, the timer dies with it.
+            QTimer.singleShot(0, window, self._close)
 
     def _close(self) -> None:
         window = self._window
         if window is None or self._finished:
             return
         if window.busy():
-            # An answer started another request: wait for it too.
-            self._when_idle()
+            # A request is still in flight (an answer may have started another): wait for it too.
+            window.context.executor.when_idle(self._close_later)
             return
         self._finished = True
         logger.info("Smoke test: closing the window")
