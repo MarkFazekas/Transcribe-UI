@@ -3,7 +3,7 @@
 Qt-free. One per batch, kept while the window lives, so the dialog reopens with the user's
 choices. The first opening loads the settings (`get_settings`) and the batch (`get_batch`) side
 by side and, once both answered, pre-fills the choices from the settings' placement defaults
-(`mirror` for a job uploaded from another computer, labelled `adopted`); only then does it plan,
+(`mirror` for a job uploaded from another computer: the summary's `adopted`); only then does it plan,
 so no plan of choices about to change is sent. Every later opening loads the batch (for the
 step header) and the plan.
 Each change of a choice asks for the plan again (`plan_download`, or for a custom plan the

@@ -69,6 +69,8 @@ def test_another_computer_adopts_and_mirrors(runs_world: RunsWorld, r2_only_worl
     _uploaded_and_transcribed(runs_world)
     assert _cloud_jobs(r2_only_world) == [(FIRST_BATCH_ID, False, "transcribed", 2, 2, 2)]
     adopted = _adopted(r2_only_world)
+    # The typed flag a frontend reads (the label is for display).
+    assert (adopted.batch.adopted, "adopted" in adopted.batch.labels) == (True, True)
     refreshed = ok_as(send(r2_only_world, "refresh_status"), RefreshStatusResponse)
     phases = (adopted.batch.phase, [batch.phase for batch in refreshed.batches], _cloud_jobs(r2_only_world)[0][1])
     assert phases == ("ready", ["transcribed"], True)

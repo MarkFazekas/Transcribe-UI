@@ -14,7 +14,7 @@ import pytest
 
 from support.cloud import CloudArea, CloudWorld, ManualExecutor, cloud_area, cloud_world
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse
-from transcribe_ui.credentials.classes import CredentialsStatusResponse, CredentialStatus, KeyringState
+from transcribe_ui.credentials.classes import CredentialsStatusResponse, CredentialStatus
 from transcribe_ui.gui.cloud.startup import register_startup
 from transcribe_ui.gui.signals import StartupHooks
 from transcribe_ui.runs.responses import RefreshStatusResponse
@@ -41,9 +41,10 @@ def manual_area(world: CloudWorld) -> tuple[CloudArea, ManualExecutor]:
     return area, manual
 
 
-def _credentials(source: str, keyring: KeyringState = "available") -> CredentialsStatusResponse:
-    key = CredentialStatus(name="runpod_api_key", environment_variable="RUNPOD_API_KEY", source=source)
-    return CredentialsStatusResponse(keyring=keyring, credentials=(key,))
+def _credentials(*, key_set: bool) -> CredentialsStatusResponse:
+    """Return a status whose Runpod key is found nowhere: whether it counts as set is the backend's `runpod_key_set`."""
+    key = CredentialStatus(name="runpod_api_key", environment_variable="RUNPOD_API_KEY", source="missing")
+    return CredentialsStatusResponse(keyring="available", credentials=(key,), runpod_key_set=key_set)
 
 
 def _refreshed(*, awaiting: bool) -> RefreshStatusResponse:
@@ -62,7 +63,7 @@ def test_no_key_still_checks_the_results(manual_area: tuple[CloudArea, ManualExe
     done: list[bool] = []
     hooks.run(lambda: done.append(True))
     manual.answer(LIST)
-    manual.answer(CREDENTIALS, _credentials("missing"))
+    manual.answer(CREDENTIALS, _credentials(key_set=False))
     assert (area.models.key.missing, _actions(manual)) == (True, [LIST, CREDENTIALS, REFRESH])
     # The world's published batch waits for its results.
     manual.answer(REFRESH)
@@ -76,7 +77,7 @@ def test_a_key_also_checks_the_machines(manual_area: tuple[CloudArea, ManualExec
     register_startup(hooks, area.models)
     hooks.run()
     manual.answer(LIST)
-    manual.answer(CREDENTIALS, _credentials("keyring"))
+    manual.answer(CREDENTIALS, _credentials(key_set=True))
     manual.answer("reconcile_cloud")
     assert (area.models.key.missing, _actions(manual)[-2:]) == (False, [LIST, REFRESH])
 
@@ -93,7 +94,7 @@ def test_a_check_on_show_answers_for_the_start_up(manual_area: tuple[CloudArea, 
     hooks.run(lambda: done.append(True))
     manual.answer(LIST)
     assert _actions(manual) == [CREDENTIALS, LIST], "the check in flight answers for the start-up"
-    manual.answer(CREDENTIALS, _credentials("missing"))
+    manual.answer(CREDENTIALS, _credentials(key_set=False))
     manual.answer(REFRESH)
     sent = _actions(manual)
     assert (done, models.key.missing, sent[:3], "reconcile_cloud" in sent) == (
@@ -113,16 +114,16 @@ def test_no_machines_error_shows_without_a_key(manual_area: tuple[CloudArea, Man
     manual.answer("reconcile_cloud", missing)
     assert models.machines_error() is not None
     models.key.check()
-    manual.answer(CREDENTIALS, _credentials("missing"))
+    manual.answer(CREDENTIALS, _credentials(key_set=False))
     assert (models.machines_error(), models.key.missing) == (None, True)
 
 
-def test_a_failed_keyring_may_hold_the_key(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
-    """A keyring that failed while reading counts as holding the key: the backend's error says what is wrong."""
+def test_the_key_follows_the_backends_rule(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
+    """Whether the key counts as set is the response's `runpod_key_set` (a failed keyring counts), not the sources."""
     key = manual_area[0].models.key
     manual = manual_area[1]
     key.check()
-    manual.answer(CREDENTIALS, _credentials("missing", keyring="failed"))
+    manual.answer(CREDENTIALS, _credentials(key_set=True))
     assert (key.present, key.missing) == (True, False)
 
 

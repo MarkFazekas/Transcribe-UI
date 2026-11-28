@@ -165,6 +165,13 @@ def test_environment_fallback_without_keyring(tmp_path: Path) -> None:
     assert_golden("status_credentials_environment.json", exchanges[0].golden())
 
 
+def test_a_failed_keyring_may_hold_the_runpod_key(tmp_path: Path) -> None:
+    """A keyring that fails while reading counts as holding the Runpod key: the Runpod steps then report its error."""
+    exchange = run_one(tmp_path, STATUS, StoreRoutes(LockedKeyring))
+    assert '"keyring": "failed"' in exchange.response
+    assert '"runpod_key_set": true' in exchange.response
+
+
 def test_locked_keyring_reports_what_was_stored(tmp_path: Path) -> None:
     """A keyring failing mid-way gives `keyring_failed` listing the entries written before it."""
     exchange = run_one(tmp_path, store_request(), StoreRoutes(_locked_keyring))
@@ -219,17 +226,17 @@ def test_environment_fills_what_the_keyring_lacks() -> None:
 def test_failing_keyring_falls_back_to_the_environment() -> None:
     """A keyring that cannot be read is reported as failed; the environment still serves."""
     store = CredentialStore(LockedKeyring, {"RUNPOD_API_KEY": "environment-key"})
-    keyring, statuses = store.statuses()
-    assert keyring == "failed"
-    assert {status.name: status.source for status in statuses}["runpod_api_key"] == "environment"
+    lookup = store.lookup()
+    assert lookup.keyring == "failed"
+    assert {status.name: status.source for status in lookup.statuses()}["runpod_api_key"] == "environment"
 
 
 def test_keyring_backend_is_built_once() -> None:
     """The keyring backend is created on first use and reused."""
     factory = CountingFactory()
     store = CredentialStore(factory, {})
-    store.statuses()
-    store.statuses()
+    store.lookup()
+    store.lookup()
     assert factory.calls == 1
 
 

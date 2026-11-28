@@ -107,6 +107,9 @@ class BatchSummary(FrozenModel):
     languages: tuple[str, ...]
     hidden: bool
     audio_deleted: bool
+    # Uploaded from another computer and added here (`adopt_cloud_batch`): its originals are
+    # there, so `next_to_media` is refused for it and `mirror` keeps its original folders.
+    adopted: bool
     # A cloud cleanup of this scope was interrupted: repeat it (no worker starts meanwhile).
     cleanup_pending: CleanupScope | None
     # Only `extract` jobs: the batch needs no upload and no cloud run.

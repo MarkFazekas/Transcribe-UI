@@ -405,6 +405,10 @@
           "title": "Actions",
           "type": "array"
         },
+        "adopted": {
+          "title": "Adopted",
+          "type": "boolean"
+        },
         "audio_deleted": {
           "title": "Audio Deleted",
           "type": "boolean"
@@ -481,6 +485,7 @@
         "languages",
         "hidden",
         "audio_deleted",
+        "adopted",
         "cleanup_pending",
         "extract_only",
         "stage",
@@ -1230,6 +1235,10 @@
         "keyring": {
           "$ref": "#/$defs/KeyringState"
         },
+        "runpod_key_set": {
+          "title": "Runpod Key Set",
+          "type": "boolean"
+        },
         "status": {
           "const": "ok",
           "default": "ok",
@@ -1241,7 +1250,8 @@
         "status",
         "action",
         "keyring",
-        "credentials"
+        "credentials",
+        "runpod_key_set"
       ],
       "title": "CredentialsStatusResponse",
       "type": "object"

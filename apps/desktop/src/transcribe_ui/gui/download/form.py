@@ -12,7 +12,6 @@ from typing import TypedDict
 from pydantic import ValidationError
 
 from transcribe_ui.api.classes import GetSettingsResponse, PlacementDefaults, Response
-from transcribe_ui.batches.constants import LABEL_ADOPTED
 from transcribe_ui.batches.responses import GetBatchResponse
 from transcribe_ui.gui.download.constants import (
     CUSTOM,
@@ -88,7 +87,7 @@ def first_choices(settings: Response, batch: Response) -> DownloadForm:
     form = DownloadForm()
     if isinstance(settings, GetSettingsResponse):
         form = form_from_settings(settings.settings.placement)
-    if isinstance(batch, GetBatchResponse) and LABEL_ADOPTED in batch.batch.summary.labels:
+    if isinstance(batch, GetBatchResponse) and batch.batch.summary.adopted:
         return replace(form, strategy=MIRROR)
     return form
 

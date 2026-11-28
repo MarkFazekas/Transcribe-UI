@@ -480,9 +480,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     (`QApplication.alert`) and emits `batches_changed` for its covered batches. The timer is a
     port (`QtTimer`; tests fire a manual one), so no test sleeps.
   - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set
-    (`key.py`, `RunpodKey`; asked again each time the page is shown; a check in flight, such
-    as the page's, answers for the start-up step too, which waits for it); with one (or when
-    that is not known, or the keyring failed while reading) `reconcile_cloud` runs (slot
+    (`key.py`, `RunpodKey`, from the response's `runpod_key_set`; asked again each time the
+    page is shown; a check in flight, such as the page's, answers for the start-up step too,
+    which waits for it); with one (or when that is not known, or the keyring failed while
+    reading) `reconcile_cloud` runs (slot
     `reconcile`); `refresh_status` (slot `refresh`) runs with or without it (§3.9 "Roles").
     Without the key (R2-only) the page shows a banner with the reason and "Open accounts";
     Start transcription, Stop and Cancel and the machines check are disabled with the hint
@@ -572,11 +573,12 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     list.
   - The first opening loads `get_settings` and `get_batch` side by side and, once both
     answered, pre-fills the choices from the placement defaults (strategy, output folder,
-    folder count, overwrite), with `mirror` for a job labelled `adopted` (its originals are on
-    another computer, so `next_to_media` is refused); only then does it plan. Every later
-    opening loads `get_batch` (the stage) and the plan. A settings answer that arrives after the
-    user changed a choice pre-fills nothing; a `batches_changed` for the job before the
-    pre-fill is remembered, and the pre-fill then loads `get_batch` again with its plan. Each change of a choice sends the plan again on a `latest` channel:
+    folder count, overwrite), with `mirror` for an adopted job (`BatchSummary.adopted`; its
+    originals are on another computer, so `next_to_media` is refused); only then does it plan.
+    Every later opening loads `get_batch` (the stage) and the plan. A settings answer that
+    arrives after the user changed a choice pre-fills nothing; a `batches_changed` for the job
+    before the pre-fill is remembered, and the pre-fill then loads `get_batch` again with its
+    plan. Each change of a choice sends the plan again on a `latest` channel:
     `plan_download` for a strategy, the `check_only` import for a custom plan (on the `short`
     pool: the bridge picks a pool by request, `pool_for`); folder count steps and level ticks
     wait `PLAN_DELAY_MS` (250 ms) for the next one. A plan of choices changed since is
@@ -1666,8 +1668,10 @@ database):
     characters (fits the Windows Credential Manager limit). The response names what was
     stored. No keyring → `keyring_unavailable`, whose message names the environment variables
     to set instead; a backend failure → `keyring_failed`; both list what was written before.
-  - `credentials_status`: the keyring state (`available`, `unavailable`, `failed`) and, per
-    credential, its environment variable and source (`keyring`, `environment`, `missing`).
+  - `credentials_status`: the keyring state (`available`, `unavailable`, `failed`), per
+    credential its environment variable and source (`keyring`, `environment`, `missing`), and
+    `runpod_key_set` (`Lookup.runpod_key_set`, the rule `runs/cloud.py` `runpod_key_set` also
+    uses: the key was found, or the keyring failed while reading, so it may hold it).
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
@@ -2454,7 +2458,8 @@ Q28, Q35, A21 and A22.
     `adopt_cloud_batch`): refuses an id this database already uses (`batch_exists`), reads the
     manifest (`reading.read_manifest`: `batch_not_found`, `manifest_unreadable`) and records the
     batch `ready`, created when the manifest was, with the payload's `adopted`
-    (`AdoptedBatch`: the manifest's `uploaded_by`) and the label `adopted`; its items `uploaded`
+    (`AdoptedBatch`: the manifest's `uploaded_by`), the summary's `adopted` true (the field a
+    frontend reads, e.g. to pre-select `mirror`) and the label `adopted`; its items `uploaded`
     with each `original_path` as stored and the relative path, its jobs pending, its audio
     objects recorded as verified (the remaining time reads their durations). From then on it is
     followed by `refresh_status` and downloaded like any batch, again any number of times (Q25).

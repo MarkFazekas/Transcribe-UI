@@ -24,9 +24,13 @@ def store_credentials(request: StoreCredentialsRequest, context: RequestContext)
 
 
 def credentials_status(_request: CredentialsStatusRequest, context: RequestContext) -> CredentialsStatusResponse:
-    """Report which credentials are set and where from."""
-    keyring, statuses = context.ports.credentials.statuses()
-    return CredentialsStatusResponse(keyring=keyring, credentials=statuses)
+    """Report which credentials are set and where from, and whether the Runpod key counts as set."""
+    lookup = context.ports.credentials.lookup()
+    return CredentialsStatusResponse(
+        keyring=lookup.keyring,
+        credentials=lookup.statuses(),
+        runpod_key_set=lookup.runpod_key_set(),
+    )
 
 
 def check_credentials(_request: CheckCredentialsRequest, context: RequestContext) -> CheckCredentialsResponse:

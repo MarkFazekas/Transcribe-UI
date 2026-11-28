@@ -25,10 +25,6 @@ RUN_HISTORY_LIMIT: Final = 20
 WAIT_CHOICES_S: Final = (300, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400)
 # Error codes of a check that are shown as "retrying" (the next check tries again), never as an error dialog.
 RETRYING_CODES: Final = frozenset((ERROR_RUNS_BUSY, ERROR_STATE_BUSY, ERROR_CLOUD_UNREACHABLE))
-# Credential whose presence lets the app start, follow and stop cloud machines (`credentials_status`).
-RUNPOD_KEY_NAME: Final = "runpod_api_key"
-# Credential source of a credential that is not set.
-CREDENTIAL_MISSING: Final = "missing"
 # Details key of the launch confirmation that holds the current plan.
 PLAN_DETAIL: Final = "plan"
 # Channel key of the run list's loads.

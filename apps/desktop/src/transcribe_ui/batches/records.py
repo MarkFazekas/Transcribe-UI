@@ -202,6 +202,7 @@ def batch_summary(
         languages=tuple(languages),
         hidden=row.hidden,
         audio_deleted=row.audio_deleted,
+        adopted=facts.adopted,
         cleanup_pending=stored_cleanup_pending(row),
         extract_only=_extract_only(jobs),
         stage=batch_stage(facts),

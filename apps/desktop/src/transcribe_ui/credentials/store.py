@@ -31,6 +31,7 @@ from transcribe_ui.credentials.constants import (
     ERROR_CREDENTIALS_MISSING,
     ERROR_KEYRING_FAILED,
     ERROR_KEYRING_UNAVAILABLE,
+    KEYRING_FAILED,
     KEYRING_SERVICE,
     R2_CREDENTIALS,
     RUNPOD_API_KEY,
@@ -76,6 +77,18 @@ class Lookup:
         """Return where the credential came from ("missing" when nowhere)."""
         entry = self.found.get(name)
         return "missing" if entry is None else entry.source
+
+    def runpod_key_set(self) -> bool:
+        """Return whether the Runpod API key was found (looked up with it); its validity is not checked.
+
+        A keyring that failed while reading counts as holding it, so a Runpod step reports the
+        keyring's error instead of being skipped as if this computer had no key.
+        """
+        return RUNPOD_API_KEY in self.found or self.keyring == KEYRING_FAILED
+
+    def statuses(self) -> tuple[CredentialStatus, ...]:
+        """Return, per credential of `CREDENTIAL_ORDER`, where it is set (never the value)."""
+        return tuple(_status(name, self) for name in CREDENTIAL_ORDER)
 
     def text(self, name: CredentialName) -> str:
         """Return the credential in plain text ("" when missing)."""
@@ -177,12 +190,6 @@ class CredentialStore:
             elif from_environment:
                 found[name] = Found(SecretStr(from_environment), "environment")
         return Lookup(keyring, found)
-
-    def statuses(self) -> tuple[KeyringState, tuple[CredentialStatus, ...]]:
-        """Return the keyring's state and, per credential, where it is set (never the value)."""
-        lookup = self.lookup()
-        statuses = tuple(_status(name, lookup) for name in CREDENTIAL_ORDER)
-        return lookup.keyring, statuses
 
     def store(self, credentials: Mapping[CredentialName, str]) -> tuple[CredentialName, ...]:
         """Write the credentials to the keyring, in order; return the names written.

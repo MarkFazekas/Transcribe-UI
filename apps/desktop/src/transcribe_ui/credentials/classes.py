@@ -210,6 +210,9 @@ class CredentialsStatusResponse(FrozenModel):
     action: Literal["credentials_status"] = "credentials_status"
     keyring: KeyringState
     credentials: tuple[CredentialStatus, ...]
+    # Whether the Runpod key counts as set: found, or the keyring failed while reading (it may
+    # hold the key; the Runpod steps then report the error of the keyring instead of being skipped).
+    runpod_key_set: bool
 
 
 class ServiceCheck(FrozenModel):

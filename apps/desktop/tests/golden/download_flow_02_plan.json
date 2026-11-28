@@ -16,6 +16,7 @@
       ],
       "hidden": false,
       "audio_deleted": false,
+      "adopted": false,
       "cleanup_pending": null,
       "extract_only": false,
       "stage": "download",
