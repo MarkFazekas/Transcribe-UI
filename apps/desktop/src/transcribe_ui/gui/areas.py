@@ -9,6 +9,7 @@ available yet".
 from typing import TYPE_CHECKING
 
 from transcribe_ui.gui.jobs.install import install_jobs
+from transcribe_ui.gui.selection.install import install_selection
 from transcribe_ui.gui.settings.install import install_settings
 
 if TYPE_CHECKING:
@@ -19,3 +20,4 @@ def install_areas(window: "MainWindow") -> None:
     """Install every built area in the window."""
     install_jobs(window)
     install_settings(window)
+    install_selection(window)

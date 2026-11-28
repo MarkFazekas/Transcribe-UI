@@ -128,12 +128,24 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Audio"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Audio and video"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Audio deleted from the cloud"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Audio files"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Audio only"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
@@ -182,6 +194,26 @@ msgstr ""
 msgid "Choose a folder (a full path), or leave it empty."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Choose a folder to list its audio and video files."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Choose a folder to scan"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Choose a folder, then tick the files to transcribe."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Choose at least one language to transcribe into."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Choose folder…"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the audio track to transcribe."
 msgstr ""
@@ -206,6 +238,14 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the subtitle stream to extract."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Clear filters"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Clear selection"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -251,6 +291,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Continue to review"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Create job"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
@@ -326,6 +370,11 @@ msgstr ""
 msgid "Edit selection"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/view.py
+#, python-brace-format
+msgid "Editing the selection of job {batch_id}"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Embedded subtitle"
 msgstr ""
@@ -359,6 +408,10 @@ msgstr ""
 msgid "File"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "File name"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "File status"
 msgstr ""
@@ -373,6 +426,16 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/languages_view.py
 msgid "Filter languages"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid ""
+"Filters are on: ticking a folder selects only its matching files; the "
+"others are dimmed."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Filters:"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/wizard.py
@@ -403,6 +466,13 @@ msgstr ""
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folders this deep are not scanned."
 msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "Found {count} media file ({video} video, {audio} audio)."
+msgid_plural "Found {count} media files ({video} video, {audio} audio)."
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
@@ -443,7 +513,7 @@ msgstr ""
 msgid "Jobs"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/selection/models.py
 msgid "Kind"
 msgstr ""
 
@@ -459,6 +529,11 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
 msgid "Languages"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+#, python-brace-format
+msgid "Languages of {name}:"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -486,11 +561,13 @@ msgstr ""
 msgid "Missing"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/models.py
+#: src/transcribe_ui/gui/selection/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Name"
 msgstr ""
 
-#: src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/selection/view.py src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr ""
 
@@ -500,6 +577,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Next to the media file"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "No audio or video files in this folder."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -530,6 +611,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Notes"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Nothing is selected."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -575,6 +660,7 @@ msgid "Output folder"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/selection/widgets.py
 msgid "Path"
 msgstr ""
 
@@ -777,9 +863,17 @@ msgid ""
 " setup again in a minute."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Same as the job"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/accounts_view.py
 #: src/transcribe_ui/gui/settings/preferences_view.py
 msgid "Save"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Save selection"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/accounts.py
@@ -792,9 +886,28 @@ msgstr ""
 msgid "Saving..."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Saving…"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Scan again"
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Scanning folders"
 msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Scanning the folder…"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "Scanning the folder… {count} media file found so far."
+msgid_plural "Scanning the folder… {count} media files found so far."
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Secret"
@@ -834,6 +947,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Show hidden jobs"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/models.py
+msgid "Size"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -884,6 +1001,10 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Start a new job instead"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "State"
 msgstr ""
@@ -921,6 +1042,10 @@ msgid ""
 "you start it."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Stop scan"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Stopped. The work done so far is saved; continue any time."
 msgstr ""
@@ -933,8 +1058,21 @@ msgstr ""
 msgid "Stored in the keyring"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/models.py
+msgid "Subtitles it has"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Subtitles ready to download"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Subtitles: any"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+#, python-brace-format
+msgid "Subtitles: {languages}"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -1277,6 +1415,13 @@ msgid ""
 "folder."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/filters.py
+#, python-brace-format
+msgid ""
+"The name filter is not a valid regular expression (at most {count} "
+"characters)."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "The name is not valid Unicode; rename it to include it."
 msgstr ""
@@ -1319,6 +1464,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The review is not complete: resolve or remove every file first."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "The scan was stopped; scan again any time."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -1402,6 +1551,14 @@ msgstr ""
 msgid "This value is not valid."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Tick the files to transcribe."
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Transcribe into:"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Transcribe-UI is already running in another window or process; close it "
@@ -1414,6 +1571,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribed"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/models.py
+msgid "Transcribed into"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -1485,8 +1646,16 @@ msgstr ""
 msgid "Version {version}, data format {schema}"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Video"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Video files"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Video only"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -1495,6 +1664,15 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Warning"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+#, python-brace-format
+msgid "Warnings ({count})"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -1523,6 +1701,14 @@ msgid ""
 "and store them in the keyring"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "contains"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "ends with"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffmpeg could not convert the audio track."
 msgstr ""
@@ -1535,10 +1721,26 @@ msgstr ""
 msgid "ffprobe could not read the file."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "has all of them"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "has any of them"
+msgstr ""
+
 #: src/transcribe_ui/cli/parser.py
 msgid ""
 "how progress is written to stderr: ndjson (one JSON line per event) or "
 "text (one readable line per event)"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "is missing at least one"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "matches the regular expression"
 msgstr ""
 
 #: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
@@ -1565,6 +1767,19 @@ msgstr ""
 msgid "run the request in a JSON file and print the response as JSON"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "starts with"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "unknown language"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "unknown language ({count})"
+msgstr ""
+
 #: src/transcribe_ui/gui/feedback.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/i18n/codes.py
@@ -1582,6 +1797,13 @@ msgstr[1] ""
 #, python-brace-format
 msgid "{count} existing subtitle file will be replaced."
 msgid_plural "{count} existing subtitle files will be replaced."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{count} file selected ({video} video, {audio} audio), {size}."
+msgid_plural "{count} files selected ({video} video, {audio} audio), {size}."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -1732,14 +1954,54 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{languages} (this file)"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{language} (forced)"
+msgstr ""
+
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{minutes} min {seconds} s"
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/choices.py
+#, python-brace-format
+msgid "{name} ({code})"
+msgstr ""
+
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{seconds} s"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} B"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} GB"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} MB"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} TB"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} kB"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py

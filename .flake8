@@ -39,6 +39,8 @@ per-file-ignores =
     # Alembic revisions are frozen snapshots of the schema: column lengths and names are literals,
     # never app constants, so a later constant change cannot rewrite history (`WPS226`, `WPS432`).
     */migrations/versions/*: WPS226,WPS432
+    # Qt item models override Qt's own names (`data`, `index`, `setData`'s `value`; `WPS110`).
+    */gui/*/models.py: WPS110
     # The smoke test's fake Runpod API overrides http.server handler names (`N802`, as in tests).
     scripts/smoke_fixtures.py: N802
 max_complexity = 8

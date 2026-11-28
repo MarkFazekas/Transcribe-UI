@@ -154,6 +154,14 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha végzett."
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Audio"
+msgstr "Hang"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Audio and video"
+msgstr "Hang és videó"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Audio deleted from the cloud"
 msgstr "A hang törölve a felhőből"
@@ -161,6 +169,10 @@ msgstr "A hang törölve a felhőből"
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Audio files"
 msgstr "Hangfájlok"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Audio only"
+msgstr "Csak hang"
 
 #: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Back"
@@ -213,6 +225,26 @@ msgstr "A felhőbeállítás ellenőrzése..."
 msgid "Choose a folder (a full path), or leave it empty."
 msgstr "Válasszon egy mappát (teljes elérési úttal), vagy hagyja üresen."
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Choose a folder to list its audio and video files."
+msgstr "Válasszon mappát, és megjelennek a benne lévő hang- és videófájlok."
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Choose a folder to scan"
+msgstr "Válassza ki a beolvasandó mappát"
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Choose a folder, then tick the files to transcribe."
+msgstr "Válasszon mappát, majd jelölje be az átírandó fájlokat."
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Choose at least one language to transcribe into."
+msgstr "Válasszon legalább egy átírási nyelvet."
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Choose folder…"
+msgstr "Mappa választása…"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the audio track to transcribe."
 msgstr "Válassza ki az átírandó hangsávot."
@@ -240,6 +272,14 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the subtitle stream to extract."
 msgstr "Válassza ki a kinyerendő feliratsávot."
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Clear filters"
+msgstr "Szűrők törlése"
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Clear selection"
+msgstr "Kijelölés törlése"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Close Transcribe-UI"
@@ -287,6 +327,10 @@ msgstr "Megerősítés"
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Continue to review"
 msgstr "Tovább az ellenőrzéshez"
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Create job"
+msgstr "Feladat létrehozása"
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Created"
@@ -364,6 +408,11 @@ msgstr "Többször szerepel"
 msgid "Edit selection"
 msgstr "Kijelölés szerkesztése"
 
+#: src/transcribe_ui/gui/selection/view.py
+#, python-brace-format
+msgid "Editing the selection of job {batch_id}"
+msgstr "Feladat kijelölésének szerkesztése: {batch_id}"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Embedded subtitle"
 msgstr "Beágyazott felirat"
@@ -397,6 +446,10 @@ msgstr "Sikertelen"
 msgid "File"
 msgstr "Fájl"
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "File name"
+msgstr "Fájlnév"
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "File status"
 msgstr "Fájl állapota"
@@ -412,6 +465,18 @@ msgstr "Fájlok"
 #: src/transcribe_ui/gui/settings/languages_view.py
 msgid "Filter languages"
 msgstr "Nyelvek szűrése"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid ""
+"Filters are on: ticking a folder selects only its matching files; the "
+"others are dimmed."
+msgstr ""
+"A szűrők be vannak kapcsolva: egy mappa bejelölése csak a szűrőknek "
+"megfelelő fájljait jelöli ki; a többi halványan látszik."
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Filters:"
+msgstr "Szűrők:"
 
 #: src/transcribe_ui/gui/settings/wizard.py
 msgid "Finish"
@@ -443,6 +508,13 @@ msgstr ""
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folders this deep are not scanned."
 msgstr "Az alkalmazás ilyen mélyen lévő mappákat nem olvas be."
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "Found {count} media file ({video} video, {audio} audio)."
+msgid_plural "Found {count} media files ({video} video, {audio} audio)."
+msgstr[0] "{count} médiafájl található ({video} videó, {audio} hang)."
+msgstr[1] "{count} médiafájl található ({video} videó, {audio} hang)."
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
@@ -483,7 +555,7 @@ msgstr "{batch_id} feladat, létrehozva: {created}"
 msgid "Jobs"
 msgstr "Feladatok"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/selection/models.py
 msgid "Kind"
 msgstr "Típus"
 
@@ -500,6 +572,11 @@ msgstr "Az alkalmazás nyelve"
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
 msgid "Languages"
 msgstr "Nyelvek"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+#, python-brace-format
+msgid "Languages of {name}:"
+msgstr "{name} nyelvei:"
 
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Later"
@@ -526,11 +603,13 @@ msgstr "Naplómappa: {folder}"
 msgid "Missing"
 msgstr "Hiányzik"
 
+#: src/transcribe_ui/gui/selection/models.py
+#: src/transcribe_ui/gui/selection/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Name"
 msgstr "Név"
 
-#: src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/selection/view.py src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr "Új feladat"
 
@@ -541,6 +620,10 @@ msgstr "Tovább"
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Next to the media file"
 msgstr "A médiafájl mellé"
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "No audio or video files in this folder."
+msgstr "Ebben a mappában nincs hang- vagy videófájl."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -573,6 +656,10 @@ msgstr "Nincs megadva"
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Notes"
 msgstr "Megjegyzések"
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Nothing is selected."
+msgstr "Nincs semmi kijelölve."
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "OK"
@@ -617,6 +704,7 @@ msgid "Output folder"
 msgstr "Kimeneti mappa"
 
 #: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/selection/widgets.py
 msgid "Path"
 msgstr "Elérési út"
 
@@ -837,10 +925,18 @@ msgstr ""
 "A Runpod szerint {name} létezik, de még nem szerepel a listájában. Egy "
 "perc múlva futtassa újra a felhőbeállítást."
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Same as the job"
+msgstr "A feladatéval azonos"
+
 #: src/transcribe_ui/gui/settings/accounts_view.py
 #: src/transcribe_ui/gui/settings/preferences_view.py
 msgid "Save"
 msgstr "Mentés"
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Save selection"
+msgstr "Kijelölés mentése"
 
 #: src/transcribe_ui/gui/settings/accounts.py
 #: src/transcribe_ui/gui/settings/viewmodel.py
@@ -852,9 +948,28 @@ msgstr "Mentve."
 msgid "Saving..."
 msgstr "Mentés folyamatban..."
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Saving…"
+msgstr "Mentés…"
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Scan again"
+msgstr "Újbóli beolvasás"
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Scanning folders"
 msgstr "Mappák beolvasása"
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Scanning the folder…"
+msgstr "A mappa beolvasása…"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "Scanning the folder… {count} media file found so far."
+msgid_plural "Scanning the folder… {count} media files found so far."
+msgstr[0] "A mappa beolvasása… eddig {count} médiafájl található."
+msgstr[1] "A mappa beolvasása… eddig {count} médiafájl található."
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Secret"
@@ -895,6 +1010,10 @@ msgstr "Megjelenítés"
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Show hidden jobs"
 msgstr "Rejtett feladatok megjelenítése"
+
+#: src/transcribe_ui/gui/selection/models.py
+msgid "Size"
+msgstr "Méret"
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -954,6 +1073,10 @@ msgstr[1] ""
 "Egy felhőgép indul {jobs} átíráshoz ({audio_s:duration} hanganyag); a "
 "becsült költség {cost_low_usd:.2f}–{cost_high_usd:.2f} USD."
 
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Start a new job instead"
+msgstr "Új feladat indítása helyette"
+
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "State"
 msgstr "Állapot"
@@ -995,6 +1118,10 @@ msgstr ""
 "Leállítja és bezárja? A munka a következő indításkor onnan folytatódik, "
 "ahol abbamaradt."
 
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Stop scan"
+msgstr "Beolvasás leállítása"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Stopped. The work done so far is saved; continue any time."
 msgstr "Leállítva. Az eddig elvégzett munka mentve van; bármikor folytatható."
@@ -1007,9 +1134,22 @@ msgstr "Leállítva; bármikor folytatható."
 msgid "Stored in the keyring"
 msgstr "A kulcstartóban tárolva"
 
+#: src/transcribe_ui/gui/selection/models.py
+msgid "Subtitles it has"
+msgstr "Meglévő feliratok"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Subtitles ready to download"
 msgstr "Letölthető feliratok"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Subtitles: any"
+msgstr "Felirat: mindegy"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+#, python-brace-format
+msgid "Subtitles: {languages}"
+msgstr "Felirat: {languages}"
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "System language"
@@ -1410,6 +1550,13 @@ msgstr ""
 "A név a médiafájl kiterjesztésével egészült ki, hogy ugyanannak a "
 "mappának a fájljai megkülönböztethetők legyenek."
 
+#: src/transcribe_ui/gui/selection/filters.py
+#, python-brace-format
+msgid ""
+"The name filter is not a valid regular expression (at most {count} "
+"characters)."
+msgstr "A névszűrő nem érvényes reguláris kifejezés (legfeljebb {count} karakter)."
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "The name is not valid Unicode; rename it to include it."
 msgstr "A név nem érvényes Unicode-szöveg; nevezze át, hogy bekerülhessen."
@@ -1459,6 +1606,10 @@ msgid "The review is not complete: resolve or remove every file first."
 msgstr ""
 "Az áttekintés nincs kész: előbb minden fájlnál döntsön, vagy vegye ki a "
 "fájlt a feladatból."
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "The scan was stopped; scan again any time."
+msgstr "A beolvasás leállt; bármikor újraindíthatja."
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "The scanned folder is not an absolute path or contains '..'."
@@ -1554,6 +1705,14 @@ msgstr ""
 msgid "This value is not valid."
 msgstr "Ez az érték nem érvényes."
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Tick the files to transcribe."
+msgstr "Jelölje be az átírandó fájlokat."
+
+#: src/transcribe_ui/gui/selection/view.py
+msgid "Transcribe into:"
+msgstr "Átírás nyelve:"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Transcribe-UI is already running in another window or process; close it "
@@ -1569,6 +1728,10 @@ msgstr "A Transcribe-UI egy másik ablakban dolgozik"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribed"
 msgstr "Átírva"
+
+#: src/transcribe_ui/gui/selection/models.py
+msgid "Transcribed into"
+msgstr "Átírás nyelve"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcription"
@@ -1643,9 +1806,17 @@ msgstr "Érték"
 msgid "Version {version}, data format {schema}"
 msgstr "Verzió: {version}, adatformátum: {schema}"
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Video"
+msgstr "Videó"
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Video files"
 msgstr "Videófájlok"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Video only"
+msgstr "Csak videó"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Waiting"
@@ -1654,6 +1825,15 @@ msgstr "Várakozik"
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"
 msgstr "Indításra vár"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "Warning"
+msgstr "Figyelmeztetés"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+#, python-brace-format
+msgid "Warnings ({count})"
+msgstr "Figyelmeztetések ({count})"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -1688,6 +1868,14 @@ msgstr ""
 "a hozzáférési adatok bekérése egyenként (a kulcsok és a titkos kulcs "
 "megjelenítése nélkül), és tárolásuk a kulcstartóban"
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "contains"
+msgstr "tartalmazza"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "ends with"
+msgstr "így végződik"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffmpeg could not convert the audio track."
 msgstr "Az ffmpeg nem tudta átalakítani a hangsávot."
@@ -1700,6 +1888,14 @@ msgstr "Az ffmpeg nem tudta SRT-ként kinyerni a feliratsávot."
 msgid "ffprobe could not read the file."
 msgstr "Az ffprobe nem tudta beolvasni a fájlt."
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "has all of them"
+msgstr "mindegyik megvan"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "has any of them"
+msgstr "bármelyik megvan"
+
 #: src/transcribe_ui/cli/parser.py
 msgid ""
 "how progress is written to stderr: ndjson (one JSON line per event) or "
@@ -1707,6 +1903,14 @@ msgid ""
 msgstr ""
 "az előrehaladás kiírásának formája a stderr-en: ndjson (eseményenként egy"
 " JSON-sor) vagy text (eseményenként egy olvasható sor)"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "is missing at least one"
+msgstr "legalább egy hiányzik"
+
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "matches the regular expression"
+msgstr "illeszkedik a reguláris kifejezésre"
 
 #: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
 msgid "no"
@@ -1734,6 +1938,19 @@ msgstr "az alkalmazás verziójának kiírása, majd kilépés"
 msgid "run the request in a JSON file and print the response as JSON"
 msgstr "egy JSON-fájlban lévő kérés futtatása, és a válasz kiírása JSON-ként"
 
+#: src/transcribe_ui/gui/selection/widgets.py
+msgid "starts with"
+msgstr "így kezdődik"
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "unknown language"
+msgstr "ismeretlen nyelv"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "unknown language ({count})"
+msgstr "ismeretlen nyelv ({count})"
+
 #: src/transcribe_ui/gui/feedback.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/i18n/codes.py
@@ -1753,6 +1970,13 @@ msgid "{count} existing subtitle file will be replaced."
 msgid_plural "{count} existing subtitle files will be replaced."
 msgstr[0] "{count} meglévő feliratfájl lecserélődik."
 msgstr[1] "{count} meglévő feliratfájl lecserélődik."
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{count} file selected ({video} video, {audio} audio), {size}."
+msgid_plural "{count} files selected ({video} video, {audio} audio), {size}."
+msgstr[0] "{count} fájl kijelölve ({video} videó, {audio} hang), {size}."
+msgstr[1] "{count} fájl kijelölve ({video} videó, {audio} hang), {size}."
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -1924,15 +2148,55 @@ msgstr[1] ""
 "{items} fájl kikerül a feladatból. A felhőbe már feltöltött hangjuk "
 "törlődik."
 
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{languages} (this file)"
+msgstr "{languages} (ez a fájl)"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{language} (forced)"
+msgstr "{language} (kényszerített)"
+
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} p {seconds} mp"
 
+#: src/transcribe_ui/gui/selection/choices.py
+#, python-brace-format
+msgid "{name} ({code})"
+msgstr "{name} ({code})"
+
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{seconds} s"
 msgstr "{seconds} mp"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} B"
+msgstr "{size} B"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} GB"
+msgstr "{size} GB"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} MB"
+msgstr "{size} MB"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} TB"
+msgstr "{size} TB"
+
+#: src/transcribe_ui/gui/selection/display.py
+#, python-brace-format
+msgid "{size} kB"
+msgstr "{size} kB"
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
