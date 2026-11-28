@@ -28,6 +28,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 - M6.14 (language of the texts) on `feat/m6.14-i18n`: built and checked locally; waiting for
   its PR and review.
+- M6.7 (CLI ergonomics) on `feat/m6.7-cli`, based on `feat/m6.14-i18n`: built and checked
+  locally; rebase onto `main` after M6.14 merges, then PR and review.
 
 ## Waiting on humans
 
