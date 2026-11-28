@@ -26,8 +26,12 @@ def _reconcile(models: CloudModels, proceed: Proceed) -> None:
 
 
 def _refresh(models: CloudModels, proceed: Proceed) -> None:
-    """Check the runs and the results once (unless a check is in flight already)."""
-    if not models.poll.tick(proceed):
+    """Check the runs and the results once, looking again for the jobs marked removed from the cloud.
+
+    A check in flight already: Refresh now's check follows it (with that recheck).
+    """
+    if not models.poll.tick(proceed, recheck_removed=True):
+        models.poll.refresh_now()
         proceed()
 
 

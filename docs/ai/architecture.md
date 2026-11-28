@@ -473,7 +473,9 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     single-flight channel; a tick is skipped while one is queued or running ("Waiting to check
     the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs and
     no results are awaited.
-    "Refresh now" checks at once and restarts the interval. A check's `runs_busy`,
+    "Refresh now" checks at once and restarts the interval. The start-up check and "Refresh
+    now" send `recheck_removed` (§3.9 "A batch removed from the cloud"); the timer's checks do
+    not. A check's `runs_busy`,
     `state_busy` or `cloud_unreachable` shows as "Last updated <time>; retrying at the next
     check", another error in the page's banner with its fix and as a status bar link, never as
     a dialog. Each check

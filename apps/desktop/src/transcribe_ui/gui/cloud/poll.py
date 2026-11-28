@@ -10,7 +10,10 @@ awaited now. A check's `runs_busy`, `state_busy` or `cloud_unreachable` shows as
 next tick tries again), never as an error dialog; another error shows in the page. Each check
 reloads the run list (what the page shows), even a failed one, and reloads the jobs it reported.
 Refresh now asked while a check is in flight checks once more after it, so a job added meanwhile
-is covered. The timer is injected, so the poll's timing is tested without sleeping.
+is covered. The start-up check and Refresh now also look again for the jobs marked removed from
+the cloud (`recheck_removed`, architecture §3.9): one that is back (the right bucket again, or
+published again) is followed again; the timer's checks do not, so they stay cheap. The timer is
+injected, so the poll's timing is tested without sleeping.
 """
 
 from collections.abc import Callable
@@ -73,14 +76,17 @@ class CloudPoll(ViewModel):
         if not self._timer.active:
             self._timer.start()
 
-    def tick(self, proceed: Proceed | None = None) -> bool:
-        """Check the cloud unless the previous check is still queued or running; return whether one was sent."""
+    def tick(self, proceed: Proceed | None = None, *, recheck_removed: bool = False) -> bool:
+        """Check the cloud unless the previous check is still queued or running; return whether one was sent.
+
+        `recheck_removed`: also look again for the jobs marked removed from the cloud.
+        """
         if self.checking:
             return False
         if proceed is not None:
             # Before the send: an executor may answer inside it.
             self._waiting.append(proceed)
-        request = RefreshStatusRequest(action="refresh_status")
+        request = RefreshStatusRequest(action="refresh_status", recheck_removed=recheck_removed)
         self._channel.send(request, self._answered, self.changed)
         self.changed()
         return True
@@ -89,7 +95,7 @@ class CloudPoll(ViewModel):
         """Check the cloud now ("Refresh now"; after the check in flight, if any); the next automatic one waits an interval."""
         if self.checking:
             self._again = True
-        elif self.tick() and self._timer.active:
+        elif self.tick(recheck_removed=True) and self._timer.active:
             self._timer.start()
 
     def note(self) -> str:

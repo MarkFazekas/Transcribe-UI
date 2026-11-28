@@ -169,4 +169,14 @@ def test_refresh_now_during_a_check_checks_again(manual_area: tuple[CloudArea, M
     manual.answer(REFRESH, _refreshed(awaiting=False))
     assert [held.request.action for held in manual.pending(REFRESH)] == [REFRESH]
     manual.answer(REFRESH, _refreshed(awaiting=False))
-    assert manual.pending(REFRESH) == []
+    assert not manual.pending(REFRESH)
+
+
+def test_removed_jobs_are_rechecked_on_demand(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
+    """Refresh now (and the start-up check) look again for jobs marked removed; the timer's checks do not."""
+    manual = manual_area[1]
+    manual_area[0].models.poll.refresh_now()
+    manual.answer(REFRESH, _refreshed(awaiting=True))
+    manual_area[0].timers.poll.fire()
+    sent = [getattr(held.request, "recheck_removed", None) for held in manual.held if held.request.action == REFRESH]
+    assert sent == [True, False]
