@@ -16,8 +16,8 @@ from transcribe_ui.runs.constants import (
 )
 
 # Where a sign of a live worker run was found: a local run row, the Runpod pod or queued-pod
-# list, or a worker heartbeat (`runs/<run_id>/status.json`) in R2.
-type ActivityKind = Literal["local_run", "pod", "queued_pod", "heartbeat"]
+# list, a worker heartbeat (`runs/<run_id>/status.json`) or a run lease (`runs/<run_id>/launch.json`) in R2.
+type ActivityKind = Literal["local_run", "pod", "queued_pod", "heartbeat", "lease"]
 # What a Runpod entry is: a pod or a queued pod ("deploy when available").
 type RunpodKind = Literal["pod", "queued_pod"]
 # Why a manifest under `batch_metadata/` is not part of the scope: a key that is not a manifest
@@ -49,12 +49,13 @@ class ActivitySource(FrozenModel):
     """One sign of a live worker run."""
 
     kind: ActivityKind
-    # Run id (local run), pod or queued-pod name, or the heartbeat's object key.
+    # Run id (local run), pod or queued-pod name, or the heartbeat's or lease's object key.
     name: str
-    # The run's, pod's or queued pod's status, or the worker state (`unreadable` if it cannot be read).
+    # The run's, pod's or queued pod's status, the worker state, or `live` for a lease
+    # (`unreadable` for a heartbeat or lease that cannot be read).
     status: str
     # The run it belongs to, so a frontend can name it: the local run, the run in the pod name
-    # (None for a name that does not parse) or the run of the heartbeat.
+    # (None for a name that does not parse) or the run of the heartbeat or lease.
     run_id: str | None = None
 
 

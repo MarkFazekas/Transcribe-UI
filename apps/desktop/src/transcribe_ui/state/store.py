@@ -11,11 +11,13 @@ from sqlalchemy.orm import Session
 
 from transcribe_ui.state.constants import (
     DATABASE_BUSY_TIMEOUT_S,
+    KNOWN_LEASES_INFO,
     RUNS_LOCK_WAIT_S,
     SQLITE_PRIMARY_CODE_MASK,
 )
 from transcribe_ui.state.database import Database
 from transcribe_ui.state.errors import LockOrderError, StateBusyError, StateUnavailableError
+from transcribe_ui.state.leases import LeaseMemory
 from transcribe_ui.state.locks import LockRegistry, WriterLock
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.settings import SettingsStore
@@ -48,6 +50,8 @@ class LocalState:
         self.paths = paths
         self.settings = SettingsStore(paths.settings_file)
         self.locks = LockRegistry(runs_lock_wait_s, self.in_session)
+        # The live run leases the last `refresh_status` read (memory only).
+        self.leases = LeaseMemory()
         self._busy_timeout_s = busy_timeout_s
         self._sessions_open = threading.local()
         self._writer = WriterLock(paths.writer_lock_file)
@@ -89,6 +93,7 @@ class LocalState:
         self._sessions_open.depth = 1
         try:
             with database.sessions.begin() as session:
+                session.info[KNOWN_LEASES_INFO] = self.leases.snapshot()
                 yield session
         except OperationalError as error:
             if _is_busy(error):

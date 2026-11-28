@@ -23,6 +23,7 @@ from transcribe_ui.runs.constants import (
     QUEUED_POD_KIND,
 )
 from transcribe_ui.runs.errors import NotAppPodError, PodNotFoundError, runpod_call
+from transcribe_ui.runs.lease_release import releasing_leases
 from transcribe_ui.runs.responses import CancelQueuedPodResponse, TerminatePodResponse
 from transcribe_ui.runs.stopping import CloudObject
 from transcribe_ui.runs.straggler_stops import stop_app_pod, stop_app_queued_pod
@@ -42,7 +43,8 @@ def terminate_pod(request: TerminatePodRequest, context: RequestContext) -> Term
     """
     ports = context.ports
     pod_id = request.pod_id
-    with ports.state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
+    runs_lock = ports.state.locks.runs(context.cancel.is_cancelled)
+    with runs_lock, open_runpod(context) as client, releasing_leases(context):
         pods = client.pods
         pod = runpod_call(lambda: pods.get_pod(pod_id))
         if pod is None:
@@ -69,7 +71,8 @@ def cancel_queued_pod(
     """
     ports = context.ports
     queued_id = request.queued_pod_id
-    with ports.state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
+    runs_lock = ports.state.locks.runs(context.cancel.is_cancelled)
+    with runs_lock, open_runpod(context) as client, releasing_leases(context):
         pods = client.pods
         entry = runpod_call(lambda: pods.get_queued_pod(queued_id))
         if entry is None:

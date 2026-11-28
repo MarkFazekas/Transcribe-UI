@@ -1,8 +1,8 @@
 """Pydantic models of the local state."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict
 
-from transcribe_ui.api.base import ToolPath
+from transcribe_ui.api.base import FrozenModel, ToolPath
 
 
 class ToolPaths(BaseModel):
@@ -16,3 +16,24 @@ class ToolPaths(BaseModel):
 
     ffmpeg_path: ToolPath | None = None
     ffprobe_path: ToolPath | None = None
+
+
+class LiveLease(FrozenModel):
+    """A run lease (`runs/<run_id>/launch.json`) that counts: the batches a live run may process."""
+
+    run_id: str
+    # The listed batches; None for a lease that cannot be read (it then lists every batch).
+    batch_ids: frozenset[str] | None
+    # The moment it stops counting: its deadline, capped at its R2 write time + `LEASE_MAX_SPAN_S`.
+    until: AwareDatetime
+
+    def lists(self, batch_id: str) -> bool:
+        """Return whether the run may process the batch."""
+        return self.batch_ids is None or batch_id in self.batch_ids
+
+
+class LeaseSnapshot(FrozenModel):
+    """The live leases the last `refresh_status` read, and when (kept in memory, never stored)."""
+
+    read_at: AwareDatetime
+    leases: tuple[LiveLease, ...]

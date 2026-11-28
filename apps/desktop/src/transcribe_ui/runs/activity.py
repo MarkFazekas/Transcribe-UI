@@ -11,7 +11,9 @@ always under the runs lock. A run is active when any of these holds:
   looked up by id, decides (a 404 counts until `DEPLOY_SETTLE_S` after the deploy), and one
   without `podId` counts;
 - a `runs/*/status.json` written recently (`runs/heartbeats.py`, R2 `LastModified`) is
-  unreadable, or not final with a recent `updated_at` (capped at the run's deadline).
+  unreadable, or not final with a recent `updated_at` (capped at the run's deadline);
+- a run lease counts (`runs/leases.py`): a `runs/*/launch.json` before its deadline whose run
+  has not reported its end, another computer's included.
 
 The check fails closed: if the Runpod lists or R2 cannot be read, it raises
 `ActivityUnknownError` (`cloud_unreachable`) instead of answering "inactive".
@@ -28,6 +30,7 @@ from transcribe_ui.runs.cloud import CloudAccess
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.errors import ActivityUnknownError
 from transcribe_ui.runs.heartbeats import heartbeat_sources
+from transcribe_ui.runs.leases import lease_sources, live_leases
 from transcribe_ui.runs.pods import pod_sources
 from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.state.models import RunRow
@@ -48,7 +51,8 @@ def check_activity(state: LocalState, cloud: CloudAccess, now: datetime) -> RunA
     local = _local_runs(state)
     listed = _read_runpod(cloud, now)
     heartbeats = _read_heartbeats(cloud, now)
-    return RunActivity(sources=(*local, *listed, *heartbeats))
+    leases = _read_leases(cloud, now)
+    return RunActivity(sources=(*local, *listed, *heartbeats, *leases))
 
 
 def _local_runs(state: LocalState) -> list[ActivitySource]:
@@ -75,6 +79,14 @@ def _read_runpod(cloud: CloudAccess, now: datetime) -> list[ActivitySource]:
 def _read_heartbeats(cloud: CloudAccess, now: datetime) -> list[ActivitySource]:
     try:
         return heartbeat_sources(cloud.store, now)
+    except StorageError as error:
+        failure = ActivityUnknownError("r2", error.code)
+    raise failure
+
+
+def _read_leases(cloud: CloudAccess, now: datetime) -> list[ActivitySource]:
+    try:
+        return lease_sources(live_leases(cloud.store, now))
     except StorageError as error:
         failure = ActivityUnknownError("r2", error.code)
     raise failure

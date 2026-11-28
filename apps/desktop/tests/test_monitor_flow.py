@@ -37,8 +37,8 @@ TRANSCRIBING_S = 1200
 # Its elapsed time then (the pod was created at its first sighting) and its cost at 0.27 USD/h.
 TRANSCRIBING_ELAPSED_S = 1200
 TRANSCRIBING_COST_USD = 0.09
-# Objects the worker leaves under `runs/<run_id>/`: its status and its log.
-WORKER_OBJECTS = 2
+# Objects under `runs/<run_id>/` while the run is open: the worker's status and log, and the run's lease.
+RUN_OBJECTS = 3
 # Item ids of the seeded batch, by file name (as `seed_uploading_batch` stores them).
 SEEDED_IDS = MappingProxyType({FILM: "01JDZZZZZZZZZZZZZZZZZZZZ01", PODCAST: "01JDZZZZZZZZZZZZZZZZZZZZ02"})
 
@@ -99,7 +99,7 @@ def _finish_work(world: RunsWorld, run_id: str) -> None:
     assert (stopping.runs[0].stage, phases) == ("stopping", ["transcribed"])
     statuses = job_statuses(world, FIRST_BATCH_ID)
     assert statuses == {SEEDED_IDS[FILM]: "ok", SEEDED_IDS[PODCAST]: "no_speech"}
-    assert len(run_objects(world, run_id)) == WORKER_OBJECTS, "kept while the pod still exists"
+    assert len(run_objects(world, run_id)) == RUN_OBJECTS, "kept while the pod still exists"
 
 
 def _pod_gone(world: RunsWorld, run_id: str) -> None:

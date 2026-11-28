@@ -9,9 +9,11 @@ the runs lock, and no database transaction is open across a Runpod or R2 call. I
    gone ends (`finished` when the worker reported so, else `failed`; not while R2 cannot be
    read); past its desktop deadline its pod is stopped, verified, and the run fails, whatever R2
    does. Only the Runpod key is needed up to here: R2 is opened on first use (`LazyStore`), and
-   an R2 error is raised once every run was handled.
+   an R2 error is raised once every run was handled. The lease of every run that became final
+   is deleted (`runs/lease_release.py`).
 2. Every `ready` batch gets its job results and, with `_done.json`, moves to `transcribed`
-   (`runs/results.py`); then each followed run's progress and remaining time are computed from
+   (`runs/results.py`), and the live run leases are kept in memory with the refresh time
+   (`waits_for_current_run`); then each followed run's progress and remaining time are computed from
    the jobs done and stored (`runs/remaining.py`).
 3. The objects of final runs are kept locally and deleted (`runs/collect.py`), except while a
    live straggler carries a run's name (`runs/lingering.py`). The Runpod lists are read once,
@@ -23,15 +25,15 @@ the runs lock, and no database transaction is open across a Runpod or R2 call. I
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runs.classes import RefreshStatusRequest
 from transcribe_ui.runs.cloud import CloudAccess, LazyStore, open_runpod
-from transcribe_ui.runs.collect import collect_run_objects
-from transcribe_ui.runs.lingering import read_lists, straggler_check
+from transcribe_ui.runs.lease_release import releasing_leases
+from transcribe_ui.runs.leases import remember_leases
+from transcribe_ui.runs.lingering import collect_settled, read_lists
 from transcribe_ui.runs.progress import runs_progress
 from transcribe_ui.runs.records import open_runs
 from transcribe_ui.runs.refreshing import refresh_open_runs
 from transcribe_ui.runs.remaining import record_progress
 from transcribe_ui.runs.responses import RefreshStatusResponse
 from transcribe_ui.runs.results import check_ready_batches
-from transcribe_ui.runs.settling import Listed
 from transcribe_ui.upload.classes import HeldPublication
 from transcribe_ui.upload.manifest import held_batch_ids
 from transcribe_ui.upload.publish import publish_held_manifests
@@ -49,12 +51,15 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
     state = context.ports.state
     with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
         store = LazyStore(context)
-        listed = read_lists(state, client.pods)
-        refreshed = refresh_open_runs(context, client.pods, store, listed)
+        with releasing_leases(context, store) as ended:
+            listed = read_lists(state, client.pods)
+            refreshed = refresh_open_runs(context, client.pods, store, listed)
+            ended.release()
         cloud = CloudAccess(store.get(), client.pods)
         checked = check_ready_batches(context, cloud.store)
+        remember_leases(state, cloud.store, context.ports.clock.now())
         record_progress(context, refreshed)
-        _collect(context, cloud, listed)
+        collect_settled(state, cloud, listed, context.ports.clock.now())
         published = _publish(context, cloud)
         runs = runs_progress(state, [each.run_id for each in refreshed])
     return RefreshStatusResponse(
@@ -64,19 +69,6 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         published=published.published,
         held=_still_held(published),
     )
-
-
-def _collect(context: RequestContext, cloud: CloudAccess, listed: Listed | None) -> None:
-    """Collect the objects of the final runs no live straggler carries the name of (nothing without lists).
-
-    Without lists no final run waits for collection, or they could not be read (logged): either
-    way nothing is collected this time.
-    """
-    if listed is None:
-        return
-    now = context.ports.clock.now()
-    straggling = straggler_check(listed, cloud.pods, now)
-    collect_run_objects(context.ports.state, cloud.store, now, straggling)
 
 
 def _publish(context: RequestContext, cloud: CloudAccess) -> HeldPublication:

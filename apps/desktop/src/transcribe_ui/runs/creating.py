@@ -1,6 +1,7 @@
 """Recording a run and requesting its pod (plan m5 §1 "Create calls are never re-sent", "Pod create body").
 
-The run row is committed before `POST /pods`, so a lost answer never loses the run. The POST is
+The run row is committed before `POST /pods`, so a lost answer never loses the run (the run's
+lease is written in between, `runs/starting.py`). The POST is
 sent once: a refusal (Runpod answered, nothing was created) makes the run `launch_failed`; an
 ambiguous failure (timeout, 5xx, connection drop after sending) is never re-sent. Instead the
 name is looked up once in both lists and what is found is adopted; otherwise the run stays
@@ -8,6 +9,7 @@ name is looked up once in both lists and what is found is adopted; otherwise the
 """
 
 from collections.abc import Callable
+from datetime import datetime
 from functools import partial
 
 from transcribe_ui.api.errors import CancelledError
@@ -53,10 +55,17 @@ def request_pod(state: LocalState, pods: PodsApi, run: NewRun, body: CreatePod, 
     if isinstance(sent, AmbiguousCreateError):
         update_run(state, run_id, now, changes={"posted_at": now})
         return look_up(state, pods, run_id, now)
-    ended = {"posted_at": now, "ended_at": now, "end_reason": "launch_failed"}
-    update_run(state, run_id, now, "launch_failed", ended)
+    end_launch_failed(state, run_id, now, posted=True)
     # Cancelled before an attempt: only a 429 or a failed connection came before, so nothing exists.
     raise sent if isinstance(sent, CancelledError) else launch_refusal(run_id, sent)
+
+
+def end_launch_failed(state: LocalState, run_id: str, now: datetime, *, posted: bool) -> None:
+    """End the run as `launch_failed`: nothing was created (`posted`: its pod request ended now)."""
+    changes: dict[str, object] = {"ended_at": now, "end_reason": "launch_failed"}
+    if posted:
+        changes["posted_at"] = now
+    update_run(state, run_id, now, "launch_failed", changes)
 
 
 def _send(pods: PodsApi, body: CreatePod, before_attempt: Callable[[], None]) -> Sent:

@@ -200,3 +200,10 @@ ERROR_NOT_APP_POD: Final = "not_an_app_pod"
 ERROR_CLEANUP_PENDING: Final = "cleanup_pending"
 # JSON path of a batch's interrupted cleanup in its batch payload (its `cleanup_pending`).
 CLEANUP_PENDING_PATH: Final = "$.cleanup_pending"
+# Longest span a run lease can count after its R2 write: the longest wait for a machine, the
+# longest runtime, the pod name deadline's margin and the heartbeat's clock margin.
+LEASE_MAX_SPAN_S: Final = WAIT_MAX_S + MAX_RUNTIME_CAP_S + NAME_DEADLINE_MARGIN_S + HEARTBEAT_MARGIN_S
+# Activity status of a run lease that counts and can be read.
+LEASE_LIVE: Final = "live"
+# Content type of a run lease object.
+LEASE_CONTENT_TYPE: Final = "application/json"

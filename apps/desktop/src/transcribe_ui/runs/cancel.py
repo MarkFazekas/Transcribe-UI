@@ -14,22 +14,19 @@ files not done yet wait for the next start), an ended one is refused as below, a
 changed.
 """
 
-from datetime import datetime
-
 from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.runpod.pods import PodsApi
 from transcribe_ui.runs.cancel_asking import cancel_asked
 from transcribe_ui.runs.classes import CancelWorkerRequest
 from transcribe_ui.runs.cloud import open_runpod
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
-from transcribe_ui.runs.errors import LaunchUnresolvedError, RunNotActiveError, runpod_call
+from transcribe_ui.runs.errors import RunNotActiveError
 from transcribe_ui.runs.halting import stop_run
+from transcribe_ui.runs.lease_release import releasing_leases
 from transcribe_ui.runs.records import read_run, update_run
-from transcribe_ui.runs.responses import CancelWorkerResponse, RunInfo
-from transcribe_ui.runs.settling import Listed, resolve_launching
+from transcribe_ui.runs.responses import CancelWorkerResponse
+from transcribe_ui.runs.settling import resolve_for_stop
 from transcribe_ui.runs.stopped import last_report, stopped_end
-from transcribe_ui.state.store import LocalState
 
 
 def cancel_worker(
@@ -52,10 +49,18 @@ def cancel_worker(
     state = ports.state
     if not request.confirm:
         return cancel_asked(state, request)
-    with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
-        run = read_run(state, request.run_id)
+    with state.locks.runs(context.cancel.is_cancelled), releasing_leases(context):
+        return _confirmed_cancel(context, request.run_id)
+
+
+def _confirmed_cancel(context: RequestContext, run_id: str) -> CancelWorkerResponse:
+    """Stop the run's pod (verified) and end the run; the caller holds the runs lock."""
+    ports = context.ports
+    state = ports.state
+    with open_runpod(context) as client:
+        run = read_run(state, run_id)
         if run.status == "launching":
-            run = _resolve(state, client.pods, run.run_id, ports.clock.now())
+            run = resolve_for_stop(state, client.pods, run.run_id, ports.clock.now())
         if run.status == "cancelled":
             return CancelWorkerResponse(run=run)
         if run.status in FINAL_RUN_STATUSES:
@@ -67,11 +72,3 @@ def cancel_worker(
         status, ended = stopped_end(state, worker, now)
         stopped = update_run(state, run.run_id, now, status, ended)
     return CancelWorkerResponse(run=stopped, terminated_pod_id=terminated)
-
-
-def _resolve(state: LocalState, pods: PodsApi, run_id: str, now: datetime) -> RunInfo:
-    listed = runpod_call(lambda: Listed.read(pods))
-    run = resolve_launching(state, run_id, listed, now)
-    if run.status == "launching":
-        raise LaunchUnresolvedError(run_id)
-    return run

@@ -29,6 +29,24 @@ class Decided:
         scope = self.plan.scope.batches
         return tuple(batch.batch_id for batch in scope if _covered(batch, still_held))
 
+    def run_payload(self, named: "NamedRun", *, wait_s: int, test_mode: bool) -> RunPayload:
+        """Return the payload of the run launched on this decision under that name."""
+        plan = self.plan
+        scope = plan.scope
+        return RunPayload(
+            max_runtime_s=plan.max_runtime_s,
+            test_mode=test_mode,
+            wait_s=wait_s,
+            queue_expires_at=named.expires_at,
+            name_deadline=named.deadline,
+            covered_batch_ids=self.covered(),
+            fingerprint=scope.fingerprint,
+            pending_duration_s=scope.pending_duration_s,
+            estimate=plan.cost,
+            weighted_known_duration_s=self.followed_duration_s(),
+            unknown_runtime_s=self.unknown_runtime_s(),
+        )
+
     def unknown_runtime_s(self) -> float:
         """Return the launch-factor runtime of the covered batches this database does not know (another computer's)."""
         jobs = [job for batch in self._covered_batches(known=False) for job in batch.pending_jobs]

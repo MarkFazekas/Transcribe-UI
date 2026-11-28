@@ -19,6 +19,7 @@ from transcribe_ui.runs.constants import (
     LAUNCH_LOOKUP_GAP_S,
     LAUNCH_SETTLE_S,
 )
+from transcribe_ui.runs.errors import LaunchUnresolvedError, runpod_call
 from transcribe_ui.runs.records import PayloadChanges, load_run, payload_of, read_run, update_run
 from transcribe_ui.runs.responses import RunInfo
 from transcribe_ui.state.models import RunStatus
@@ -158,3 +159,17 @@ def resolve_launching(state: LocalState, run_id: str, listed: Listed, now: datet
     if now - first >= LOOKUP_GAP:
         return update_run(state, run_id, now, "launch_failed", {"ended_at": now, "end_reason": "launch_failed"})
     return read_run(state, run_id)
+
+
+def resolve_for_stop(state: LocalState, pods: PodsApi, run_id: str, now: datetime) -> RunInfo:
+    """Resolve a `launching` run before it is stopped (one lookup of both lists).
+
+    Raises:
+        LaunchUnresolvedError: Its pod is not listed (yet); nothing can be stopped.
+        DomainError: The lists could not be read.
+    """
+    listed = runpod_call(lambda: Listed.read(pods))
+    run = resolve_launching(state, run_id, listed, now)
+    if run.status == "launching":
+        raise LaunchUnresolvedError(run_id)
+    return run
