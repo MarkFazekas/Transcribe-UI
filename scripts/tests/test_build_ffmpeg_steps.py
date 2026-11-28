@@ -3,21 +3,26 @@
 import hashlib
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
 from build_ffmpeg import KEYED_FILES, build_host_problem, cache_key, pins_output
 from build_ffmpeg_pins import CACHE_SALT, MANYLINUX_IMAGE, Platform, Source
-from build_ffmpeg_steps import BUILD_INFO, fetch, out_problem, output_of
+from build_ffmpeg_steps import BUILD_INFO, DOWNLOAD_HEAD_BYTES, fetch, out_problem, output_of
 
-# The bytes the fake download writes.
+# The bytes of the pinned tarball.
 PINNED_BYTES = b"pinned source"
-# A source pinned to those bytes.
+# What a bot-protection page serves instead.
+HTML_PAGE = b"<!DOCTYPE html><html><body>Checking your browser</body></html>"
+# The primary URL and the fallback of the demo source.
+PRIMARY = "https://primary.example.invalid/demo-1.0.tar.gz"
+FALLBACK = "https://fallback.example.invalid/demo-1.0.tar.gz"
+# A source pinned to those bytes, with a fallback URL.
 PINNED = Source(
     name="demo",
     version="1.0",
-    url="https://example.invalid/demo-1.0.tar.gz",
+    urls=(PRIMARY, FALLBACK),
     sha256=hashlib.sha256(PINNED_BYTES).hexdigest(),
     signing_key="0123456789ABCDEF0123456789ABCDEF01234567",
     licence="LICENSE",
@@ -26,18 +31,23 @@ PINNED = Source(
 SLEEPER = (sys.executable, "-c", "import time; time.sleep(30)")
 
 
-@dataclass(frozen=True)
-class FakeDownload:
-    """Stands in for `run_step`: writes `payload` where curl's `--output` points; None fails the test."""
+@dataclass
+class FakeCurl:
+    """Stands in for `run_step`: serves each URL its payload (None: curl fails) and records the URLs asked."""
 
-    payload: bytes | None
+    served: dict[str, bytes | None]
+    asked: list[str] = field(default_factory=list)
 
     def __call__(self, argv: Sequence[str], *_: object) -> None:
-        """Write the payload as the download, or fail when nothing may be downloaded."""
-        if self.payload is None:
-            pytest.fail("nothing must be downloaded")
+        """Write what the URL (the last argument) serves where `--output` points, or fail like curl."""
+        url = argv[-1]
+        self.asked.append(url)
+        payload = self.served[url]
+        if payload is None:
+            msg = "curl failed (exit 22)"
+            raise RuntimeError(msg)
         target = Path(argv[list(argv).index("--output") + 1])
-        target.write_bytes(self.payload)
+        target.write_bytes(payload)
 
 
 @pytest.fixture(autouse=True)
@@ -46,25 +56,53 @@ def fake_curl(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("build_ffmpeg_steps.tool", str)
 
 
-def test_fetch_refuses_and_deletes_a_wrong_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Bytes with another SHA-256 fail the build, and the bad tarball is not kept."""
-    monkeypatch.setattr("build_ffmpeg_steps.run_step", FakeDownload(b"tampered"))
-    with pytest.raises(RuntimeError, match="SHA-256"):
-        fetch(PINNED, tmp_path)
-    assert not (tmp_path / PINNED.archive).exists()
+def _serve(monkeypatch: pytest.MonkeyPatch, served: dict[str, bytes | None]) -> FakeCurl:
+    curl = FakeCurl(served)
+    monkeypatch.setattr("build_ffmpeg_steps.run_step", curl)
+    return curl
 
 
-def test_fetch_keeps_a_verified_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A fresh download with the pinned SHA-256 is returned."""
-    monkeypatch.setattr("build_ffmpeg_steps.run_step", FakeDownload(PINNED_BYTES))
+def _failure(folder: Path) -> str:
+    """Return the error of a `fetch` of the demo source that must fail."""
+    try:
+        fetch(PINNED, folder)
+    except RuntimeError as error:
+        return str(error)
+    pytest.fail("fetch did not fail")
+
+
+def test_fetch_takes_the_first_good_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The primary URL serves the tarball: the fallback is never asked."""
+    curl = _serve(monkeypatch, {PRIMARY: PINNED_BYTES, FALLBACK: None})
     assert fetch(PINNED, tmp_path).read_bytes() == PINNED_BYTES
+    assert curl.asked == [PRIMARY]
+
+
+def test_fetch_falls_back_after_a_wrong_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An HTML page instead of the tarball is deleted and the next URL tried."""
+    curl = _serve(monkeypatch, {PRIMARY: HTML_PAGE, FALLBACK: PINNED_BYTES})
+    assert fetch(PINNED, tmp_path).read_bytes() == PINNED_BYTES
+    assert curl.asked == [PRIMARY, FALLBACK]
+
+
+def test_fetch_fails_only_when_every_url_failed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each URL is named with what it served (hash, size, first bytes) or why curl failed; nothing is kept."""
+    _serve(monkeypatch, {PRIMARY: HTML_PAGE, FALLBACK: None})
+    lines = _failure(tmp_path).splitlines()
+    wrong = hashlib.sha256(HTML_PAGE).hexdigest()
+    assert (
+        lines[1] == f"{PRIMARY}: SHA-256 {wrong}, {len(HTML_PAGE)} bytes starting {HTML_PAGE[:DOWNLOAD_HEAD_BYTES]!r}"
+    )
+    assert lines[2] == f"{FALLBACK}: curl failed (exit 22)"
+    assert not (tmp_path / PINNED.archive).exists()
 
 
 def test_fetch_reuses_a_verified_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A tarball already there with the pinned SHA-256 is used without downloading."""
     (tmp_path / PINNED.archive).write_bytes(PINNED_BYTES)
-    monkeypatch.setattr("build_ffmpeg_steps.run_step", FakeDownload(None))
+    curl = _serve(monkeypatch, {})
     assert fetch(PINNED, tmp_path) == tmp_path / PINNED.archive
+    assert not curl.asked
 
 
 def test_out_folder_must_be_an_earlier_build(tmp_path: Path) -> None:
@@ -110,6 +148,7 @@ def test_a_hanging_tool_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_cache_key_covers_the_pinned_inputs(tmp_path: Path) -> None:
     """The key hashes the pins module, so a bumped salt (or image, or package) gives another key."""
+    assert {"build_ffmpeg_pins.py", "build_platform.py"} <= {path.name for path in KEYED_FILES}
     pins = next(path for path in KEYED_FILES if path.name == "build_ffmpeg_pins.py")
     bumped = tmp_path / pins.name
     text = pins.read_text(encoding="utf-8")

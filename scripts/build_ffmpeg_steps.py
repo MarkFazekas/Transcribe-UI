@@ -38,6 +38,11 @@ type Environment = Mapping[str, str]
 
 # Seconds a quick program (`ldd`, `otool`, `objdump`, a built program's `-buildconf`) may take.
 TOOL_TIMEOUT_S = 60
+# Bytes of a wrong download shown in the error (enough to tell an HTML page).
+DOWNLOAD_HEAD_BYTES = 32
+# What curl prints after each download: status, content type and size (curl reads the `\n`;
+# the final URL is left out, since a redirect to a release asset carries a signed query).
+CURL_REPORT = r"HTTP %{http_code}, %{content_type}, %{size_download} bytes\n"
 # Seconds a download may take.
 DOWNLOAD_TIMEOUT_S = 600
 # Bytes read at a time when hashing.
@@ -155,25 +160,55 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
+def describe_download(archive: Path) -> str:
+    """Return the size and the first bytes of a download, so a wrong one shows what it was (an HTML page)."""
+    with archive.open("rb") as stream:
+        head = stream.read(DOWNLOAD_HEAD_BYTES)
+    return f"{archive.stat().st_size} bytes starting {head!r}"
+
+
+def download(url: str, archive: Path, sha256: str) -> str | None:
+    """Download `url` to `archive`; return None when it has the SHA-256, else what went wrong.
+
+    A wrong download is deleted. curl prints the HTTP status, the content type and the size
+    of every download to the log.
+    """
+    command = [tool("curl"), "--fail", "--location", "--silent", "--show-error", "--retry", "3"]
+    command += ["--max-time", str(DOWNLOAD_TIMEOUT_S), "--write-out", CURL_REPORT]
+    command += ["--output", str(archive), url]
+    try:
+        run_step(command, archive.parent)
+    except RuntimeError as error:
+        archive.unlink(missing_ok=True)
+        return f"{url}: {error}"
+    found = sha256_of(archive)
+    if found == sha256:
+        return None
+    problem = f"{url}: SHA-256 {found}, {describe_download(archive)}"
+    archive.unlink()
+    return problem
+
+
 def fetch(source: Source, downloads: Path) -> Path:
-    """Download a source tarball (unless a verified copy is there) and check its SHA-256.
+    """Return the source tarball: a verified copy already there, or the first URL that serves the pinned SHA-256.
 
     Raises:
-        RuntimeError: The download failed or its SHA-256 is not the pinned one.
+        RuntimeError: No URL served the pinned tarball (each one is named with what it served).
     """
     downloads.mkdir(parents=True, exist_ok=True)
     archive = downloads / source.archive
     if archive.is_file() and sha256_of(archive) == source.sha256:
         return archive
-    command = [tool("curl"), "--fail", "--location", "--silent", "--show-error", "--retry", "3"]
-    command += ["--max-time", str(DOWNLOAD_TIMEOUT_S), "--output", str(archive), source.url]
-    run_step(command, downloads)
-    found = sha256_of(archive)
-    if found != source.sha256:
-        archive.unlink()
-        msg = f"{source.archive}: SHA-256 {found}, expected {source.sha256}"
-        raise RuntimeError(msg)
-    return archive
+    problems: list[str] = []
+    for url in source.urls:
+        problem = download(url, archive, source.sha256)
+        if problem is None:
+            return archive
+        sys.stdout.write(f"Not the pinned {source.archive}: {problem}\n")
+        problems.append(problem)
+    listed = "\n".join(problems)
+    msg = f"no source of {source.archive} served the pinned SHA-256 {source.sha256}:\n{listed}"
+    raise RuntimeError(msg)
 
 
 def unpack(archive: Path, source: Source, destination: Path) -> Path:

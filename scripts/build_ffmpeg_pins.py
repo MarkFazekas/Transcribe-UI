@@ -62,7 +62,8 @@ class Source:
 
     name: str
     version: str
-    url: str
+    # Where the tarball is downloaded from, tried in order until one serves the pinned SHA-256.
+    urls: tuple[str, ...]
     sha256: str
     # Fingerprint of the PGP key whose signature of the tarball was checked when it was pinned.
     signing_key: str
@@ -72,7 +73,7 @@ class Source:
     @property
     def archive(self) -> str:
         """Return the tarball's file name."""
-        return self.url.rsplit("/", 1)[-1]
+        return self.urls[0].rsplit("/", 1)[-1]
 
     @property
     def folder(self) -> str:
@@ -80,20 +81,27 @@ class Source:
         return f"{self.name.lower()}-{self.version}"
 
 
-# FFmpeg 9.1 "Gauss" (2026-11-20), signed with the FFmpeg release signing key.
+# FFmpeg 9.1 "Gauss" (2026-11-20), signed with the FFmpeg release signing key. One URL: the
+# release tarballs exist only on ffmpeg.org (GitHub's FFmpeg mirror has none, and a tag's
+# generated archive is other bytes, without the release's generated files).
 FFMPEG = Source(
     name="FFmpeg",
     version="9.1",
-    url="https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz",
+    urls=("https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz",),
     sha256="1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
     signing_key="FCF986EA15E6E293A5644F10B4322F04D67658D8",
     licence="COPYING.LGPLv2.1",
 )
-# zlib 1.4, signed with Mark Adler's key; zlib.net keeps every release under `fossils/`.
+# zlib 1.4, signed with Mark Adler's key. First the release asset on GitHub (zlib.net served
+# GitHub's runners other bytes, not the tarball), then zlib.net, which keeps every release under
+# `fossils/`; both serve the same signed tarball.
 ZLIB = Source(
     name="zlib",
     version="1.4",
-    url="https://zlib.net/fossils/zlib-1.4.tar.gz",
+    urls=(
+        "https://github.com/madler/zlib/releases/download/v1.4/zlib-1.4.tar.gz",
+        "https://zlib.net/fossils/zlib-1.4.tar.gz",
+    ),
     sha256="02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584",
     signing_key="5ED46A6721D365587791E2AA783FCD8E58BCAFBA",
     licence="LICENSE",

@@ -168,6 +168,8 @@ def test_sources_of_each_build() -> None:
     assert sources(LINUX) == sources(WINDOWS) == [FFMPEG, ZLIB]
     assert sources("macos-x64") == [FFMPEG]
     assert (FFMPEG.archive, FFMPEG.folder, ZLIB.folder) == ("ffmpeg-9.1.tar.xz", "ffmpeg-9.1", "zlib-1.4")
+    for source in (FFMPEG, ZLIB):
+        assert all(url.endswith(f"/{source.archive}") for url in source.urls)
 
 
 def test_build_info_states_sources_and_configure_line() -> None:
@@ -177,7 +179,10 @@ def test_build_info_states_sources_and_configure_line() -> None:
     assert build_info(WINDOWS)["zlib"] == {
         "name": "zlib",
         "version": "1.4",
-        "url": "https://zlib.net/fossils/zlib-1.4.tar.gz",
+        "urls": (
+            "https://github.com/madler/zlib/releases/download/v1.4/zlib-1.4.tar.gz",
+            "https://zlib.net/fossils/zlib-1.4.tar.gz",
+        ),
         "sha256": ZLIB.sha256,
         "signing_key": ZLIB.signing_key,
         "licence": "LICENSE",
