@@ -72,6 +72,7 @@ eglfs
 enospc
 errnos
 errorcode
+eval
 ewouldblock
 exc
 excepthook
@@ -155,6 +156,7 @@ langid
 lavfi
 levelname
 levelno
+libpython
 libwayland
 lineno
 linkname
@@ -209,6 +211,7 @@ onnx
 openai
 ord
 orm
+otool
 paginator
 param
 params

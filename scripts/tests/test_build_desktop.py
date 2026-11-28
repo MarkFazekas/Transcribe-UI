@@ -17,6 +17,7 @@ from build_desktop import (
     stamped_version,
     windows_version_resource,
 )
+from build_desktop_macos import bundled_binaries, minimum_versions
 
 # A commit hash.
 SHA = "abc1234def5678abc1234def5678abc1234def56"
@@ -137,3 +138,27 @@ def test_windows_version_resource_describes_the_file() -> None:
     assert "StringStruct('FileDescription', 'Transcribe-UI command line')" in resource
     assert "StringStruct('ProductVersion', '0.1.0+20261128.abc1234')" in resource
     assert "StringStruct('OriginalFilename', 'transcribe-ui-windows-x64-cli.exe')" in resource
+
+
+def test_minimum_versions_of_each_architecture() -> None:
+    """`minos` of LC_BUILD_VERSION and `version` of LC_VERSION_MIN_MACOSX; other commands are ignored."""
+    otool = (
+        "x (architecture x86_64):\nLoad command 9\n      cmd LC_VERSION_MIN_MACOSX\n  cmdsize 16\n"
+        "  version 10.13\n      sdk 10.15\nLoad command 10\n      cmd LC_SOURCE_VERSION\n  version 0.0\n"
+        "x (architecture arm64):\nLoad command 9\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform 1\n"
+        "    minos 15.0\n      sdk 15.2\n"
+    )
+    assert minimum_versions(otool) == [(10, 13), (15, 0)]
+
+
+def test_bundled_binaries_from_the_table_of_contents(tmp_path: Path) -> None:
+    """Binaries and extensions are taken from PyInstaller's package table; data and modules are not."""
+    table = tmp_path / "PKG-00.toc"
+    entries = [
+        ("PYZ-00.pyz", "/w/PYZ-00.pyz", "PYZ"),
+        ("libpython3.13.dylib", "/py/lib/libpython3.13.dylib", "BINARY"),
+        ("_ssl.so", "/py/lib/_ssl.so", "EXTENSION"),
+        ("transcribe_ui/version.txt", "/w/version.txt", "DATA"),
+    ]
+    table.write_text(repr(("/w/x.pkg", {"BINARY": True}, entries, False)), encoding="utf-8")
+    assert bundled_binaries(table) == [Path("/py/lib/_ssl.so"), Path("/py/lib/libpython3.13.dylib")]

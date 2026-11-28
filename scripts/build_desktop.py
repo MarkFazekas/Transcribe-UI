@@ -31,6 +31,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
+from build_desktop_macos import bundled_binaries, floor_problems
+
 # Root of the repository.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # The desktop app's workspace member.
@@ -331,13 +333,26 @@ def _stamp() -> int:
     return 0
 
 
+def _macos_floor_problems(variant: Variant, paths: BuildPaths) -> list[str]:
+    """Return the bundled binaries that need a newer macOS than the release supports."""
+    stem = asset_stem(variant, platform_tag(sys.platform, platform.machine()))
+    return floor_problems(bundled_binaries(paths.work / "build" / stem / "PKG-00.toc"))
+
+
 def _build(variants: Sequence[Variant], version: str, dist: Path, work: Path) -> int:
+    # The interpreter decides what is bundled (its libpython, its minimum OS): name it in the log.
+    sys.stdout.write(f"Build interpreter: {sys.executable}, Python {sys.version}\n")
     for variant in variants:
         paths = BuildPaths(dist.resolve(), work.resolve() / variant)
         try:
             executable = build_variant(variant, version, paths)
         except (RuntimeError, OSError) as error:
             sys.stderr.write(f"{error}\n")
+            return 1
+        problems = _macos_floor_problems(variant, paths) if sys.platform == "darwin" else []
+        if problems:
+            report = "\n".join(problems)
+            sys.stderr.write(f"{report}\n")
             return 1
         size_mb = executable.stat().st_size / MEGABYTE
         sys.stdout.write(f"Built {executable} ({size_mb:.1f} MB)\n")
