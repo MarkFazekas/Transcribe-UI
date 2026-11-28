@@ -3,6 +3,7 @@
 import plistlib
 from contextlib import ExitStack
 from pathlib import Path
+from xml.parsers.expat import ExpatError
 
 import pytest
 from smoke_desktop_build import main
@@ -273,6 +274,7 @@ def test_a_broken_info_plist_is_an_image_error(monkeypatch: pytest.MonkeyPatch, 
     hdiutil = _BrokenPlistHdiutil(with_app=True)
     monkeypatch.setattr(RUN_PROCESS, hdiutil)
     monkeypatch.setattr(Path, "is_mount", _mounted_only(hdiutil))
-    with pytest.raises(ImageError, match=r"gui\.dmg"), ExitStack() as stack:
+    with pytest.raises(ImageError, match=r"gui\.dmg: ") as raised, ExitStack() as stack:
         gui_executable(tmp_path / "gui.dmg", stack)
+    assert isinstance(raised.value.__cause__, ExpatError)
     assert tuple(command[1] for command in hdiutil.commands) == ATTACH_THEN_DETACH

@@ -57,6 +57,8 @@ CODESIGN_VARIABLES: Mapping[str, str] = MappingProxyType(
 STAMP_LOCAL = re.compile(r"(\d{8})\.[0-9a-f]{7,40}")
 # Leading release segment of a PEP 440 version.
 RELEASE_SEGMENT = re.compile(r"\d+(?:\.\d+)*")
+# `Info.plist` entries the app must not have: no minimum macOS is claimed (the architect's floor answer).
+ABSENT_PLIST_KEYS = ("LSMinimumSystemVersion",)
 # PyInstaller's table of contents of the app (`BUNDLE`), in its work folder.
 APP_TABLE = "BUNDLE-00.toc"
 # PyInstaller's table of contents of the package of a one-file executable, in its work folder.
@@ -87,11 +89,6 @@ APP_VOLUME = f"/Volumes/{MACOS_APP_NAME}"
 def is_macos_app(variant: str, tag: str) -> bool:
     """Return whether the variant is built as a macOS `.app` in a disk image (the GUI on macOS, A23)."""
     return variant == "gui" and tag.startswith("macos-")
-
-
-def bundle_name(stem: str, *, app: bool) -> str:
-    """Return PyInstaller's `--name`: the published file's stem, or the macOS app's name."""
-    return MACOS_APP_NAME if app else stem
 
 
 def release_segment(version: str) -> str:
@@ -166,13 +163,24 @@ def prepare_app(base: str, version: str, plist_file: Path) -> dict[str, str]:
 
 
 def plist_problems(app: Path, expected: PlistEntries) -> list[str]:
-    """Return every entry of the app's `Info.plist` that differs from `expected` (empty: none)."""
+    """Return every entry of the app's `Info.plist` that differs from `expected` or must be absent (empty: none).
+
+    Raises:
+        OSError: The `Info.plist` cannot be read.
+        ValueError: It is no plist.
+        xml.parsers.expat.ExpatError: It is broken XML.
+    """
     written = read_info_plist(app)
-    return [
+    problems = [
         f"Info.plist: {key} is {written.get(key)!r}, expected {wanted!r}"
         for key, wanted in expected.items()
         if written.get(key) != wanted
     ]
+    present = [key for key in ABSENT_PLIST_KEYS if key in written]
+    for key in present:
+        found = written[key]
+        problems.append(f"Info.plist: {key} is {found!r}, expected no such entry")
+    return problems
 
 
 def macos_report(built: Path, tables: Path, plist_file: Path | None) -> FloorReport:
@@ -181,18 +189,32 @@ def macos_report(built: Path, tables: Path, plist_file: Path | None) -> FloorRep
     `tables` is PyInstaller's work folder of the build, which holds its tables of contents.
 
     Raises:
-        RuntimeError: The app's `Info.plist` names no executable, or `otool` could not read a binary.
+        RuntimeError: The app's `Info.plist` or the build's plist file is broken or names no
+            executable, or `otool` could not read a binary.
         subprocess.SubprocessError: Reading a binary did not finish in time.
     """
     if plist_file is None:
         return check_bundle(tables / PACKAGE_TABLE, built)
     try:
-        report = check_app(tables / APP_TABLE, built)
-    except ValueError as error:
-        raise RuntimeError(str(error)) from error
+        return _app_report(built, tables, plist_file)
+    except (ValueError, ExpatError) as error:
+        msg = f"{built}: {error}"
+        raise RuntimeError(msg) from error
+
+
+def _app_report(app: Path, tables: Path, plist_file: Path) -> FloorReport:
+    """Check the app against the floor, and its `Info.plist` against the entries in `plist_file`.
+
+    Raises:
+        ValueError: A plist is no plist, or the app's names no executable.
+        xml.parsers.expat.ExpatError: A plist is broken XML.
+        OtoolError: A binary could not be read.
+        subprocess.SubprocessError: Reading a binary did not finish in time.
+    """
+    report = check_app(tables / APP_TABLE, app)
     with plist_file.open("rb") as stream:
         expected = plistlib.load(stream)
-    problems = (*report.problems, *plist_problems(built, expected))
+    problems = (*report.problems, *plist_problems(app, expected))
     return FloorReport(problems, report.wheels)
 
 

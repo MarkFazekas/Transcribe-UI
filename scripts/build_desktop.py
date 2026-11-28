@@ -37,7 +37,7 @@ from typing import Literal
 from build_desktop_app import (
     APP_BUNDLE,
     APP_ICON,
-    bundle_name,
+    MACOS_APP_NAME,
     is_macos_app,
     macos_report,
     make_disk_image,
@@ -274,7 +274,7 @@ def pyinstaller_arguments(variant: Variant, tag: str, paths: BuildPaths) -> list
         "--onedir" if app else "--onefile",
         "--noupx",
         "--name",
-        bundle_name(asset_stem(variant, tag), app=app),
+        MACOS_APP_NAME if app else asset_stem(variant, tag),
         "--distpath",
         str(paths.app_dist if app else paths.dist),
         "--workpath",
@@ -395,7 +395,7 @@ def _published(variant: Variant, version: str, paths: BuildPaths) -> tuple[Path,
         return built, []
     tag = host_tag()
     app = is_macos_app(variant, tag)
-    name = bundle_name(asset_stem(variant, tag), app=app)
+    name = MACOS_APP_NAME if app else asset_stem(variant, tag)
     tables = paths.work / "build" / name
     report = macos_report(built, tables, paths.info_plist if app else None)
     for line in report.wheels:

@@ -1,8 +1,7 @@
-"""The macOS floor of a desktop build: nothing we build may raise the macOS the app needs above Qt's.
+"""The macOS floor of a desktop build: nothing we build may need a newer macOS than Qt's wheels declare.
 
-The floor (14.0, what the PySide6 wheels declare) is a regression guard: it keeps our own build
-(the bootloader, libpython, ffmpeg) from needlessly raising the macOS version below which the app
-cannot work. It is not a support claim; CI starts the GUI on macOS 15 only, and older versions
+The floor is a regression guard: it keeps our own binaries (bootloader, libpython, ffmpeg) from
+needing a newer macOS than Qt's wheels declare (14.0). It is not a support claim; CI starts the GUI on macOS 15 only, and older versions
 may work but are untested (the architect's answer on the floor).
 
 Used by `scripts/build_desktop.py` after a macOS build (docs/ai/plans/m8.md §1 "Platforms and
@@ -47,8 +46,7 @@ from build_desktop_wheels import MacosVersion, Owners, Wheel, installed_wheels, 
 type MinimumReader = Callable[[Path], list[MacosVersion]]
 
 # The macOS our own binaries must not need more than: the version the PySide6 6.12 wheels declare
-# (their 14.0 platform tag). A regression guard against needlessly raising the macOS the app needs, not a
-# support claim (only macOS 15 is tested).
+# (their 14.0 platform tag). A regression guard, not a support claim (only macOS 15 is tested).
 MACOS_FLOOR: MacosVersion = (14, 0)
 # Table-of-contents types of the bundled Mach-O files.
 BINARY_TYPES = frozenset(("BINARY", "EXTENSION"))
@@ -263,7 +261,9 @@ def check_app(table_of_contents: Path, app: Path) -> FloorReport:
     Raises:
         OtoolError: A binary could not be read.
         subprocess.SubprocessError: Reading a binary did not finish in time.
-        ValueError: The app's `Info.plist` names no executable.
+        OSError: The app's `Info.plist` cannot be read.
+        ValueError: The app's `Info.plist` is no plist or names no executable.
+        xml.parsers.expat.ExpatError: The app's `Info.plist` is broken XML.
     """
     read = otool_reader()
     if read is None:

@@ -5,6 +5,7 @@ import plistlib
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
+from xml.parsers.expat import ExpatError
 
 import pytest
 from build_desktop import PYINSTALLER_RUNNER
@@ -17,10 +18,12 @@ from build_desktop_app import (
     info_plist,
     is_macos_app,
     leftover_devices,
+    macos_report,
     make_disk_image,
     plist_problems,
     prepare_app,
 )
+from build_desktop_macos import FloorReport
 
 # The base version of the tests.
 BASE = "0.1.0"
@@ -143,6 +146,25 @@ def test_plist_problems_name_each_differing_entry(tmp_path: Path) -> None:
         "Info.plist: NSHighResolutionCapable is None, expected True",
     ]
     assert not plist_problems(_app(tmp_path / "good", {**expected, "CFBundleName": "Transcribe-UI"}), expected)
+
+
+def test_a_minimum_macos_in_the_plist_is_a_problem(tmp_path: Path) -> None:
+    """The app claims no minimum macOS (the architect's floor answer): an `LSMinimumSystemVersion` fails the build."""
+    expected = info_plist(BASE, STAMPED)
+    app = _app(tmp_path, {**expected, "LSMinimumSystemVersion": "14.0"})
+    assert plist_problems(app, expected) == ["Info.plist: LSMinimumSystemVersion is '14.0', expected no such entry"]
+
+
+def test_a_broken_plist_fails_the_build_cleanly(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A broken-XML `Info.plist` in the built app is a `RuntimeError` of the build (the build reports it), not a traceback."""
+    app = _app(tmp_path, {})
+    (app / "Contents" / "Info.plist").write_bytes(b"<?xml version='1.0'?><plist><dict><key>CFBundleVersion")
+    plist_file = tmp_path / "entries.plist"
+    prepare_app(BASE, STAMPED, plist_file)
+    monkeypatch.setattr("build_desktop_app.check_app", lambda _table, _app: FloorReport((), ()))
+    with pytest.raises(RuntimeError, match=r"Transcribe-UI\.app: ") as raised:
+        macos_report(app, tmp_path / "build", plist_file)
+    assert isinstance(raised.value.__cause__, ExpatError)
 
 
 def test_create_image_command() -> None:
