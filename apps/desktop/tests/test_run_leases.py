@@ -5,7 +5,7 @@ run final with its pod gone (or never created) deletes it, best effort. A lease 
 deadline and no longer once the run's `status.json` is final; its R2 write time bounds it.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 
 import httpx
@@ -265,3 +265,25 @@ def test_a_stale_lease_without_a_pod_does_not_block(runs_world: RunsWorld) -> No
     runs_world.cloud.api.pods.add(app_pod_name(OTHER_RUN_ID, runs_world.now()))
     kinds = sorted(source.kind for source in runs_world.activity().sources)
     assert kinds == ["lease", "pod"]
+
+
+def _write_with_a_concurrent_launch(
+    world: RunsWorld,
+    store: ObjectStore,
+    run_id: str,
+    batch_ids: tuple[str, ...],
+    deadline: datetime,
+) -> None:
+    """Write this run's lease; another computer writes its own at the same moment."""
+    write_lease(store, run_id, batch_ids, deadline)
+    _other_lease(world, timedelta(hours=2))
+
+
+def test_a_concurrent_launch_backs_off(world: RunsWorld, monkeypatch: pytest.MonkeyPatch, deleted: list[str]) -> None:
+    """Another computer's lease written meanwhile: `run_active`, the run is `launch_failed`, no pod, its lease deleted."""
+    monkeypatch.setattr("transcribe_ui.runs.starting.write_lease", partial(_write_with_a_concurrent_launch, world))
+    refused = send(world, LAUNCH, confirm_fingerprint=plan_fingerprint(world))
+    run_id = run_ids(world)[0]
+    lease = world.store.read(run_lease_key(run_id))
+    shown = (error_code(refused), run_row(world, run_id)[0], posts(world), deleted, lease)
+    assert shown == ("run_active", "launch_failed", 0, [run_id], None)

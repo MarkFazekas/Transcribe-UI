@@ -2332,7 +2332,11 @@ Q28, Q35, A21 and A22.
   - Lease: the launching desktop writes `runs/<run_id>/launch.json` (contract `RunLease`: the
     covered batch ids and the pod name deadline) after committing the run row and before the
     single `POST /v2/pods` (`runs/starting.py`). A failed lease write makes the run
-    `launch_failed` with nothing created. The worker (§5.3) processes only the batches listed
+    `launch_failed` with nothing created. Two computers with a key can pass their activity
+    checks at the same moment, so after writing its lease the launch lists the leases again: a
+    lease of another run written less than `LAUNCH_SETTLE_S` ago (`concurrent_leases`) makes
+    the run `launch_failed` with `run_active` before the POST (both may back off; Start again
+    then works for one of them). The worker (§5.3) processes only the batches listed
     there; without a readable lease it processes nothing, reports a failed status and its entry
     ends the pod. A listed batch whose manifest has disappeared (a cleanup between the lease
     and the start) is skipped, not a failure. What a run does not list is never processed by it

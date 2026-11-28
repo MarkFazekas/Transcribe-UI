@@ -107,6 +107,18 @@ def refuse_if_leased(store: ObjectStore, batch_id: str, now: datetime) -> None:
         raise RunActiveError(lease_sources(listing))
 
 
+def concurrent_leases(store: ObjectStore, run_id: str, now: datetime) -> tuple[LiveLease, ...]:
+    """Return the recent live leases of other runs: a launch on another computer at the same moment.
+
+    Older leases were judged by the launch's activity check just before (`may_still_run`).
+
+    Raises:
+        StorageError: R2 could not be read (fail closed).
+    """
+    others = [lease for lease in live_leases(store, now) if lease.run_id != run_id]
+    return tuple(lease for lease in others if may_still_run(lease, set(), now))
+
+
 def may_still_run(lease: LiveLease, in_lists: set[str | None], now: datetime) -> bool:
     """Return whether the lease's run may still be live, given the run ids of the live Runpod entries.
 
