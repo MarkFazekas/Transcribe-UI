@@ -50,6 +50,15 @@ msgstr ""
 "Egy felhős futás folyamatban van; semmi sem változott. Próbálja újra, ha "
 "véget ért."
 
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid ""
+"A cloud step of job {batch_id} is still running; it is shown below the "
+"pages."
+msgstr ""
+"A {batch_id} feladat egyik felhőbeli lépése még fut; az oldalak alatt "
+"látható."
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid ""
@@ -460,25 +469,67 @@ msgstr "Egyéni terv (egy Ön által szerkesztett JSON-fájl)"
 msgid "Delete"
 msgstr "Törlés"
 
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Delete another computer's job {batch_id} from the cloud?"
+msgstr "Törli a felhőből egy másik számítógép {batch_id} feladatát?"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+msgid "Delete audio"
+msgstr "Hang törlése"
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete audio from the cloud"
 msgstr "Hang törlése a felhőből"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+msgid "Delete everything"
+msgstr "Minden törlése"
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete everything from the cloud"
 msgstr "Minden törlése a felhőből"
 
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Delete everything of job {batch_id} from the cloud?"
+msgstr "Törli a felhőből a {batch_id} feladat minden adatát?"
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Delete from cloud"
 msgstr "Törlés a felhőből"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+msgid "Delete from the cloud"
+msgstr "Törlés a felhőből"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Delete the audio of job {batch_id} from the cloud?"
+msgstr "Törli a felhőből a {batch_id} feladat hangját?"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Deleted from the cloud"
 msgstr "Törölve a felhőből"
 
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Deleting another computer's job {batch_id} from the cloud"
+msgstr "Egy másik számítógép {batch_id} feladatának törlése a felhőből"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Deleting everything of job {batch_id} from the cloud"
+msgstr "A {batch_id} feladat minden adatának törlése a felhőből"
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Deleting from the cloud"
 msgstr "Törlés a felhőből"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Deleting the audio of job {batch_id} from the cloud"
+msgstr "A {batch_id} feladat hangjának törlése a felhőből"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Detail"
@@ -946,6 +997,15 @@ msgstr "Nincs semmi kijelölve."
 msgid "Nothing is waiting for transcription: upload a job first."
 msgstr "Semmi nem vár átírásra: előbb töltsön fel egy feladatot."
 
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid ""
+"Nothing was deleted from job {batch_id}; start the cleanup again when you"
+" need it."
+msgstr ""
+"A {batch_id} feladatból semmi sem törlődött; ha szükséges, indítsa újra a"
+" takarítást."
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "OK"
 msgstr "Rendben"
@@ -986,6 +1046,10 @@ msgstr "Naplómappa megnyitása"
 #: src/transcribe_ui/gui/texts.py
 msgid "Open the job"
 msgstr "A feladat megnyitása"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+msgid "Open the retry job"
+msgstr "Az újrapróbáló feladat megnyitása"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 msgid "Open the worker log"
@@ -1170,6 +1234,11 @@ msgstr "Feltöltés folytatása"
 #: src/transcribe_ui/gui/texts.py
 msgid "Retry"
 msgstr "Újra"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Retry of job {batch_id}: copying the audio"
+msgstr "A {batch_id} feladat újrapróbálása: a hang másolása"
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Retry ticked files"
@@ -2140,6 +2209,11 @@ msgstr "A kérés érvénytelen."
 msgid "The result of the transcription cannot be read."
 msgstr "Az átírás eredménye nem olvasható."
 
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "The retry job {batch_id} is ready; it is on the Jobs page."
+msgstr "Elkészült a {batch_id} újrapróbáló feladat; a Feladatok oldalon található."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The review is not complete: resolve or remove every file first."
 msgstr ""
@@ -2202,6 +2276,10 @@ msgstr "Nincs mit átírni, ezért nem indult felhőgép."
 #: src/transcribe_ui/gui/download/panels.py
 msgid "These folder levels, counted from the scanned folder:"
 msgstr "Ezek a mappaszintek, a beolvasott mappától számolva:"
+
+#: src/transcribe_ui/gui/cleanup/display.py
+msgid "This cannot be undone."
+msgstr "Ez nem vonható vissza."
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "This computer"

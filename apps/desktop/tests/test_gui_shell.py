@@ -89,13 +89,13 @@ def test_navigation_signals_open_their_pages(window: MainWindow) -> None:
 def test_unhandled_actions_say_not_available(window: MainWindow) -> None:
     """An action signal without a handler shows "Not available yet"; a connected one reaches its handler."""
     signals = window.context.signals
-    signals.retry_jobs.emit(BATCH, ("job",))
+    signals.open_review.emit(BATCH)
     assert window.statusBar().currentMessage() == "Not available yet."
     window.statusBar().clearMessage()
-    received: list[tuple[str, str]] = []
-    window.connect_handler("clean_up", lambda batch_id, scope: received.append((batch_id, scope)))
-    signals.clean_up.emit(BATCH, "audio")
-    assert received == [(BATCH, "audio")]
+    received: list[str] = []
+    window.connect_handler("open_review", received.append)
+    signals.open_review.emit(BATCH)
+    assert received == [BATCH]
     assert not window.statusBar().currentMessage()
 
 

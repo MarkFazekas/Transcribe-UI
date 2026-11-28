@@ -1,0 +1,16 @@
+[
+  {
+    "action": "cleanup_cloud",
+    "batch_id": "batch_20260101_090000",
+    "scope": "everything",
+    "confirm": false,
+    "confirm_not_downloaded": false
+  },
+  {
+    "action": "cleanup_cloud",
+    "batch_id": "batch_20260101_090000",
+    "scope": "everything",
+    "confirm": true,
+    "confirm_not_downloaded": false
+  }
+]
