@@ -17,6 +17,7 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.api.routes import Route, default_routes
 from transcribe_ui.gui import app as gui_app
 from transcribe_ui.gui import language
+from transcribe_ui.gui import smoke as gui_smoke
 from transcribe_ui.gui.app import run_gui
 from transcribe_ui.gui.constants import SMOKE_TEST_FAILED_EXIT_CODE, SMOKE_TEST_ON, SMOKE_TEST_VARIABLE
 from transcribe_ui.gui.context import GuiContext
@@ -141,3 +142,46 @@ def test_smoke_mode_fails_on_a_critical_qt_message(
     code = run_gui(partial(_backend, tmp_path, failing=False), os_language=_english)
     assert code == SMOKE_TEST_FAILED_EXIT_CODE
     assert f"logged ERROR by transcribe_ui.gui.qt: {QT_CRITICAL}" in caplog.text
+
+
+class _ToolChecker:
+    """Stands in for `bundled_tool_problems`: records the folder, finds nothing wrong."""
+
+    def __init__(self) -> None:
+        self.folders: list[Path] = []
+
+    def __call__(self, folder: Path) -> list[str]:
+        self.folders.append(folder)
+        return []
+
+
+@in_smoke_mode
+def test_smoke_mode_fails_without_the_bundled_tools(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A release build (its bundle folder known) whose bundle lacks ffmpeg and ffprobe fails the smoke run."""
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    monkeypatch.setattr(gui_smoke, "bundle_dir", lambda: bundle)
+    code = run_gui(partial(_backend, tmp_path / "state", failing=False), os_language=_english)
+    assert code == SMOKE_TEST_FAILED_EXIT_CODE
+    assert "Smoke test: bundled ffmpeg: ffmpeg was not found" in caplog.text
+    assert "Smoke test: bundled ffprobe: ffprobe was not found" in caplog.text
+
+
+@in_smoke_mode
+def test_smoke_mode_passes_with_answering_tools(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A release build whose bundled tools answer `-version` passes; the check ran on its bundle folder."""
+    caplog.set_level(logging.INFO)
+    checker = _ToolChecker()
+    monkeypatch.setattr(gui_smoke, "bundle_dir", lambda: tmp_path)
+    monkeypatch.setattr(gui_smoke, "bundled_tool_problems", checker)
+    assert run_gui(partial(_backend, tmp_path / "state", failing=False), os_language=_english) == 0
+    assert checker.folders == [tmp_path]
+    assert f"Smoke test: the bundled ffmpeg and ffprobe answer -version from {tmp_path}" in caplog.messages

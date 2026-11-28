@@ -11,6 +11,11 @@ WINDOWS_EXECUTABLE_SUFFIX: Final = ".exe"
 # Executable extensions tried on Windows when `PATHEXT` is not set (its usual start).
 DEFAULT_PATHEXT: Final = ".COM;.EXE;.BAT;.CMD"
 
+# Longest `-version` of a bundled tool may take in the GUI's smoke mode (a first start under a
+# virus scanner can be slow; the tool itself answers at once).
+VERSION_TIMEOUT_S: Final = 30.0
+# The option that makes ffmpeg and ffprobe print their version and exit.
+VERSION_OPTION: Final = "-version"
 # Longest a probe may run before the process is killed (a hang, not a slow file: ffprobe reads headers).
 PROBE_TIMEOUT_S: Final = 120.0
 # Longest one conversion attempt may run (reads the whole file; a long film on a slow drive).
