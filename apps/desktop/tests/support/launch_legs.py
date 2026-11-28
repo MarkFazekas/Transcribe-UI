@@ -53,6 +53,8 @@ class LaunchLegs:
     """
 
     seed: LegSeed | None = None
+    # Prefix of the legs' bucket names (another prefix keeps a second set of legs apart in one moto mock).
+    bucket_prefix: str = LEG_BUCKET_PREFIX
     # The clouds of the legs, in creation order (backend leg first).
     clouds: list[Cloud] = field(default_factory=list)
     # The legs' object stores, in the same order.
@@ -60,7 +62,7 @@ class LaunchLegs:
 
     def __call__(self, root: Path) -> Ports:
         """Return the ports of one leg (the moto mock must be active)."""
-        bucket = f"{LEG_BUCKET_PREFIX}{len(self.clouds)}"
+        bucket = f"{self.bucket_prefix}{len(self.clouds)}"
         create_bucket(bucket)
         cloud = Cloud()
         stored = {
