@@ -1,9 +1,9 @@
 name: release-desktop
 
 # Builds the two desktop executables (the GUI with Qt, the CLI without) with PyInstaller on each
-# of the four platforms and smoke-tests both on their own OS (docs/ai/plans/m8.md). Every leg
-# uploads only its two executables, as they are (no archive). Nothing is published yet: the
-# release job comes with M8.5, the bundled ffmpeg with M8.2.
+# of the four platforms, each bundling the static LGPL ffmpeg and ffprobe built by the `ffmpeg`
+# job, and smoke-tests both on their own OS (docs/ai/plans/m8.md). Every leg uploads only its two
+# executables, as they are (no archive). Nothing is published yet: the release job comes with M8.5.
 on:
   pull_request:
     paths: &paths
@@ -14,12 +14,14 @@ on:
       - apps/desktop/tests/test_batches_ffprobe.py
       - apps/desktop/tests/support/media.py
       - apps/desktop/tests/conftest.py
+      - apps/desktop/tests/fixtures/zlib_subtitles.mkv
       - packages/contracts/**
       - uv.lock
       - pyproject.toml
       - .python-version
       - scripts/build_desktop*.py
-      - scripts/build_ffmpeg.py
+      - scripts/build_platform.py
+      - scripts/build_ffmpeg*.py
       - scripts/smoke_desktop_*.py
       - scripts/release_desktop.py
       - .github/workflows/release-desktop.yml
@@ -41,15 +43,111 @@ env:
   # Only uv's own CPython (python-build-standalone): never a Python found on the runner (a
   # Homebrew build for a newer macOS than the floor, the manylinux image's static ones).
   UV_PYTHON_PREFERENCE: only-managed
-  # The Linux build container: AlmaLinux 9, glibc 2.34 (PySide6's Linux wheel needs 2.34), so
-  # the executables run on every Linux with glibc 2.34 or later.
-  MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_34_x86_64@sha256:180e8e234512306be41bb00db574c7df1ceb8af937b10c430b5e2fda402f7da7
+  # The Linux build container (AlmaLinux 9, glibc 2.34; PySide6's Linux wheel needs 2.34) is
+  # pinned in scripts/build_ffmpeg_pins.py, since ffmpeg's cache key must cover it; each job
+  # reads it with `build_ffmpeg.py pins`.
   # The oldest Ubuntu LTS the Linux build supports (`linux-floor`).
   FLOOR_IMAGE: ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb
+  # The cached ffmpeg build of a platform (relative, so the Windows entry made on Linux restores).
+  FFMPEG_DIR: build/ffmpeg/dist
 
 jobs:
+  ffmpeg:
+    # Builds ffmpeg and ffprobe per platform from the pinned source (scripts/build_ffmpeg.py) only
+    # when the cache has no entry for its key (FFmpeg's version, the platform, a hash of the build
+    # scripts, which pin the image and packages this job installs); a hit costs seconds. A change
+    # to this job's commands needs a CACHE_SALT bump in scripts/build_ffmpeg_pins.py. It runs on
+    # every workflow run, so an entry evicted after a week unused is rebuilt before a build leg
+    # needs it. Windows is cross-compiled on Linux, so nothing here runs the programs; the build
+    # legs do.
+    name: ffmpeg (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: ubuntu-24.04
+          - platform: macos-arm64
+            runner: macos-15
+          - platform: macos-x64
+            runner: macos-15-intel
+          - platform: linux-x64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+      - id: pins
+        name: Cache key, build image and packages of the platform's ffmpeg build
+        run: uv run --no-project scripts/build_ffmpeg.py pins --platform "${{ matrix.platform }}" | tee -a "$GITHUB_OUTPUT"
+      - id: lookup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ env.FFMPEG_DIR }}
+          key: ${{ steps.pins.outputs.key }}
+          lookup-only: true
+          # The Windows build is made here on Linux and restored on Windows.
+          enableCrossOsArchive: ${{ matrix.platform == 'windows-x64' }}
+      - name: Cross toolchain (mingw-w64 with Windows threads), nasm and pkg-config
+        if: steps.lookup.outputs.cache-hit != 'true' && matrix.platform == 'windows-x64'
+        env:
+          PACKAGES: ${{ steps.pins.outputs.packages }}
+        run: |
+          sudo apt-get update -qq
+          # Word splitting on purpose: one package per word.
+          sudo apt-get install -y -qq --no-install-recommends $PACKAGES
+      - name: Build tools from Homebrew (nasm for x86)
+        if: steps.lookup.outputs.cache-hit != 'true' && runner.os == 'macOS' && steps.pins.outputs.packages != ''
+        env:
+          PACKAGES: ${{ steps.pins.outputs.packages }}
+        # Word splitting on purpose: one package per word.
+        run: brew install $PACKAGES
+      - name: Build ffmpeg
+        if: steps.lookup.outputs.cache-hit != 'true' && matrix.platform != 'linux-x64'
+        run: uv run --no-project scripts/build_ffmpeg.py build --platform "${{ matrix.platform }}" --out "$FFMPEG_DIR"
+      - name: Build ffmpeg in the manylinux container
+        if: steps.lookup.outputs.cache-hit != 'true' && matrix.platform == 'linux-x64'
+        # The same image and glibc as the app's build. As root, to install the pinned packages
+        # (nasm from CRB, pkg-config); the files are handed back to the runner's user afterwards.
+        # The image's CPython 3.13 runs the script (standard library only), writing no bytecode,
+        # so no root-owned __pycache__ stays in the workspace.
+        env:
+          IMAGE: ${{ steps.pins.outputs.image }}
+          PACKAGES: ${{ steps.pins.outputs.packages }}
+        run: |
+          docker run --rm \
+            --env FFMPEG_DIR \
+            --env PACKAGES \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env OWNER="$(id -u):$(id -g)" \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --workdir /work \
+            "$IMAGE" \
+            bash -euo pipefail -c '
+              # Word splitting on purpose: one package per word.
+              dnf install -y -q --enablerepo=crb $PACKAGES
+              status=0
+              /opt/python/cp313-cp313/bin/python scripts/build_ffmpeg.py build --platform linux-x64 --out "$FFMPEG_DIR" || status=$?
+              chown -R "$OWNER" build
+              exit "$status"
+            '
+      - name: Save the build
+        if: steps.lookup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ env.FFMPEG_DIR }}
+          key: ${{ steps.pins.outputs.key }}
+          enableCrossOsArchive: ${{ matrix.platform == 'windows-x64' }}
+
   build:
     name: build (${{ matrix.platform }})
+    needs: ffmpeg
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +179,29 @@ jobs:
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
         with:
           enable-cache: true
+      - id: ffmpeg
+        name: Cache key of the platform's ffmpeg build and the Linux build image
+        run: uv run --no-project scripts/build_ffmpeg.py pins --platform "${{ matrix.platform }}" | tee -a "$GITHUB_OUTPUT"
+      - name: Restore the ffmpeg build
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ env.FFMPEG_DIR }}
+          key: ${{ steps.ffmpeg.outputs.key }}
+          fail-on-cache-miss: true
+          enableCrossOsArchive: ${{ matrix.platform == 'windows-x64' }}
+      - name: Check the ffmpeg build (-buildconf against the configure line, -L LGPL, first on PATH)
+        run: |
+          export PATH="$PWD/$FFMPEG_DIR:$PATH"
+          uv run --no-project scripts/build_ffmpeg.py verify --platform "${{ matrix.platform }}" --first-on-path "$FFMPEG_DIR"
+      - name: Desktop media tests on the built ffmpeg
+        # In their own environment (with the dev tools), so the build environment never gets
+        # them; the built programs first on PATH, as in the step before.
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/test-env
+        run: |
+          uv sync --locked --all-packages
+          export PATH="$PWD/$FFMPEG_DIR:$PATH"
+          uv run --no-sync pytest -p no:pytest-qt apps/desktop/tests/test_media_ffmpeg.py apps/desktop/tests/test_batches_ffprobe.py
       - id: stamp
         name: Stamped version (base version, commit date in UTC, short hash)
         run: uv run --no-project scripts/build_desktop.py stamp | tee -a "$GITHUB_OUTPUT"
@@ -91,11 +212,12 @@ jobs:
         if: runner.os != 'Linux'
         env:
           VERSION: ${{ steps.stamp.outputs.version }}
-        run: uv run --no-sync python scripts/build_desktop.py build --version "$VERSION"
+        run: uv run --no-sync python scripts/build_desktop.py build --version "$VERSION" --ffmpeg-dir "$FFMPEG_DIR"
       - name: Build both executables in the manylinux container
         if: runner.os == 'Linux'
         env:
           VERSION: ${{ steps.stamp.outputs.version }}
+          MANYLINUX_IMAGE: ${{ steps.ffmpeg.outputs.image }}
         # As the runner's user, so every file it writes stays the runner's (the uv cache too); uv's
         # CPython is downloaded into /tmp/uv-python, which that user can write.
         # PyInstaller needs ldd, objdump and objcopy, which the image has.
@@ -109,6 +231,7 @@ jobs:
             --env MANYLINUX_IMAGE \
             --env UV_PYTHON_PREFERENCE \
             --env UV_PYTHON_INSTALL_DIR=/tmp/uv-python \
+            --env FFMPEG_DIR \
             --volume "$(readlink -f "$(command -v uv)"):/usr/local/bin/uv:ro" \
             --volume "$(uv cache dir):/uv-cache" \
             --volume "$GITHUB_WORKSPACE:/work" \
@@ -119,7 +242,7 @@ jobs:
                 command -v "$tool" >/dev/null || { echo "::error::$tool is missing in $MANYLINUX_IMAGE"; exit 1; }
               done
               uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging
-              uv run --no-sync python scripts/build_desktop.py build --version "$VERSION"
+              uv run --no-sync python scripts/build_desktop.py build --version "$VERSION" --ffmpeg-dir "$FFMPEG_DIR"
             '
       - name: System libraries and Xvfb for the smoke test (Linux)
         if: runner.os == 'Linux'

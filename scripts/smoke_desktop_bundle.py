@@ -33,6 +33,14 @@ REQUIRED_DATA = (
     "transcribe_ui/state/migrations/script.py.mako",
     "transcribe_ui/version.txt",
 )
+# The media tools every executable bundles at its root (`media/tools.py` `bundle_dir`), by `sys.platform`.
+MEDIA_TOOLS: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "win32": ("ffmpeg.exe", "ffprobe.exe"),
+        "darwin": ("ffmpeg", "ffprobe"),
+        "linux": ("ffmpeg", "ffprobe"),
+    },
+)
 # Folder of the bundled Alembic revisions.
 REVISIONS_FOLDER = "transcribe_ui/state/migrations/versions"
 # Suffixes of catalog sources, which are never bundled.
@@ -98,9 +106,9 @@ def platform_plugins(entries: Iterable[str]) -> frozenset[str]:
 
 
 def common_problems(entries: frozenset[str], revisions: Revisions, platform: str) -> list[str]:
-    """Return what both executables lack or must not have (empty: nothing)."""
+    """Return what both executables lack or must not have (empty: nothing); both bundle ffmpeg and ffprobe."""
     bundled_revisions = [f"{REVISIONS_FOLDER}/{name}" for name in revisions]
-    required = [*REQUIRED_DATA, *bundled_revisions]
+    required = [*REQUIRED_DATA, *bundled_revisions, *MEDIA_TOOLS[platform]]
     problems = [f"missing {name}" for name in required if name not in entries]
     problems.extend(
         f"bundles the catalog source {entry}" for entry in sorted(entries) if entry.endswith(CATALOG_SOURCES)

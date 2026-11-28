@@ -12,7 +12,8 @@ itself (PyInstaller's bootloader, which `EXE` adds separately) is read from `dis
 - Everything else must have a minimum macOS of at most the floor: the executable (the one
   Mach-O whose minimum macOS macOS enforces at start; never exempted by the PyInstaller
   wheel's tag), python-build-standalone's libpython and extensions, a binary of a wheel without
-  a `macosx` tag, later the ffmpeg this repository builds. It is read with
+  a `macosx` tag, and the ffmpeg and ffprobe this repository builds (`scripts/build_ffmpeg.py`,
+  deployment target 14.0). It is read with
   `otool -arch all -l` for every architecture of a universal file (`minos` of
   `LC_BUILD_VERSION`, or `version` of the older `LC_VERSION_MIN_MACOSX`; only those, never the
   linker's `version` that `LC_BUILD_VERSION` also lists).

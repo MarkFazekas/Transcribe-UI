@@ -3,16 +3,25 @@
 import os
 import sys
 import time
+import wave
 from pathlib import Path
 
 import pytest
 from smoke_desktop_bundle import REQUIRED_DATA, cli_problems, gui_problems, platform_plugins
+from smoke_desktop_probe import PROBE_FILE, probed_item, write_probe_wav
 from smoke_desktop_process import isolated_environment, path_without_tools, run_process
 
 # The revisions of the fake listings.
 REVISIONS = ("__init__.py", "initial_schema.py")
 # What every executable bundles in the fake listings.
-COMMON = frozenset((*REQUIRED_DATA, *(f"transcribe_ui/state/migrations/versions/{name}" for name in REVISIONS)))
+COMMON = frozenset(
+    (
+        *REQUIRED_DATA,
+        *(f"transcribe_ui/state/migrations/versions/{name}" for name in REVISIONS),
+        "ffmpeg",
+        "ffprobe",
+    ),
+)
 # What a Linux GUI bundles on top.
 LINUX_GUI = frozenset(
     (
@@ -64,6 +73,26 @@ def test_cli_problems_name_missing_and_forbidden() -> None:
         "bundles libshiboken6.abi3.so.6.12",
         "bundles transcribe_ui.gui.app",
     ]
+
+
+def test_both_executables_bundle_the_media_tools() -> None:
+    """Both executables bundle ffmpeg and ffprobe at the archive's root, with `.exe` on Windows."""
+    assert cli_problems(COMMON - {"ffprobe"}, REVISIONS, "linux") == ["missing ffprobe"]
+    windows = (COMMON - {"ffmpeg", "ffprobe"}) | {"ffmpeg.exe"}
+    assert cli_problems(windows, REVISIONS, "win32") == ["missing ffprobe.exe"]
+
+
+def test_probe_wav_and_its_item(tmp_path: Path) -> None:
+    """The probe's WAV is a second of 16-bit mono audio; its item is found by name in `get_batch`."""
+    wav = tmp_path / PROBE_FILE
+    write_probe_wav(wav)
+    with wave.open(str(wav), "rb") as audio:
+        shape = (audio.getnchannels(), audio.getsampwidth(), audio.getnframes() / audio.getframerate())
+    entries = [{"name": "other.wav", "phase": "reviewing"}, {"name": PROBE_FILE, "phase": "reviewed", "problem": None}]
+    assert shape == (1, 2, 1.0)
+    assert probed_item({"batch": {"items": entries}}) == ("reviewed", None)
+    assert probed_item({"batch": {"items": entries[:1]}}) == (None, None)
+    assert probed_item(None) == (None, None)
 
 
 def test_gui_needs_qt_texts_and_platform_plugins() -> None:
