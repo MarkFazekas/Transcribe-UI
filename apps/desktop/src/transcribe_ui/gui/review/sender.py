@@ -7,7 +7,7 @@ whose answer is then dropped (it stops between two files; the next review contin
 rest). An action (Apply, Remove) waits for the call before it and is never dropped.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 
 from transcribe_ui.api.classes import ProgressEvent, Request, Response
@@ -47,8 +47,10 @@ class SerialSender:
         """
         running = self._running
         if started_only:
+            # A started review holds the job's lock until it answers, even when dropped.
             return running is not None and running.review and running.started
-        return self._running_review() or any(queued.review for queued in self._waiting)
+        live = self._running_review() and not self._dropped
+        return live or any(queued.review for queued in self._waiting)
 
     def acting(self) -> bool:
         """Return whether an action (Apply, Remove) is running or waiting."""
@@ -67,8 +69,19 @@ class SerialSender:
         self._next()
 
     def send_action(self, request: Request, on_done: DoneCallback) -> None:
-        """Send an action once the calls before it answered."""
+        """Send an action once the calls before it answered.
+
+        A review still queued on its pool (not started) does not hold the action back: it is taken
+        off its queue and sent again after the action, so Apply or Remove answers at once.
+        """
         self._waiting.append(_Queued(request, on_done, None, review=False))
+        running = self._running
+        call = self._call
+        queued_review = running is not None and running.review and not running.started
+        if running is not None and queued_review and call is not None and not self._dropped:
+            self._waiting.append(replace(running, started=False))
+            self._dropped = True
+            call.cancel()
         self._next()
 
     def drop_reviews(self) -> None:

@@ -65,6 +65,11 @@ def _suggestion(review_file: ReviewFile, language: str) -> ReviewSuggestion | No
     return next((shown for shown in review_file.suggestions if shown.language == language), None)
 
 
+def _still_fits(files: Mapping[str, ReviewFile], choice: ReviewChoice) -> bool:
+    review_file = files.get(choice.item_id)
+    return review_file is not None and _fits(review_file, choice)
+
+
 def _fits(review_file: ReviewFile, choice: ReviewChoice) -> bool:
     return choice in [option.choice for option in job_options(review_file, choice.language)]
 
@@ -107,13 +112,17 @@ class ChoiceEditor:
         self.edits = EditSignal(notify)
         self.draft = ChoiceDraft()
         self.ticks = TickSet()
+        # Files removed from the job since the latest review: nothing can be chosen for them.
+        self.removed: set[str] = set()
         self._editable = editable
 
     def choose(self, choice: ReviewChoice) -> bool:
         """Choose for a transcription; False (nothing kept) when it is not one of its options, or while the job is held."""
+        if choice.item_id in self.removed or not self._editable():
+            return False
         review_file = self.views.current().files.get(choice.item_id)
         job = None if review_file is None else _job(review_file, choice.language)
-        if review_file is None or job is None or not self._editable():
+        if review_file is None or job is None:
             return False
         if not _fits(review_file, choice):
             return False
@@ -145,22 +154,28 @@ class ChoiceEditor:
         return self.ticks.among(self.views.current().files)
 
     def prune(self) -> None:
-        """Drop the choices and ticks of what the latest review no longer lists."""
+        """Drop the choices and ticks of what the latest review no longer lists, and choices its files no longer allow."""
         index = self.views.current()
-        self.draft.keep_only(index.keys)
-        self.ticks.keep_only(index.files)
+        files = index.files
+        pending = self.draft.pending()
+        unfit = {choice_key(choice) for choice in pending if not _still_fits(files, choice)}
+        self.draft.keep_only(index.keys - unfit)
+        self.ticks.keep_only(files)
+        # A removed file the review still lists is from the old review: nothing can be chosen for it until a new one.
+        self.removed = {item_id for item_id in self.removed if item_id in files}
 
     def reset(self) -> None:
         """Drop every choice and tick (another job)."""
         self.draft.clear()
         self.ticks.keep_only({})
+        self.removed = set()
 
     def _choose_shown(self, suggested: Suggested) -> None:
         if not self._editable():
             return
         changed: set[ChoiceKey] = set()
         for review_file in self.views.current().files.values():
-            if review_file.subtitle_streams:
+            if review_file.subtitle_streams and review_file.item_id not in self.removed:
                 changed.update(_choose_file(self.draft, review_file, suggested))
         self.edits(EditChange(keys=frozenset(changed)))
 

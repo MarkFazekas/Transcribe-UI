@@ -33,6 +33,7 @@ from transcribe_ui.gui.jobs.view import JobsPage
 from transcribe_ui.gui.review import index as index_module
 from transcribe_ui.gui.review.constants import CHOICE_COLUMN, STATUS_COLUMN, TICK_COLUMN
 from transcribe_ui.gui.review.index import ReviewIndex
+from transcribe_ui.gui.review.table import ReviewTableModel
 from transcribe_ui.gui.review.view import ReviewPage
 from transcribe_ui.gui.review.widgets import ReviewTable
 from transcribe_ui.gui.shell import MainWindow
@@ -81,6 +82,11 @@ def _review(window: MainWindow) -> ReviewPage:
 
 def _subtitles(page: ReviewPage) -> ReviewTable:
     return page.tabs.tables["subtitles"]
+
+
+def _rows_of(page: ReviewPage) -> ReviewTableModel:
+    """Return the model of the embedded-subtitle table."""
+    return page.tabs.tables["subtitles"].rows
 
 
 def _opened(qtbot: QtBot, window: MainWindow) -> ReviewPage:
@@ -275,33 +281,89 @@ def test_a_large_review_costs_per_change(qtbot: QtBot, leg: Leg, monkeypatch: py
 
 
 def test_a_large_review_is_indexed_fast() -> None:
-    """The rows of two tables of tens of thousands of files are built well within a second per ten thousand rows."""
+    """The rows of two tables of tens of thousands of files each are built within `BUILD_LIMIT_S`."""
     review = large_review(LARGE)
-    started = time.monotonic()
+    started = time.perf_counter()
     index = index_module.build_index(review, None)
-    elapsed = time.monotonic() - started
+    elapsed = time.perf_counter() - started
     sizes = [len(index.tabs[tab].shapes) for tab in ("subtitles", "tracks")]
     assert (sizes, elapsed < BUILD_LIMIT_S) == ([LARGE, LARGE], True), elapsed
 
 
+def _queued_review(qtbot: QtBot, window: MainWindow, runner: HeldUploads) -> ReviewPage:
+    """Open the review, fill the long pool with held uploads, then Check again: the review waits in its queue."""
+    page = _opened(qtbot, window)
+    wait_for(qtbot, page.model.editable)
+    for request in uploads(LONG_POOL_THREADS):
+        window.context.executor.submit(request, _ignore)
+    wait_for(qtbot, lambda: runner.held == LONG_POOL_THREADS)
+    page.controls.check_button.click()
+    wait_for(qtbot, lambda: page.model.loader.loaded.state == "queued")
+    return page
+
+
+def _removed_silent(qtbot: QtBot, window: MainWindow, page: ReviewPage) -> None:
+    """Tick the silent video, Remove it and confirm; wait until the removal answered."""
+    rows = _rows_of(page)
+    rows.setData(rows.index(SILENT_ROW, TICK_COLUMN), Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+    remove = page.action_row.remove_button
+    wait_for(qtbot, remove.isEnabled)
+    remove.click()
+    wait_for(qtbot, lambda: isinstance(window.dialog, ConfirmationDialog))
+    dialog = window.dialog
+    assert isinstance(dialog, ConfirmationDialog)
+    dialog.accept()
+    wait_for(qtbot, lambda: not page.model.sender.acting())
+
+
 def test_a_queued_review_leaves_the_page_usable(qtbot: QtBot, leg: Leg, tmp_path: Path) -> None:
-    """With the long pool full, Check again waits in its queue: the page says so, and choices still work."""
+    """With the long pool full, Check again waits in its queue; choices, Apply and Remove still answer at once."""
     runner = HeldUploads(leg.backend)
     with released(runner):
         window = settled_window(qtbot, runner, tmp_path)
-        page = _opened(qtbot, window)
-        wait_for(qtbot, page.model.editable)
-        for request in uploads(LONG_POOL_THREADS):
-            window.context.executor.submit(request, _ignore)
-        wait_for(qtbot, lambda: runner.held == LONG_POOL_THREADS)
-        page.controls.check_button.click()
-        wait_for(qtbot, lambda: page.model.loader.loaded.state == "queued")
+        page = _queued_review(qtbot, window, runner)
         status = page.controls.status
         wait_for(qtbot, lambda: status.text().startswith("Waiting to check the files; you can keep choosing"))
-        assert page.model.editable()
         _choose_in_cell(qtbot, page, EXTRACT_ENGLISH)
+        wait_for(qtbot, page.action_row.apply_button.isEnabled)
+        page.action_row.apply_button.click()
+        draft = page.model.editor.draft
+        wait_for(qtbot, lambda: not draft.keys() and not page.model.sender.acting())
+        _removed_silent(qtbot, window, page)
+        held = (runner.held, page.model.loader.loaded.state, page.model.editor.removed)
+    assert held[:2] == (LONG_POOL_THREADS, "queued")
+    assert len(held[2]) == 1
     wait_for(qtbot, lambda: page.model.loader.loaded.state == "shown")
-    assert _text(_subtitles(page), 0, STATUS_COLUMN) == "Changed; not applied yet"
+    table = _subtitles(page)
+    wait_for(qtbot, lambda: _names(table) == [(FILM, EN), (FILM, HU)])
+    assert _text(table, 0, CHOICE_COLUMN) == "Extract subtitle 1: eng, subrip"
+
+
+def test_upload_drops_a_queued_review(qtbot: QtBot, leg: Leg, tmp_path: Path) -> None:
+    """Upload while the review waits in its queue: the review is dropped (it would meet the upload's lock) and runs after it."""
+    runner = HeldUploads(leg.backend)
+    with released(runner):
+        window = settled_window(qtbot, runner, tmp_path)
+        page = _queued_review(qtbot, window, runner)
+        wait_for(qtbot, page.action_row.upload_button.isEnabled)
+        page.action_row.upload_button.click()
+        waiting = page.model.loader.loaded.state
+        reviewing = page.model.sender.reviewing()
+    assert (waiting, reviewing) == ("waiting_upload", False)
+    # Released, the upload fails without credentials; its end loads the review again.
+    wait_for(qtbot, lambda: page.model.loader.loaded.state == "shown")
+    wait_for(qtbot, lambda: not window.busy())
+
+
+def test_a_commit_of_the_shown_choice_says_nothing(qtbot: QtBot, window: MainWindow) -> None:
+    """The editor committing the choice the row already shows (it lost the focus) keeps it silently."""
+    page = _opened(qtbot, window)
+    rows = _rows_of(page)
+    shown = rows.row(0)
+    assert shown.chosen is not None
+    page.model.loader.load_review()
+    kept = rows.setData(rows.index(0, CHOICE_COLUMN), shown.shape.options[shown.chosen].choice)
+    assert (kept, window.statusBar().currentMessage(), page.model.editor.draft.keys()) == (True, "", ())
 
 
 def _ignore(_response: object) -> None:

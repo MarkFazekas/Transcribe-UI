@@ -177,7 +177,12 @@ class ReviewTableModel(QAbstractTableModel):
             editor.tick(item_id, ticked=_checked(value))
             return True
         if index.column() == CHOICE_COLUMN and isinstance(value, TranscribeChoice | ExtractChoice):
-            if editor.choose(value):
+            shown = self.row(index.row())
+            options = shown.shape.options
+            chosen = shown.chosen
+            unchanged = chosen is not None and options[chosen].choice == value
+            # A commit of the choice already shown (the editor lost the focus) changes nothing.
+            if unchanged or editor.choose(value):
                 return True
             # The job became held while the choice was open: say so rather than lose it silently.
             self._model.outlet.show_status(

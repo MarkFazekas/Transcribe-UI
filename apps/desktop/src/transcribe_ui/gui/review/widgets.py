@@ -116,7 +116,7 @@ class ReviewTable(QTableView):
         kept = self._current_key()
         scroll = self.verticalScrollBar().value()
         if self.rows.show_rows():
-            if batch_id != self._sized_for:
+            if batch_id != self._sized_for and self.rows.rowCount():
                 self._sized_for = batch_id
                 self.resizeColumnsToContents()
             self._restore(kept, scroll)

@@ -202,6 +202,7 @@ class IndexCache:
         self._indexed: tuple[BatchReview | None, str | None] = (None, None)
         self._folders: tuple[FolderChoice, ...] = ()
         self._folders_of: FolderKey | None = None
+        self._folders_detail: BatchDetail | None = None
 
     def current(self) -> ReviewIndex:
         """Return the index of the review shown now."""
@@ -218,6 +219,9 @@ class IndexCache:
     def folders(self) -> tuple[FolderChoice, ...]:
         """Return the folder filter's choices for the job shown (built again only when its files change)."""
         detail = self._loader.loaded.detail
+        if detail is self._folders_detail:
+            return self._folders
+        self._folders_detail = detail
         key = None if detail is None else _folder_key(detail)
         if key != self._folders_of:
             self._folders_of = key

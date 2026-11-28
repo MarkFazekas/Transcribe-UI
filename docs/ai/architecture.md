@@ -643,9 +643,12 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     while the job allows it (else "No file of this job waits for review"), then `get_batch`
     again, since a probe can change what the job allows. The page shows the probe's progress
     with Stop checking (shown as stopped, not failed; Check again continues with the files not
-    checked yet), "waiting" while the review is queued behind other calls (the page stays usable
-    meanwhile: only a review running on a pool thread holds the job), and a load error with
-    Retry.
+    checked yet), "waiting" while the review is queued behind other calls, and a load error
+    with Retry. A review still queued on its pool does not hold the job (a decision of the main
+    session, not a product answer): choices stay open; Apply and Remove pre-empt it (it is taken
+    off its queue, the action runs at once on the short pool, and the same review is queued again
+    after it); Upload drops it (it would meet the upload's lock) and shows the wait, and the end
+    of the upload loads the review again.
   - One at a time: `review_batch`, `resolve_review` and `exclude_items` hold the job's lock
     (`batch_busy` is never waited for), so `SerialSender` sends them one after the other: a new
     review replaces a waiting one and cancels a running one (its answer is dropped), an action
@@ -686,7 +689,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     choice again drops the change) until Apply choices (`resolve_review`); Discard changes drops
     them. Choices change only while nothing holds the job (a check, a save, its upload), so what
     is shown is the latest review (a review only queued does not hold it: the new review drops
-    the choices it no longer lists); the filters are locked while choices wait ("Apply or discard
+    the choices it no longer lists or its files no longer allow, and files removed meanwhile
+    cannot be chosen for); the filters are locked while choices wait ("Apply or discard
     your changes before changing the filters or uploading"), and a review that no longer lists a
     transcription (its file uploaded or removed meanwhile), or views that go away, drop its
     choice and tick, so Apply never sends a stale one. Removed files lose theirs at once. The views come from the answer when it is the page's current, unfiltered view, else

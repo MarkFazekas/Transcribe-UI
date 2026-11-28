@@ -136,8 +136,10 @@ class ReviewCommands:
         if batch_id == self._loader.batch_id and isinstance(response, ExcludeItemsResponse):
             editor = self._editor
             editor.draft.drop_items(removed)
+            editor.removed.update(removed)
             for item_id in removed:
                 editor.ticks.mark(item_id, ticked=False)
+            editor.edits(EditChange(files=frozenset(removed)))
             self._loader.loaded.detail = response.batch
             self._loader.load_review()
         self._tell(batch_id, tell=True)
