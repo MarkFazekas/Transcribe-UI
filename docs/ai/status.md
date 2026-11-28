@@ -26,9 +26,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.11 (GUI end-to-end flow: `tests/test_gui_end_to_end.py`, compared with the CLI flow) on
-  `feat/m6.11-gui-e2e`: built, in review. No product code changed.
-- M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress.
+- M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress;
+  M6's only open part.
+- M8.1 (build, stamp and smoke-test both executables on four platforms) on
+  `feat/m8.1-desktop-build`: built and smoke-tested locally on Linux; the PR's own
+  `release-desktop.yml` run proves the four legs (Windows, macOS arm64 and x86_64, Linux).
 
 ## Waiting on humans
 
@@ -43,9 +45,9 @@ the status change on the current branch. On a merge conflict in this file, re-de
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
 2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Merged: M6.1, M6.2, M6.14
    (#40), M6.12 (#41), M6.7 (#42), M6.5, M6.3 (#45), M6.4 (#46), M6.6 (#47), M6.9 (#48,
-   ebae048), M6.10 (a022e03), M6.8 (#50, 6ad5b0f). In flight: M6.11 (built, in review) and
-   M6.13 (several installations on one bucket, Q28, with its GUI). M6 becomes built only when
-   both are merged: the later of the two marks M6 **(built)** in architecture §10. The M4
+   ebae048), M6.10 (a022e03), M6.8 (#50, 6ad5b0f), M6.11 (#52, db1810c). Open: M6.13
+   (several installations on one bucket, Q28, with its GUI), M6's only open part; its merge
+   marks M6 **(built)** in architecture §10. The M4
    Runpod trial run is deferred until everything else works (architect); nothing waits on it,
    and it still needs the architect present and their go.
 3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is in

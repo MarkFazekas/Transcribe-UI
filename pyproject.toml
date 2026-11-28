@@ -34,6 +34,9 @@ dev = [
     "pytest-qt>=4.5.0",
     "moto[s3]>=5.2.3",
     "types-boto3[s3]>=1.44.12",
+    # Types of the PyInstaller hooks and runner (apps/desktop/packaging); PyInstaller itself is in
+    # the desktop app's `packaging` group, installed only for a build.
+    "types-pyinstaller>=6.22",
     # IANA time zones for zoneinfo in tests where the OS has none (Windows); the app itself
     # only uses the OS's local zone.
     "tzdata>=2026.6",
@@ -140,6 +143,9 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # standalone scripts run with `uv run`).
 "**/tests/**/*.py" = ["INP001"]
 "scripts/*.py" = ["INP001", "S603"]
+# PyInstaller runs the packaging files by their paths (entry scripts, its runner, hooks it finds
+# in a folder by their `hook-<module>.py` names), so they are no package.
+"apps/desktop/packaging/**/*.py" = ["INP001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["support", "transcribe_contracts", "transcribe_ui", "transcribe_worker"]
@@ -161,8 +167,9 @@ docstring-code-format = true
 # importlib mode: several workspace members have `tests/` dirs without `__init__.py`.
 addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib", "-m", "not integration"]
 xfail_strict = true
-# The desktop tests import their helpers as `support.*` (importlib mode adds no test dir to sys.path).
-pythonpath = ["apps/desktop/tests"]
+# The desktop tests import their helpers as `support.*` (importlib mode adds no test dir to sys.path);
+# the tooling tests import the scripts they test as top-level modules.
+pythonpath = ["apps/desktop/tests", "scripts"]
 markers = [
     "integration: talks to real R2/Runpod; deselected by default, Runpod writes only with the architect present",
 ]

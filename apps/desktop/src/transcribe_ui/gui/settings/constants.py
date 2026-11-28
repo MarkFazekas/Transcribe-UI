@@ -77,7 +77,7 @@ SETUP_NEEDED_STATES: Final[frozenset[CloudObjectState]] = frozenset(("missing", 
 # The credential an installation may leave unset (R2-only role, architecture §3.9).
 OPTIONAL_CREDENTIAL: Final[CredentialName] = "runpod_api_key"
 
-# Environment variable that makes a restarted one-file build unpack itself again (PyInstaller >= 6.9).
+# Environment variable that makes a restarted one-file build unpack itself again (PyInstaller >= 6.10).
 PYINSTALLER_RESET_VARIABLE: Final = "PYINSTALLER_RESET_ENVIRONMENT"
 # Code the interpreter runs to restart the GUI from source (no `__main__` module needed).
 RELAUNCH_SOURCE: Final = "from transcribe_ui.gui.main import run; run()"

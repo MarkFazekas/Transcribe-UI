@@ -308,7 +308,7 @@ def test_the_os_language_is_read_once(qtbot: QtBot) -> None:
     reads: list[str] = []
     with ExitStack() as stack:
         languages = use_language("en", application(), stack, partial(_hungarian_os, reads))
-    assert (languages, reads) == (StartLanguages(shown="en", system="hu"), ["read"])
+    assert (languages, reads) == (StartLanguages(shown="en", system="hu", qt_translated=False), ["read"])
 
 
 def _wizard_over(qtbot: QtBot, deferred: Deferred) -> tuple[SetupWizard, AccountsViewModel]:

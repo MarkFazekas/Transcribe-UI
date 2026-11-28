@@ -19,6 +19,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEMBER_PARENTS = ("packages", "apps")
 TOOLING_PATHS = (".claude/hooks", "scripts")
+# Tests of the repo tooling (the build and smoke scripts' pure parts).
+TOOLING_TESTS = "scripts/tests"
+# Folder of a member with files that are no package but are typed too (the desktop's PyInstaller hooks).
+EXTRA_TYPED_FOLDER = "packaging"
 # Targets whose tests use Qt (pytest-qt is disabled for the others).
 QT_TARGETS = frozenset(("desktop",))
 # Targets with translation catalogs, checked by `scripts/catalogs.py check`.
@@ -68,16 +72,18 @@ def discover_targets() -> list[Target]:
     member_parents = [REPO_ROOT / parent for parent in MEMBER_PARENTS]
     manifests = sorted(path for folder in member_parents for path in folder.glob("*/pyproject.toml"))
     members = [_member_target(manifest.parent) for manifest in manifests]
-    return [Target("tooling", TOOLING_PATHS, TOOLING_PATHS, None), *members]
+    return [Target("tooling", TOOLING_PATHS, TOOLING_PATHS, TOOLING_TESTS), *members]
 
 
 def _member_target(member_dir: Path) -> Target:
     relative = member_dir.relative_to(REPO_ROOT).as_posix()
     tests = f"{relative}/tests"
-    sources = f"{relative}/src"
+    typed = [f"{relative}/src"]
+    if (member_dir / EXTRA_TYPED_FOLDER).is_dir():
+        typed.append(f"{relative}/{EXTRA_TYPED_FOLDER}")
     if (REPO_ROOT / tests).is_dir():
-        return Target(member_dir.name, (relative,), (sources, tests), tests)
-    return Target(member_dir.name, (relative,), (sources,), None)
+        return Target(member_dir.name, (relative,), (*typed, tests), tests)
+    return Target(member_dir.name, (relative,), tuple(typed), None)
 
 
 def _tool(title: str, module: str, *args: str) -> Step:

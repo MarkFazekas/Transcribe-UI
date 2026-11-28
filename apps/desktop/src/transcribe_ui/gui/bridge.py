@@ -133,7 +133,7 @@ class _Dispatcher:
 
     def __init__(self) -> None:
         self.live: dict[PooledCall, _Callbacks] = {}
-        self.observer: ResponseObserver | None = None
+        self.observers: list[ResponseObserver] = []
         # Set by `QtExecutor.close`: events are dropped, no callback runs.
         self.closed = False
         self._idle_listeners: list[Callable[[], None]] = []
@@ -162,8 +162,8 @@ class _Dispatcher:
         with ExitStack() as after:
             # Even when a callback fails (its exception reaches the log), the close dialog must hear that all is done.
             after.callback(self._notify_idle)
-            if self.observer is not None:
-                self.observer(call.request, response)
+            for observer in self.observers:
+                observer(call.request, response)
             callbacks.on_done(response)
 
     def _notify_idle(self) -> None:
@@ -207,9 +207,9 @@ class QtExecutor:
             self._pools[name] = pool
         self._shut = False
 
-    def observe(self, observer: ResponseObserver | None) -> None:
-        """Show every request and its response to `observer` before its sender (None: to nobody)."""
-        self._dispatcher.observer = observer
+    def observe(self, observer: ResponseObserver) -> None:
+        """Show every request and its response to `observer` before its sender (observers in the order added)."""
+        self._dispatcher.observers.append(observer)
 
     def submit(
         self,
