@@ -63,5 +63,5 @@ def parse_arguments(argv: Sequence[str] | None, language: LanguageSetting) -> ar
     # argparse prints `--help` to `sys.stdout`; piped on Windows it would encode in the ANSI code
     # page, which cannot hold every Hungarian text. The JSON goes to the binary buffer, unchanged.
     if isinstance(sys.stdout, io.TextIOWrapper):
-        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8", errors=sys.stdout.errors)
     return build_parser().parse_args(argv)

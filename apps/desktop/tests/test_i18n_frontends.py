@@ -5,6 +5,7 @@ whatever the language.
 """
 
 import io
+import sys
 from collections.abc import Iterator
 from contextlib import closing
 from functools import partial
@@ -71,6 +72,19 @@ def test_help_shows_the_apps_texts_in_hungarian(hungarian: Ports, capsys: pytest
     assert "egy JSON-fájlban lévő kérés futtatása" in shown
     assert "a kérések JSON-sémájának kiírása" in shown
     assert "a kérést tartalmazó JSON-fájl útvonala" in _help(hungarian, ["run", "--help"], capsys)
+
+
+def test_help_is_utf8_on_a_narrow_console(hungarian: Ports, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--help` to a cp1252 stdout (a Windows pipe) is written as UTF-8 instead of failing on `ő`."""
+    written = io.BytesIO()
+    console = io.TextIOWrapper(written, encoding="cp1252", errors="strict")
+    monkeypatch.setattr(sys, "stdout", console)
+    with pytest.raises(SystemExit) as exited:
+        main(["--help"], make_backend=partial(Backend, hungarian), stdout=io.BytesIO())
+    console.flush()
+    assert (exited.value.code, console.errors) == (0, "strict")
+    shown = " ".join(written.getvalue().decode("utf-8").split())
+    assert "egy JSON-fájlban lévő kérés futtatása" in shown
 
 
 def test_help_follows_the_os_language(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
