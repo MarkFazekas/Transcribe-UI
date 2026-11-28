@@ -120,11 +120,13 @@ goldens
 gpus
 groupby
 hashable
+hdiutil
 hhmmss
 hiddenimports
 httpx
 hu
 i18n
+icns
 ident
 ign
 ignorecase
@@ -149,6 +151,7 @@ jobobject
 joinpath
 jupyter
 kernel32
+keychain
 keyring
 kibibytes
 killpg
@@ -159,6 +162,7 @@ levelno
 libpython
 libwayland
 lineno
+linesep
 linkname
 linuxfb
 liveness
@@ -168,10 +172,12 @@ lookups
 lpcwstr
 lseek
 lstat
+lzfse
 m2ts
 m5
 m6
 m7
+m8
 macos
 mako
 matroska
@@ -207,6 +213,7 @@ nul
 nullable
 offscreen
 ondelete
+onedir
 onnx
 openai
 ord
@@ -222,6 +229,8 @@ pcm
 perf
 pgs
 platformdirs
+plist
+plistlib
 pofile
 popen
 popitem
@@ -255,6 +264,7 @@ randbits
 rdonly
 rdwr
 readline
+readlink
 readouterr
 recv
 removeprefix

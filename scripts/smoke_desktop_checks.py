@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
-from smoke_desktop_bundle import Revisions, list_archive
+from smoke_desktop_bundle import Revisions, list_bundle
 from smoke_desktop_process import Command, Launcher, RunResult
 
 # A JSON object (a request or a response of `run -`).
@@ -158,9 +158,9 @@ def check_cli_help_hu(smoke: Smoke) -> Outcome:
 
 
 def check_bundle(name: str, executable: str, rules: BundleRules) -> Outcome:
-    """List the executable's archive and check what it must and must not contain."""
+    """List the executable's archive (or its macOS app's files) and check what it must and must not contain."""
     started = time.monotonic()
-    listing = list_archive(executable)
+    listing = list_bundle(executable)
     seconds = time.monotonic() - started
     if listing.error is not None:
         return failed(name, listing.error, seconds)

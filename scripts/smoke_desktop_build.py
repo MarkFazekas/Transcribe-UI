@@ -5,6 +5,11 @@ Usage, from the repository root, in the build environment (PyInstaller lists the
     uv run --no-sync python scripts/smoke_desktop_build.py <cli> <gui> --version <expected>
         [--floor-image <ubuntu:22.04 image>] [--skip <check> ...]
 
+On macOS `<gui>` is the disk image `transcribe-ui-macos-<arch>-gui.dmg` (A23): it is attached
+read-only for the run, every GUI check runs the main executable of the `Transcribe-UI.app` in it
+(`gui-bundle` lists the app's files), and it is detached when the run ends, however it ends
+(`scripts/smoke_desktop_image.py`).
+
 The checks run in order on fresh per-user state (a temporary folder for the app's data,
 settings, cache and logs, so none of the machine's own is read or changed) and with `PATH`
 stripped of every folder holding ffmpeg or ffprobe. The exception is the OS keyring:
@@ -22,6 +27,7 @@ import platform
 import sys
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import ExitStack
 from functools import partial
 from pathlib import Path
 from types import MappingProxyType
@@ -38,6 +44,7 @@ from smoke_desktop_checks import (
     failed,
 )
 from smoke_desktop_floor import FLOOR_CHECK, check_linux_floor
+from smoke_desktop_image import ImageError, gui_executable
 from smoke_desktop_process import HostLauncher, isolated_environment
 
 # A check, ready to run.
@@ -109,15 +116,14 @@ def _row(outcome: Outcome) -> str:
     return f"| {outcome.name} | {mark} | {outcome.seconds:.1f} |"
 
 
-def _size(executable: str) -> str:
-    path = Path(executable)
+def _size(path: Path) -> str:
     return f"{path.name} {path.stat().st_size / MEGABYTE:.1f} MB"
 
 
-def summary(smoke: Smoke, outcomes: Sequence[Outcome]) -> str:
-    """Return the Markdown summary: every check, the sizes and the CLI's cold start."""
+def summary(published: Sequence[Path], outcomes: Sequence[Outcome]) -> str:
+    """Return the Markdown summary: every check, the sizes of the published files and the CLI's cold start."""
     rows = "\n".join(_row(outcome) for outcome in outcomes)
-    sizes = f"{_size(smoke.cli)}, {_size(smoke.gui)}"
+    sizes = ", ".join(_size(path) for path in published)
     cold = [f"{outcome.seconds:.1f} s" for outcome in outcomes if outcome.name == "cli-version"]
     return (
         f"### Desktop smoke test, {sys.platform} {platform.machine()}\n\n"
@@ -142,8 +148,15 @@ def _smoke(executables: Sequence[Path], version: str, state_root: Path) -> Smoke
     return Smoke(cli, gui, version, launcher, *timeouts, hungarian_env=hungarian)
 
 
-def run_all(executables: Sequence[Path], args: argparse.Namespace) -> list[Outcome]:
-    """Run every planned check on fresh per-user state; print the logs when one failed."""
+def run_all(
+    executables: Sequence[Path],
+    args: argparse.Namespace,
+    published: Sequence[Path],
+) -> list[Outcome]:
+    """Run every planned check on fresh per-user state; print the logs when one failed.
+
+    `executables` are what the checks run, `published` the files the summary gives the sizes of.
+    """
     with tempfile.TemporaryDirectory(prefix="transcribe-ui-smoke-", ignore_cleanup_errors=True) as folder:
         state_root = Path(folder)
         smoke = _smoke(executables, args.version, state_root)
@@ -151,7 +164,7 @@ def run_all(executables: Sequence[Path], args: argparse.Namespace) -> list[Outco
         outcomes = [run_check(*planned) for planned in plan]
         if not all(outcome.passed for outcome in outcomes):
             print_logs(state_root)
-    report = summary(smoke, outcomes)
+    report = summary(published, outcomes)
     sys.stdout.write(report)
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_file:
@@ -164,7 +177,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse the command line."""
     parser = argparse.ArgumentParser(description="Smoke-test the desktop executables of a build leg.")
     parser.add_argument("cli", type=Path, help="the CLI executable")
-    parser.add_argument("gui", type=Path, help="the GUI executable")
+    parser.add_argument("gui", type=Path, help="the GUI executable (on macOS its disk image)")
     parser.add_argument("--version", required=True, help="the version the executables must report")
     parser.add_argument("--floor-image", help="the ubuntu:22.04 image of linux-floor (Linux)")
     parser.add_argument("--skip", action="append", default=[], choices=CHECKS, help="leave a check out (local runs)")
@@ -172,15 +185,21 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the checks; return 0 when every one passed, 1 when one failed, 2 for a missing executable."""
+    """Run the checks; return 0 when every one passed, 1 when one failed or the disk image is wrong, 2 for a missing file."""
     args = parse_arguments(argv)
-    executables = [args.cli.resolve(), args.gui.resolve()]
-    missing = [path for path in executables if not path.is_file()]
+    published = [args.cli.resolve(), args.gui.resolve()]
+    missing = [path for path in published if not path.is_file()]
     if missing:
         names = ", ".join(map(str, missing))
         sys.stderr.write(f"not found: {names}\n")
         return 2
-    outcomes = run_all(executables, args)
+    with ExitStack() as stack:
+        try:
+            gui = gui_executable(published[1], stack)
+        except ImageError as error:
+            sys.stderr.write(f"{error}\n")
+            return 1
+        outcomes = run_all([published[0], gui], args, published)
     return 0 if all(outcome.passed for outcome in outcomes) else 1
 
 

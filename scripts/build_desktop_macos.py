@@ -16,6 +16,12 @@ itself (PyInstaller's bootloader, which `EXE` adds separately) is read from `dis
   `otool -arch all -l` for every architecture of a universal file (`minos` of
   `LC_BUILD_VERSION`, or `version` of the older `LC_VERSION_MIN_MACOSX`; only those, never the
   linker's `version` that `LC_BUILD_VERSION` also lists).
+
+The GUI is a onedir `.app` (`check_app`): every Mach-O file inside the bundle (found by its
+first bytes, links left out) follows the same two rules, its source looked up by its bundled
+name in the table of contents of PyInstaller's `BUNDLE` (`BUNDLE-00.toc`). A file the table
+does not name follows the minimum-macOS rule, so a lookup that misses fails the build rather
+than passing a binary; the bundle's main executable follows that rule too.
 """
 
 import ast
@@ -28,6 +34,7 @@ from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
+from build_desktop_bundle import app_executable, bundle_files, bundled_name, is_mach_o
 from build_desktop_wheels import MacosVersion, Owners, Wheel, installed_wheels, owner
 
 # Reads the minimum macOS of each architecture of a binary.
@@ -210,5 +217,44 @@ def check_bundle(table_of_contents: Path, executable: Path) -> FloorReport:
     if read is None:
         return FloorReport(("otool not found",), ())
     report = floor_report(bundled_binaries(table_of_contents), installed_wheels(), read)
+    problems = (*executable_problems(executable, read), *report.problems)
+    return FloorReport(problems, report.wheels)
+
+
+def bundle_sources(table_of_contents: Path) -> dict[str, Path]:
+    """Return the source of every file in the table of contents of PyInstaller's `BUNDLE`, by its bundled name."""
+    # The table is a Python literal: ([(name, source, type), ...],).
+    entries = ast.literal_eval(table_of_contents.read_text(encoding="utf-8"))[0]
+    return {name: Path(source) for name, source, _kind in entries}
+
+
+def app_binaries(app: Path, sources: Mapping[str, Path], executable: Path) -> list[Bundled]:
+    """Return every Mach-O file of the app but its main executable, with its source (else the file itself)."""
+    contents_dir = app / "Contents"
+    found = []
+    for relative in bundle_files(app):
+        path = contents_dir / relative
+        if path == executable or not is_mach_o(path):
+            continue
+        name = bundled_name(relative)
+        source = None if name is None else sources.get(name)
+        found.append(Bundled(relative.as_posix(), source or path))
+    return found
+
+
+def check_app(table_of_contents: Path, app: Path) -> FloorReport:
+    """Check the app's main executable and every other Mach-O file in it against the floor.
+
+    Raises:
+        OtoolError: A binary could not be read.
+        subprocess.SubprocessError: Reading a binary did not finish in time.
+        ValueError: The app's `Info.plist` names no executable.
+    """
+    read = otool_reader()
+    if read is None:
+        return FloorReport(("otool not found",), ())
+    executable = app_executable(app)
+    binaries = app_binaries(app, bundle_sources(table_of_contents), executable)
+    report = floor_report(binaries, installed_wheels(), read)
     problems = (*executable_problems(executable, read), *report.problems)
     return FloorReport(problems, report.wheels)

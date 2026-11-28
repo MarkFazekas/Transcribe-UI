@@ -2,8 +2,9 @@ name: release-desktop
 
 # Builds the two desktop executables (the GUI with Qt, the CLI without) with PyInstaller on each
 # of the four platforms and smoke-tests both on their own OS (docs/ai/plans/m8.md). Every leg
-# uploads only its two executables, as they are (no archive). Nothing is published yet: the
-# release job comes with M8.5, the bundled ffmpeg with M8.2.
+# uploads only its two files, as they are (no archive): the executables, except the macOS GUI,
+# which is `Transcribe-UI.app` in a disk image (A23). Nothing is published yet: the release job
+# comes with M8.5, the bundled ffmpeg with M8.2.
 on:
   pull_request:
     paths: &paths
@@ -57,15 +58,19 @@ jobs:
           - platform: windows-x64
             runner: windows-2025
             suffix: .exe
+            gui-suffix: .exe
           - platform: macos-arm64
             runner: macos-15
             suffix: ""
+            gui-suffix: .dmg
           - platform: macos-x64
             runner: macos-15-intel
             suffix: ""
+            gui-suffix: .dmg
           - platform: linux-x64
             runner: ubuntu-24.04
             suffix: ""
+            gui-suffix: ""
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 75
     defaults:
@@ -73,7 +78,7 @@ jobs:
         shell: bash
     env:
       CLI: dist/transcribe-ui-${{ matrix.platform }}-cli${{ matrix.suffix }}
-      GUI: dist/transcribe-ui-${{ matrix.platform }}-gui${{ matrix.suffix }}
+      GUI: dist/transcribe-ui-${{ matrix.platform }}-gui${{ matrix.gui-suffix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -142,7 +147,7 @@ jobs:
           archive: false
           retention-days: 7
           if-no-files-found: error
-      - name: Upload the GUI executable
+      - name: Upload the GUI executable (macOS, its disk image)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           path: ${{ env.GUI }}
