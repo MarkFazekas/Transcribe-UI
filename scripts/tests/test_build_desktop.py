@@ -27,7 +27,7 @@ BUDAPEST = timezone(timedelta(hours=1))
 
 
 def _paths() -> BuildPaths:
-    return BuildPaths(Path("/out/dist"), Path("/out/work/cli"))
+    return BuildPaths(Path("/out/dist"), Path("/out/work/cli"), Path("/out/ffmpeg"))
 
 
 def test_stamp_and_tag_use_the_utc_commit_date() -> None:
@@ -69,7 +69,7 @@ def test_asset_names() -> None:
 
 
 def test_cli_arguments_leave_qt_out() -> None:
-    """The CLI: one-file console build without Qt or the GUI package, stamped, with the project hooks."""
+    """The CLI: one-file console build without Qt or the GUI package, stamped, with the hooks and ffmpeg."""
     arguments = pyinstaller_arguments("cli", "linux-x64", _paths())
     assert arguments == [
         "--noconfirm",
@@ -94,6 +94,10 @@ def test_cli_arguments_leave_qt_out() -> None:
         "keyring.backends",
         "--add-data",
         "/out/work/cli/version.txt:transcribe_ui",
+        "--add-binary",
+        "/out/ffmpeg/ffmpeg:.",
+        "--add-binary",
+        "/out/ffmpeg/ffprobe:.",
         "--exclude-module",
         "PySide6",
         "--exclude-module",
@@ -118,6 +122,7 @@ def test_gui_arguments_per_platform() -> None:
     ]
     assert macos[-4:] == ["--exclude-module", "PySide6.QtTest", "--console", str(PACKAGING_DIR / "entry_gui.py")]
     assert "--version-file" not in macos
+    assert "/out/ffmpeg/ffprobe.exe:." in windows
 
 
 def test_numeric_version_pads_the_release_segment() -> None:

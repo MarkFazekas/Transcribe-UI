@@ -4,16 +4,18 @@ Usage, from the repository root:
 
     uv run --no-project scripts/build_desktop.py stamp >> "$GITHUB_OUTPUT"
     uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging
-    uv run --no-sync python scripts/build_desktop.py build --version <stamped> [--variant cli|gui ...]
+    uv run --no-sync python scripts/build_desktop.py build --version <stamped> [--ffmpeg-dir DIR] [--variant cli|gui ...]
 
 `stamp` prints `version=<base>+<YYYYMMDD>.<short sha>` and `tag=desktop-<YYYYMMDD>-<short sha>`
 for the checked-out commit (its committer date in UTC, so every leg and any re-run agree); it
 needs only git and the standard library. `build` runs in the build environment (PyInstaller and
 the app installed as a non-editable distribution) and writes one one-file executable per variant
 to `dist/`, named `transcribe-ui-<os>-<arch>-<variant>` (`.exe` on Windows), the name a release
-publishes. Its stamped version is bundled as `transcribe_ui/version.txt`; on Windows a generated
-version resource describes the file. No `.spec` file is kept: PyInstaller's is written to the
-work folder.
+publishes. Both bundle ffmpeg and ffprobe from `--ffmpeg-dir` (default `build/ffmpeg/dist`,
+where `scripts/build_ffmpeg.py build` writes them) at the archive's root, where the app looks for
+them (`media/tools.py` `bundle_dir`). The stamped version is bundled as
+`transcribe_ui/version.txt`; on Windows a generated version resource describes the file. No
+`.spec` file is kept: PyInstaller's is written to the work folder.
 """
 
 import argparse
@@ -25,7 +27,7 @@ import subprocess
 import sys
 import tomllib
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -49,6 +51,8 @@ PYINSTALLER_RUNNER = PACKAGING_DIR / "pyinstaller_main.py"
 DEFAULT_DIST = REPO_ROOT / "dist"
 # Default work folder of PyInstaller (its analysis, the generated spec and resource files).
 DEFAULT_WORK = REPO_ROOT / "build" / "desktop"
+# Default folder of the ffmpeg build both executables bundle (`scripts/build_ffmpeg.py build`).
+DEFAULT_FFMPEG_DIR = REPO_ROOT / "build" / "ffmpeg" / "dist"
 
 # An executable of the app: the windowed GUI with Qt, or the console CLI without Qt.
 type Variant = Literal["cli", "gui"]
@@ -87,6 +91,8 @@ FILE_DESCRIPTIONS: Mapping[Variant, str] = MappingProxyType(
 CLI_EXCLUDED_MODULES = ("PySide6", "shiboken6", "transcribe_ui.gui")
 # Qt modules the GUI does not use but a hook could pull in.
 GUI_EXCLUDED_MODULES = ("PySide6.QtTest",)
+# The media tools both executables bundle at the archive's root.
+MEDIA_TOOLS = ("ffmpeg", "ffprobe")
 # Bytes in a megabyte, for the build's report.
 MEGABYTE = 1_000_000
 
@@ -115,6 +121,8 @@ class BuildPaths:
 
     dist: Path
     work: Path
+    # Folder of the ffmpeg build to bundle.
+    ffmpeg: Path
 
     @property
     def stamp(self) -> Path:
@@ -125,6 +133,18 @@ class BuildPaths:
     def version_resource(self) -> Path:
         """Return the generated Windows version resource."""
         return self.work / "version-resource.txt"
+
+    @classmethod
+    def from_arguments(cls, args: argparse.Namespace) -> "BuildPaths":
+        """Return the build's folders from the command line (the work folder holds one folder per variant)."""
+        dist = args.dist.resolve()
+        work = args.work.resolve()
+        return cls(dist, work, args.ffmpeg_dir.resolve())
+
+    def media_tool(self, tool: str, tag: str) -> Path:
+        """Return ffmpeg's or ffprobe's executable of the platform `tag` in the ffmpeg build (`.exe` on Windows)."""
+        suffix = ".exe" if is_windows(tag) else ""
+        return self.ffmpeg / f"{tool}{suffix}"
 
 
 def stamped_version(base: str, commit: Commit) -> str:
@@ -252,6 +272,8 @@ def pyinstaller_arguments(variant: Variant, tag: str, paths: BuildPaths) -> list
         "--add-data",
         f"{paths.stamp}:{PACKAGE_NAME}",
     ]
+    for tool in MEDIA_TOOLS:
+        arguments.extend(("--add-binary", f"{paths.media_tool(tool, tag)}:."))
     excluded = CLI_EXCLUDED_MODULES if variant == "cli" else GUI_EXCLUDED_MODULES
     for module in excluded:
         arguments.extend(("--exclude-module", module))
@@ -300,6 +322,10 @@ def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
         RuntimeError: PyInstaller failed or did not write the executable.
     """
     tag = platform_tag(sys.platform, platform.machine())
+    present = [paths.media_tool(tool, tag).is_file() for tool in MEDIA_TOOLS]
+    if not all(present):
+        msg = f"{paths.ffmpeg} lacks ffmpeg or ffprobe (build them with scripts/build_ffmpeg.py build)"
+        raise RuntimeError(msg)
     shutil.rmtree(paths.work, ignore_errors=True)
     paths.work.mkdir(parents=True)
     paths.stamp.write_text(f"{version}\n", encoding="utf-8")
@@ -342,11 +368,11 @@ def _macos_floor_problems(variant: Variant, paths: BuildPaths, executable: Path)
     return list(report.problems)
 
 
-def _build(variants: Sequence[Variant], version: str, dist: Path, work: Path) -> int:
+def _build(variants: Sequence[Variant], version: str, folders: BuildPaths) -> int:
     # The interpreter decides what is bundled (its libpython, its minimum OS): name it in the log.
     sys.stdout.write(f"Build interpreter: {sys.executable}, Python {sys.version}\n")
     for variant in variants:
-        paths = BuildPaths(dist.resolve(), work.resolve() / variant)
+        paths = replace(folders, work=folders.work / variant)
         try:
             executable = build_variant(variant, version, paths)
             problems = _macos_floor_problems(variant, paths, executable) if sys.platform == "darwin" else []
@@ -372,6 +398,8 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     build.add_argument("--variant", action="append", choices=VARIANTS, help="variant to build (default: both)")
     build.add_argument("--dist", type=Path, default=DEFAULT_DIST, help="folder of the executables")
     build.add_argument("--work", type=Path, default=DEFAULT_WORK, help="PyInstaller's work folder")
+    tools_help = "folder of ffmpeg and ffprobe (scripts/build_ffmpeg.py build)"
+    build.add_argument("--ffmpeg-dir", type=Path, default=DEFAULT_FFMPEG_DIR, help=tools_help)
     return parser.parse_args(argv)
 
 
@@ -381,7 +409,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "stamp":
         return _stamp()
     variants: Sequence[Variant] = args.variant or VARIANTS
-    return _build(variants, args.version, args.dist, args.work)
+    return _build(variants, args.version, BuildPaths.from_arguments(args))
 
 
 if __name__ == "__main__":
