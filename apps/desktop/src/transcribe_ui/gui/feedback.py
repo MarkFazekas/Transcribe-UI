@@ -167,9 +167,17 @@ def error_view(response: ErrorResponse) -> ErrorView:
     )
 
 
-def confirmation_view(response: NeedsConfirmation) -> ConfirmationView:
-    """Return how a `needs_confirmation` response is shown."""
-    return ConfirmationView(tuple(_confirmation_item(asked) for asked in response.confirmations))
+def confirmation_view(response: NeedsConfirmation, *, with_details: bool = True) -> ConfirmationView:
+    """Return how a `needs_confirmation` response is shown.
+
+    Without `with_details`, the details table is left out: for questions that name what they act
+    on themselves (the Cloud area's stops, the adoption of another computer's job).
+    """
+    shown = [_confirmation_item(asked) for asked in response.confirmations]
+    if not with_details:
+        no_details = Details((), ())
+        shown = [ConfirmationItem(question.message, no_details) for question in shown]
+    return ConfirmationView(tuple(shown))
 
 
 def _confirmation_item(confirmation: Confirmation) -> ConfirmationItem:

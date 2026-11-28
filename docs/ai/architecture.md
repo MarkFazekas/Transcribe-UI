@@ -498,9 +498,9 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     the confirmation dialog's own Cancel) while the stage is one of `WAITING_RUN_STAGES`
     (`launching`, `waiting`; `runs/constants.py`, shared with the question's text), "Stop"
     afterwards; both send `cancel_worker`, whose backend confirmation the generic dialog shows
-    without its details table (the question names what it stops; the same for the machines'
-    stops); Stop runs on the `short` pool, so a full `long` pool never delays it. Every answer
-    of a stop except a declined question and `cancelled` reloads the run list, a failed one
+    without its details table (`confirmation_view(..., with_details=False)`; the question
+    names what it stops; the same for the machines' stops and the adoption); Stop runs on the
+    `short` pool, so a full `long` pool never delays it. Every answer of a stop except a declined question and `cancelled` reloads the run list, a failed one
     too (it may have changed the run before it failed). Start transcription is disabled while
     the shown run is not final. Closing the window never stops a run: the shell reads
     `GuiContext.run_active` (the run list's) when asked, so the close question adds its cloud

@@ -29,9 +29,7 @@ from transcribe_ui.gui.download.constants import CLOUD_JOBS_KEY, OPEN_DOWNLOAD_S
 from transcribe_ui.gui.download.others_display import CloudJobRow, cloud_job_row
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor, LatestChannel
 from transcribe_ui.gui.feedback import (
-    ConfirmationItem,
     ConfirmationView,
-    Details,
     ErrorView,
     confirmation_mismatch,
     confirmation_view,
@@ -54,14 +52,6 @@ class OthersOutlet(Protocol):
 
     def show_error(self, view: ErrorView, retry: Callable[[], object] | None) -> None:
         """Show an error; `retry` sends the request again."""
-
-
-def _question(response: NeedsConfirmation) -> ConfirmationView:
-    """Return the confirmation without its details table: the question names the job and its file count."""
-    no_details = Details((), ())
-    shown = confirmation_view(response).confirmations
-    asked = [ConfirmationItem(question.message, no_details) for question in shown]
-    return ConfirmationView(tuple(asked))
 
 
 class OtherJobsModel(ViewModel):
@@ -119,7 +109,8 @@ class OtherJobsModel(ViewModel):
     def _adopted(self, request: AdoptCloudBatchRequest, response: Response) -> None:
         if isinstance(response, NeedsConfirmation):
             confirmed = partial(self._confirmed, request, response)
-            self._outlet.confirm(_question(response), confirmed)
+            # The question names the job and its file count.
+            self._outlet.confirm(confirmation_view(response, with_details=False), confirmed)
         elif isinstance(response, AdoptCloudBatchResponse):
             batch_id = response.batch.batch_id
             # Before the signals: the row stays disabled until the list loaded again shows it gone.
