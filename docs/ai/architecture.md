@@ -376,7 +376,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   `marks.py`, `changes.py`, `choices.py`, `scanning.py`, `ticks.py`, `filters.py`, `targets.py`,
   `saving.py`, `editing.py`, `display.py`, `rows.py`, `viewmodel.py`; Qt `models.py`,
   `widgets.py`, `view.py`, `install.py`).
-  - Settings: `get_settings` at start-up (slot `settings`) and on `settings_changed`; a scan
+  - Settings: its own `get_settings` at start-up (slot `settings`, after the Settings area's
+    load: read-only and without the database; the Settings area owns the form, New job only
+    reads the scan options and the languages) and on `settings_changed`; a scan
     takes its extensions and `include_hidden` from them (the request's defaults until they
     answered), the language choosers offer the enabled languages in the user's order (plus a
     reopened job's other languages). A failed load shows in the page with Retry.

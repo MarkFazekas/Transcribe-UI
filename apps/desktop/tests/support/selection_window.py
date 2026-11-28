@@ -1,4 +1,4 @@
-"""The window for the New job page's tests: drained before pytest-qt closes it (plan m6 M6.4)."""
+"""The window for the New job page's tests: its calls finish before pytest-qt closes it (plan m6 M6.4)."""
 
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -10,35 +10,24 @@ from PySide6.QtCore import QModelIndex, QPersistentModelIndex
 from pytestqt.qtbot import QtBot
 
 from support.gated import wait_for
+from support.gui import untracked_window
 from support.selection import HeldUploads
-from transcribe_ui.gui.activity import Activity
-from transcribe_ui.gui.bridge import QtExecutor
-from transcribe_ui.gui.context import GuiContext
 from transcribe_ui.gui.executor import RequestRunner
-from transcribe_ui.gui.shell import MainWindow, build_shell
-from transcribe_ui.gui.signals import GuiSignals, StartupHooks
-from transcribe_ui.gui.writer_lock import WriterLockGate
+from transcribe_ui.gui.shell import MainWindow
 
 
-def drained(qtbot: QtBot, window: MainWindow) -> None:
-    """Wait until no call is in flight, then drop answers still on their way (the widgets go next)."""
+def settled(qtbot: QtBot, window: MainWindow) -> None:
+    """Wait until no call is in flight, so no pool thread still runs a request once the test's state closes.
+
+    (Answers that would arrive after the window is gone are dropped by the window itself.)
+    """
     wait_for(qtbot, lambda: not window.busy())
-    window.context.executor.close()
 
 
 def drained_window(qtbot: QtBot, runner: RequestRunner, log_dir: Path) -> MainWindow:
-    """Return the shown window over `runner`; pytest-qt drains it before it closes it."""
-    executor = QtExecutor(runner)
-    context = GuiContext(
-        executor=executor,
-        signals=GuiSignals(),
-        hooks=StartupHooks(),
-        activity=Activity(executor),
-        lock=WriterLockGate(executor),
-        log_dir=log_dir,
-    )
-    window = build_shell(context)
-    qtbot.addWidget(window, before_close_func=partial(drained, qtbot))
+    """Return the shown window over `runner`; pytest-qt lets its calls finish before it closes it."""
+    window = untracked_window(runner, log_dir)
+    qtbot.addWidget(window, before_close_func=partial(settled, qtbot))
     window.show()
     return window
 
