@@ -18,10 +18,6 @@ from support.worker_sim import SimulatedJob, finished, launched_run_id, transcri
 from transcribe_contracts.classes import JobRef
 from transcribe_ui.storage.r2 import R2ObjectStore
 
-# Index of the `create_batch` exchange (its response lists the items) and of the launch.
-CREATE_STEP = 0
-PLAN_STEP = 4
-LAUNCH_STEP = 5
 # Target languages of the batch.
 EN = "en"
 HU = "hu"
@@ -46,6 +42,10 @@ STEPS = (
     "cleanup_retry",
     "list",
 )
+# Index of the `create_batch` step (its response lists the items), of the plan and of the launch.
+CREATE_STEP = STEPS.index("create")
+PLAN_STEP = STEPS.index("plan")
+LAUNCH_STEP = STEPS.index("launch")
 
 # Changes one leg's cloud and bucket, from the exchanges (or the GUI's answers) of the steps so far.
 type LegChange = Callable[[Cloud, R2ObjectStore, list[Exchange]], None]
