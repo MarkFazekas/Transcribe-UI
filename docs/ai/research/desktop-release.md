@@ -63,9 +63,14 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   `macosx_13_0`) has `minos 15.0`. Checked with `llvm-objdump` on the PyPI wheels and by the
   macOS legs of PR #53's run 46150560721. So the `minos` of a wheel's own
   dylibs is not a floor signal; the build checks wheel binaries by their tag
-  (`scripts/build_desktop_macos.py`). [I] dyld does not refuse a dylib whose `minos` is newer
-  than the running macOS (only a main executable's); to be confirmed by the smoke tests on
-  `macos-15`, which load the `minos 26.0` shiboken on macOS 15.
+  (`scripts/build_desktop_macos.py`).
+- [V] dyld loads a dylib whose `minos` is newer than the running macOS: on the `macos-15` images
+  (arm64, image `macos-15-arm64` 20261123, and x64) the executables with shiboken6 and
+  PySide6_Essentials binaries of `minos 26.0` pass `cli-version`, `gui-offscreen` and
+  `gui-native` (PR #53, run 46153311250; every leg built with uv's CPython 3.13.18). Only a
+  main executable's `minos` is enforced at start [I].
+- [I] Whether those binaries' symbols newer than macOS 14.0 resolve on macOS 14 is unproven: no
+  hosted macOS 14 runner exists; the manual acceptance (A24) on a macOS 14 machine would show it.
 
 - [V] `pyside6-essentials` 6.12.0 (2026-10-08; the version in `uv.lock`) wheels:
   `cp310-abi3-manylinux_2_34_x86_64`, `manylinux_2_39_aarch64`, `macosx_14_0_universal2`,
