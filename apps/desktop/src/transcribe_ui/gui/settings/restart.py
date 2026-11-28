@@ -3,6 +3,9 @@
 "Restart now" asks the window to close through the close handling of Q30; when the user keeps
 it open there, the restart is withdrawn. Once the event loop has ended and the backend's local
 state is closed (so the new process can take the writer lock), `run_gui` starts the GUI again.
+A build starts its own executable again: the one-file executable, or on macOS the main
+executable inside `Transcribe-UI.app` (`sys.executable` names either), so the new process keeps
+this one's environment.
 """
 
 import logging
@@ -29,7 +32,7 @@ def changes_language(setting: LanguageSetting, system_language: Language) -> boo
 
 
 def relaunch_command() -> list[str]:
-    """Return the command that starts this GUI again: the one-file build itself, or the interpreter."""
+    """Return the command that starts this GUI again: the build's executable (inside the macOS app), or the interpreter."""
     if getattr(sys, "frozen", False):
         return [sys.executable]
     return [sys.executable, "-c", RELAUNCH_SOURCE]
@@ -39,7 +42,8 @@ def relaunch_gui() -> None:
     """Start the GUI again as a separate process; a failure is logged (the user starts it by hand)."""
     environment = dict(os.environ)
     if getattr(sys, "frozen", False):
-        # The new instance must unpack its own files: this one's are removed when it exits.
+        # A one-file build's new instance must unpack its own files: this one's are removed when it
+        # exits. The macOS app (onedir) unpacks nothing, so there the variable changes nothing.
         environment[PYINSTALLER_RESET_VARIABLE] = "1"
     try:
         subprocess.Popen(relaunch_command(), env=environment, start_new_session=True)  # noqa: S603 -- fixed command.
