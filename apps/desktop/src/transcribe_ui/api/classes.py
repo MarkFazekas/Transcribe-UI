@@ -130,6 +130,12 @@ class UpdateSettingsRequest(FrozenModel):
     settings: Settings
 
 
+class ResetSettingsRequest(FrozenModel):
+    """Replace the stored settings with the defaults (needs no database; offered when they cannot be read)."""
+
+    action: Literal["reset_settings"]
+
+
 # Discriminated on `action`; each part adds its request models here (`A | B | ...`).
 type Request = Annotated[
     GetAppInfoRequest
@@ -137,6 +143,7 @@ type Request = Annotated[
     | PreviewSelectionRequest
     | GetSettingsRequest
     | UpdateSettingsRequest
+    | ResetSettingsRequest
     | StoreCredentialsRequest
     | CredentialsStatusRequest
     | CheckCredentialsRequest
@@ -201,6 +208,15 @@ class UpdateSettingsResponse(FrozenModel):
     languages: tuple[LanguageOption, ...]
 
 
+class ResetSettingsResponse(FrozenModel):
+    """The default settings as stored now, and every Whisper language, sorted by code."""
+
+    status: Literal["ok"] = "ok"
+    action: Literal["reset_settings"] = "reset_settings"
+    settings: Settings
+    languages: tuple[LanguageOption, ...]
+
+
 class ErrorBody(FrozenModel):
     """What went wrong: a stable code, a human-readable message and structured details."""
 
@@ -246,6 +262,7 @@ type SuccessResponse = Annotated[
     | PreviewSelectionResponse
     | GetSettingsResponse
     | UpdateSettingsResponse
+    | ResetSettingsResponse
     | StoreCredentialsResponse
     | CredentialsStatusResponse
     | CheckCredentialsResponse

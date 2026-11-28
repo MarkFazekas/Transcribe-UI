@@ -44,9 +44,9 @@ def window(qtbot: QtBot, ports: Ports, tmp_path: Path) -> Iterator[MainWindow]:
     created = window_over(qtbot, Backend(ports), tmp_path)
     created.context.hooks.run()
     yield created
+    # pytest-qt has deleted the window by now, which closed the executor (late answers are
+    # dropped); the calls still running finish here.
     wait_for(qtbot, lambda: not created.busy())
-    # Answers still on their way must not reach the widgets pytest-qt deletes next.
-    created.context.executor.close()
 
 
 def _cell(table: QTableWidget, row: int, column: int) -> QTableWidgetItem:

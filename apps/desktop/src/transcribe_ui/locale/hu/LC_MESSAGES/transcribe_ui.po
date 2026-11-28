@@ -15,6 +15,10 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.19.0\n"
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "A change applies after a restart."
+msgstr "A változás újraindítás után lép életbe."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A choice does not fit its file."
 msgstr "Egy választás nem illik a fájljához."
@@ -91,6 +95,22 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr "Egy kijelölt útvonal nincs a beolvasott mappán belül."
 
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "About"
+msgstr "Névjegy"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Accounts"
+msgstr "Fiókok"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "All in one output folder"
+msgstr "Mind egy kimeneti mappába"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "All in one output folder, with folder names in the file name"
+msgstr "Mind egy kimeneti mappába, a fájlnévben a mappák nevével"
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "All jobs"
 msgstr "Összes feladat"
@@ -138,9 +158,21 @@ msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha vég
 msgid "Audio deleted from the cloud"
 msgstr "A hang törölve a felhőből"
 
-#: src/transcribe_ui/gui/steps/view.py
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Audio files"
+msgstr "Hangfájlok"
+
+#: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Back"
 msgstr "Vissza"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Backup volume"
+msgstr "Mentési kötet"
+
+#: src/transcribe_ui/gui/settings/widgets.py
+msgid "Browse..."
+msgstr "Tallózás..."
 
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Cancel"
@@ -155,13 +187,55 @@ msgstr ""
 "Visszavonja ezt a sorban álló felhőgépet: {name} ({status})? A munkája "
 "azonnal leáll; a kész eredmények a felhőben maradnak."
 
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Check"
+msgstr "Ellenőrzés"
+
+#: src/transcribe_ui/gui/settings/texts.py
+#, python-brace-format
+msgid ""
+"Check the extensions: one cannot be both a video and an audio extension, "
+"nor a subtitle extension ({extensions})."
+msgstr ""
+"Ellenőrizze a kiterjesztéseket: egy kiterjesztés nem lehet egyszerre "
+"videó- és hangkiterjesztés, és feliratkiterjesztés ({extensions}) sem "
+"lehet."
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Checking files"
 msgstr "Fájlok ellenőrzése"
 
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Checking the cloud setup..."
+msgstr "A felhőbeállítás ellenőrzése..."
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Choose a folder (a full path), or leave it empty."
+msgstr "Válasszon egy mappát (teljes elérési úttal), vagy hagyja üresen."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the audio track to transcribe."
 msgstr "Válassza ki az átírandó hangsávot."
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Choose the ffmpeg program"
+msgstr "Válassza ki az ffmpeg programot"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Choose the ffprobe program"
+msgstr "Válassza ki az ffprobe programot"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Choose the output folder"
+msgstr "Válassza ki a kimeneti mappát"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid ""
+"Choose the program file (a full path), or leave it empty to use the "
+"bundled one."
+msgstr ""
+"Válassza ki a programfájlt (teljes elérési úttal), vagy hagyja üresen a "
+"beépített program használatához."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the subtitle stream to extract."
@@ -182,6 +256,24 @@ msgstr "Felhő"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Cloud cleanup interrupted; repeat it"
 msgstr "A felhőtakarítás megszakadt; ismételje meg"
+
+#: src/transcribe_ui/gui/settings/cloud_setup.py
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Cloud setup"
+msgstr "Felhőbeállítás"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid ""
+"Cloud setup done: {created} created, {updated} updated, {unchanged} "
+"unchanged."
+msgstr ""
+"A felhőbeállítás kész: {created} létrehozva, {updated} frissítve, "
+"{unchanged} változatlan."
+
+#: src/transcribe_ui/gui/settings/languages_view.py
+msgid "Code"
+msgstr "Kód"
 
 #: src/transcribe_ui/gui/dialogs.py
 #, python-brace-format
@@ -236,6 +328,7 @@ msgid "Detail"
 msgstr "Adat"
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
+#: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr "Részletek"
 
@@ -251,6 +344,10 @@ msgstr "Kész"
 msgid "Download"
 msgstr "Letöltés"
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Download defaults"
+msgstr "Letöltési alapértékek"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Downloaded"
 msgstr "Letöltve"
@@ -258,6 +355,10 @@ msgstr "Letöltve"
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Downloading subtitles"
 msgstr "Feliratok letöltése"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Duplicated"
+msgstr "Többször szerepel"
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Edit selection"
@@ -267,10 +368,27 @@ msgstr "Kijelölés szerkesztése"
 msgid "Embedded subtitle"
 msgstr "Beágyazott felirat"
 
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Enter a whole number of at least 1."
+msgstr "Adjon meg egy legalább 1 értékű egész számot."
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Enter the R2 storage values under Settings, Accounts to start."
+msgstr "A kezdéshez adja meg az R2-tárhely adatait a Beállítások, Fiókok oldalon."
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Enter the value"
+msgstr "Adja meg az értéket"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Extensions without the dot, separated by spaces."
+msgstr "Kiterjesztések pont nélkül, szóközzel elválasztva."
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Extracted"
 msgstr "Kinyerve"
 
+#: src/transcribe_ui/gui/settings/account_texts.py
 #: src/transcribe_ui/gui/texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Failed"
 msgstr "Sikertelen"
@@ -283,9 +401,21 @@ msgstr "Fájl"
 msgid "File status"
 msgstr "Fájl állapota"
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "File types"
+msgstr "Fájltípusok"
+
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr "Fájlok"
+
+#: src/transcribe_ui/gui/settings/languages_view.py
+msgid "Filter languages"
+msgstr "Nyelvek szűrése"
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Finish"
+msgstr "Befejezés"
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Finished"
@@ -294,6 +424,15 @@ msgstr "Kész"
 #: src/transcribe_ui/gui/closing.py
 msgid "Finishing the current step..."
 msgstr "Az aktuális lépés befejezése..."
+
+#: src/transcribe_ui/gui/settings/accounts.py
+#: src/transcribe_ui/gui/settings/viewmodel.py
+msgid "Fix the marked fields, then save again."
+msgstr "Javítsa a megjelölt mezőket, majd mentsen újra."
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Folder names in the file name"
+msgstr "Mappanevek a fájlnévben"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folder names were added to tell apart files of different folders."
@@ -305,17 +444,31 @@ msgstr ""
 msgid "Folders this deep are not scanned."
 msgstr "Az alkalmazás ilyen mélyen lévő mappákat nem olvas be."
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "From the environment variable {variable}"
+msgstr "Környezeti változóból: {variable}"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Hidden"
 msgstr "Elrejtve"
 
 #: src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Hide"
 msgstr "Elrejtés"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "In an output folder, mirroring the folders"
+msgstr "Kimeneti mappába, a mappaszerkezetet követve"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "In review"
 msgstr "Ellenőrzés alatt"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Include hidden and system files and folders"
+msgstr "A rejtett fájlok és mappák, valamint a rendszerfájlok bevonása"
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
@@ -334,25 +487,60 @@ msgstr "Feladatok"
 msgid "Kind"
 msgstr "Típus"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
+#: src/transcribe_ui/gui/settings/languages_view.py
+#: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Language"
 msgstr "Nyelv"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Language of the app"
+msgstr "Az alkalmazás nyelve"
+
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
 msgid "Languages"
 msgstr "Nyelvek"
+
+#: src/transcribe_ui/gui/settings/notice_view.py
+msgid "Later"
+msgstr "Később"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Leave a field empty to use the bundled program."
+msgstr "A beépített program használatához hagyja üresen a mezőt."
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Links are not followed."
 msgstr "Az alkalmazás a hivatkozásokat nem követi."
 
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Loading the settings..."
+msgstr "A beállítások betöltése..."
+
+#: src/transcribe_ui/gui/settings/about_view.py
+#, python-brace-format
+msgid "Log folder: {folder}"
+msgstr "Naplómappa: {folder}"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Missing"
+msgstr "Hiányzik"
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Name"
+msgstr "Név"
+
 #: src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr "Új feladat"
 
-#: src/transcribe_ui/gui/steps/view.py
+#: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Next"
 msgstr "Tovább"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Next to the media file"
+msgstr "A médiafájl mellé"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -374,9 +562,25 @@ msgstr "Nincs beszéd"
 msgid "Not available yet."
 msgstr "Még nem érhető el."
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Not chosen"
+msgstr "Nincs kiválasztva"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Not set"
+msgstr "Nincs megadva"
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Notes"
 msgstr "Megjegyzések"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "OK"
+msgstr "Rendben"
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Object"
+msgstr "Objektum"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Only transcriptions that failed or found no speech can be retried."
@@ -395,12 +599,22 @@ msgid "Open cloud setup"
 msgstr "Felhőbeállítás megnyitása"
 
 #: src/transcribe_ui/gui/dialogs.py
+#: src/transcribe_ui/gui/settings/about_view.py
 msgid "Open log folder"
 msgstr "Naplómappa megnyitása"
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Open the job"
 msgstr "A feladat megnyitása"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "Outdated ({fields})"
+msgstr "Elavult ({fields})"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Output folder"
+msgstr "Kimeneti mappa"
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Path"
@@ -412,9 +626,17 @@ msgid ""
 "transcribed."
 msgstr "A képalapú feliratok nem nyerhetők ki szövegként; csak átírhatók."
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Place subtitles"
+msgstr "Feliratok helye"
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Please confirm"
 msgstr "Megerősítés szükséges"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Preferences"
+msgstr "Általános"
 
 #: src/transcribe_ui/cli/credentials_command.py
 msgid "Press Enter alone to keep what is stored."
@@ -470,6 +692,18 @@ msgstr ""
 msgid "R2 secret access key"
 msgstr "Titkos R2-hozzáférési kulcs"
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "R2 storage"
+msgstr "R2-tárhely"
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "R2 storage (required)"
+msgstr "R2-tárhely (kötelező)"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Ready"
+msgstr "Kész"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Ready for transcription"
 msgstr "Átírásra kész"
@@ -482,6 +716,22 @@ msgstr "Indok"
 msgid "Repeat cleanup"
 msgstr "Takarítás megismétlése"
 
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Replace existing subtitle files"
+msgstr "A meglévő feliratfájlok felülírása"
+
+#: src/transcribe_ui/gui/settings/notice_view.py
+msgid "Restart now"
+msgstr "Újraindítás most"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Restart now to change the language?"
+msgstr "Újraindítja most az alkalmazást a nyelv módosításához?"
+
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Restore defaults"
+msgstr "Alapértékek visszaállítása"
+
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Resume"
 msgstr "Folytatás"
@@ -491,7 +741,9 @@ msgid "Resume upload"
 msgstr "Feltöltés folytatása"
 
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/jobs/widgets.py
-#: src/transcribe_ui/gui/pages.py src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/pages.py
+#: src/transcribe_ui/gui/settings/preferences_view.py
+#: src/transcribe_ui/gui/texts.py
 msgid "Retry"
 msgstr "Újra"
 
@@ -518,6 +770,14 @@ msgstr "Transcribe-UI-kérések futtatása JSON-fájlokból."
 #: src/transcribe_ui/gui/texts.py
 msgid "Running"
 msgstr "Fut"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Runpod"
+msgstr "Runpod"
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "Runpod (optional)"
+msgstr "Runpod (nem kötelező)"
 
 #: src/transcribe_ui/i18n/credential_texts.py
 msgid "Runpod API key"
@@ -577,9 +837,28 @@ msgstr ""
 "A Runpod szerint {name} létezik, de még nem szerepel a listájában. Egy "
 "perc múlva futtassa újra a felhőbeállítást."
 
+#: src/transcribe_ui/gui/settings/accounts_view.py
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Save"
+msgstr "Mentés"
+
+#: src/transcribe_ui/gui/settings/accounts.py
+#: src/transcribe_ui/gui/settings/viewmodel.py
+msgid "Saved."
+msgstr "Mentve."
+
+#: src/transcribe_ui/gui/settings/accounts.py
+#: src/transcribe_ui/gui/settings/viewmodel.py
+msgid "Saving..."
+msgstr "Mentés folyamatban..."
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Scanning folders"
 msgstr "Mappák beolvasása"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Secret"
+msgstr "Titok"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "See the log for what went wrong."
@@ -592,6 +871,18 @@ msgstr "Kijelölve"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Selecting files"
 msgstr "Fájlok kijelölése"
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Set up"
+msgstr "Beállítás"
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Set up Transcribe-UI"
+msgstr "A Transcribe-UI beállítása"
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Set up later"
+msgstr "Beállítás később"
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Settings"
@@ -663,6 +954,10 @@ msgstr[1] ""
 "Egy felhőgép indul {jobs} átíráshoz ({audio_s:duration} hanganyag); a "
 "becsült költség {cost_low_usd:.2f}–{cost_high_usd:.2f} USD."
 
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "State"
+msgstr "Állapot"
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Status"
 msgstr "Állapot"
@@ -679,6 +974,14 @@ msgstr ""
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Step"
 msgstr "Lépés"
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Step 1 of 2: accounts"
+msgstr "1. lépés (2-ből): fiókok"
+
+#: src/transcribe_ui/gui/settings/wizard.py
+msgid "Step 2 of 2: cloud setup"
+msgstr "2. lépés (2-ből): felhőbeállítás"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Stop and close"
@@ -700,9 +1003,17 @@ msgstr "Leállítva. Az eddig elvégzett munka mentve van; bármikor folytathat�
 msgid "Stopped; continue any time."
 msgstr "Leállítva; bármikor folytatható."
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Stored in the keyring"
+msgstr "A kulcstartóban tárolva"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Subtitles ready to download"
 msgstr "Letölthető feliratok"
+
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "System language"
+msgstr "A rendszer nyelve"
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -712,6 +1023,14 @@ msgid ""
 msgstr ""
 "Megszünteti ezt a felhőgépet: {name} ({status})? A munkája azonnal leáll;"
 " a kész eredmények a felhőben maradnak."
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "Test"
+msgstr "Próba"
+
+#: src/transcribe_ui/gui/settings/accounts_view.py
+msgid "Testing the accounts..."
+msgstr "A fiókok kipróbálása..."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The R2 bucket does not exist; check the bucket name and the endpoint URL."
@@ -724,6 +1043,16 @@ msgstr "A másolandó R2-objektum nem létezik."
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The R2 request failed; the details are in the log."
 msgstr "Az R2-kérés nem sikerült; a részletek a naplóban olvashatók."
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"The Runpod API key is optional. Without it, this computer prepares, "
+"uploads and downloads jobs, and another computer that has the key starts "
+"the transcription."
+msgstr ""
+"A Runpod API-kulcs nem kötelező. Nélküle ez a számítógép előkészíti, "
+"feltölti és letölti a feladatokat, az átírást pedig egy másik, kulccsal "
+"rendelkező számítógép indítja el."
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -747,6 +1076,10 @@ msgid ""
 msgstr ""
 "A bucket neve 3–63 kisbetűből, számjegyből és kötőjelből állhat, és nem "
 "kezdődhet vagy végződhet kötőjellel."
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "The bundled program"
+msgstr "A beépített program"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -789,6 +1122,33 @@ msgstr "A felhős futás már véget ért; nincs mit leállítani."
 msgid "The cloud run {run_id} does not exist."
 msgstr "Nincs {run_id} azonosítójú felhős futás."
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "The cloud setup could not be checked: {error}"
+msgstr "A felhőbeállítást nem sikerült ellenőrizni: {error}"
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid ""
+"The cloud setup creates the Runpod objects the transcription needs: a "
+"volume for result backups, the R2 secrets and the worker template. Run it"
+" again after the R2 values change."
+msgstr ""
+"A felhőbeállítás létrehozza a Runpodon az átíráshoz szükséges "
+"objektumokat: az eredménymentések kötetét, az R2-titkokat és a feldolgozó"
+" sablonját. Az R2-adatok módosítása után futtassa újra."
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"The cloud setup is incomplete or outdated, so transcription cannot start "
+"from this computer yet."
+msgstr ""
+"A felhőbeállítás hiányos vagy elavult, ezért erről a számítógépről még "
+"nem indítható átírás."
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "The cloud setup is incomplete or outdated; run Set up."
+msgstr "A felhőbeállítás hiányos vagy elavult; kattintson a Beállítás gombra."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The cloud setup is incomplete. Run the cloud setup first."
 msgstr "A felhőbeállítás hiányos. Először futtassa a felhőbeállítást."
@@ -796,6 +1156,20 @@ msgstr "A felhőbeállítás hiányos. Először futtassa a felhőbeállítást.
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The cloud setup is outdated. Run the cloud setup again."
 msgstr "A felhőbeállítás elavult. Futtassa újra a felhőbeállítást."
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "The cloud setup is ready."
+msgstr "A felhőbeállítás kész."
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid ""
+"The cloud setup needs the Runpod API key (Settings, Accounts). Without "
+"it, this computer uploads and downloads, and another computer that has "
+"the key starts the transcription."
+msgstr ""
+"A felhőbeállításhoz Runpod API-kulcs kell (Beállítások, Fiókok). Nélküle "
+"ez a számítógép feltölt és letölt, az átírást pedig egy másik, kulccsal "
+"rendelkező számítógép indítja el."
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -831,6 +1205,10 @@ msgstr "Az egyéni terv fájlja nem olvasható ({reason})."
 #, python-brace-format
 msgid "The custom plan file cannot be written ({reason})."
 msgstr "Az egyéni terv fájlja nem írható ({reason})."
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "The download dialog starts with these choices."
+msgstr "A letöltési ablak ezekkel a beállításokkal nyílik meg."
 
 #: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
@@ -999,6 +1377,14 @@ msgstr ""
 msgid "The job's upload is not complete yet; finish the upload first."
 msgstr "A feladat feltöltése még nem fejeződött be; előbb fejezze be a feltöltést."
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"The keyring cannot be used right now (it may be locked). Unlock it, or "
+"use the environment variables."
+msgstr ""
+"A kulcstartó most nem használható (lehet, hogy zárolva van). Oldja fel, "
+"vagy használja a környezeti változókat."
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid ""
@@ -1007,6 +1393,14 @@ msgid ""
 msgstr ""
 "A kulcstartó nem tárolta el a hozzáférési adatokat ({reason}). Oldja fel,"
 " és próbálja újra, vagy használja a környezeti változókat."
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid ""
+"The languages offered when you choose what to transcribe. Word timing: "
+"the subtitles get word-level timing in these languages."
+msgstr ""
+"Az átírandó nyelvek kiválasztásakor felkínált nyelvek. Szóidőzítés: "
+"ezeken a nyelveken a feliratok szavanként időzítettek."
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid ""
@@ -1146,6 +1540,20 @@ msgstr ""
 "Ezen a rendszeren nincs kulcstartó a hozzáférési adatok tárolásához. "
 "Helyette állítsa be ezeket a környezeti változókat: {variables}."
 
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid ""
+"This system has no keyring, so the values cannot be stored here. Set the "
+"environment variables instead, then restart the app."
+msgstr ""
+"Ezen a rendszeren nincs kulcstartó, ezért az adatok itt nem tárolhatók. "
+"Helyette állítsa be a környezeti változókat, majd indítsa újra az "
+"alkalmazást."
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "This value is not valid."
+msgstr "Ez az érték nem érvényes."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Transcribe-UI is already running in another window or process; close it "
@@ -1170,6 +1578,14 @@ msgstr "Átírás"
 msgid "Transcriptions"
 msgstr "Átírások"
 
+#: src/transcribe_ui/gui/settings/texts.py
+msgid "Turn on at least one language."
+msgstr "Kapcsoljon be legalább egy nyelvet."
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Type a new value to replace it"
+msgstr "Írjon be egy új értéket a cseréjéhez"
+
 #: src/transcribe_ui/cli/credentials_command.py
 msgid ""
 "Type each credential and press Enter; the keys and the secret are not "
@@ -1177,6 +1593,14 @@ msgid ""
 msgstr ""
 "Írja be egyenként a hozzáférési adatokat, és nyomjon Entert; a kulcsok és"
 " a titkos kulcs gépelés közben nem jelennek meg."
+
+#: src/transcribe_ui/gui/settings/preferences_view.py
+msgid "Undo changes"
+msgstr "Módosítások elvetése"
+
+#: src/transcribe_ui/gui/settings/cloud_view.py
+msgid "Update"
+msgstr "Frissítés"
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Upload"
@@ -1202,9 +1626,26 @@ msgstr "Feltöltés"
 msgid "Uploading files"
 msgstr "Fájlok feltöltése"
 
+#: src/transcribe_ui/gui/settings/texts.py
+msgid ""
+"Use lower-case letters and digits without the dot, each extension only "
+"once."
+msgstr ""
+"Kisbetűket és számjegyeket használjon, pont nélkül, és minden "
+"kiterjesztést csak egyszer adjon meg."
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Value"
 msgstr "Érték"
+
+#: src/transcribe_ui/gui/settings/about_view.py
+#, python-brace-format
+msgid "Version {version}, data format {schema}"
+msgstr "Verzió: {version}, adatformátum: {schema}"
+
+#: src/transcribe_ui/gui/settings/form.py
+msgid "Video files"
+msgstr "Videófájlok"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Waiting"
@@ -1230,6 +1671,14 @@ msgid ""
 msgstr ""
 "Nem ellenőrizhető, hogy folyamatban van-e felhős futás, ezért semmi sem "
 "indult el, és semmi sem lett közzétéve; próbálja újra később."
+
+#: src/transcribe_ui/gui/settings/languages_view.py
+msgid "Word timing"
+msgstr "Szóidőzítés"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+msgid "Worker template"
+msgstr "Feldolgozó sablon"
 
 #: src/transcribe_ui/cli/parser.py
 msgid ""
@@ -1285,9 +1734,18 @@ msgstr "az alkalmazás verziójának kiírása, majd kilépés"
 msgid "run the request in a JSON file and print the response as JSON"
 msgstr "egy JSON-fájlban lévő kérés futtatása, és a válasz kiírása JSON-ként"
 
-#: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
+#: src/transcribe_ui/gui/feedback.py
+#: src/transcribe_ui/gui/settings/languages_view.py
+#: src/transcribe_ui/i18n/codes.py
 msgid "yes"
 msgstr "igen"
+
+#: src/transcribe_ui/gui/settings/account_texts.py
+#, python-brace-format
+msgid "{count} duplicate removed."
+msgid_plural "{count} duplicates removed."
+msgstr[0] "{count} másodpéldány törölve."
+msgstr[1] "{count} másodpéldány törölve."
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format

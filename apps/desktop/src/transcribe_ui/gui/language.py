@@ -7,15 +7,17 @@ Qt's translation files of the same language; without them they stay English.
 
 import logging
 from contextlib import ExitStack
+from dataclasses import dataclass
+from functools import partial
 
 from PySide6.QtCore import QLibraryInfo, QTranslator
 from PySide6.QtWidgets import QApplication
 
 from transcribe_ui.api.classes import LanguageSetting
 from transcribe_ui.gui.constants import QT_TRANSLATION_PREFIX
+from transcribe_ui.i18n import system
 from transcribe_ui.i18n.constants import DEFAULT_LANGUAGE, Language
-from transcribe_ui.i18n.language import start_language
-from transcribe_ui.i18n.system import SystemLanguage
+from transcribe_ui.i18n.language import resolve_language, start_language
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +34,33 @@ def qt_translator(language: Language) -> QTranslator | None:
     return None
 
 
+@dataclass(frozen=True)
+class StartLanguages:
+    """The languages resolved at start-up: the one shown, and the one `system` means (the OS's, read once)."""
+
+    shown: Language
+    system: Language
+
+
+def _found(language: str | None) -> str | None:
+    return language
+
+
 def use_language(
     setting: LanguageSetting,
     app: QApplication,
     stack: ExitStack,
-    os_language: SystemLanguage | None = None,
-) -> Language:
-    """Activate the language of the setting for the app's and Qt's texts until `stack` closes; return it."""
-    language = start_language(setting, os_language)
+    os_language: system.SystemLanguage | None = None,
+) -> StartLanguages:
+    """Activate the language of the setting for the app's and Qt's texts until `stack` closes; return both.
+
+    The OS language is read once (on macOS a subprocess), so a later comparison never reads it again.
+    """
+    reader = system.os_language if os_language is None else os_language
+    os_found = partial(_found, reader())
+    language = start_language(setting, os_found)
     translator = qt_translator(language)
     if translator is not None:
         app.installTranslator(translator)
         stack.callback(app.removeTranslator, translator)
-    return language
+    return StartLanguages(shown=language, system=resolve_language("system", os_found))

@@ -117,8 +117,14 @@ def _connect_navigation(window: MainWindow) -> None:
 
 
 def build_shell(context: GuiContext) -> MainWindow:
-    """Build the window and wire the bus: navigation, fallbacks, the start-up probe of the writer lock."""
+    """Build the window and wire the bus: navigation, fallbacks, the start-up probe of the writer lock.
+
+    The executor closes with the window, so a late answer never reaches the window's deleted
+    views. A view deleted before its window must call the function `subscribe` returned.
+    """
     window = MainWindow(context)
+    # Once the window is deleted, answers still on their way reach none of its views.
+    window.destroyed.connect(context.executor.close)
     _connect_navigation(window)
     install_areas(window)
     window.connect_fallbacks()

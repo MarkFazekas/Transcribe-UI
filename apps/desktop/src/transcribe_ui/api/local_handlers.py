@@ -14,7 +14,7 @@ from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.discovery.services import preview_selection, scan_tree
 from transcribe_ui.runpod.setup import cloud_setup_status, setup_cloud
-from transcribe_ui.state.requests import get_settings, update_settings
+from transcribe_ui.state.requests import get_settings, reset_settings, update_settings
 
 # A request handler: the request and its context in, the response out.
 type RequestRunner = Callable[[Any, RequestContext], Response]
@@ -29,6 +29,7 @@ def local_handlers() -> Mapping[str, RequestRunner]:
             "preview_selection": preview_selection,
             "get_settings": get_settings,
             "update_settings": update_settings,
+            "reset_settings": reset_settings,
             "store_credentials": store_credentials,
             "credentials_status": credentials_status,
             "check_credentials": check_credentials,

@@ -167,3 +167,18 @@ def test_save_removes_stale_temp_files(tmp_path: Path) -> None:
     os.utime(stale, (old, old))
     ports.state.settings.save(default_settings())
     assert (stale.exists(), fresh.exists()) == (False, True)
+
+
+def _broken_settings(root: Path) -> None:
+    settings_file = app_paths_under(root).settings_file
+    settings_file.parent.mkdir(parents=True)
+    settings_file.write_text('{"enabled_languages": ["xx"]}', encoding="utf-8")
+
+
+def test_reset_settings_replaces_a_broken_file(tmp_path: Path) -> None:
+    """`reset_settings` stores the defaults over an unreadable file, the same on both legs."""
+    reset = '{"action": "reset_settings"}'
+    broken, reset_done, read_back = run_parity(tmp_path, [GET_SETTINGS, reset, GET_SETTINGS], prepare=_broken_settings)
+    assert (broken.exit_code, reset_done.exit_code, read_back.exit_code) == (1, EXIT_OK, EXIT_OK)
+    assert_golden("reset_settings.json", reset_done.golden())
+    assert json.loads(read_back.response)["settings"] == default_settings().model_dump(mode="json")

@@ -908,6 +908,22 @@
       "title": "RefreshStatusRequest",
       "type": "object"
     },
+    "ResetSettingsRequest": {
+      "additionalProperties": false,
+      "description": "Replace the stored settings with the defaults (needs no database; offered when they cannot be read).",
+      "properties": {
+        "action": {
+          "const": "reset_settings",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ResetSettingsRequest",
+      "type": "object"
+    },
     "ResolveReviewRequest": {
       "additionalProperties": false,
       "description": "Set the choice of jobs in review; all choices are applied, or none.",
@@ -1681,6 +1697,7 @@
       "preview_selection": "#/$defs/PreviewSelectionRequest",
       "reconcile_cloud": "#/$defs/ReconcileCloudRequest",
       "refresh_status": "#/$defs/RefreshStatusRequest",
+      "reset_settings": "#/$defs/ResetSettingsRequest",
       "resolve_review": "#/$defs/ResolveReviewRequest",
       "review_batch": "#/$defs/ReviewBatchRequest",
       "run_download": "#/$defs/RunDownloadRequest",
@@ -1710,6 +1727,9 @@
     },
     {
       "$ref": "#/$defs/UpdateSettingsRequest"
+    },
+    {
+      "$ref": "#/$defs/ResetSettingsRequest"
     },
     {
       "$ref": "#/$defs/StoreCredentialsRequest"

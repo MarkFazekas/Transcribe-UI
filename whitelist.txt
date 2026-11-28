@@ -225,6 +225,7 @@ preselected
 prog
 pyannote
 pydantic
+pyinstaller
 pysqlite
 pytestmark
 pytestqt
@@ -234,6 +235,7 @@ q27
 q28
 q29
 q30
+q32
 q33
 qpa
 qs
@@ -249,6 +251,7 @@ recv
 removeprefix
 removesuffix
 repo
+resizable
 rereview
 restype
 retryable

@@ -1,0 +1,28 @@
+{
+  "action": "update_settings",
+  "settings": {
+    "enabled_languages": [
+      "hu",
+      "de"
+    ],
+    "video_extensions": [
+      "mkv",
+      "mp4",
+      "webm"
+    ],
+    "audio_extensions": [
+      "flac",
+      "mp3"
+    ],
+    "include_hidden": true,
+    "ffmpeg_path": "<root>/tools/ffmpeg",
+    "ffprobe_path": null,
+    "placement": {
+      "strategy": "flat_with_folders",
+      "output_folder": "<root>/subtitles",
+      "folder_count": 2,
+      "overwrite": true
+    },
+    "language": "hu"
+  }
+}
