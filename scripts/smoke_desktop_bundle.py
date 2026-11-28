@@ -3,7 +3,9 @@
 Used by `scripts/smoke_desktop_build.py`. The archive is listed with PyInstaller's own archive
 viewer (`--list --recursive --brief`), so the smoke test runs in the build environment, where
 PyInstaller is installed. Data and binaries are listed as paths (`transcribe_ui/version.txt`,
-`PySide6/Qt/plugins/platforms/libqxcb.so`), Python modules by their dotted names.
+`PySide6/Qt/plugins/platforms/libqxcb.so`), Python modules by their dotted names. Both
+executables carry their third-party notices (`transcribe_ui/THIRD_PARTY_NOTICES.txt`); only the
+GUI carries the window icon.
 """
 
 import os
@@ -32,6 +34,12 @@ REQUIRED_DATA = (
     "transcribe_ui/state/migrations/env.py",
     "transcribe_ui/state/migrations/script.py.mako",
     "transcribe_ui/version.txt",
+    "transcribe_ui/THIRD_PARTY_NOTICES.txt",
+)
+# The window icon's smallest and largest image, which only the GUI bundles (`gui/icon.py`).
+GUI_DATA = (
+    "transcribe_ui/gui/icons/transcribe-ui-16.png",
+    "transcribe_ui/gui/icons/transcribe-ui-256.png",
 )
 # The media tools every executable bundles at its root (`media/tools.py` `bundle_dir`), by `sys.platform`.
 MEDIA_TOOLS: Mapping[str, tuple[str, ...]] = MappingProxyType(
@@ -50,11 +58,11 @@ QT_HUNGARIAN = "qtbase_hu.qm"
 # The C++ runtime and GCC support library, which the Linux build leaves to the host.
 HOST_LIBRARIES = re.compile(r"(libstdc\+\+|libgcc_s)\.so(\..*)?")
 # Names that show Qt in a bundle: the Python packages (modules and files), the libraries of Qt and
-# PySide6 wherever they are put, and the app's GUI package.
+# PySide6 wherever they are put, and the app's GUI package (its modules and its data).
 QT_NAMES = re.compile(
     r"(PySide6|shiboken6)([./].*)?"
     r"|(.*/)?(lib)?(Qt6|pyside6|shiboken6)\w*\.(abi3\.)?(so|dll|dylib)(\..*)?"
-    r"|transcribe_ui\.gui(\..*)?",
+    r"|transcribe_ui[./]gui([./].*)?",
     re.IGNORECASE,
 )
 # Folder of the Qt platform plugins.
@@ -132,8 +140,9 @@ def cli_problems(entries: frozenset[str], revisions: Revisions, platform: str) -
 
 
 def gui_problems(entries: frozenset[str], revisions: Revisions, platform: str) -> list[str]:
-    """Return what the GUI executable lacks: Qt's Hungarian texts and the platform plugins too."""
+    """Return what the GUI executable lacks: Qt's Hungarian texts, the platform plugins and the window icon too."""
     problems = common_problems(entries, revisions, platform)
+    problems.extend(f"missing {name}" for name in GUI_DATA if name not in entries)
     if not any(PurePosixPath(entry).name == QT_HUNGARIAN for entry in entries):
         problems.append(f"missing {QT_HUNGARIAN}")
     present = platform_plugins(entries)

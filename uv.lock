@@ -2736,7 +2736,6 @@ dependencies = [
 
 [package.dev-dependencies]
 packaging = [
-    { name = "pillow" },
     { name = "pyinstaller" },
 ]
 
@@ -2754,10 +2753,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-packaging = [
-    { name = "pillow", specifier = ">=13.0" },
-    { name = "pyinstaller", specifier = ">=6.22" },
-]
+packaging = [{ name = "pyinstaller", specifier = ">=6.22" }]
 
 [[package]]
 name = "transcribe-ui-workspace"

@@ -14,8 +14,11 @@ to `dist/`, named `transcribe-ui-<os>-<arch>-<variant>` (`.exe` on Windows), the
 publishes. Both bundle ffmpeg and ffprobe from `--ffmpeg-dir` (default `build/ffmpeg/dist`,
 where `scripts/build_ffmpeg.py build` writes them) at the archive's root, where the app looks for
 them (`media/tools.py` `bundle_dir`). The stamped version is bundled as
-`transcribe_ui/version.txt`; on Windows a generated version resource describes the file. No
-`.spec` file is kept: PyInstaller's is written to the work folder.
+`transcribe_ui/version.txt`; on Windows a generated version resource describes the file and the
+app icon (`apps/desktop/packaging/icon/`) is the file's icon. Each executable bundles its
+third-party notices as `transcribe_ui/THIRD_PARTY_NOTICES.txt`, made inside PyInstaller from
+what it collected (`build_desktop_facts.py`); a collected file without a licence entry fails
+the build. No `.spec` file is kept: PyInstaller's is written to the work folder.
 """
 
 import argparse
@@ -25,13 +28,13 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from types import MappingProxyType
 from typing import Literal
 
+import build_desktop_facts
 from build_desktop_macos import check_bundle
 from build_platform import host_tag
 
@@ -47,6 +50,14 @@ PACKAGING_DIR = DESKTOP_DIR / "packaging"
 HOOKS_DIR = PACKAGING_DIR / "hooks"
 # Runs PyInstaller with the Linux build's library exclusions.
 PYINSTALLER_RUNNER = PACKAGING_DIR / "pyinstaller_main.py"
+# The app icon's source and the files made from it (`scripts/build_icon.py`).
+ICON_DIR = PACKAGING_DIR / "icon"
+# The Windows executables' icon.
+WINDOWS_ICON = ICON_DIR / "transcribe-ui.ico"
+# The macOS `.app`'s icon (the onedir `.app` of M8.4 takes it; a bare one-file binary has none).
+MACOS_ICON = ICON_DIR / "transcribe-ui.icns"
+# Environment variable naming the notices configuration the PyInstaller runner reads.
+NOTICES_VARIABLE = "TRANSCRIBE_UI_NOTICES_CONFIG"
 # Default folder of the built executables.
 DEFAULT_DIST = REPO_ROOT / "dist"
 # Default work folder of PyInstaller (its analysis, the generated spec and resource files).
@@ -74,13 +85,10 @@ WINDOWS_VERSION_PARTS = 4
 RELEASE_SEGMENT = re.compile(r"\d+(?:\.\d+)*")
 # Product name in the Windows version resource.
 PRODUCT_NAME = "Transcribe-UI"
-# File description of each variant in the Windows version resource.
-FILE_DESCRIPTIONS: Mapping[Variant, str] = MappingProxyType(
-    {
-        "cli": "Transcribe-UI command line",
-        "gui": "Transcribe-UI",
-    },
-)
+# File description of the CLI executable in the Windows version resource.
+CLI_FILE_DESCRIPTION = "Transcribe-UI command line"
+# File description of the GUI executable in the Windows version resource.
+GUI_FILE_DESCRIPTION = "Transcribe-UI"
 # Python modules the CLI never contains (it must never import Qt or the GUI).
 CLI_EXCLUDED_MODULES = ("PySide6", "shiboken6", "transcribe_ui.gui")
 # Qt modules the GUI does not use but a hook could pull in.
@@ -122,6 +130,16 @@ class BuildPaths:
     def stamp(self) -> Path:
         """Return the generated stamp file."""
         return self.work / VERSION_STAMP_FILE
+
+    @property
+    def notices(self) -> Path:
+        """Return the generated third-party notices."""
+        return self.work / "THIRD_PARTY_NOTICES.txt"
+
+    @property
+    def notices_config(self) -> Path:
+        """Return the notices configuration the PyInstaller runner reads."""
+        return self.work / "notices.json"
 
     @property
     def version_resource(self) -> Path:
@@ -189,9 +207,10 @@ def _string_struct(key: str, text: str) -> str:
 def windows_version_resource(variant: Variant, base: str, version: str, tag: str) -> str:
     """Return PyInstaller's `--version-file` text of the executable (shown in the file's properties)."""
     numbers = numeric_version(base)
+    description = CLI_FILE_DESCRIPTION if variant == "cli" else GUI_FILE_DESCRIPTION
     strings = (
         ("CompanyName", PRODUCT_NAME),
-        ("FileDescription", FILE_DESCRIPTIONS[variant]),
+        ("FileDescription", description),
         ("FileVersion", base),
         ("InternalName", asset_stem(variant, tag)),
         ("OriginalFilename", asset_name(variant, tag)),
@@ -262,7 +281,8 @@ def pyinstaller_arguments(variant: Variant, tag: str, paths: BuildPaths) -> list
     windowed = variant == "gui" and is_windows(tag)
     arguments.append("--windowed" if windowed else "--console")
     if is_windows(tag):
-        arguments.extend(("--version-file", str(paths.version_resource)))
+        resource, icon = str(paths.version_resource), str(WINDOWS_ICON)
+        arguments.extend(("--version-file", resource, "--icon", icon))
     arguments.append(str(PACKAGING_DIR / f"entry_{variant}.py"))
     return arguments
 
@@ -295,6 +315,14 @@ def head_commit() -> Commit:
     return Commit(sha, datetime.fromtimestamp(int(timestamp), UTC))
 
 
+def _write_notices_config(paths: BuildPaths, title: str) -> None:
+    """Write the configuration the PyInstaller runner makes the third-party notices from."""
+    own = (PACKAGING_DIR, paths.work)
+    build_desktop_facts.write_config(
+        paths.notices_config, output=paths.notices, title=title, ffmpeg=paths.ffmpeg, own=own
+    )
+
+
 def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
     """Build one variant into `paths.dist`; return the executable.
 
@@ -312,10 +340,11 @@ def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
     if is_windows(tag):
         resource = windows_version_resource(variant, base_version(), version, tag)
         paths.version_resource.write_text(resource, encoding="utf-8")
+    name = asset_name(variant, tag)
+    _write_notices_config(paths, f"{PRODUCT_NAME} {version} ({name})")
     arguments = pyinstaller_arguments(variant, tag, paths)
     command = [sys.executable, str(PYINSTALLER_RUNNER), *arguments]
-    environment = {**os.environ, VARIANT_VARIABLE: variant}
-    name = asset_name(variant, tag)
+    environment = {**os.environ, VARIANT_VARIABLE: variant, NOTICES_VARIABLE: str(paths.notices_config)}
     sys.stdout.write(f"Building the {variant} executable {name} ({version})\n")
     sys.stdout.flush()
     completed = subprocess.run(command, cwd=REPO_ROOT, env=environment, check=False)

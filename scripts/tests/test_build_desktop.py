@@ -7,6 +7,7 @@ import pytest
 from build_desktop import (
     HOOKS_DIR,
     PACKAGING_DIR,
+    WINDOWS_ICON,
     BuildPaths,
     Commit,
     asset_name,
@@ -110,18 +111,21 @@ def test_cli_arguments_leave_qt_out() -> None:
 
 
 def test_gui_arguments_per_platform() -> None:
-    """The GUI is windowed with a version resource on Windows and a console-mode binary elsewhere."""
+    """The GUI is windowed with a version resource and the app icon on Windows and a console-mode binary elsewhere."""
     windows = pyinstaller_arguments("gui", "windows-x64", _paths())
     macos = pyinstaller_arguments("gui", "macos-arm64", _paths())
-    assert windows[-5:] == [
+    assert windows[-7:] == [
         "PySide6.QtTest",
         "--windowed",
         "--version-file",
         "/out/work/cli/version-resource.txt",
+        "--icon",
+        str(WINDOWS_ICON),
         str(PACKAGING_DIR / "entry_gui.py"),
     ]
     assert macos[-4:] == ["--exclude-module", "PySide6.QtTest", "--console", str(PACKAGING_DIR / "entry_gui.py")]
-    assert "--version-file" not in macos
+    assert not {"--version-file", "--icon"} & set(macos)
+    assert WINDOWS_ICON.is_file()
     assert "/out/ffmpeg/ffprobe.exe:." in windows
 
 

@@ -1,0 +1,7 @@
+Microsoft Visual C++ Runtime and Universal C Runtime (Windows only)
+
+The Windows executable contains runtime libraries of Microsoft Corporation
+(VCRUNTIME140.dll, VCRUNTIME140_1.dll, MSVCP140*.dll, ucrtbase.dll and the api-ms-win-*.dll
+forwarders), copyright (C) Microsoft Corporation. They are redistributed unmodified, as the
+Microsoft Software License Terms for Microsoft Visual Studio ("Distributable Code") and the
+Windows SDK ("Universal C Runtime") permit.
