@@ -8,6 +8,7 @@ failed has an error code, so checks fall back to the error entries.
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
 
+from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.i18n.code_texts import (
     check_texts,
     confirmation_texts,
@@ -23,6 +24,7 @@ from transcribe_ui.i18n.code_texts import (
 from transcribe_ui.i18n.codes import CodeTable, Details, render_code
 from transcribe_ui.i18n.constants import ERROR_VARIANTS, PLAN_ERROR_VARIANTS, TextKind
 from transcribe_ui.i18n.error_texts import error_texts
+from transcribe_ui.i18n.formats import format_number
 
 
 def _checks() -> CodeTable:
@@ -62,3 +64,15 @@ def code_text(
     shown = {} if details is None else details
     english = code if fallback is None else fallback
     return render_code(TABLES[kind](), code, shown, english, variants)
+
+
+def progress_text(event: ProgressEvent) -> str:
+    """Return a progress event as "stage completed/total" (no total: "stage completed"), the stage translated.
+
+    Shared by the GUI's activity panel and the CLI's `--progress text` (which adds the path).
+    """
+    stage = code_text("stage", event.stage)
+    done = format_number(event.completed)
+    if event.total is None:
+        return f"{stage} {done}"
+    return f"{stage} {done}/{format_number(event.total)}"

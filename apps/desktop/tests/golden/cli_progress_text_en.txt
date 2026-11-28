@@ -1,0 +1,6 @@
+Scanning folders 500: /media/Filmek/Évad 1
+Checking files 3/12: /media/Filmek/Évad 1/rész.mkv
+Uploading 1,048,576/73,400,320: /media/a.mkv
+Checking files 4/12: /media/new\nline\r\x1b[2J.mkv
+Downloading subtitles 12/12
+future_stage 1

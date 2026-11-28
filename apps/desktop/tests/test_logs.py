@@ -15,6 +15,7 @@ from transcribe_ui.api.classes import GetAppInfoRequest, Response
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.api.routes import Route
 from transcribe_ui.api.schema import response_adapter
+from transcribe_ui.cli.console import Console
 from transcribe_ui.cli.constants import EXIT_ERROR
 from transcribe_ui.cli.main import main
 from transcribe_ui.state.logs import SharedRotatingFileHandler
@@ -73,8 +74,7 @@ def test_cli_logs_go_to_the_log_file_not_stderr(tmp_path: Path, log_file: Path) 
     code = main(
         ["run", str(request_file)],
         make_backend=lambda: backend,
-        stdout=io.BytesIO(),
-        stderr=stderr,
+        console=Console(stdout=io.BytesIO(), stderr=stderr),
         log_file=log_file,
     )
     assert code == EXIT_ERROR
@@ -168,7 +168,10 @@ def test_cli_answers_json_without_a_log_file(tmp_path: Path) -> None:
     stderr = io.BytesIO()
     log_file = blocker / "test.log"
     code = main(
-        ["run", str(request_file)], make_backend=lambda: backend, stdout=stdout, stderr=stderr, log_file=log_file
+        ["run", str(request_file)],
+        make_backend=lambda: backend,
+        console=Console(stdout=stdout, stderr=stderr),
+        log_file=log_file,
     )
     assert code == EXIT_ERROR
     assert response_adapter().validate_json(stdout.getvalue()).status == "error"
