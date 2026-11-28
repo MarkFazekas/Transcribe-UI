@@ -9,7 +9,7 @@ import pytest
 from support.fakes import seeded_ports
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import LanguageSetting
-from transcribe_ui.i18n.catalog import active_language, tr
+from transcribe_ui.i18n import catalog
 from transcribe_ui.i18n.language import resolve_language, start_language
 from transcribe_ui.i18n.system import apple_language, platform_language, posix_language, windows_language
 from transcribe_ui.state.settings import SettingsStore, default_settings
@@ -56,9 +56,24 @@ def test_the_setting_overrides_the_os(setting: LanguageSetting, os_language: str
 def test_start_language_activates_the_catalog() -> None:
     """The resolved language's catalog is active afterwards: the texts are Hungarian."""
     assert start_language(SYSTEM, lambda: HUNGARIAN) == HUNGARIAN
-    assert (active_language(), tr("Retry")) == (HUNGARIAN, "Újra")
+    assert (catalog.active_language(), catalog.tr("Retry")) == (HUNGARIAN, "Újra")
     assert start_language(SYSTEM, lambda: None) == ENGLISH
-    assert tr("Retry") == "Retry"
+    assert catalog.tr("Retry") == "Retry"
+
+
+@pytest.mark.parametrize("compiled", [b"damaged", None])
+def test_a_broken_catalog_falls_back_to_english(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    compiled: bytes | None,
+) -> None:
+    """A damaged or missing `.mo` shows the English texts instead of failing the start."""
+    folder = tmp_path / "locale" / HUNGARIAN / "LC_MESSAGES"
+    folder.mkdir(parents=True)
+    if compiled is not None:
+        (folder / "transcribe_ui.mo").write_bytes(compiled)
+    monkeypatch.setattr(catalog, "files", lambda _package: tmp_path)
+    assert catalog.load_translations(HUNGARIAN).gettext("Retry") == "Retry"
 
 
 @pytest.mark.parametrize(
