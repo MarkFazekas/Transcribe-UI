@@ -43,7 +43,7 @@ class RunList(ViewModel):
         self._waiting: list[Proceed] = []
         # Set while this model emits `runs_changed`, so its own reload is not sent twice.
         self._announcing = False
-        # Set while this model emits `batches_changed` for the runs that ended (the poll owes no check for it).
+        # Set while this area emits `batches_changed` for its own run's change (the poll owes no check for it).
         self.announcing_end = False
 
     @property
@@ -93,11 +93,8 @@ class RunList(ViewModel):
             self.error = None
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
-        # Qt reports an exception of a slot instead of raising it here, so the flag is always reset.
-        self.announcing_end = True
         for progress in ended:
-            self._outlet.emit(BATCHES_CHANGED_SIGNAL, progress.run.covered_batch_ids)
-        self.announcing_end = False
+            emit_ended(self, self._outlet, progress.run.covered_batch_ids)
         if ended:
             self._outlet.alert()
         # After the signal, which starts a stopped poll but owes it no check: the poll follows this
@@ -113,3 +110,13 @@ class RunList(ViewModel):
         open_before = {progress.run.run_id for progress in self.runs if not is_final(progress)}
         ended = [progress for progress in runs if is_final(progress)]
         return tuple(progress for progress in ended if progress.run.run_id in open_before)
+
+
+def emit_ended(runs: RunList, outlet: CloudOutlet, covered: tuple[str, ...]) -> None:
+    """Emit `batches_changed` for the jobs of a run this area launched, stopped or saw end (the poll owes no check for it).
+
+    Qt reports an exception of a slot instead of raising it here, so the flag is always reset.
+    """
+    runs.announcing_end = True
+    outlet.emit(BATCHES_CHANGED_SIGNAL, covered)
+    runs.announcing_end = False

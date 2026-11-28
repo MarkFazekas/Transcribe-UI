@@ -70,14 +70,14 @@ class CloudPoll(ViewModel):
         elif not self._timer.active:
             self._timer.start()
 
-    def start(self, *_batch_ids: object) -> None:
+    def start(self, *batch_ids: object) -> None:
         """Poll from now on, if stopped: a run was launched (its list entry may not be loaded yet), or jobs changed.
 
-        After a change of jobs elsewhere (`batches_changed`), the next check tells whether results are awaited now;
-        until it answers, a load of the run list does not stop the poll.
+        After a change of jobs elsewhere (`batches_changed`, which passes the job ids), the next check tells whether
+        results are awaited now; until it answers, a load of the run list does not stop the poll. The area's own
+        signals for its runs (launched, stopped, ended) owe no check.
         """
-        if not self._runs.announcing_end:
-            # A run's end announced by the run list was read by the check that loaded the list.
+        if batch_ids and not self._runs.announcing_end:
             self._owed = True
         if not self._timer.active:
             self._timer.start()
