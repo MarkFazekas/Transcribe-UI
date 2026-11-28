@@ -6,6 +6,7 @@ from typing import Final
 
 import pytest
 
+import transcribe_ui
 from support.fakes import seeded_ports
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import LanguageSetting
@@ -61,7 +62,14 @@ def test_start_language_activates_the_catalog() -> None:
     assert catalog.tr("Retry") == "Retry"
 
 
-@pytest.mark.parametrize("compiled", [b"damaged", None])
+# The start of the Hungarian catalog, cut off inside its tables (as an interrupted write leaves it).
+CATALOG_FILE = Path(transcribe_ui.__file__).parent.joinpath("locale", "hu", "LC_MESSAGES", "transcribe_ui.mo")
+# Bytes of it kept: the header and part of the tables.
+TRUNCATED_LENGTH = 40
+TRUNCATED_CATALOG = CATALOG_FILE.read_bytes()[:TRUNCATED_LENGTH]
+
+
+@pytest.mark.parametrize("compiled", [b"damaged", b"", TRUNCATED_CATALOG, None])
 def test_a_broken_catalog_falls_back_to_english(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

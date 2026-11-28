@@ -10,6 +10,7 @@ Texts are marked with `tr` and `ntr`, never `_` (the linters keep `_` for unused
 import gettext
 import io
 import logging
+import struct
 from dataclasses import dataclass, field
 from importlib.resources import files
 
@@ -44,10 +45,19 @@ def load_translations(language: Language) -> gettext.NullTranslations:
     resource = files(LOCALE_PACKAGE).joinpath(LOCALE_FOLDER, language, MESSAGES_FOLDER, name)
     try:
         return gettext.GNUTranslations(io.BytesIO(resource.read_bytes()))
-    except (OSError, UnicodeDecodeError):
-        # `GNUTranslations` raises OSError for a damaged catalog, too.
-        logger.warning("The %s catalog cannot be read; the English texts are shown", language, exc_info=True)
-        return gettext.NullTranslations()
+    except (OSError, struct.error) as error:
+        # Missing or unreadable, or a wrong magic number (OSError); empty or truncated, as an
+        # interrupted write leaves it (struct.error).
+        return _english_instead(language, error)
+    except (ValueError, LookupError) as error:
+        # A bad header or text (ValueError, which covers UnicodeDecodeError, and IndexError, a
+        # LookupError), or an unknown character set (LookupError).
+        return _english_instead(language, error)
+
+
+def _english_instead(language: Language, error: Exception) -> gettext.NullTranslations:
+    logger.warning("The %s catalog cannot be read; the English texts are shown", language, exc_info=error)
+    return gettext.NullTranslations()
 
 
 def activate(language: Language) -> None:
