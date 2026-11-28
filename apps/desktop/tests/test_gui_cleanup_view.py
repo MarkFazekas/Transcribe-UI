@@ -19,6 +19,7 @@ from support.batches import FIRST_BATCH_ID
 from support.cleanup import FILM_ID, keys_under
 from support.cleanup_gui import cleanup_world
 from support.cloud import CloudWorld
+from support.flow_window import started
 from support.gated import wait_for
 from support.gui import window_over
 from support.launch import FOREIGN_BATCH_ID
@@ -110,7 +111,7 @@ def test_retry_opens_the_retry_job(qtbot: QtBot, window: MainWindow) -> None:
 
 def test_delete_from_the_start_dialog_plans_again(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
     """Delete from cloud asks over the start dialog; once deleted, the dialog's plan drops the job."""
-    window.context.hooks.run()
+    started(qtbot, window)
     page = _cloud(window)
     page.run_panel.buttons.start_button.click()
     start = page.start_dialog
@@ -153,7 +154,7 @@ def test_all_jobs_after_a_retry_stays_on_the_list(qtbot: QtBot, window: MainWind
 
 def test_closing_the_start_dialog_drops_the_question(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
     """The start dialog closed before the question of another computer's job arrives: it does not open."""
-    window.context.hooks.run()
+    started(qtbot, window)
     page = _cloud(window)
     page.run_panel.buttons.start_button.click()
     start = page.start_dialog

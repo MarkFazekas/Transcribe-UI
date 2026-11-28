@@ -19,6 +19,7 @@ from pytestqt.qtbot import QtBot
 from support.batches import FIRST_BATCH_ID
 from support.cloud import CloudWorld, cloud_world
 from support.fakes import FIXED_NOW
+from support.flow_window import started
 from support.gated import POLL_S, upload, uploads, wait_for
 from support.gui import window_over
 from support.launch import FOREIGN_BATCH_ID, write_foreign
@@ -120,7 +121,7 @@ def _confirm(qtbot: QtBot, window: MainWindow) -> None:
 
 
 def _start_a_run(qtbot: QtBot, window: MainWindow) -> None:
-    window.context.hooks.run()
+    started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
@@ -130,8 +131,8 @@ def _start_a_run(qtbot: QtBot, window: MainWindow) -> None:
 
 
 def _planned_dialog(qtbot: QtBot, window: MainWindow) -> StartDialog:
-    """Run the start-up steps, open the start dialog and wait for its plan."""
-    window.context.hooks.run()
+    """Run the start-up steps (their cloud check holds the runs lock), open the start dialog and wait for its plan."""
+    started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
@@ -176,16 +177,9 @@ def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
     _settled(qtbot, window)
 
 
-def _started(qtbot: QtBot, window: MainWindow) -> None:
-    """Run the start-up steps and wait until they finished (their cloud check holds the runs lock meanwhile)."""
-    done: list[bool] = []
-    window.context.hooks.run(lambda: done.append(True))
-    wait_for(qtbot, lambda: bool(done) and not window.busy())
-
-
 def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None:
     """The dialog plans, lists another computer's job with "Delete from cloud" (emitting its signal), and starts."""
-    _started(qtbot, window)
+    started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
