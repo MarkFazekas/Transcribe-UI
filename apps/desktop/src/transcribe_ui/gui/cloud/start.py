@@ -21,12 +21,11 @@ from functools import partial
 
 from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
-from transcribe_ui.gui.cloud.commands import internal_error
 from transcribe_ui.gui.cloud.constants import LAUNCH_KEY, PLAN_KEY, StartPhase, StartStep
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.cloud.start_form import StartForm, asked_plan
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor, LatestChannel
-from transcribe_ui.gui.feedback import ErrorView, error_view
+from transcribe_ui.gui.feedback import ErrorView, confirmation_mismatch, error_view
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.runs.responses import LaunchWorkerResponse, PlanLaunchResponse
@@ -165,7 +164,7 @@ class StartModel(ViewModel):
         if isinstance(response, NeedsConfirmation):
             changed_plan = asked_plan(response)
             if changed_plan is None:
-                self.error = internal_error(self.form.launch_request())
+                self.error = confirmation_mismatch(self.form.launch_request())
             else:
                 self.form.show(*changed_plan, changed=True)
         self.changed()

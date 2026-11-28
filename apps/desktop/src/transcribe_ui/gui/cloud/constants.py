@@ -41,8 +41,6 @@ LAUNCH_KEY: Final = "launch"
 RECONCILE_KEY: Final = "reconcile"
 # Channel key of the start-up check of the credentials.
 CREDENTIALS_KEY: Final = "credentials"
-# Bus signal: batches changed (a tuple of batch ids; each area names the bus signals it emits, as jobs/ and selection/ do).
-BATCHES_CHANGED_SIGNAL: Final = "batches_changed"
 # Bus signal: runs changed.
 RUNS_CHANGED_SIGNAL: Final = "runs_changed"
 # Bus signal: delete an unknown batch's cloud data (`batch_id`).

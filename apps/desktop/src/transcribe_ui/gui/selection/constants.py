@@ -40,8 +40,6 @@ SAVE_KEY: Final = "new_job_save"
 
 # Signal that opens a job page (`batch_id`).
 OPEN_JOB_SIGNAL: Final = "open_job"
-# Signal that tells the pages that batches changed (a tuple of batch ids).
-BATCHES_CHANGED_SIGNAL: Final = "batches_changed"
 
 # Column of the tree with the name and the tick box.
 NAME_COLUMN: Final = 0

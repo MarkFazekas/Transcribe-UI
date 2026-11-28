@@ -11,11 +11,11 @@ from functools import partial
 
 from transcribe_ui.api.classes import Response
 from transcribe_ui.gui.cloud.commands import CloudCommands
-from transcribe_ui.gui.cloud.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.cloud.display import is_final
 from transcribe_ui.gui.cloud.poll import CloudPoll
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.cloud.runs import RunList
+from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.executor import Executor
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.runs.classes import CancelWorkerRequest
