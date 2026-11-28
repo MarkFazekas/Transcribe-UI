@@ -51,7 +51,7 @@ TEXT_PROGRESS_PATH_SEPARATOR: Final = ": "
 
 # Answers that mean the end of input: Ctrl+Z and Ctrl+D, which Windows `getpass` returns as text.
 END_OF_INPUT_ANSWERS: Final = frozenset(("\x1a", "\x04"))
-# The answer of an echoed line that is not text in the terminal's encoding: the replacement
+# The answer of a line (echoed or hidden) that is not text in the terminal's encoding: the replacement
 # character, which no credential accepts, so the field's rule is shown and it is asked again.
 NOT_TEXT_ANSWER: Final = "\ufffd"
 # Credentials `credentials` asks for with echo (not secret); the keys and the secret stay hidden.
