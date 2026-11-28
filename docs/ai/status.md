@@ -33,7 +33,12 @@ the status change on the current branch. On a merge conflict in this file, re-de
   proves the notices on the four legs: the Linux leg attributes the build container's shared
   libraries through rpm (first run there), Windows the interpreter's DLLs and Microsoft's
   runtime; a leg whose notices lack an entry fails with the file named. Its change to
-  `build_ffmpeg_fetch.py` rebuilds the ffmpeg cache once.
+  `build_ffmpeg_fetch.py` rebuilds the ffmpeg cache once. The first run (56c32bd) failed on
+  rpm packages without `%license` files (now: `rpm -qd` documents, else the committed SPDX
+  texts) and on Git for Windows' OpenSSL bundled through Qt Network's TLS plugin (now: the GUI
+  leaves out Qt Network; main's M8.1 GUI build ships those DLLs until this merges). The next
+  run shows the interpreter's built-in modules in the build log and may fail on the new
+  checks (an unknown built-in module, a GPL-only OS package); the tables take what it reports.
 - M8.4 (the macOS GUI as an `.app` in a `.dmg`, A23's default) on `feat/m8.4-macos-app`
   (PR #57); joining M8.3: its `APP_ICON` hook takes `build_desktop.py` `MACOS_ICON`.
 

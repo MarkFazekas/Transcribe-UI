@@ -2987,11 +2987,17 @@ Few unit tests; mostly regression and flow tests:
   `PATH`, and bundles them. Each executable bundles its own third-party notices
   (`transcribe_ui/THIRD_PARTY_NOTICES.txt`), made inside PyInstaller from what its analysis
   collected (so the CLI's list no Qt): every collected file is attributed to the ffmpeg build,
-  Microsoft's runtime, an installed distribution, the interpreter and the libraries
-  python-build-standalone links in, the app's own files or (Linux) an OS package of the build
-  container, and each entry gives name, version, licence expression and the licence texts;
-  PyInstaller's bootloader licence is always included, and a file or entry without a licence
-  fails the build (`tooling.md` "CI/CD"). The Windows executables carry the app icon (Q36);
+  Microsoft's runtime, a library a Qt wheel vendors (ICU, Mesa's llvmpipe), an installed
+  distribution (Qt with the attributions of its own third-party code), the interpreter (with
+  the software CPython incorporates) and the libraries python-build-standalone links in, the
+  app's own files or (Linux) an OS package of the build container (with its source RPM's vault
+  URL), and each entry gives name, version, licence expression and the licence texts;
+  PyInstaller's bootloader licence is always included. The build fails on a file or entry
+  without a licence, on an unknown built-in or extension module of the interpreter, on a binary
+  from outside the build environment, the interpreter, the ffmpeg build and the OS's library
+  folders (a tool folder on `PATH`), and on a GPL or AGPL licence without an LGPL alternative or
+  a listed exemption (`tooling.md` "CI/CD"). The GUI leaves out Qt Network (the app makes no
+  connection through Qt), so no TLS plugin brings in an OpenSSL of the build machine. The Windows executables carry the app icon (Q36);
   the macOS `.app` (M8.4) takes its `.icns`. The smoke test's `cli-probe` (also in the `ubuntu:22.04`
   container) reviews a WAV with only the OS's folders on `PATH`, so it passes only through the
   bundled ffprobe, and the bundle checks require both programs and the notices (and, in the GUI only, the window icon). Each leg uploads only its two

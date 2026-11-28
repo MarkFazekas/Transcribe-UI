@@ -247,35 +247,61 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   (`--icon apps/desktop/packaging/icon/transcribe-ui.ico`); the macOS `.app` takes
   `transcribe-ui.icns` (`build_desktop.py` `MACOS_ICON`); the bare macOS and Linux one-file
   binaries carry none. PyInstaller writes its spec into the work folder (`build/desktop/`).
-- The GUI leaves out Qt Network (`--exclude-module PySide6.QtNetwork`): the app makes no
-  connection through Qt, and its TLS plugins' OpenSSL backend made PyInstaller bundle
-  whatever libssl the build machine had (on Windows Git for Windows' copy from `PATH`).
-  `gui-bundle` fails on Qt Network's bindings or a TLS plugin (Qt's own Network library may stay:
-  the VNC and TUIO platform plugins link it).
-- Third-party notices (`build_desktop_notices.py`, `build_desktop_facts.py`,
-  `build_desktop_licences.py`, `build_desktop_packages.py`): `build_desktop.py` writes a
+- Third-party notices (`build_desktop_notices*.py`, `build_desktop_facts.py`,
+  `build_desktop_distributions.py`, `build_desktop_interpreter.py`, `build_desktop_licences.py`,
+  `build_desktop_packages.py`): `build_desktop.py` writes a
   configuration (`<work>/notices.json`) and names it in `TRANSCRIBE_UI_NOTICES_CONFIG`;
   `packaging/pyinstaller_main.py` then replaces PyInstaller's `Analysis` with a subclass that,
   once the analysis is done, attributes every collected file (its scripts, modules, binaries
-  and data) and bundles `transcribe_ui/THIRD_PARTY_NOTICES.txt`. Attribution, in order: the
-  ffmpeg build (FFmpeg and its zlib, from `ffmpeg-build.json`: version, `urls[0]`, SHA-256,
-  `served_from`, configure line, the licence files the build copied), Microsoft's runtime DLLs
-  by name, an installed distribution by its `RECORD` (name, version, `License-Expression`, else
-  a one-line `License`, else the licence classifiers; the `License-File` texts; overrides for
-  PySide6/Shiboken6, which ship no licence file, and PyInstaller), the interpreter (Python's
-  `LICENSE.txt`, and the libraries python-build-standalone links in: by the built-in modules of
-  libpython, by extension module and by DLL name; versions where the interpreter reports them),
-  the app's own build files, and on Linux the OS package of a library from the build system
-  (`rpm` in the manylinux container: version, licence, `rpm -qL` files; `dpkg` on a local
-  Debian/Ubuntu build: the `Files: *` licence of the copyright file). PyInstaller (its
-  bootloader) is always listed. The build fails, naming each, on a file nothing explains, an
-  extension module or DLL of the interpreter that is neither CPython-only nor in the table, an
-  entry without a licence expression or text, or an unreadable licence file. A Python upgrade
-  that links a new library into libpython needs a new table entry by hand (built-in modules
-  that are not in the table are not checked). The committed texts (OpenSSL's Apache-2.0,
-  SQLite, libffi, XZ Utils, bzip2, mpdecimal, Expat, zlib, libuuid, ncurses, libedit, Qt's
-  notice with the LGPL-3.0 and GPL-3.0, Microsoft's runtime) are in
-  `apps/desktop/packaging/licences/`. A repeated licence text is printed once and referred to.
+  and data) and bundles `transcribe_ui/THIRD_PARTY_NOTICES.txt`. The build prints the
+  interpreter's built-in modules before PyInstaller runs, so a failing leg still shows them.
+  - A collected binary must come from the build environment, the interpreter, the ffmpeg
+    build, the app's own folders or the OS's library folders (Linux `/lib`, `/lib64`,
+    `/usr/lib`, `/usr/lib64`; Windows `%SystemRoot%\System32`); one from anywhere else (a tool
+    folder on `PATH`, such as Git for Windows' OpenSSL) fails the build.
+  - Attribution, in order: the ffmpeg build (FFmpeg and its zlib, from `ffmpeg-build.json`:
+    version, `urls[0]`, SHA-256, `served_from`, configure line, the licence files the build
+    copied; the FFmpeg entry also says that the exact tarball is an asset of the release, M8.5);
+    Microsoft's runtime DLLs by name; the libraries the Qt wheels vendor besides Qt, by name
+    (ICU on Linux, Mesa's llvmpipe `opengl32sw.dll` on Windows, with committed texts); an
+    installed distribution by its `RECORD` (name, version, `License-Expression`, else a one-line
+    `License` that is not `UNKNOWN`, else the licence classifiers; the `License-File` texts, and
+    each declared one that is missing is a problem; overrides for PySide6/Shiboken6, which ship
+    no licence file: Qt's notice, the LGPL-3.0 and GPL-3.0, and the attributions of the
+    third-party code inside Qt); the interpreter (Python's `LICENSE.txt` plus the licences of
+    the software CPython incorporates, from the 3.13 documentation with HACL* added, and the
+    libraries python-build-standalone links in: by built-in module of libpython, by extension
+    module and by DLL name, versions where the interpreter reports them); the app's own build
+    files; and on Linux the OS package of a library from the build system.
+  - The build fails, naming each: a built-in or extension module of the interpreter that is
+    neither CPython's own (`CPYTHON_MODULES`) nor in the library table (it may carry Tcl/Tk or
+    gdbm); a DLL of the interpreter not in the table; a binary of the Qt wheels that is neither
+    Qt's own (Qt libraries, the bindings, Shiboken, any plugin) nor a listed vendored library;
+    Qt wheels of another Qt minor version than `qt-third-party.txt` was made from; an entry
+    without a licence expression or text; an unreadable licence file.
+  - Licence policy: an entry whose expression is the GPL or AGPL in every alternative (an LGPL
+    is not the GPL; `OR` and the `or` of rpm and Debian separate alternatives) fails the build,
+    unless its name is in `POLICY_EXEMPTIONS` (PyInstaller's bootloader exception and the GCC
+    runtime library exception; the one table of exemptions).
+  - OS packages: rpm in the manylinux container (version, `%{LICENSE}`, the `rpm -qL` files,
+    else the licence-like `rpm -qd` documentation files that exist, else the committed standard
+    texts of the licences `%{LICENSE}` names, `apps/desktop/packaging/licences/spdx/`, said so
+    in the entry; the source RPM with its AlmaLinux vault URL, the repository from `dnf
+    repoquery` where it answers, else the vault folders it is in); dpkg on a local
+    Debian/Ubuntu build (the `Files: *` licence of the copyright file, the source package).
+    `PACKAGE_LICENCES` corrects a library subpackage whose `%{LICENSE}` is its source
+    package's (lz4-libs, keyutils-libs, dbus-libs, libzstd), and the entry says so. A failed
+    package query's exit status and error output are part of the problem.
+  - The committed texts are in `apps/desktop/packaging/licences/`. `qt-third-party.txt` is made
+    by `scripts/build_qt_attributions.py <version> <qtbase> <qtsvg> <qtimageformats>` from the
+    `qt_attribution.json` files of Qt's unpacked source packages (build-system, test, Android,
+    WebAssembly and SQL components left out); run it again on a Qt minor upgrade and change
+    `QT_ATTRIBUTIONS_VERSION`. A repeated licence text is printed once and referred to.
+  - The GUI leaves out Qt Network (`--exclude-module PySide6.QtNetwork`): the app makes no
+    connection through Qt, and its TLS plugins' OpenSSL backend made PyInstaller bundle
+    whatever libssl the build machine had (on Windows Git for Windows' copy from `PATH`).
+    `gui-bundle` fails on Qt Network's bindings or a TLS plugin (Qt's own Network library may stay:
+  the VNC and TUIO platform plugins link it).
 - The app icon: `apps/desktop/packaging/icon/transcribe-ui.svg` is the source (Q36);
   `uv run scripts/build_icon.py` renders it with Qt (`QSvgRenderer`) into the window icon's PNGs
   (`transcribe_ui/gui/icons/`, GUI package data, which only the GUI bundles) and writes the

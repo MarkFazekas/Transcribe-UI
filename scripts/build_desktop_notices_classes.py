@@ -5,7 +5,7 @@ Used by `scripts/build_desktop_notices.py` and its helper modules, and by
 """
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -50,6 +50,8 @@ class DistributionInfo:
     # Its licence expression ("" when the metadata states none).
     expression: str
     licences: tuple[Path, ...]
+    # `License-File` names the metadata declares but the distribution does not contain.
+    missing_licences: tuple[str, ...] = ()
 
     @property
     def key(self) -> str:
@@ -97,6 +99,10 @@ class BuildFacts:
     # The OS package database (Linux), or None.
     system: SystemPackages | None
     licence_dir: Path = LICENCES_DIR
+    # Folders a collected binary may come from besides the interpreter, the ffmpeg build and the
+    # app's own folders: the build environment and the OS's library folders (never a tool folder
+    # that happens to be on `PATH`).
+    binary_folders: tuple[Path, ...] = ()
 
 
 @dataclass
@@ -110,4 +116,42 @@ class Attribution:
     microsoft: bool = False
     # Bundled file names by OS package.
     packages: dict[str, list[str]] = field(default_factory=dict)
+    # Bundled file names by vendored library (`VendoredLibrary.name`).
+    vendored: dict[str, list[str]] = field(default_factory=dict)
     problems: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Draft:
+    """What an entry is made from: its name, version and expression, its licence files and its note."""
+
+    name: str
+    version: str
+    expression: str
+    licences: Sequence[Path]
+    # Where it comes from, its source, which files it is (empty: nothing to add).
+    note: str = ""
+
+
+def read_licence(path: Path, problems: list[str]) -> LicenceText | None:
+    """Return a licence file's text, or None (with a problem) when it cannot be read or is empty."""
+    try:
+        text = path.read_text(encoding=ENCODING, errors="replace")
+    except OSError as error:
+        problems.append(f"{path}: the licence file cannot be read: {error}")
+        return None
+    if not text.strip():
+        problems.append(f"{path}: the licence file is empty")
+        return None
+    return LicenceText(path.name, text.strip("\n"))
+
+
+def make_notice(draft: Draft, problems: list[str]) -> Notice:
+    """Return an entry; a missing expression, no licence file or an unreadable one is a problem."""
+    if not draft.expression.strip():
+        problems.append(f"{draft.name}: no licence expression")
+    if not draft.licences:
+        problems.append(f"{draft.name}: no licence file")
+    texts = [read_licence(path, problems) for path in draft.licences]
+    found = tuple(text for text in texts if text is not None)
+    return Notice(draft.name, draft.version, draft.expression, found, draft.note)

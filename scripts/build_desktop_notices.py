@@ -28,10 +28,14 @@ from pathlib import Path
 
 from build_desktop_licences import (
     BUNDLED_LIBRARIES,
-    CPYTHON_EXTENSIONS,
+    CPYTHON_MODULES,
     MICROSOFT_RUNTIME_FILES,
     OWN_DISTRIBUTIONS,
     PYTHON_CORE_FILES,
+    QT_OWN_BINARIES,
+    QT_PLUGINS_FOLDER,
+    QT_WHEELS,
+    VENDORED_LIBRARIES,
     BundledLibrary,
 )
 from build_desktop_notices_classes import Attribution, BuildFacts, DistributionInfo
@@ -47,6 +51,8 @@ SKIPPED_KINDS = frozenset(("SYMLINK", "DEPENDENCY"))
 EXTENSION = "EXTENSION"
 # Kind of any other shared library.
 BINARY = "BINARY"
+# Kinds of native code.
+NATIVE_KINDS = frozenset((EXTENSION, BINARY))
 
 
 class NoticesError(RuntimeError):
@@ -73,10 +79,17 @@ def _library_of(module: str) -> BundledLibrary | None:
 
 
 def _add_builtin_libraries(facts: BuildFacts, found: Attribution) -> None:
-    """Add the libraries inside libpython: those of the interpreter's built-in modules."""
-    for module in facts.interpreter.builtin_modules:
+    """Add the libraries inside libpython: those of the interpreter's built-in modules.
+
+    A built-in module that is neither CPython's own nor in the library table is a problem: it
+    may carry a library (Tcl/Tk, gdbm) no entry covers.
+    """
+    for module in sorted(facts.interpreter.builtin_modules):
         library = _library_of(module)
-        if library is not None and facts.platform in library.platforms:
+        if library is None:
+            if module not in CPYTHON_MODULES:
+                found.problems.append(f"the built-in module {module} of the interpreter has no licence entry")
+        elif facts.platform in library.platforms:
             found.libraries.add(library.name)
 
 
@@ -84,7 +97,7 @@ def _extension_file(path: Path, facts: BuildFacts, found: Attribution) -> None:
     module = path.name.split(".")[0]
     library = _library_of(module)
     if library is None:
-        if module not in CPYTHON_EXTENSIONS:
+        if module not in CPYTHON_MODULES:
             found.problems.append(f"{path}: an extension module of the interpreter without a licence entry")
     elif facts.platform in library.platforms:
         found.libraries.add(library.name)
@@ -121,24 +134,62 @@ def _distribution_of(path: Path, facts: BuildFacts) -> DistributionInfo | None:
 def _system_file(path: Path, facts: BuildFacts, found: Attribution) -> None:
     owner = None if facts.system is None else facts.system.owner(path)
     if owner is None:
+        why = "" if facts.system is None else facts.system.last_failure()
+        reason = f"; the package query: {why}" if why else ""
         found.problems.append(
-            f"{path}: no licence entry (not from a distribution, the interpreter, the ffmpeg build or an OS package)",
+            f"{path}: no licence entry (not from a distribution, the interpreter, the ffmpeg build or an OS package{reason})",
         )
         return
     found.packages.setdefault(owner, []).append(path.name)
 
 
+def _vendored(path: Path, found: Attribution) -> bool:
+    """Record a library a wheel vendors besides its own code; return whether the file is one."""
+    for library in VENDORED_LIBRARIES:
+        if library.files.fullmatch(path.name):
+            found.vendored.setdefault(library.name, []).append(path.name)
+            return True
+    return False
+
+
+def _is_qt_own(path: Path) -> bool:
+    return QT_OWN_BINARIES.fullmatch(path.name) is not None or QT_PLUGINS_FOLDER in path.parts
+
+
+def _distribution_file(path: Path, kind: str | None, dist: DistributionInfo, found: Attribution) -> None:
+    """Attribute a file of a distribution; a binary of a Qt wheel must be Qt's own (Qt's licence covers only that)."""
+    if dist.key in OWN_DISTRIBUTIONS:
+        return
+    found.distributions[dist.key] = dist
+    if dist.key in QT_WHEELS and kind in NATIVE_KINDS and not _is_qt_own(path):
+        found.problems.append(f"{path}: a binary of {dist.name} that is neither Qt's own nor a listed vendored library")
+
+
+def _allowed_binary(path: Path, facts: BuildFacts) -> bool:
+    """Return whether a binary comes from a folder a build may take binaries from."""
+    build_folders = (facts.interpreter.prefix, facts.ffmpeg.folder)
+    folders = (*facts.binary_folders, *build_folders, *facts.own_folders)
+    return any(_is_inside(path, folder) for folder in folders)
+
+
 def _attribute_file(path: Path, kind: str | None, facts: BuildFacts, found: Attribution) -> None:
+    if kind in NATIVE_KINDS and not _allowed_binary(path, facts):
+        found.problems.append(
+            f"{path}: a binary from outside the build environment, the interpreter, the ffmpeg build and the OS's "
+            "library folders (a tool folder on PATH?)",
+        )
+        return
     if _is_inside(path, facts.ffmpeg.folder):
         found.ffmpeg = True
         return
     if MICROSOFT_RUNTIME_FILES.fullmatch(path.name):
         found.microsoft = True
         return
+    if _vendored(path, found):
+        return
     dist = _distribution_of(path, facts)
     if dist is not None:
-        if dist.key not in OWN_DISTRIBUTIONS:
-            found.distributions[dist.key] = dist
+        _distribution_file(path, kind, dist, found)
         return
     if _is_inside(path, facts.interpreter.prefix):
         _interpreter_file(path, kind, facts, found)
