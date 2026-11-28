@@ -123,8 +123,9 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 - The desktop's runtime dependencies for all of M5 (pydantic, sqlalchemy, alembic,
   platformdirs, keyring, httpx, boto3) were added at once by M5.1, so parallel parts do not
   conflict on `uv.lock`. `keyring` and `platformdirs` ship their own types.
-- The release build's tools are the desktop app's `packaging` dependency group (PyInstaller;
-  Pillow for the icon, M8.3), installed only into the build environment
+- The release build's tools are the desktop app's `packaging` dependency group (PyInstaller
+  only: the icon's `.ico` and `.icns` are committed, made by `scripts/build_icon.py` with Qt),
+  installed only into the build environment
   (`uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging`), never
   with the dev tools, so no dev tool can reach a bundle. The dev group has only
   `types-pyinstaller` for the packaging files' types.
@@ -211,7 +212,7 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target; a `jq` step turns the changed targets into matrix legs) → `check` matrix running `scripts/check.py <target>`, every target on `ubuntu-24.04` and the desktop target also on `windows-2025`; `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
+| `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target; a `jq` step turns the changed targets into matrix legs) → `check` matrix running `scripts/check.py <target>`, every target on `ubuntu-24.04` and the desktop target also on `windows-2025` (the Linux desktop and tooling legs install the libraries Qt loads offscreen: the GUI tests and the icon script's tests); `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
 | `release-desktop.yml` | pull requests and pushes to `main` touching `apps/desktop/**` (not `apps/desktop/tests/**`, except `test_media_ffmpeg.py`, `test_batches_ffprobe.py`, `support/media.py`, `conftest.py`, `fixtures/zlib_subtitles.mkv`), `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `scripts/build_desktop*.py`, `scripts/build_platform.py`, `scripts/build_ffmpeg*.py`, `scripts/smoke_desktop_*.py`, `scripts/release_desktop.py` or the workflow; manual dispatch | `ffmpeg` matrix, one leg per platform (fail-fast off, 60 minutes, checkout without persisted credentials; Windows cross-built on `ubuntu-24.04` with Ubuntu's `gcc-mingw-w64-x86-64-win32` and `nasm`, macOS on `macos-15`/`macos-15-intel` with Homebrew's `nasm` on Intel, Linux in the manylinux container as root with `nasm` from CRB and `pkgconf-pkg-config`, run by the image's CPython 3.13 without writing bytecode, the files handed back to the runner's user): `build_ffmpeg.py pins` (the cache key, the build image and the packages to install, all pinned in `build_ffmpeg_pins.py`), `actions/cache/restore@v6` with `lookup-only` (`enableCrossOsArchive` for Windows), and only on a miss `build_ffmpeg.py build` (into `build/ffmpeg/dist`) and `actions/cache/save@v6`. Then the `build` matrix (`needs: ffmpeg`: a failed ffmpeg build of one platform skips all four build legs, accepted as a release gate, since a release needs all eight files anyway), one leg per platform (fail-fast off, 75 minutes, `contents: read`): Windows x64 (`windows-2025`), macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-24.04`, the build inside `quay.io/pypa/manylinux_2_34_x86_64` pinned by digest in `build_ffmpeg_pins.py` and read through `build_ffmpeg.py pins`, run as the runner's user with the runner's uv binary and cache). `UV_PYTHON_PREFERENCE=only-managed` for every leg and the container, so only uv's own CPython builds (a Homebrew Python built for a newer macOS, or the manylinux image's static ones, would be found otherwise); checkout without persisted credentials, actions pinned by SHA. Each leg: the ffmpeg entry restored (`fail-on-cache-miss`), `build_ffmpeg.py verify --first-on-path` (`-buildconf`, `-L`, the built programs first on `PATH`), `test_media_ffmpeg.py` and `test_batches_ffprobe.py` with the built programs first on `PATH` in a second environment with the dev group (`UV_PROJECT_ENVIRONMENT` in the runner's temp folder, `-p no:pytest-qt`), `build_desktop.py stamp` (version and tag from the commit), the build environment (`uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging`), `build_desktop.py build --ffmpeg-dir build/ffmpeg/dist` (both executables into `dist/`, each bundling ffmpeg and ffprobe; it prints the build interpreter, and on macOS checks the floor of 14: a wheel's binaries by the wheel's `macosx` tag (from its `WHEEL` file, the binary found through the wheels' `RECORD` files), every other binary (the bundled ffmpeg and ffprobe among them) and the built executable itself (the bootloader) by its `minos` from `otool -arch all -l`; one line per wheel shows its tags and highest `minos`), on Linux the libraries of `apps/desktop/packaging/linux-packages.txt` plus Xvfb, `smoke_desktop_build.py` (the checks of architecture §8; on Linux also `linux-floor` in `ubuntu:22.04` pinned by digest; a summary with sizes and the CLI's cold start in the job summary), then the two executables with `actions/upload-artifact@v7` `archive: false` (7 days). uv's cache through `setup-uv` per OS. No release job yet (M8.5: `release-check`, then `publish` in the `desktop-release` environment) |
 | `release-worker.yml` | pull requests and pushes to `main` touching `apps/worker/**`, `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `.dockerignore`, `scripts/smoke_worker_*.py`, `scripts/smoke_fixtures.py` or the workflow; manual dispatch | `build`: free runner disk, `docker buildx build -f apps/worker/Dockerfile`, `scripts/smoke_worker_image.py` (moto S3 in Docker, fake Runpod API on localhost, the image run as a pod with `TRANSCRIBE_ENGINE=fake`: result, `_done.json`, finished status, pod deleted, exit 0; then, inside the image, the CUDA libraries load and, with `--network none`, the GPU stack imports, the Whisper model resolves with `local_files_only` as the engine loads it, the baked hu/en aligners load, and WhisperX's Silero VAD is built from the baked copy and run on silence). On `main` only: the image is saved (`docker save` + zstd) as a one-day artifact (the repository is public, so artifact storage is free), and a separate `push` job in `environment: dockerhub` loads it and pushes `sha-<short>`, `schema-<major>` and `latest` to `markfazekasgh/transcribe-ui-worker`. The job holding the token never runs the image. |
 | `reaper.yml` | schedule (`*/15 * * * *`); manual dispatch with a `dry-run` input | `reap` in `environment: runpod-reaper`: without the secret only a `::warning::` and success; otherwise uv pinned to 0.11.8, `uv sync --locked --no-dev --package transcribe-worker` (no `engine` extra, no uv cache) and `transcribe-worker-reaper [--dry-run]`; concurrency groups `reaper-live` / `reaper-dry` (never cancelled; a dry run cannot replace a pending live pass), 15-minute timeout; checkout pinned by SHA |
@@ -242,7 +243,39 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   (the archive's root, where `media/tools.py` `bundle_dir` looks). The CLI excludes `PySide6`, `shiboken6` and `transcribe_ui.gui`;
   the GUI excludes `PySide6.QtTest` and is `--windowed` on Windows (with a generated
   `--version-file`: product name, file description, numeric file version, the stamp as product
-  version, original file name). PyInstaller writes its spec into the work folder (`build/desktop/`).
+  version, original file name). Both Windows executables get the app icon
+  (`--icon apps/desktop/packaging/icon/transcribe-ui.ico`); the macOS `.app` takes
+  `transcribe-ui.icns` (`build_desktop.py` `MACOS_ICON`); the bare macOS and Linux one-file
+  binaries carry none. PyInstaller writes its spec into the work folder (`build/desktop/`).
+- Third-party notices (`build_desktop_notices.py`, `build_desktop_facts.py`,
+  `build_desktop_licences.py`, `build_desktop_packages.py`): `build_desktop.py` writes a
+  configuration (`<work>/notices.json`) and names it in `TRANSCRIBE_UI_NOTICES_CONFIG`;
+  `packaging/pyinstaller_main.py` then replaces PyInstaller's `Analysis` with a subclass that,
+  once the analysis is done, attributes every collected file (its scripts, modules, binaries
+  and data) and bundles `transcribe_ui/THIRD_PARTY_NOTICES.txt`. Attribution, in order: the
+  ffmpeg build (FFmpeg and its zlib, from `ffmpeg-build.json`: version, `urls[0]`, SHA-256,
+  `served_from`, configure line, the licence files the build copied), Microsoft's runtime DLLs
+  by name, an installed distribution by its `RECORD` (name, version, `License-Expression`, else
+  a one-line `License`, else the licence classifiers; the `License-File` texts; overrides for
+  PySide6/Shiboken6, which ship no licence file, and PyInstaller), the interpreter (Python's
+  `LICENSE.txt`, and the libraries python-build-standalone links in: by the built-in modules of
+  libpython, by extension module and by DLL name; versions where the interpreter reports them),
+  the app's own build files, and on Linux the OS package of a library from the build system
+  (`rpm` in the manylinux container: version, licence, `rpm -qL` files; `dpkg` on a local
+  Debian/Ubuntu build: the `Files: *` licence of the copyright file). PyInstaller (its
+  bootloader) is always listed. The build fails, naming each, on a file nothing explains, an
+  extension module or DLL of the interpreter that is neither CPython-only nor in the table, an
+  entry without a licence expression or text, or an unreadable licence file. A Python upgrade
+  that links a new library into libpython needs a new table entry by hand (built-in modules
+  that are not in the table are not checked). The committed texts (OpenSSL's Apache-2.0,
+  SQLite, libffi, XZ Utils, bzip2, mpdecimal, Expat, zlib, libuuid, ncurses, libedit, Qt's
+  notice with the LGPL-3.0 and GPL-3.0, Microsoft's runtime) are in
+  `apps/desktop/packaging/licences/`. A repeated licence text is printed once and referred to.
+- The app icon: `apps/desktop/packaging/icon/transcribe-ui.svg` is the source (Q36);
+  `uv run scripts/build_icon.py` renders it with Qt (`QSvgRenderer`) into the window icon's PNGs
+  (`transcribe_ui/gui/icons/`, GUI package data, which only the GUI bundles) and writes the
+  `.ico` and `.icns` (PNG entries) next to the SVG; `--check` exits 1 naming each committed
+  file that differs from a fresh render. Regenerate and commit them with every SVG change.
 - `hook-transcribe_ui.py` collects every submodule of `transcribe_ui` (the GUI entry imports
   `gui.app` through `importlib`; the Alembic environment and revisions are analysed for their
   imports), leaving `transcribe_ui.gui` out of the CLI (`TRANSCRIBE_UI_BUNDLE_VARIANT`, set by
@@ -307,7 +340,9 @@ manylinux image's bare CPython):
   every URL failed does the build fail, naming each URL with the hash, size and first bytes it
   served or why it failed (curl also logs each download's HTTP status, content type and size).
   A verified tarball already in `build/ffmpeg/work/downloads` is reused, with the URL recorded
-  next to it; one with another SHA-256 is downloaded afresh. It builds out of
+  next to it when that record names one of the pin's URLs (a record that cannot be read or
+  names another URL leaves `served_from` unknown); one with another SHA-256 is downloaded
+  afresh, its old record deleted first. It builds out of
   tree in `build/ffmpeg/work`, and points `PKG_CONFIG_LIBDIR` at the static zlib (an empty
   folder on macOS), so no library of the build machine is picked up. It fails on any configure
   result or linked library outside the allow-list; a check program that runs longer than 60 s

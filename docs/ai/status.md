@@ -28,17 +28,19 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 - M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress;
   M6's only open part.
-- M8.2 (bundled static LGPL ffmpeg: `scripts/build_ffmpeg*.py`, the `ffmpeg` job and its
-  cache, `cli-probe`, the media tests on the built ffmpeg) on `feat/m8.2-ffmpeg`: built; the
-  Linux and the cross-built Windows ffmpeg were built and checked locally, the PR's
-  `release-desktop.yml` run proves the four legs (the macOS builds first run there; their
-  ffmpeg and ffprobe must pass the macOS floor's `minos` rule) and a second run must hit the
-  cache.
+- M8.3 (the app icon, per-executable third-party notices, the About tab's "Third-party
+  licences" dialog) on `feat/m8.3-icon-notices`: built. The PR's `release-desktop.yml` run
+  proves the notices on the four legs: the Linux leg attributes the build container's shared
+  libraries through rpm (first run there), Windows the interpreter's DLLs and Microsoft's
+  runtime; a leg whose notices lack an entry fails with the file named. Its change to
+  `build_ffmpeg_fetch.py` rebuilds the ffmpeg cache once.
+- M8.4 (the macOS GUI as an `.app` in a `.dmg`, A23's default) on `feat/m8.4-macos-app`
+  (PR #57); joining M8.3: its `APP_ICON` hook takes `build_desktop.py` `MACOS_ICON`.
 
 ## Waiting on humans
 
-- Questions: A23, A24 (architect) and Q36 (product), all for M8; none blocks M6. M5 is built
-  and M6 is planned.
+- Questions: A23, A24 (architect), both for M8; none blocks M6. M5 is built and M6 is
+  planned.
 
 ## Next
 
@@ -53,10 +55,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
    marks M6 **(built)** in architecture §10. The M4
    Runpod trial run is deferred until everything else works (architect); nothing waits on it,
    and it still needs the architect present and their go.
-3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is merged
-   (#53, c43bf73), M8.2 is on `feat/m8.2-ffmpeg`, and M8 does not wait for M7. M8.3 and M8.5
-   take the FFmpeg and zlib sources, licences and configure lines from
-   `scripts/build_ffmpeg_pins.py` (`build_info`) or `ffmpeg-build.json` of the build. M8.6
+3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 (#53,
+   c43bf73) and M8.2 (#56, c63861e) are merged, M8.3 and M8.4 are on their branches, and M8
+   does not wait for M7. M8.5 takes the FFmpeg and zlib sources, licences and configure lines
+   from `scripts/build_ffmpeg_pins.py` (`build_info`) or `ffmpeg-build.json` of the build, and
+   summarises the notices (M8.3: `transcribe_ui/THIRD_PARTY_NOTICES.txt` of each build). M8.6
    (README for users, screenshots script, `docs/cli.md`) follows M8.5 (which marks M8 built),
    and M7 if M7 is done by then, and comes before MCP (architect).
 4. From now on every database schema change, including any change of a stored payload's
