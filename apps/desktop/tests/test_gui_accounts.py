@@ -210,14 +210,14 @@ def test_a_failed_cloud_check_shows_a_notice(backend: Backend) -> None:
     assert backend.execute_json(store_request()).status == "ok"
     unreachable = ErrorResponse(
         action="cloud_setup_status",
-        error=ErrorBody(code="cloud_unreachable", message="Runpod cannot be reached."),
+        error=ErrorBody(code="cloud_unreachable", message="Runpod cannot be reached.", details={"cause": "timeout"}),
     )
     area = _area(Scripted(backend, MappingProxyType({"cloud_setup_status": unreachable})))
     area.start()
     assert (area.wizard, area.first_start.notice) == ([], "cloud_error")
     error = area.cloud.error
     assert error is not None
-    assert error.message == "Runpod cannot be reached or answered unexpectedly. Try again later."
+    assert error.message == "Runpod cannot be reached or answered unexpectedly (timeout). Try again later."
     area.first_start.hide()
     assert area.first_start.notice is None
 
