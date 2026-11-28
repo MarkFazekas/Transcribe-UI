@@ -167,12 +167,6 @@ def sources(target: Platform) -> list[Source]:
     return [FFMPEG, ZLIB] if uses_bundled_zlib(target) else [FFMPEG]
 
 
-def build_inputs(target: Platform) -> dict[str, object]:
-    """Return what decides a platform's build besides the build scripts: the salt, the image and the packages."""
-    packages = list(BUILD_PACKAGES[target])
-    return {"salt": CACHE_SALT, "image": MANYLINUX_IMAGE, "packages": packages}
-
-
 def build_info(target: Platform) -> dict[str, object]:
     """Return what the notices and the release notes state about a platform's build."""
     zlib = asdict(ZLIB) if uses_bundled_zlib(target) else SYSTEM_ZLIB

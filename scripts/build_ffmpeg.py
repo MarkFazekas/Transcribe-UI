@@ -45,7 +45,6 @@ from build_ffmpeg_pins import (
     ZLIB,
     Platform,
     build_info,
-    build_inputs,
     configure_arguments,
     executable,
     sources,
@@ -81,16 +80,14 @@ MEGABYTE = 1_000_000
 
 
 def cache_key(target: Platform, files: Sequence[Path] = KEYED_FILES) -> str:
-    """Return the cache key of a platform's build: FFmpeg's version, the platform and a hash of its inputs.
+    """Return the cache key of a platform's build: FFmpeg's version, the platform and a hash of the build files.
 
-    The hash covers the build files and the pinned inputs the workflow takes from them (the
-    salt, the build image, the packages it installs), so a change to any of them rebuilds.
+    The files include `build_ffmpeg_pins.py`, so the pinned inputs the workflow reads through
+    `pins` (the salt, the build image, the packages it installs) are covered too.
     """
     digest = hashlib.sha256()
     for path in files:
         digest.update(path.read_bytes())
-    inputs = json.dumps(build_inputs(target), sort_keys=True)
-    digest.update(inputs.encode())
     short = digest.hexdigest()[:KEY_HASH_LENGTH]
     return f"ffmpeg-{FFMPEG.version}-{target}-{short}"
 

@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from build_ffmpeg import build_host_problem, cache_key, pins_output
-from build_ffmpeg_pins import MANYLINUX_IMAGE, Platform, Source
+from build_ffmpeg import KEYED_FILES, build_host_problem, cache_key, pins_output
+from build_ffmpeg_pins import CACHE_SALT, MANYLINUX_IMAGE, Platform, Source
 from build_ffmpeg_steps import BUILD_INFO, fetch, out_problem, output_of
 
 # The bytes the fake download writes.
@@ -75,7 +75,10 @@ def test_out_folder_must_be_an_earlier_build(tmp_path: Path) -> None:
     other = tmp_path / "other"
     other.mkdir()
     (other / "notes.txt").write_text("keep", encoding="utf-8")
+    empty = tmp_path / "empty"
+    empty.mkdir()
     assert out_problem(tmp_path / "missing") is None
+    assert out_problem(empty) is None
     assert out_problem(build) is None
     assert "not an ffmpeg build" in str(out_problem(other))
     assert "is not a folder" in str(out_problem(other / "notes.txt"))
@@ -105,11 +108,17 @@ def test_a_hanging_tool_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
         output_of(SLEEPER)
 
 
-def test_cache_key_covers_the_pinned_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A changed package list, image or salt gives another key, with the same build files."""
-    first = cache_key("linux-x64", [])
-    monkeypatch.setattr("build_ffmpeg.build_inputs", lambda target: {"salt": "2", "target": target})
-    assert cache_key("linux-x64", []) != first
+def test_cache_key_covers_the_pinned_inputs(tmp_path: Path) -> None:
+    """The key hashes the pins module, so a bumped salt (or image, or package) gives another key."""
+    pins = next(path for path in KEYED_FILES if path.name == "build_ffmpeg_pins.py")
+    bumped = tmp_path / pins.name
+    text = pins.read_text(encoding="utf-8")
+    bumped.write_text(
+        text.replace(f'CACHE_SALT = "{CACHE_SALT}"', f'CACHE_SALT = "{CACHE_SALT}-bumped"'), encoding="utf-8"
+    )
+    others = [path for path in KEYED_FILES if path != pins]
+    assert bumped.read_text(encoding="utf-8") != text
+    assert cache_key("linux-x64", [*others, bumped]) != cache_key("linux-x64", KEYED_FILES)
 
 
 def test_pins_output_for_the_workflow() -> None:
