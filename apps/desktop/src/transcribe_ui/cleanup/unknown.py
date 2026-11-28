@@ -4,13 +4,13 @@ The request's batch id is a `BatchId` (the R2 layout's pattern, checked when the
 Before anything is deleted, `batch_metadata/<id>.json` must read as a manifest through
 `reading.read_manifest`: the prefix is then a published batch, not, say, another computer's upload
 in progress. Only `everything` is possible (one confirmation), refused while a live run lease
-lists the batch. The deletes run with the manifest first, so no launch can take the batch
-meanwhile, and `_done.json` last (`cleanup/stages.py`): `_done.json` without a manifest is the
-proof that an interrupted cleanup left the rest (only a worker writes it, for a published
-batch), so repeating the request resumes it from the listing, after its own confirmation
-(`cleanup_unknown_leftover`). A batch that was never transcribed has no `_done.json`: an
-interruption between its manifest delete and its last audio delete leaves that audio (no worker
-can take it without a manifest).
+lists the batch. The deletes start with the marker `<id>/_deleting.json`, then the manifest, so
+no listing, adoption or launch sees the batch meanwhile, and end with the marker
+(`cleanup/stages.py`): a marker without a manifest is the proof that an interrupted cleanup left
+the rest, so repeating the request resumes it from the listing, after its own confirmation
+(`cleanup_unknown_leftover`). A prefix with neither a manifest nor the marker is never touched
+(`batch_not_found`): it may be another computer's upload in progress, and an uploader never
+writes the marker.
 
 When the cloud holds another computer's batch under the id of a batch this database knows (the
 known rule, architecture §3.9 "Known batches"), the cleanup of the known batch is diverted here
@@ -21,7 +21,7 @@ is asked on the field `confirm_unknown`.
 from typing import TYPE_CHECKING
 
 from transcribe_contracts.classes import Manifest
-from transcribe_contracts.layout import done_key
+from transcribe_contracts.layout import deleting_key
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.cleanup.classes import CleanupCloudRequest, CleanupCloudResponse
@@ -56,8 +56,8 @@ def cleanup_unknown(
     this database knows, and the cloud holds another one under its id.
 
     Raises:
-        BatchNotFoundError: The scope is `audio`, or R2 has neither a manifest nor the
-            `_done.json` of an interrupted cleanup under the id.
+        BatchNotFoundError: The scope is `audio`, or R2 has neither a manifest nor the marker
+            of an interrupted cleanup under the id.
         ManifestUnreadableError: The manifest cannot be read (nothing was deleted).
         RunActiveError: A live run lease lists the batch (nothing was deleted).
         DomainError: R2 failed or the request was cancelled; repeating it resumes.
@@ -88,13 +88,13 @@ def _asked(store: ObjectStore, batch_id: str, installation_id: str) -> Confirmat
     """Return the confirmation the deletion needs (its field is set by the caller).
 
     Raises:
-        BatchNotFoundError: Neither a manifest nor an interrupted cleanup's `_done.json`.
+        BatchNotFoundError: Neither a manifest nor an interrupted cleanup's marker.
         ManifestUnreadableError: The manifest cannot be read.
     """
     manifest = find_unknown_manifest(store, batch_id)
     if manifest is not None:
         return _confirmation(manifest, installation_id)
-    if store.head(done_key(batch_id)) is None:
+    if store.head(deleting_key(batch_id)) is None:
         raise BatchNotFoundError(batch_id)
     message = "An interrupted cleanup left data of this batch in the cloud; the rest will be deleted."
     details: dict[str, JsonValue] = {"batch_id": batch_id, "known": False}

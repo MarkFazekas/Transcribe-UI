@@ -24,6 +24,9 @@ AUDIO_FOLDER: Final = "audio"
 RESULTS_FOLDER: Final = "results"
 # Object name of the batch summary written by the worker after the last job.
 DONE_OBJECT_NAME: Final = "_done.json"
+# Object name of the marker a desktop writes in a batch's prefix before it deletes a batch it does
+# not know, and deletes last: a cleanup interrupted after the manifest delete is resumed by it.
+DELETING_OBJECT_NAME: Final = "_deleting.json"
 # Key prefix of per-run objects written by the worker.
 RUNS_PREFIX: Final = "runs/"
 # Object name of a run's heartbeat and progress.

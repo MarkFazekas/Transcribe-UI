@@ -12,6 +12,7 @@ from transcribe_contracts.constants import (
     AUDIO_FOLDER,
     BATCH_ID_PATTERN,
     BATCH_METADATA_PREFIX,
+    DELETING_OBJECT_NAME,
     DONE_OBJECT_NAME,
     JSON_SUFFIX,
     KEY_SEPARATORS,
@@ -104,6 +105,11 @@ def parse_result_key(key: str) -> ResultKey | None:
 def done_key(batch_id: str) -> str:
     """Return the key of the batch summary the worker writes after the batch's last job."""
     return f"{batch_prefix(batch_id)}{DONE_OBJECT_NAME}"
+
+
+def deleting_key(batch_id: str) -> str:
+    """Return the key of the marker of a cleanup in progress (written first, deleted last; never a worker's)."""
+    return f"{batch_prefix(batch_id)}{DELETING_OBJECT_NAME}"
 
 
 def run_status_key(run_id: str) -> str:

@@ -1381,14 +1381,16 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     `BatchId` (else `invalid_request`); `batch_metadata/<id>.json` must exist
     (`batch_not_found`) and read through `reading.read_manifest` (`manifest_unreadable`) before
     anything is deleted; one confirmation (details: the file count, `known: false`); refused
-    while a live lease lists it. The manifest goes first (no launch can take the batch
-    meanwhile), then everything under `<id>/` but `_done.json`, then `_done.json`. Nothing local
-    remembers this cleanup, so `_done.json` without a manifest (only a worker writes it, for a
-    published batch) is the proof that an interrupted cleanup left the rest: repeating the
-    request asks `cleanup_unknown_leftover` (details: `batch_id`, `known: false`) and deletes
-    what the listing still shows. Without either (perhaps another computer's upload in
-    progress) it is `batch_not_found`, so an untranscribed batch interrupted between its
-    manifest delete and its last audio delete leaves that audio (no worker can take it).
+    while a live lease lists it. Nothing local remembers this cleanup, so it writes the marker
+    `<id>/_deleting.json` first (`layout.deleting_key`; not counted as a deleted object), then
+    aborts the open multipart uploads, deletes the manifest (the batch disappears for
+    listings, adoptions and launches), the results and everything else under `<id>/`, and the
+    marker last. A marker without a manifest is the proof that an interrupted cleanup left the
+    rest, transcribed or not: repeating the request asks `cleanup_unknown_leftover` (details:
+    `batch_id`, `known: false`) and deletes what the listing still shows. A prefix with
+    neither a manifest nor the marker (perhaps another computer's upload in progress; an
+    uploader never writes the marker) is never touched: `batch_not_found`. The known batch's
+    cleanup keeps its order (manifest first); the local `cleanup_pending` marker resumes it.
   - **Another batch under a known id** (the known rule, §3.9 "Known batches"): the cleanup of
     the known batch, after its own confirmations, is diverted to the unknown path, which asks
     its own question on the request field `confirm_unknown` (`cleanup_unknown_batch` or its
@@ -2535,6 +2537,7 @@ batch_metadata/<batch_id>.json            manifest, written by desktop only, las
 <batch_id>/results/<ulid>.<lang>.json     job result (= done marker): status ok|no_speech|failed, error, timings,
                                           engine settings, aligned
 <batch_id>/_done.json                     batch summary, written by worker after the last job
+<batch_id>/_deleting.json                 marker of a desktop's cleanup of a batch it does not know: written first, deleted last
 runs/<run_id>/status.json                 heartbeat + progress, overwritten by the worker every ~30 s
 runs/<run_id>/worker.log                  worker log, uploaded periodically and before terminate
 runs/<run_id>/launch.json                 the run's lease (1.1): the batches it may process, written by the launching desktop

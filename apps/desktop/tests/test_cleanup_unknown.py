@@ -19,13 +19,15 @@ from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import FOREIGN_BATCH_ID, foreign_manifest, ok_as, write_foreign
 from support.runs import JSON_TYPE, RUN_ID, RunsWorld
 from support.upload import upload_world
-from transcribe_contracts.layout import audio_key, done_key, manifest_key, result_json_key
+from transcribe_contracts.layout import audio_key, deleting_key, done_key, manifest_key, result_json_key
 from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.cleanup.classes import CleanupCloudResponse
 from transcribe_ui.runs.leases import write_lease
 
 # Objects of the other computer's batch: manifest, audio, result and `_done.json`.
 FOREIGN_OBJECTS = 4
+# Objects of the other computer's batch not transcribed yet: manifest and audio.
+NEW_JOB_OBJECTS = 2
 # An item of another computer's batch.
 FOREIGN_ITEM = "01JDZZZZZZZZZZZZZZZZZZZZ09"
 # The question of an interrupted cleanup's leftovers, and of another computer's batch.
@@ -43,12 +45,13 @@ def world(tmp_path: Path) -> Iterator[RunsWorld]:
         yield created
 
 
-def _seed_foreign(world: RunsWorld) -> list[str]:
-    """Publish another computer's batch with its audio, a result and `_done.json`; return its keys."""
+def _seed_foreign(world: RunsWorld, *, transcribed: bool = True) -> list[str]:
+    """Publish another computer's batch with its audio (and, `transcribed`, a result and `_done.json`); return its keys."""
     write_foreign(world.store)
-    audio = audio_key(FOREIGN_BATCH_ID, FOREIGN_ITEM, "flac", None)
-    job_result = result_json_key(FOREIGN_BATCH_ID, FOREIGN_ITEM, "de")
-    for key in (audio, job_result, done_key(FOREIGN_BATCH_ID)):
+    keys = [audio_key(FOREIGN_BATCH_ID, FOREIGN_ITEM, "flac", None)]
+    if transcribed:
+        keys.extend((result_json_key(FOREIGN_BATCH_ID, FOREIGN_ITEM, "de"), done_key(FOREIGN_BATCH_ID)))
+    for key in keys:
         world.store.write(key, b"{}", JSON_TYPE)
     return keys_under(world.store, FOREIGN_BATCH_ID)
 
@@ -62,7 +65,7 @@ def _foreign(**fields: object) -> str:
 
 
 def test_unknown_batch_cleaned_up_once_it_reads(world: RunsWorld) -> None:
-    """Another computer's batch: one confirmation naming its files, then every object, `_done.json` last."""
+    """Another computer's batch: one confirmation naming its files, then every object (the marker is not counted)."""
     assert len(_seed_foreign(world)) == FOREIGN_OBJECTS
     asked = ok_as(send(world, _foreign()), NeedsConfirmation)
     assert asked.confirmations[0].details == {"batch_id": FOREIGN_BATCH_ID, "files": 1, "known": False}
@@ -99,12 +102,18 @@ def test_unknown_batch_refusals(world: RunsWorld) -> None:
     assert error_code(send(world, missing)) == "batch_not_found"
 
 
-def _unknown_killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, wire: Tripwire) -> bool:
-    """Kill an unknown batch's cleanup at the wire, check `_done.json` goes last, repeat; return whether it fired."""
-    bucket = f"unknown-{wire.at}-{int(wire.after)}"
+def _unknown_killed_then_resumed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    wire: Tripwire,
+    *,
+    transcribed: bool,
+) -> bool:
+    """Kill an unknown batch's cleanup at the wire, check the manifest or the marker stays, repeat; return whether it fired."""
+    bucket = f"unknown-{wire.at}-{int(wire.after)}-{int(transcribed)}"
     create_bucket(bucket)
     with upload_world(tmp_path / bucket, bucket) as world:
-        _seed_foreign(world)
+        _seed_foreign(world, transcribed=transcribed)
         patch_store(monkeypatch, "unknown", lambda store: TripStore(store, wire))
         with contextlib.suppress(Crash):
             send(world, _foreign(confirm=True))
@@ -112,7 +121,7 @@ def _unknown_killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         if not wire.fired:
             return False
         left = keys_under(world.store, FOREIGN_BATCH_ID)
-        proofs = {manifest_key(FOREIGN_BATCH_ID), done_key(FOREIGN_BATCH_ID)}
+        proofs = {manifest_key(FOREIGN_BATCH_ID), deleting_key(FOREIGN_BATCH_ID)}
         assert not left or proofs & set(left), (wire, left)
         if left:
             ok_as(send(world, _foreign(confirm=True)), CleanupCloudResponse)
@@ -120,36 +129,39 @@ def _unknown_killed_then_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     return True
 
 
+@pytest.mark.parametrize("transcribed", [True, False])
 @pytest.mark.parametrize("after", [False, True])
 def test_unknown_cleanup_interrupted_at_every_call(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, after: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, after: bool, transcribed: bool
 ) -> None:
-    """A kill before or after any R2 call: the manifest or `_done.json` stays while data is left; repeating finishes."""
+    """A kill before or after any R2 call, transcribed or not: the manifest or the marker stays while data is left."""
     fired = 0
     with moto_bucket():
         for at in itertools.count(1):
-            if not _unknown_killed_then_resumed(tmp_path, monkeypatch, Tripwire(at=at, after=after)):
+            wire = Tripwire(at=at, after=after)
+            if not _unknown_killed_then_resumed(tmp_path, monkeypatch, wire, transcribed=transcribed):
                 break
             fired += 1
-    assert fired >= FOREIGN_OBJECTS
+    assert fired >= NEW_JOB_OBJECTS
 
 
-def test_cleanup_without_manifest_is_resumed(world: RunsWorld) -> None:
-    """The manifest is gone, `_done.json` is left: its own question, then the rest is deleted."""
-    _seed_foreign(world)
+def test_a_new_job_is_resumed_after_its_manifest(world: RunsWorld) -> None:
+    """Interrupted after the manifest delete (the marker and the audio are left): its own question, then the rest."""
+    _seed_foreign(world, transcribed=False)
+    world.store.write(deleting_key(FOREIGN_BATCH_ID), b"{}", JSON_TYPE)
     world.store.delete(manifest_key(FOREIGN_BATCH_ID))
     asked = ok_as(send(world, _foreign()), NeedsConfirmation)
     assert [(question.code, question.field) for question in asked.confirmations] == [(LEFTOVER, "confirm")]
     cleaned = ok_as(send(world, confirmed_document(_foreign(), asked)), CleanupCloudResponse)
-    assert (cleaned.deleted_objects, _left(world)) == (FOREIGN_OBJECTS - 1, [])
+    assert (cleaned.deleted_objects, _left(world)) == (1, [])
 
 
-def test_audio_without_manifest_or_done_is_not_deleted(world: RunsWorld) -> None:
-    """Neither a manifest nor `_done.json`: perhaps an upload in progress elsewhere, so `batch_not_found`."""
-    audio = audio_key(FOREIGN_BATCH_ID, FOREIGN_ITEM, "flac", None)
-    world.store.write(audio, b"{}", JSON_TYPE)
+def test_a_prefix_without_marker_is_not_touched(world: RunsWorld) -> None:
+    """No manifest and no marker (perhaps an upload in progress elsewhere): `batch_not_found`, `_done.json` or not."""
+    kept = _seed_foreign(world)
+    world.store.delete(manifest_key(FOREIGN_BATCH_ID))
     assert error_code(send(world, _foreign(confirm=True))) == "batch_not_found"
-    assert _left(world) == [audio]
+    assert _left(world) == [key for key in kept if key != manifest_key(FOREIGN_BATCH_ID)]
 
 
 def test_another_batch_under_a_known_id_asks_again(world: RunsWorld) -> None:

@@ -137,6 +137,8 @@ Deleting something that is already gone is not an error.
   whose upload has started can be abandoned with the cloud cleanup "delete everything": the
   uploaded audio and unfinished uploads are deleted, and the job stays in the history as
   cleaned up.
+- Interrupted cleanup *(architect)*: an interrupted cloud cleanup must be resumable, using a
+  deletion marker written first and removed last.
 
 ## Subtitle download options
 
