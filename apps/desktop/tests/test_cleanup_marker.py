@@ -18,7 +18,7 @@ from support.batches import FIRST_BATCH_ID
 from support.buckets import create_bucket
 from support.cleanup import EVERYTHING, cleanup_document, keys_under, patch_store
 from support.cleanup import send as send_document
-from support.credentials import moto_bucket
+from support.credentials import TEST_BUCKET, moto_bucket, store_request
 from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import FOREIGN_BATCH_ID, foreign_manifest, ok_as, send, write_foreign
 from support.runs import JSON_TYPE, RunsWorld
@@ -35,8 +35,11 @@ from transcribe_ui.runs.responses import RefreshStatusResponse
 from transcribe_ui.state.models import PendingCleanupRow
 from transcribe_ui.storage.r2 import R2ObjectStore
 
-# The objects of the other computer's job: its manifest and audio.
-SEEDED_KEYS = 2
+# Another bucket of the same account.
+OTHER_BUCKET = "another-bucket"
+# R2 calls of the confirmed cleanup of the seeded job (manifest and audio): the manifest read, the
+# leases, the marker, the uploads, the manifest, `_done.json`, the listings, the audio, the marker.
+R2_CALLS = 11
 # The audio object of the other computer's job.
 AUDIO = audio_key(FOREIGN_BATCH_ID, foreign_manifest().items[0].item_id, "flac", None)
 
@@ -119,14 +122,14 @@ def test_a_refresh_settles_an_interrupted_cleanup(
             if not _killed_then_refreshed(tmp_path, monkeypatch, Tripwire(at=at, after=after)):
                 break
             fired += 1
-    assert fired >= SEEDED_KEYS
+    assert fired >= R2_CALLS
 
 
 def test_a_cancelled_cleanup_is_dropped_by_the_refresh(world: RunsWorld) -> None:
     """Cancelled before the point of no return: the refresh drops the record, the job stays listed."""
     flag = CancelFlag()
     purge = Purge(_CancelAfterMarker(world.store, flag), world.context(flag), "cleanup_cloud")
-    record_pending(world.ports.state, FOREIGN_BATCH_ID, world.now())
+    record_pending(world.context(), FOREIGN_BATCH_ID)
     with pytest.raises(CancelledError):
         delete_unknown(purge, FOREIGN_BATCH_ID)
     refreshed = ok_as(send(world, "refresh_status", recheck=True), RefreshStatusResponse)
@@ -145,10 +148,29 @@ def test_a_withdrawal_drops_the_marker_first(
     """
     ids = seed_leftover(runs_world)
     runs_world.store.write(deleting_key(FIRST_BATCH_ID), b"{}", JSON_TYPE)
-    record_pending(r2_only_world.ports.state, FIRST_BATCH_ID, r2_only_world.now())
+    record_pending(r2_only_world.context(), FIRST_BATCH_ID)
     fail_deleting(monkeypatch, deleting_key(FIRST_BATCH_ID))
     assert exclude_film(runs_world, ids).status == "ok", "the withdrawal stays pending"
     refreshed = ok_as(send(r2_only_world, "refresh_status", recheck=True), RefreshStatusResponse)
     audio = [key for key in keys_under(runs_world.store, FIRST_BATCH_ID) if f"/{AUDIO_FOLDER}/" in key]
     shown = (refreshed.finished_cleanups, _pending(r2_only_world), bool(audio))
     assert (shown, runs_world.store.head(manifest_key(FIRST_BATCH_ID)) is not None) == (((), [], True), True)
+
+
+def _use_bucket(world: RunsWorld, bucket: str) -> None:
+    assert world.leg.backend.execute_json(store_request(r2_bucket=bucket)).status == "ok"
+
+
+def test_a_record_waits_for_its_bucket(world: RunsWorld) -> None:
+    """A record of another bucket is kept, not dropped, until that bucket is configured again; then it is finished."""
+    record_pending(world.context(), FOREIGN_BATCH_ID)
+    world.store.write(deleting_key(FOREIGN_BATCH_ID), b"{}", JSON_TYPE)
+    world.store.delete(manifest_key(FOREIGN_BATCH_ID))
+    create_bucket(OTHER_BUCKET)
+    _use_bucket(world, OTHER_BUCKET)
+    elsewhere = ok_as(send(world, "refresh_status", recheck=True), RefreshStatusResponse)
+    kept = (elsewhere.finished_cleanups, _pending(world))
+    _use_bucket(world, TEST_BUCKET)
+    back = ok_as(send(world, "refresh_status", recheck=True), RefreshStatusResponse)
+    shown = (kept, back.finished_cleanups, _pending(world), keys_under(world.store, FOREIGN_BATCH_ID))
+    assert shown == (((), [FOREIGN_BATCH_ID]), (FOREIGN_BATCH_ID,), [], [])

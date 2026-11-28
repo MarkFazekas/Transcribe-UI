@@ -1404,13 +1404,18 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     stays as it was. The uploading computer deletes the marker whenever it reclaims its prefix
     (`finish_withdrawal`, before its own deletes, and `clear_leftovers`), so a stale marker
     cannot purge a withdrawn job or a new upload.
-    The cleanup is also recorded locally (table `pending_cleanups`: the batch id and when it
-    started; written before the marker, dropped after it; `cleanup/pending.py`), since the
-    batch is gone from every listing once its manifest is: `refresh_status` with `recheck`
-    (start-up, Refresh now) settles every record, under the batch's lock (only tried) and
-    unless a live lease lists it. Manifest gone, marker there: the deletion passed its point
+    The cleanup is also recorded locally (table `pending_cleanups`: the bucket, as the R2
+    endpoint and bucket name, the batch id and when it started; written before the marker,
+    dropped after it; `cleanup/pending.py`), since the batch is gone from every listing once
+    its manifest is: `refresh_status` with `recheck` (start-up, Refresh now) settles every
+    record of the configured bucket (another bucket's records wait until it is configured
+    again), under the batch's lock (only tried) and unless a live lease lists it; a record R2
+    fails for is logged and kept, and the others go on. Manifest gone, marker there: the deletion passed its point
     of no return and was confirmed, so the rest is deleted without a question; manifest still
-    there: the marker is deleted and the batch stays as it was; neither: nothing to do. The
+    there: the marker is deleted and the batch stays as it was; neither: nothing to do, once
+    the bucket is proven to exist (`check_access`). Two computers cleaning the same job at once
+    may delete each other's marker; this is accepted (each one's own steps still finish or
+    undo its cleanup). The
     record is then dropped, and the response lists the finished ones (`finished_cleanups`; the
     Cloud page notes them). A marker without a manifest is the proof that an interrupted cleanup left the
     rest, transcribed or not: repeating the request asks `cleanup_unknown_leftover` (details:

@@ -77,9 +77,9 @@ def cleanup_unknown(
     refuse_if_leased(store, batch_id, context.ports.clock.now())
     purge = Purge(store, context, request.action)
     # Recorded before the marker and dropped after it: an interruption is finished by the refresh.
-    record_pending(context.ports.state, batch_id, context.ports.clock.now())
+    record_pending(context, batch_id)
     aborted = delete_unknown(purge, batch_id)
-    drop_pending(context.ports.state, batch_id)
+    drop_pending(context, batch_id)
     return CleanupCloudResponse(
         batch_id=batch_id,
         scope=request.scope,

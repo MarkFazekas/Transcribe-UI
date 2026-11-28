@@ -41,9 +41,10 @@ def upgrade() -> None:
     op.execute("UPDATE runs SET payload = json_insert(payload, '$.known_batch_ids', NULL)")
     op.create_table(
         "pending_cleanups",
+        sa.Column("bucket", sa.String(), nullable=False),
         sa.Column("batch_id", sa.String(length=40), nullable=False),
         sa.Column("started_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("batch_id", name=op.f("pk_pending_cleanups")),
+        sa.PrimaryKeyConstraint("bucket", "batch_id", name=op.f("pk_pending_cleanups")),
     )
     op.create_table(
         "known_leases",

@@ -176,6 +176,8 @@ class PendingCleanupRow(Base):
 
     __tablename__ = "pending_cleanups"
 
+    # The bucket it was started in: the R2 endpoint and bucket name (`cleanup/pending.py`).
+    bucket: Mapped[str] = mapped_column(String, primary_key=True)
     batch_id: Mapped[str] = mapped_column(String(BATCH_ID_LENGTH), primary_key=True)
     started_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
