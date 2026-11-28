@@ -9,18 +9,19 @@ new job is scanned and previewed while the long pool is full of uploads.
 """
 
 from collections.abc import Iterator
-from contextlib import closing, contextmanager
-from dataclasses import dataclass, field
+from contextlib import closing
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QMessageLogContext, QModelIndex, QPersistentModelIndex, Qt, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, Qt
 from PySide6.QtTest import QAbstractItemModelTester
 from PySide6.QtWidgets import QFileDialog, QWidget
 from pytestqt.qtbot import QtBot
 
 from support.discovery import FILM, PODCAST, media_dir
 from support.gated import wait_for
+from support.gui import qt_messages
 from support.selection import HeldUploads, media_path, media_ports, selection_area
 from support.selection_window import ChangedSpans, released, settled_window
 from transcribe_ui.api.backend import Backend
@@ -103,29 +104,6 @@ def _check(model: SelectionTreeModel, index: QModelIndex | QPersistentModelIndex
 
 def _choose(monkeypatch: pytest.MonkeyPatch, folder: Path) -> None:
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_arguments: str(folder))
-
-
-@dataclass
-class QtMessages:
-    """Collects the messages Qt reports (the model tester reports its failures as warnings)."""
-
-    messages: list[str] = field(default_factory=list)
-
-    def __call__(self, kind: QtMsgType, _context: QMessageLogContext, message: str) -> None:
-        """Keep every message above debug."""
-        if kind != QtMsgType.QtDebugMsg:
-            self.messages.append(message)
-
-
-@contextmanager
-def qt_messages() -> Iterator[QtMessages]:
-    """Collect what Qt reports while the block runs (the handler before it is restored afterwards)."""
-    collected = QtMessages()
-    previous = qInstallMessageHandler(collected)
-    try:
-        yield collected
-    finally:
-        qInstallMessageHandler(previous)
 
 
 def _attached(tree: SelectionTreeModel) -> QAbstractItemModelTester:

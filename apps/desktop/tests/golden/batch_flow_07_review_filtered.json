@@ -68,6 +68,13 @@
               "result_error_code": null,
               "flagged": false
             }
+          ],
+          "suggestions": [
+            {
+              "language": "hu",
+              "track_index": 0,
+              "stream_index": null
+            }
           ]
         },
         {
@@ -101,6 +108,13 @@
               "result_error": null,
               "result_error_code": null,
               "flagged": false
+            }
+          ],
+          "suggestions": [
+            {
+              "language": "hu",
+              "track_index": null,
+              "stream_index": 0
             }
           ]
         }
@@ -164,6 +178,13 @@
               "result_error_code": null,
               "flagged": false
             }
+          ],
+          "suggestions": [
+            {
+              "language": "hu",
+              "track_index": 0,
+              "stream_index": null
+            }
           ]
         }
       ],
@@ -199,6 +220,13 @@
               "result_error": null,
               "result_error_code": null,
               "flagged": false
+            }
+          ],
+          "suggestions": [
+            {
+              "language": "hu",
+              "track_index": null,
+              "stream_index": 0
             }
           ]
         }

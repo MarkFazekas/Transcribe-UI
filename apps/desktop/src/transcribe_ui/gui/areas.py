@@ -12,6 +12,7 @@ from transcribe_ui.gui.cleanup.install import install_cleanup
 from transcribe_ui.gui.cloud.install import install_cloud
 from transcribe_ui.gui.download.install import install_download
 from transcribe_ui.gui.jobs.install import install_jobs
+from transcribe_ui.gui.review.install import install_review
 from transcribe_ui.gui.selection.install import install_selection
 from transcribe_ui.gui.settings.install import install_settings
 
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 def install_areas(window: "MainWindow") -> None:
     """Install every built area in the window."""
     install_jobs(window)
+    install_review(window)
     install_settings(window)
     install_selection(window)
     install_cloud(window)

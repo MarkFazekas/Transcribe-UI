@@ -1,0 +1,22 @@
+[
+  {
+    "action": "review_batch",
+    "batch_id": "batch_20261127_130000",
+    "filters": {
+      "languages": [],
+      "folder": null
+    }
+  },
+  {
+    "action": "resolve_review",
+    "batch_id": "batch_20261127_130000",
+    "choices": [
+      {
+        "kind": "transcribe",
+        "item_id": "01M8EE0VG07JXP9GC4Z94AFJ15",
+        "language": "en",
+        "track_index": 0
+      }
+    ]
+  }
+]

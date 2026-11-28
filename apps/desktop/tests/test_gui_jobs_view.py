@@ -1,7 +1,7 @@
 """The Jobs page and the step header in the window (pytest-qt, offscreen; plan m6 M6.5).
 
 The window runs over the seeded scenarios through `QtExecutor`: the start-up step fills the
-list, a double click opens a job, its buttons reach their signal or "Not available yet", a
+list, a double click opens a job, its buttons reach their signal (Review opens the review page), a
 tick box disables Retry, and Delete goes through the confirmation dialog.
 """
 
@@ -23,6 +23,7 @@ from transcribe_ui.api.ports import Ports
 from transcribe_ui.gui.constants import PAGE_JOBS
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.jobs.view import JobsPage
+from transcribe_ui.gui.review.view import ReviewPage
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.gui.steps.view import StepHeader
 
@@ -112,15 +113,16 @@ def test_the_selection_follows_its_job_across_reloads(qtbot: QtBot, window: Main
     assert not view.button_row.buttons
 
 
-def test_an_unhandled_button_is_not_available(qtbot: QtBot, window: MainWindow) -> None:
-    """Review emits its signal, which no part handles yet: the status bar says so."""
+def test_review_opens_the_review_page(qtbot: QtBot, window: MainWindow) -> None:
+    """Review emits its signal, which the review page handles: it shows on the Jobs page."""
     jobs = _open(qtbot, window, "reviewing_open")
     buttons = jobs.page_view.button_row.buttons
     assert list(buttons) == ["delete", "review"]
     with qtbot.waitSignal(window.context.signals.open_review) as emitted:
         buttons["review"].click()
     assert emitted.args == [scenario_batch_id("reviewing_open")]
-    assert window.statusBar().currentMessage() == "Not available yet."
+    assert isinstance(jobs.currentWidget(), ReviewPage)
+    assert window.statusBar().currentMessage() != "Not available yet."
 
 
 def test_clearing_the_last_tick_disables_retry(qtbot: QtBot, window: MainWindow) -> None:

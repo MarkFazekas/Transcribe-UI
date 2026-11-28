@@ -1,8 +1,11 @@
 """Builds the GUI's main window over a test runner (a gated fake or a seeded backend)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from PySide6.QtCore import QMessageLogContext, QtMsgType, qInstallMessageHandler
 from pytestqt.qtbot import QtBot
 
 from transcribe_ui.gui.activity import Activity
@@ -55,3 +58,26 @@ def untracked_window(
     if run_active is not _never:
         context.run_active = run_active
     return window
+
+
+@dataclass
+class QtMessages:
+    """Collects the messages Qt reports (the model tester reports its failures as warnings)."""
+
+    messages: list[str] = field(default_factory=list)
+
+    def __call__(self, kind: QtMsgType, _context: QMessageLogContext, message: str) -> None:
+        """Keep every message above debug."""
+        if kind != QtMsgType.QtDebugMsg:
+            self.messages.append(message)
+
+
+@contextmanager
+def qt_messages() -> Iterator[QtMessages]:
+    """Collect what Qt reports while the block runs (the handler before it is restored afterwards)."""
+    collected = QtMessages()
+    previous = qInstallMessageHandler(collected)
+    try:
+        yield collected
+    finally:
+        qInstallMessageHandler(previous)

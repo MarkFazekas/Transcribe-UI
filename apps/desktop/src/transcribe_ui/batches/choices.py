@@ -36,7 +36,8 @@ def preselected_track(tracks: tuple[AudioTrack, ...], language: str) -> int | No
     return found[0] if found else None
 
 
-def _text_stream(streams: tuple[SubtitleStream, ...], language: str) -> int | None:
+def tagged_text_stream(streams: tuple[SubtitleStream, ...], language: str) -> int | None:
+    """Return the first text subtitle stream tagged with the language (an extraction's stream), or None."""
     texts = [stream for stream in streams if stream.kind == "text"]
     tagged = [stream.index for stream in texts if _tagged(stream.language, language)]
     return tagged[0] if tagged else None
@@ -46,7 +47,7 @@ def preselected_choice(member: ItemPayload, probe: ProbeResult, language: str) -
     """Return the pre-selected choice of a job of a probed item."""
     tracks = probe.audio_tracks
     if not tracks:
-        stream = _text_stream(probe.subtitle_streams, language)
+        stream = tagged_text_stream(probe.subtitle_streams, language)
         if stream is not None:
             return "extract", JobPayload(mode=DEFAULT_MODE, stream_index=stream)
     track = preselected_track(tracks, language) if member.kind == "video" else None

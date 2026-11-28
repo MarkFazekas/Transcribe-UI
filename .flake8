@@ -41,6 +41,7 @@ per-file-ignores =
     */migrations/versions/*: WPS226,WPS432
     # Qt item models override Qt's own names (`data`, `index`, `setData`'s `value`; `WPS110`).
     */gui/*/models.py: WPS110
+    */gui/*/table.py: WPS110
     # The smoke test's fake Runpod API overrides http.server handler names (`N802`, as in tests).
     scripts/smoke_fixtures.py: N802
 max_complexity = 8

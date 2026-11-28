@@ -211,6 +211,7 @@ parsedate
 pathext
 pathsep
 pcm
+perf
 pgs
 platformdirs
 pofile
