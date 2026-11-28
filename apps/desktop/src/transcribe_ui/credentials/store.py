@@ -86,6 +86,11 @@ class Lookup:
         """
         return RUNPOD_API_KEY in self.found or self.keyring == KEYRING_FAILED
 
+    def r2_set(self) -> bool:
+        """Return whether every R2 credential was found (looked up with them), or the keyring failed while reading."""
+        found = all(name in self.found for name in R2_CREDENTIALS)
+        return found or self.keyring == KEYRING_FAILED
+
     def statuses(self) -> tuple[CredentialStatus, ...]:
         """Return, per credential of `CREDENTIAL_ORDER`, where it is set (never the value)."""
         return tuple(_status(name, self) for name in CREDENTIAL_ORDER)

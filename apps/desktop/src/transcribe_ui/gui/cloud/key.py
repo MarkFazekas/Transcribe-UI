@@ -44,6 +44,8 @@ class RunpodKey(ViewModel):
         super().__init__(executor)
         self._channel = ExclusiveChannel(executor)
         self.present: bool | None = None
+        # Whether the R2 credentials are set, as the last answer said (None: not known yet).
+        self.r2_present: bool | None = None
         # `proceed` of each start-up step waiting for the check in flight.
         self._waiting: list[Proceed] = []
 
@@ -69,6 +71,7 @@ class RunpodKey(ViewModel):
         if isinstance(response, CredentialsStatusResponse):
             # The rule of the backend: a keyring that failed while reading may hold the key.
             self.present = response.runpod_key_set
+            self.r2_present = response.r2_set
         self.changed()
         waiting = self._waiting
         self._waiting = []

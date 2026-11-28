@@ -30,6 +30,10 @@ def _refresh(models: CloudModels, proceed: Proceed) -> None:
 
     A check in flight already: Refresh now's check follows it (with that recheck).
     """
+    if models.key.r2_present is False:
+        # Without the R2 credentials nothing in the cloud can be checked (the first-start wizard asks for them).
+        proceed()
+        return
     if not models.poll.tick(proceed, recheck=True):
         models.poll.refresh_now()
         proceed()

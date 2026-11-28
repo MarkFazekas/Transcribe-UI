@@ -32,7 +32,7 @@ def backend(tmp_path: Path) -> Iterator[Backend]:
 def _failed_keyring() -> CredentialsStatusResponse:
     """Return the status of a keyring that failed while reading: no key found, yet it may hold one."""
     key = CredentialStatus(name="runpod_api_key", environment_variable="RUNPOD_API_KEY", source="missing")
-    return CredentialsStatusResponse(keyring="failed", credentials=(key,), runpod_key_set=True)
+    return CredentialsStatusResponse(keyring="failed", credentials=(key,), runpod_key_set=True, r2_set=True)
 
 
 def test_a_failed_keyring_offers_the_cloud_setup(backend: Backend) -> None:

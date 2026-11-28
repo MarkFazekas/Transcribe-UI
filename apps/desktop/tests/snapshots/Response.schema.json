@@ -1235,6 +1235,10 @@
         "keyring": {
           "$ref": "#/$defs/KeyringState"
         },
+        "r2_set": {
+          "title": "R2 Set",
+          "type": "boolean"
+        },
         "runpod_key_set": {
           "title": "Runpod Key Set",
           "type": "boolean"
@@ -1251,7 +1255,8 @@
         "action",
         "keyring",
         "credentials",
-        "runpod_key_set"
+        "runpod_key_set",
+        "r2_set"
       ],
       "title": "CredentialsStatusResponse",
       "type": "object"

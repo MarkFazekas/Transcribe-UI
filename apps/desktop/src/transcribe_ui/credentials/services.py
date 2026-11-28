@@ -30,6 +30,7 @@ def credentials_status(_request: CredentialsStatusRequest, context: RequestConte
         keyring=lookup.keyring,
         credentials=lookup.statuses(),
         runpod_key_set=lookup.runpod_key_set(),
+        r2_set=lookup.r2_set(),
     )
 
 
