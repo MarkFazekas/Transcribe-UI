@@ -927,8 +927,8 @@ msgstr ""
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
-"{file} ({language}): the name {name} is longer than {max_length} "
-"characters."
+"{file} ({language}): the name {name} is too long (the limit is "
+"{max_length})."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py

@@ -1060,9 +1060,11 @@ msgstr "{file} ({language}): ez a név pontra vagy szóközre végződik: {name}
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
-"{file} ({language}): the name {name} is longer than {max_length} "
-"characters."
-msgstr "{file} ({language}): ez a név hosszabb {max_length} karakternél: {name}"
+"{file} ({language}): the name {name} is too long (the limit is "
+"{max_length})."
+msgstr ""
+"{file} ({language}): ez a név túl hosszú (a felső határ {max_length}): "
+"{name}"
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format

@@ -142,7 +142,7 @@ def plan_error_texts() -> CodeTable:
             "{file} ({language}): the name {name} contains characters a name cannot hold: {characters}",
         ),
         "custom_plan_invalid_name.too_long": tr(
-            "{file} ({language}): the name {name} is longer than {max_length} characters.",
+            "{file} ({language}): the name {name} is too long (the limit is {max_length}).",
         ),
         "custom_plan_invalid_name.trailing_dot_or_space": tr(
             "{file} ({language}): the name {name} ends with a dot or a space.",

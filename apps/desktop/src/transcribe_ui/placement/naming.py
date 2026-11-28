@@ -56,6 +56,11 @@ def _with_base_suffix(name: str) -> str:
     return f"{base}{constants.REPLACEMENT_CHARACTER}{dot}{rest}"
 
 
+def _shown_character(character: str) -> str:
+    """Return a character as a text can show it: itself, or `U+0000` for a control character."""
+    return character if character.isprintable() else f"U+{ord(character):04X}"
+
+
 @dataclass(frozen=True)
 class NameProblem:
     """Why a user-given name is not valid on the target: a code, its values and the English text."""
@@ -148,7 +153,7 @@ class TargetNames:
         if forbidden:
             text = f"contains characters not allowed in a name: {forbidden!r}"
             characters: list[JsonValue] = []
-            characters.extend(forbidden)
+            characters.extend(map(_shown_character, forbidden))
             return NameProblem(constants.NAME_PROBLEM_CHARACTERS, text, {"characters": characters})
         if self.length(name) > constants.MAX_NAME_LENGTH:
             text = f"is longer than {constants.MAX_NAME_LENGTH}"
