@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 11:18+0100\n"
+"POT-Creation-Date: 2026-11-28 17:44+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -561,6 +561,7 @@ msgstr ""
 #: src/transcribe_ui/gui/download/results.py
 #: src/transcribe_ui/gui/review/table.py
 #: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/settings/about_view.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr ""
@@ -943,6 +944,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/preferences_view.py
 msgid "Loading the settings..."
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/about.py
+msgid "Loading the third-party licences…"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/about_view.py
@@ -2247,6 +2252,10 @@ msgid ""
 "replace it."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/about.py
+msgid "The third-party licences are included only in release builds."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The track or stream number must not be negative."
 msgstr ""
@@ -2279,6 +2288,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/download/panels.py
 msgid "These folder levels, counted from the scanned folder:"
+msgstr ""
+
+#: src/transcribe_ui/gui/settings/about_view.py
+msgid "Third-party licences"
 msgstr ""
 
 #: src/transcribe_ui/gui/cleanup/display.py

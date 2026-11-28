@@ -1819,6 +1819,42 @@
       "title": "GetSettingsResponse",
       "type": "object"
     },
+    "GetThirdPartyNoticesResponse": {
+      "additionalProperties": false,
+      "description": "The licence notices of the third-party software this app bundles.",
+      "properties": {
+        "action": {
+          "const": "get_third_party_notices",
+          "default": "get_third_party_notices",
+          "title": "Action",
+          "type": "string"
+        },
+        "notices": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Notices"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "notices"
+      ],
+      "title": "GetThirdPartyNoticesResponse",
+      "type": "object"
+    },
     "ImportCustomPlanResponse": {
       "additionalProperties": false,
       "description": "The validated plan of the edited custom plan, and the download it made (None when only checked).",
@@ -4406,6 +4442,7 @@
           "get_app_info": "#/$defs/GetAppInfoResponse",
           "get_batch": "#/$defs/GetBatchResponse",
           "get_settings": "#/$defs/GetSettingsResponse",
+          "get_third_party_notices": "#/$defs/GetThirdPartyNoticesResponse",
           "import_custom_plan": "#/$defs/ImportCustomPlanResponse",
           "launch_worker": "#/$defs/LaunchWorkerResponse",
           "list_batches": "#/$defs/ListBatchesResponse",
@@ -4433,6 +4470,9 @@
       "oneOf": [
         {
           "$ref": "#/$defs/GetAppInfoResponse"
+        },
+        {
+          "$ref": "#/$defs/GetThirdPartyNoticesResponse"
         },
         {
           "$ref": "#/$defs/ScanTreeResponse"

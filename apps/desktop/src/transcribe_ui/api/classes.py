@@ -58,6 +58,12 @@ class GetAppInfoRequest(FrozenModel):
     action: Literal["get_app_info"]
 
 
+class GetThirdPartyNoticesRequest(FrozenModel):
+    """Ask for the licence notices of the third-party software a release build bundles."""
+
+    action: Literal["get_third_party_notices"]
+
+
 # Settings (stored in the user config dir; they only pre-fill request fields, plan m5 §1).
 # Every field is required, so `update_settings` always carries the whole document and a partial
 # one is refused instead of silently resetting the missing fields; the defaults are
@@ -139,6 +145,7 @@ class ResetSettingsRequest(FrozenModel):
 # Discriminated on `action`; each part adds its request models here (`A | B | ...`).
 type Request = Annotated[
     GetAppInfoRequest
+    | GetThirdPartyNoticesRequest
     | ScanTreeRequest
     | PreviewSelectionRequest
     | GetSettingsRequest
@@ -188,6 +195,15 @@ class GetAppInfoResponse(FrozenModel):
     action: Literal["get_app_info"] = "get_app_info"
     app_version: str
     contracts_schema_version: str
+
+
+class GetThirdPartyNoticesResponse(FrozenModel):
+    """The licence notices of the third-party software this app bundles."""
+
+    status: Literal["ok"] = "ok"
+    action: Literal["get_third_party_notices"] = "get_third_party_notices"
+    # The notices' text; None when this app bundles none (it runs from source, not a release build).
+    notices: str | None
 
 
 class GetSettingsResponse(FrozenModel):
@@ -258,6 +274,7 @@ class NeedsConfirmation(FrozenModel):
 # Discriminated on `action`; each part adds its success response models here.
 type SuccessResponse = Annotated[
     GetAppInfoResponse
+    | GetThirdPartyNoticesResponse
     | ScanTreeResponse
     | PreviewSelectionResponse
     | GetSettingsResponse

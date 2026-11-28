@@ -13,6 +13,8 @@ from transcribe_ui.runpod.classes import CloudObjectState
 
 # Whether the stored settings are loaded: not yet, loaded, or the load failed (nothing to edit).
 type LoadState = Literal["loading", "ready", "failed"]
+# Whether the third-party licence notices are loaded: not asked for yet, loading, loaded, or the load failed.
+type NoticesState = Literal["not_loaded", "loading", "loaded", "failed"]
 # What the window's start-up notice asks for: accounts, the cloud setup, or a Retry of the cloud check.
 type NoticeKind = Literal["accounts", "cloud_setup", "cloud_error"]
 # A page of the first-start set-up wizard.
@@ -20,7 +22,7 @@ type WizardStep = Literal["accounts", "cloud_setup"]
 
 # Settings section of the preferences (languages, file types, ffmpeg, placement, language).
 SECTION_PREFERENCES: Final = "preferences"
-# Settings section of the app's version and log folder.
+# Settings section of the app's version, log folder and third-party licences.
 SECTION_ABOUT: Final = "about"
 # The settings page's sections (tabs) in order; `open_settings("")` opens the first.
 SECTIONS: Final = (SECTION_PREFERENCES, SECTION_ACCOUNTS, SECTION_CLOUD_SETUP, SECTION_ABOUT)
@@ -43,6 +45,8 @@ ALIGNMENT_COLUMN: Final = 2
 LANGUAGE_COLUMNS: Final = 3
 # Least height of the language list, in pixels (about ten rows).
 LANGUAGE_TABLE_HEIGHT: Final = 300
+# Default size of the third-party licences dialog, in pixels (width, height).
+NOTICES_DIALOG_SIZE: Final = (760, 560)
 # Number of columns of the cloud setup's object list (object, name, state).
 CLOUD_COLUMNS: Final = 3
 # Separators between the extensions typed into one field (spaces, commas, semicolons).

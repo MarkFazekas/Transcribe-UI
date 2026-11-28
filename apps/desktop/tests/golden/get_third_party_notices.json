@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "response": {
+    "status": "ok",
+    "action": "get_third_party_notices",
+    "notices": null
+  },
+  "events": []
+}

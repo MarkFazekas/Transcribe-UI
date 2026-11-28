@@ -1,7 +1,8 @@
 """Handlers of the requests that never open the database (architecture §3.1).
 
-App info, scans, settings, credentials and the cloud setup: a second process (the CLI while
-the GUI holds the writer lock) can run them. `api/routes.py` marks them so in the dispatch table.
+App info, the third-party notices, scans, settings, credentials and the cloud setup: a second
+process (the CLI while the GUI holds the writer lock) can run them. `api/routes.py` marks them
+so in the dispatch table.
 """
 
 from collections.abc import Callable, Mapping
@@ -9,7 +10,7 @@ from types import MappingProxyType
 from typing import Any
 
 from transcribe_ui.api.classes import Response
-from transcribe_ui.api.info import get_app_info
+from transcribe_ui.api.info import get_app_info, get_third_party_notices
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.credentials.services import check_credentials, credentials_status, store_credentials
 from transcribe_ui.discovery.services import preview_selection, scan_tree
@@ -25,6 +26,7 @@ def local_handlers() -> Mapping[str, RequestRunner]:
     return MappingProxyType(
         {
             "get_app_info": get_app_info,
+            "get_third_party_notices": get_third_party_notices,
             "scan_tree": scan_tree,
             "preview_selection": preview_selection,
             "get_settings": get_settings,

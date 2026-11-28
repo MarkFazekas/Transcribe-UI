@@ -34,6 +34,7 @@ ASKS = "needs_confirmation"
 READ_ONLY_ACTIONS = frozenset(
     (
         "get_app_info",
+        "get_third_party_notices",
         "get_settings",
         "credentials_status",
         "check_credentials",
