@@ -31,6 +31,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - M8.1 (build, stamp and smoke-test both executables on four platforms) on
   `feat/m8.1-desktop-build`: built and smoke-tested locally on Linux; the PR's own
   `release-desktop.yml` run proves the four legs (Windows, macOS arm64 and x86_64, Linux).
+- M8.2 (bundled static LGPL ffmpeg: `scripts/build_ffmpeg*.py`, the `ffmpeg` job and its
+  cache, `cli-probe`, the media tests on the built ffmpeg) on `feat/m8.2-ffmpeg`, stacked on
+  M8.1 (rebase onto `main` once M8.1 merges): built; the Linux and the cross-built Windows
+  ffmpeg were built and checked locally, the PR's `release-desktop.yml` run proves the four
+  legs (the macOS builds first run there) and a second run must hit the cache.
 
 ## Waiting on humans
 
@@ -51,9 +56,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
    Runpod trial run is deferred until everything else works (architect); nothing waits on it,
    and it still needs the architect present and their go.
 3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is in
-   progress on `feat/m8.1-desktop-build`, and M8 does not wait for M7. M8.6 (README for users,
-   screenshots script, `docs/cli.md`) follows M8.5 (which marks M8 built), and M7 if M7 is
-   done by then, and comes before MCP (architect).
+   progress on `feat/m8.1-desktop-build`, M8.2 on `feat/m8.2-ffmpeg`, and M8 does not wait
+   for M7. M8.3 and M8.5 take the FFmpeg and zlib sources, licences and configure lines from
+   `scripts/build_ffmpeg_pins.py` (`build_info`) or `ffmpeg-build.json` of the build. M8.6
+   (README for users, screenshots script, `docs/cli.md`) follows M8.5 (which marks M8 built),
+   and M7 if M7 is done by then, and comes before MCP (architect).
 4. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
