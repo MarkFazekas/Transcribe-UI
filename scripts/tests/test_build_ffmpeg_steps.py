@@ -9,10 +9,12 @@ from pathlib import Path
 
 import pytest
 from build_ffmpeg import KEYED_FILES, build_host_problem, cache_key, pins_output
-from build_ffmpeg_fetch import DOWNLOAD_HEAD_BYTES, curl_command, fetch
+from build_ffmpeg_fetch import DOWNLOAD_HEAD_BYTES, SERVED_FROM_SUFFIX, curl_command, fetch
 from build_ffmpeg_pins import CACHE_SALT, MANYLINUX_IMAGE, Platform, Source
 from build_ffmpeg_steps import BUILD_INFO, Unpacked, described, out_problem, output_of
 
+# Encoding of the text files the tests write and read.
+ENCODING = "utf-8"
 # The bytes of the pinned tarball.
 PINNED_BYTES = b"pinned source"
 # What a bot-protection page serves instead.
@@ -117,12 +119,37 @@ def test_fetch_reuses_a_verified_archive(tmp_path: Path, monkeypatch: pytest.Mon
     assert curl.asked == [PRIMARY]
 
 
+def _record(folder: Path) -> Path:
+    """Return the file that records which URL served the demo tarball."""
+    return folder / f"{PINNED.archive}{SERVED_FROM_SUFFIX}"
+
+
 def test_fetch_replaces_a_stale_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A tarball already there with another SHA-256 is downloaded afresh."""
+    """A tarball already there with another SHA-256 is downloaded afresh; its old record is replaced."""
     (tmp_path / PINNED.archive).write_bytes(b"stale")
+    _record(tmp_path).write_text(f"{FALLBACK}\n", encoding=ENCODING)
     curl = _serve(monkeypatch, {PRIMARY: PINNED_BYTES})
-    assert fetch(PINNED, tmp_path).archive.read_bytes() == PINNED_BYTES
+    fetched = fetch(PINNED, tmp_path)
+    assert (fetched.archive.read_bytes(), fetched.served_from) == (PINNED_BYTES, PRIMARY)
+    assert _record(tmp_path).read_text(encoding=ENCODING) == f"{PRIMARY}\n"
     assert curl.asked == [PRIMARY]
+
+
+@pytest.mark.parametrize(
+    "record",
+    [b"https://elsewhere.example.invalid/demo-1.0.tar.gz\n", b"\xff\xfe not text", None],
+    ids=["url-outside-the-pin", "undecodable", "missing"],
+)
+def test_fetch_ignores_an_unusable_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, record: bytes | None
+) -> None:
+    """A reused tarball whose record names no URL of the pin, cannot be read or is missing: the URL is unknown."""
+    (tmp_path / PINNED.archive).write_bytes(PINNED_BYTES)
+    if record is not None:
+        _record(tmp_path).write_bytes(record)
+    curl = _serve(monkeypatch, {})
+    assert fetch(PINNED, tmp_path).served_from is None
+    assert not curl.asked
 
 
 def test_curl_is_bounded_and_https_only() -> None:
@@ -138,10 +165,10 @@ def test_out_folder_must_be_an_earlier_build(tmp_path: Path) -> None:
     """A missing, empty or earlier build's folder is replaced; one with other files or a file is refused."""
     build = tmp_path / "build"
     build.mkdir()
-    (build / BUILD_INFO).write_text("{}", encoding="utf-8")
+    (build / BUILD_INFO).write_text("{}", encoding=ENCODING)
     other = tmp_path / "other"
     other.mkdir()
-    (other / "notes.txt").write_text("keep", encoding="utf-8")
+    (other / "notes.txt").write_text("keep", encoding=ENCODING)
     empty = tmp_path / "empty"
     empty.mkdir()
     assert out_problem(tmp_path / "missing") is None
@@ -180,12 +207,12 @@ def test_cache_key_covers_the_pinned_inputs(tmp_path: Path) -> None:
     assert {"build_ffmpeg_pins.py", "build_platform.py"} <= {path.name for path in KEYED_FILES}
     pins = next(path for path in KEYED_FILES if path.name == "build_ffmpeg_pins.py")
     bumped = tmp_path / pins.name
-    text = pins.read_text(encoding="utf-8")
+    text = pins.read_text(encoding=ENCODING)
     bumped.write_text(
-        text.replace(f'CACHE_SALT = "{CACHE_SALT}"', f'CACHE_SALT = "{CACHE_SALT}-bumped"'), encoding="utf-8"
+        text.replace(f'CACHE_SALT = "{CACHE_SALT}"', f'CACHE_SALT = "{CACHE_SALT}-bumped"'), encoding=ENCODING
     )
     others = [path for path in KEYED_FILES if path != pins]
-    assert bumped.read_text(encoding="utf-8") != text
+    assert bumped.read_text(encoding=ENCODING) != text
     assert cache_key("linux-x64", [*others, bumped]) != cache_key("linux-x64", KEYED_FILES)
 
 

@@ -30,7 +30,8 @@ pyproject.toml            workspace root: dev tools, ruff/mypy/pytest config (no
 .flake8, whitelist.txt    flake8 + plugins config, spellcheck whitelist
 packages/contracts/       transcribe_contracts: models shared by desktop and worker
 apps/desktop/             transcribe_ui: backend + frontends; packaging/: PyInstaller hooks,
-                          entry scripts and runner, the Linux system library list
+                          entry scripts and runner, the Linux system library list, the app
+                          icon (icon/) and the licence texts of the notices (licences/)
 apps/worker/              transcribe_worker: Runpod worker, Dockerfile; also the pod reaper
 scripts/                  dev tasks (parallel local checks, catalogs), the release builds and
                           smoke tests (worker image, desktop executables); tests/: their tests
@@ -270,7 +271,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   (`qInstallMessageHandler`, logger `transcribe_ui.gui.qt`) and exceptions escaping a slot
   (`sys.excepthook`) there too, never to stderr; then it builds the backend and activates the
   language of the texts (`gui/language.py`: the `language` setting, the app's catalog and Qt's
-  own translation; §3.1 "Language of the texts") before it builds the window. When the event loop ends (normally through the
+  own translation; §3.1 "Language of the texts") before it builds the window. The
+  `QApplication` gets the app icon as its window icon when it is created
+  (`gui/application.py`, `gui/icon.py`: the PNGs of `gui/icons/`, package data made from the
+  source SVG by `scripts/build_icon.py`, Q36), so every window shows it. When the event loop ends (normally through the
   close dialog, or without it, as when the session ends) it hides the window, runs the
   executor's `shutdown`, closes it (answers still on their way are dropped, no callback runs
   any more) and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s, one deadline for
@@ -808,8 +812,17 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     own (the earlier one's answer is dropped, never shown), and the callers wait for that one. Without a Runpod key the page is
     unavailable and says that another computer with the key starts the transcription.
   - About: the app and data format versions (`get_app_info`; the window title gets the app's
-    version; a release build's version is its stamp, `api/info.py` `app_version()`, §8) and the
-    log folder with "Open log folder".
+    version; a release build's version is its stamp, `api/info.py` `app_version()`, §8), the
+    log folder with "Open log folder", and "Third-party licences": a window-modal, read-only
+    text dialog (fixed-pitch, no wrapping) with the notices the executable bundles (§8). They
+    come through the request `get_third_party_notices` (no database), not by the GUI reading
+    a file: the backend locates its package data (as `app_version()` does the stamp), the read
+    runs on the executor's pool, and every frontend gets the same answer (the CLI serves it
+    through `run` like every request; it has no notices command, A20). `notices` is None from
+    source, and the dialog then says the licences are included only in release builds. The
+    request is sent when the dialog opens and its answer kept; a failed load (an error, or an
+    answer of another kind, shown as an internal error) shows its error in the dialog with
+    Details, and the next opening asks again.
   - Start-up steps: `get_settings` and `get_app_info` (slot settings), `credentials_status`
     (slot credentials), and with a Runpod key `cloud_setup_status` (slot reconcile, after the
     database steps). The set-up wizard (a dialog over the Accounts and Cloud setup sections:
@@ -2971,9 +2984,23 @@ Few unit tests; mostly regression and flow tests:
   each build leg restores its entry (a miss fails the leg), checks `-buildconf` against the
   platform's configure line and `-L` (LGPL 2.1 or later), runs the desktop tests that use the
   real ffmpeg (with a zlib-compressed Matroska subtitle) with the built programs first on
-  `PATH`, and bundles them. The smoke test's `cli-probe` (also in the `ubuntu:22.04`
+  `PATH`, and bundles them. Each executable bundles its own third-party notices
+  (`transcribe_ui/THIRD_PARTY_NOTICES.txt`), made inside PyInstaller from what its analysis
+  collected (so the CLI's list no Qt): every collected file is attributed to the ffmpeg build,
+  Microsoft's runtime, a library a Qt wheel vendors (ICU, Mesa's llvmpipe), an installed
+  distribution (Qt with the attributions of its own third-party code), the interpreter (with
+  the software CPython incorporates) and the libraries python-build-standalone links in, the
+  app's own files or (Linux) an OS package of the build container (with its source RPM's vault
+  URL), and each entry gives name, version, licence expression and the licence texts;
+  PyInstaller's bootloader licence is always included. The build fails on a file or entry
+  without a licence, on an unknown built-in or extension module of the interpreter, on a binary
+  from outside the build environment, the interpreter, the ffmpeg build and the OS's library
+  folders (a tool folder on `PATH`), and on a GPL or AGPL licence without an LGPL alternative or
+  a listed exemption (`tooling.md` "CI/CD"). The GUI leaves out Qt Network (the app makes no
+  connection through Qt), so no TLS plugin brings in an OpenSSL of the build machine. The Windows executables carry the app icon (Q36);
+  the macOS `.app` (M8.4) takes its `.icns`. The smoke test's `cli-probe` (also in the `ubuntu:22.04`
   container) reviews a WAV with only the OS's folders on `PATH`, so it passes only through the
-  bundled ffprobe, and the bundle checks require both programs. Each leg uploads only its two
+  bundled ffprobe, and the bundle checks require both programs and the notices (and, in the GUI only, the window icon). Each leg uploads only its two
   executables (`actions/upload-artifact` with `archive: false`, 7 days; names
   `transcribe-ui-<os>-<arch>-<variant>[.exe]`). Pull requests build and smoke-test the eight
   files and publish nothing; there is no release job yet (M8.5 adds it: a GitHub Release of
@@ -3034,7 +3061,7 @@ next step are in `docs/ai/status.md`.
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
   platforms, eight files (§8; built and smoke-tested since M8.1, not yet published), each bundling the static LGPL
-  ffmpeg and ffprobe (M8.2 **(built)**); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
+  ffmpeg and ffprobe (M8.2 **(built)**) and its third-party notices, with the app icon (M8.3 **(built)**); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
   the CLI's `--help` with `LANGUAGE=hu` showing an app help text in Hungarian) and bundle the `.mo`
   catalogs (§3.1 "Language of the texts").
 - **M8.6** (planned in `plans/m8.md`, after M8): README for users (with `docs/cli.md`) and screenshots

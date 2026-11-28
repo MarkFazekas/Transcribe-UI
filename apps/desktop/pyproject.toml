@@ -31,8 +31,6 @@ transcribe-ui-gui = "transcribe_ui.gui.main:run"
 [dependency-groups]
 packaging = [
     "pyinstaller>=6.22",
-    # Converts the PNG icon to `.ico` / `.icns` (M8.3).
-    "pillow>=13.0",
 ]
 
 [tool.uv.sources]

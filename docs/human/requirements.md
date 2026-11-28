@@ -32,6 +32,12 @@ Two parts:
     next buttons.
 - During the conversion to audio, another file selection can be started (architect, with the
   Q33 answer).
+- App icon *(Q36, accepted default)*: a simple icon made for the app: a speech bubble with two
+  short text lines (standing for subtitles), in one strong colour on a transparent background,
+  readable from 16×16 pixels up. It is kept in the repository as a source image, so a designed
+  icon can replace it later without other changes. It is shown on the program file in Windows
+  Explorer, in the macOS Dock and Applications folder, and in the window's title bar and task
+  bar on every system.
 
 ## UI app: file selection
 

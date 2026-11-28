@@ -8,3 +8,5 @@ DISTRIBUTION_NAME: Final = "transcribe-ui"
 PACKAGE_NAME: Final = "transcribe_ui"
 # File of the build stamp (`<base>+<YYYYMMDD>.<short sha>`), package data that only a release build has.
 VERSION_STAMP_FILE: Final = "version.txt"
+# File of the third-party licence notices, package data that only a release build has (generated per executable).
+THIRD_PARTY_NOTICES_FILE: Final = "THIRD_PARTY_NOTICES.txt"

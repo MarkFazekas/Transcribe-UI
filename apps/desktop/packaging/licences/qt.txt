@@ -1,0 +1,14 @@
+Qt for Python (PySide6, Shiboken6) and the Qt 6 libraries it contains
+
+Qt is copyright (C) The Qt Company Ltd. and other contributors. This executable uses the Qt
+libraries under the GNU Lesser General Public License version 3 (LGPL-3.0), whose text and
+the GNU General Public License version 3 it refers to follow. Qt itself contains further
+third-party components; they and their licences are listed at
+https://doc.qt.io/qt-6/licenses-used-in-qt.html.
+
+Source code: Qt for Python of the version named above is available from
+https://download.qt.io/official_releases/QtForPython/ and the Qt libraries of the same
+version from https://download.qt.io/official_releases/qt/ (both unmodified). The complete
+source code of this application and the scripts that build this executable are at
+https://github.com/MarkFazekas/Transcribe-UI, so the executable can be rebuilt with a
+modified version of Qt.

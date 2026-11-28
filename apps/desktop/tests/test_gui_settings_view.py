@@ -30,7 +30,8 @@ from transcribe_ui.api.backend import Backend
 from transcribe_ui.cli.constants import EXIT_OK
 from transcribe_ui.credentials.classes import CredentialsStatusResponse
 from transcribe_ui.gui.activity import Activity
-from transcribe_ui.gui.app import application, run_gui
+from transcribe_ui.gui.app import run_gui
+from transcribe_ui.gui.application import application
 from transcribe_ui.gui.constants import PAGE_SETTINGS
 from transcribe_ui.gui.language import StartLanguages, use_language
 from transcribe_ui.gui.settings.accounts import AccountsViewModel

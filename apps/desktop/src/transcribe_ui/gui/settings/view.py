@@ -21,7 +21,7 @@ class SettingsPage(QTabWidget):
         self.preferences = PreferencesView(models.preferences, self)
         self.accounts = AccountsView(models.accounts, self)
         self.cloud_setup = CloudSetupView(models.cloud, show_error, self)
-        self.about = AboutView(models.about, self)
+        self.about = AboutView(models.about, show_error, self)
         for section, widget in zip(
             SECTIONS, (self.preferences, self.accounts, self.cloud_setup, self.about), strict=True
         ):

@@ -101,15 +101,24 @@ def _served_from(archive: Path) -> Path:
     return archive.with_name(f"{archive.name}{SERVED_FROM_SUFFIX}")
 
 
-def _reused(archive: Path, sha256: str) -> Fetched | None:
-    """Return a verified copy already downloaded (with the URL recorded next to it), or None."""
-    if not archive.is_file() or sha256_of(archive) != sha256:
+def _recorded_url(archive: Path, source: Source) -> str | None:
+    """Return the URL recorded next to a downloaded tarball, or None when none of the source's URLs is recorded.
+
+    A record that cannot be read, or that names a URL the pin does not list (a leftover of
+    another pin), says nothing about this copy.
+    """
+    try:
+        served = _served_from(archive).read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
         return None
-    record = _served_from(archive)
-    if not record.is_file():
-        return Fetched(archive, None)
-    served = record.read_text(encoding="utf-8").strip()
-    return Fetched(archive, served or None)
+    return served if served in source.urls else None
+
+
+def _reused(archive: Path, source: Source) -> Fetched | None:
+    """Return a verified copy already downloaded (with the URL recorded next to it), or None."""
+    if not archive.is_file() or sha256_of(archive) != source.sha256:
+        return None
+    return Fetched(archive, _recorded_url(archive, source))
 
 
 def fetch(source: Source, downloads: Path) -> Fetched:
@@ -122,9 +131,11 @@ def fetch(source: Source, downloads: Path) -> Fetched:
     """
     downloads.mkdir(parents=True, exist_ok=True)
     archive = downloads / source.archive
-    reused = _reused(archive, source.sha256)
+    reused = _reused(archive, source)
     if reused is not None:
         return reused
+    # A record of an earlier download must not outlive the tarball it described.
+    _served_from(archive).unlink(missing_ok=True)
     problems: list[str] = []
     for url in source.urls:
         problem = download(url, archive, source.sha256)

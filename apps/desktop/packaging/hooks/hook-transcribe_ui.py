@@ -10,6 +10,8 @@ missing `__init__.py`). `scripts/build_desktop.py` names the variant in
 - Data: the compiled catalogs (`locale/**/*.mo`; not the `.po` and `.pot` sources) and the
   Alembic environment with its `.py` files (`state/migrations`), which Alembic reads from the
   folder at run time (`state/upgrade.py`).
+- GUI variant only: the window icon PNGs (`gui/icons/*.png`, `gui/icon.py`); the CLI variant
+  contains no `transcribe_ui/gui/` data.
 """
 
 import os
@@ -24,6 +26,8 @@ GUI_VARIANT = "gui"
 GUI_PACKAGE = "transcribe_ui.gui"
 # Package data the executables read at run time (paths relative to the package).
 DATA_INCLUDES = ("locale/**/*.mo", "state/migrations")
+# Package data of the GUI variant only (paths relative to the package).
+GUI_DATA_INCLUDES = ("gui/icons/*.png",)
 # Never bundled: bytecode caches of the data folders.
 DATA_EXCLUDES = ("**/__pycache__",)
 
@@ -40,6 +44,6 @@ hiddenimports = collect_submodules("transcribe_ui", filter=_in_bundle)
 datas = collect_data_files(
     "transcribe_ui",
     include_py_files=True,
-    includes=list(DATA_INCLUDES),
+    includes=[*DATA_INCLUDES, *(GUI_DATA_INCLUDES if with_gui else ())],
     excludes=list(DATA_EXCLUDES),
 )

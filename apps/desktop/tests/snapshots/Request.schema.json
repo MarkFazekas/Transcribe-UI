@@ -507,6 +507,22 @@
       "title": "GetSettingsRequest",
       "type": "object"
     },
+    "GetThirdPartyNoticesRequest": {
+      "additionalProperties": false,
+      "description": "Ask for the licence notices of the third-party software a release build bundles.",
+      "properties": {
+        "action": {
+          "const": "get_third_party_notices",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "GetThirdPartyNoticesRequest",
+      "type": "object"
+    },
     "ImportCustomPlanRequest": {
       "additionalProperties": false,
       "description": "Validate an edited custom plan file, then place the batch's finished subtitles as it says.",
@@ -1693,6 +1709,7 @@
       "get_app_info": "#/$defs/GetAppInfoRequest",
       "get_batch": "#/$defs/GetBatchRequest",
       "get_settings": "#/$defs/GetSettingsRequest",
+      "get_third_party_notices": "#/$defs/GetThirdPartyNoticesRequest",
       "import_custom_plan": "#/$defs/ImportCustomPlanRequest",
       "launch_worker": "#/$defs/LaunchWorkerRequest",
       "list_batches": "#/$defs/ListBatchesRequest",
@@ -1720,6 +1737,9 @@
   "oneOf": [
     {
       "$ref": "#/$defs/GetAppInfoRequest"
+    },
+    {
+      "$ref": "#/$defs/GetThirdPartyNoticesRequest"
     },
     {
       "$ref": "#/$defs/ScanTreeRequest"

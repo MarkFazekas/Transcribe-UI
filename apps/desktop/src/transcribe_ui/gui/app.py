@@ -10,12 +10,12 @@ from contextlib import ExitStack, closing
 
 import shiboken6
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
 
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.wiring import build_backend
+from transcribe_ui.gui.application import application
 from transcribe_ui.gui.closing import QuitNow
-from transcribe_ui.gui.constants import QT_APPLICATION_ARGUMENTS, SHUTDOWN_WAIT_MS
+from transcribe_ui.gui.constants import SHUTDOWN_WAIT_MS
 from transcribe_ui.gui.context import build_context
 from transcribe_ui.gui.language import StartLanguages, use_language
 from transcribe_ui.gui.messages import exceptions_to_log, qt_messages_to_log
@@ -36,14 +36,6 @@ type AfterClose = Relaunch | None
 type WindowRun = tuple[int, AfterClose]
 # Called with the window before the event loop starts (tests close it from a timer).
 type WindowHook = Callable[[MainWindow], None]
-
-
-def application() -> QApplication:
-    """Return the running `QApplication`, creating it on the first call."""
-    existing = QApplication.instance()
-    if isinstance(existing, QApplication):
-        return existing
-    return QApplication(list(QT_APPLICATION_ARGUMENTS))
 
 
 def _run_window(

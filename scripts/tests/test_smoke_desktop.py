@@ -7,7 +7,7 @@ import wave
 from pathlib import Path
 
 import pytest
-from smoke_desktop_bundle import REQUIRED_DATA, cli_problems, gui_problems, platform_plugins
+from smoke_desktop_bundle import GUI_DATA, REQUIRED_DATA, cli_problems, gui_problems, platform_plugins
 from smoke_desktop_probe import PROBE_FILE, probed_item, write_probe_wav
 from smoke_desktop_process import isolated_environment, path_without_tools, run_process
 
@@ -29,6 +29,7 @@ LINUX_GUI = frozenset(
         "PySide6/Qt/plugins/platforms/libqoffscreen.so",
         "PySide6/Qt/plugins/platforms/libqxcb.so",
         "PySide6/Qt/plugins/platforms/libqwayland.so",
+        *GUI_DATA,
     ),
 )
 # File mode of an executable.
@@ -55,16 +56,19 @@ def test_a_complete_cli_has_no_problems() -> None:
 
 
 def test_cli_problems_name_missing_and_forbidden() -> None:
-    """A lost revision, a catalog source, Qt in any form and the host's C++ runtime are reported."""
-    entries = (COMMON - {"transcribe_ui/state/migrations/versions/initial_schema.py"}) | {
+    """A lost revision or notices, a catalog source, Qt or GUI data in any form and the host's C++ runtime are reported."""
+    lost = {"transcribe_ui/state/migrations/versions/initial_schema.py", "transcribe_ui/THIRD_PARTY_NOTICES.txt"}
+    entries = (COMMON - lost) | {
         "transcribe_ui/locale/hu/LC_MESSAGES/transcribe_ui.po",
         "PySide6.QtCore",
         "libQt6Core.so.6",
         "libshiboken6.abi3.so.6.12",
         "transcribe_ui.gui.app",
+        "transcribe_ui/gui/icons/transcribe-ui-16.png",
         "libstdc++.so.6",
     }
     assert cli_problems(frozenset(entries), REVISIONS, "linux") == [
+        "missing transcribe_ui/THIRD_PARTY_NOTICES.txt",
         "missing transcribe_ui/state/migrations/versions/initial_schema.py",
         "bundles the catalog source transcribe_ui/locale/hu/LC_MESSAGES/transcribe_ui.po",
         "bundles the host library libstdc++.so.6",
@@ -72,6 +76,7 @@ def test_cli_problems_name_missing_and_forbidden() -> None:
         "bundles libQt6Core.so.6",
         "bundles libshiboken6.abi3.so.6.12",
         "bundles transcribe_ui.gui.app",
+        "bundles transcribe_ui/gui/icons/transcribe-ui-16.png",
     ]
 
 
@@ -96,10 +101,15 @@ def test_probe_wav_and_its_item(tmp_path: Path) -> None:
 
 
 def test_gui_needs_qt_texts_and_platform_plugins() -> None:
-    """The Linux GUI passes with Qt's Hungarian texts and the offscreen, xcb and Wayland plugins."""
-    assert not gui_problems(COMMON | LINUX_GUI, REVISIONS, "linux")
-    lacking = COMMON | {"PySide6/Qt/plugins/platforms/libqoffscreen.so"}
+    """The Linux GUI passes with Qt's Hungarian texts, the offscreen, xcb and Wayland plugins, the icon and no Qt Network."""
+    assert not gui_problems(COMMON | LINUX_GUI | {"PySide6/Qt/lib/libQt6Network.so.6"}, REVISIONS, "linux")
+    network = {"PySide6.QtNetwork", "PySide6/QtNetwork.abi3.so", "PySide6/Qt/plugins/tls/libqopensslbackend.so"}
+    lacking = COMMON | {"PySide6/Qt/plugins/platforms/libqoffscreen.so", GUI_DATA[0]} | network
     assert gui_problems(lacking, REVISIONS, "linux") == [
+        f"missing {GUI_DATA[1]}",
+        "bundles PySide6.QtNetwork",
+        "bundles PySide6/Qt/plugins/tls/libqopensslbackend.so",
+        "bundles PySide6/QtNetwork.abi3.so",
         "missing qtbase_hu.qm",
         "missing the platform plugin qxcb",
         "missing the platform plugin qwayland",
