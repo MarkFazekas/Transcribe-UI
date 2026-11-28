@@ -10,7 +10,9 @@ it holds every result (one written in between is seen at the next refresh, befor
 move on). A result that cannot be read stays pending (logged) until `_done.json` is there; then
 the job is `failed` with the reason `unreadable result`, and a job with no result JSON at all
 `failed` with `missing result` (the worker never comes back to a done batch), so a retry can
-take them. A batch that moves to `transcribed` moves on to `downloaded` when every job already
+take them. A batch with neither `_done.json` nor its manifest in R2 was removed from the cloud by
+another computer (this database's own cleanup moves a batch on first): it is marked
+`removed_from_cloud`, no longer checked, and its history stays (architecture §3.9). A batch that moves to `transcribed` moves on to `downloaded` when every job already
 has a placement outcome (`placement/recording.py`: downloaded in full while it was `ready`); the
 rule is also applied to every `transcribed` batch (a download killed after its last outcome). Each
 batch's lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
@@ -23,12 +25,13 @@ from dataclasses import dataclass
 from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
-from transcribe_contracts.layout import done_key
+from transcribe_contracts.layout import done_key, manifest_key
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import JOB_PENDING
 from transcribe_ui.batches.payloads import JobPayload
 from transcribe_ui.placement.recording import mark_transcribed, settle_transcribed
 from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND
+from transcribe_ui.runs.ready_batches import awaiting_results, followed_batches, mark_removed
 from transcribe_ui.runs.responses import BatchResults
 from transcribe_ui.runs.result_reads import (
     MISSING_RESULT,
@@ -38,7 +41,6 @@ from transcribe_ui.runs.result_reads import (
     read_results,
 )
 from transcribe_ui.state.models import BatchPhase, BatchRow, JobRow
-from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectStore
 
 
@@ -49,14 +51,8 @@ class ReadyCheck:
     batches: tuple[BatchResults, ...] = ()
     # Skipped because another request holds the batch's lock.
     busy: tuple[str, ...] = ()
-
-
-def awaiting_results(state: LocalState) -> bool:
-    """Return whether some `ready` batch still waits for its results (`refresh_status` keeps being sent)."""
-    is_ready = BatchRow.phase == READY_PHASE
-    query = select(BatchRow.batch_id).where(is_ready).limit(1)
-    with state.session() as session:
-        return session.scalar(query) is not None
+    # Whether a followed batch still waits for its results after the check.
+    awaiting: bool = False
 
 
 def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyCheck:
@@ -66,10 +62,9 @@ def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyChe
         StorageError: R2 could not be read (what came before is recorded).
     """
     state = context.ports.state
-    is_ready = BatchRow.phase == READY_PHASE
+    query = select(BatchRow.batch_id).where(*followed_batches())
     with state.session() as session:
-        query = select(BatchRow.batch_id).where(is_ready).order_by(BatchRow.batch_id)
-        ready = list(session.scalars(query))
+        ready = list(session.scalars(query.order_by(BatchRow.batch_id)))
     checked: list[BatchResults] = []
     busy: list[str] = []
     for batch_id in ready:
@@ -79,15 +74,17 @@ def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyChe
             else:
                 busy.append(batch_id)
     settle_transcribed(context)
-    return ReadyCheck(tuple(checked), tuple(busy))
+    return ReadyCheck(tuple(checked), tuple(busy), awaiting=awaiting_results(state))
 
 
 def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> BatchResults:
     """Check one `ready` batch whose lock this thread holds."""
     state = context.ports.state
+    done = store.head(done_key(batch_id)) is not None
+    if not done and store.head(manifest_key(batch_id)) is None:
+        return _removed(context, batch_id)
     with state.session() as session:
         pending = _pending_jobs(session, batch_id)
-    done = store.head(done_key(batch_id)) is not None
     found = read_results(store, batch_id, pending)
     outcomes = _outcomes(found, pending, done=done)
     with state.session() as session:
@@ -98,6 +95,14 @@ def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> 
             phase = mark_transcribed(session, batch_id, context.ports.clock.now())
         statuses = _transcribe_statuses(session, batch_id)
     return _batch_results(batch_id, statuses, phase)
+
+
+def _removed(context: RequestContext, batch_id: str) -> BatchResults:
+    """Mark a `ready` batch another computer removed from the cloud; return it as it stands."""
+    mark_removed(context, batch_id)
+    with context.ports.state.session() as session:
+        statuses = _transcribe_statuses(session, batch_id)
+    return _batch_results(batch_id, statuses, READY_PHASE)
 
 
 # Results read per job id (None: unreadable).

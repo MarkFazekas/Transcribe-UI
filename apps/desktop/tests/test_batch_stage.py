@@ -20,6 +20,7 @@ from support.actions import (
     COPIED_SOURCE,
     COPYING_RETRY,
     PAST_RETRY,
+    REMOVED,
     RETRIED_SOURCE,
     SCENARIOS,
     scenario_batch_id,
@@ -67,7 +68,8 @@ EXPECTED = MappingProxyType(
         COPYING_RETRY: (REVIEW_UPLOAD, (UNFINISHED,)),
         RETRIED_SOURCE: (DONE, (FLAGGED, AUDIO_DELETED)),
         PAST_RETRY: (TRANSCRIPTION, ()),
-        ADOPTED: (DOWNLOAD, (READY, FLAGGED)),
+        ADOPTED: (DOWNLOAD, (READY, FLAGGED, "adopted")),
+        REMOVED: ("done", ("removed_from_cloud",)),
     },
 )
 

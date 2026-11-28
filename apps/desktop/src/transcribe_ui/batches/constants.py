@@ -20,6 +20,8 @@ BATCH_ID_SUFFIX_SEPARATOR: Final = "_"
 
 # Phase of a batch (and its items) while its selection is edited.
 COMPOSING: Final = "composing"
+# Phase of a batch whose manifest is published (its results are awaited).
+READY: Final = "ready"
 # Phase of a batch (and its items) in the review step.
 REVIEWING: Final = "reviewing"
 # Every batch phase (unhiding is possible in any of them).
@@ -34,6 +36,9 @@ REVIEW_PHASES: Final = frozenset(("reviewing", "uploading"))
 UPLOADING_PHASES: Final = frozenset(("uploading",))
 # Batch phases in which a batch counts as finished and can be hidden.
 FINISHED_PHASES: Final = frozenset(("downloaded", "cleaned"))
+# Batch phases from which a batch can be hidden: the finished ones, and `ready` once another
+# computer removed the batch from the cloud (`removed_from_cloud`).
+HIDE_PHASES: Final = FINISHED_PHASES | {READY}
 # Item phases whose choices can still change (probed or waiting for a probe or a choice).
 ITEM_REVIEW_PHASES: Final = frozenset(("reviewing", "reviewed"))
 
@@ -59,6 +64,11 @@ CONDITION_AUDIO_KEPT: Final = "audio_kept"
 CONDITION_NO_COPYING_RETRY: Final = "no_copying_retry"
 # Guard condition of an allowed action: the batch was composed here, not adopted from another computer.
 CONDITION_NOT_ADOPTED: Final = "not_adopted"
+# Guard condition of an allowed action: the batch's cloud data was not removed by another computer.
+CONDITION_IN_CLOUD: Final = "in_cloud"
+# Guard condition of an allowed action: the batch is finished (`downloaded`, `cleaned`, or removed
+# from the cloud by another computer).
+CONDITION_FINISHED: Final = "finished"
 # No-op condition: the review has not started yet (`start_review` in `reviewing` changes nothing).
 CONDITION_REVIEW_NOT_STARTED: Final = "review_not_started"
 # No-op condition: an item is in review (`review_batch`, `resolve_review` have nothing to do otherwise).
@@ -98,10 +108,19 @@ ACTION_RULES: Final[Mapping[str, ActionRule]] = MappingProxyType(
         ),
         "cleanup_audio": (
             AUDIO_PHASES,
-            (CONDITION_NOT_ADOPTED, CONDITION_NO_COPYING_RETRY, CONDITION_RESULTS_IN, CONDITION_AUDIO_LEFT),
+            (
+                CONDITION_NOT_ADOPTED,
+                CONDITION_IN_CLOUD,
+                CONDITION_NO_COPYING_RETRY,
+                CONDITION_RESULTS_IN,
+                CONDITION_AUDIO_LEFT,
+            ),
         ),
-        "cleanup_everything": (EVERYTHING_PHASES, (CONDITION_NO_COPYING_RETRY, CONDITION_CLOUD_DATA_LEFT)),
-        "hide_batch": (FINISHED_PHASES, (CONDITION_VISIBLE,)),
+        "cleanup_everything": (
+            EVERYTHING_PHASES,
+            (CONDITION_IN_CLOUD, CONDITION_NO_COPYING_RETRY, CONDITION_CLOUD_DATA_LEFT),
+        ),
+        "hide_batch": (HIDE_PHASES, (CONDITION_FINISHED, CONDITION_VISIBLE)),
         "show_batch": (ALL_PHASES, (CONDITION_HIDDEN,)),
     },
 )
@@ -134,6 +153,13 @@ RESULT_PHASES: Final = frozenset(("ready", "transcribed"))
 LABEL_CLEANUP_PENDING: Final[BatchLabel] = "cleanup_pending"
 # Label: the upload started and is not finished; `run_upload` resumes it.
 LABEL_UPLOAD_UNFINISHED: Final[BatchLabel] = "upload_unfinished"
+# Label: the upload is complete, but the current run does not list the batch: it waits for the next
+# start of transcription (requirements Q27, the run scope).
+LABEL_WAITS_FOR_CURRENT_RUN: Final[BatchLabel] = "waits_for_current_run"
+# Label: another computer deleted the batch's manifest and results from the cloud (architecture §3.9).
+LABEL_REMOVED_FROM_CLOUD: Final[BatchLabel] = "removed_from_cloud"
+# Label: another computer's batch, added here to download its subtitles (`adopt_cloud_batch`).
+LABEL_ADOPTED: Final[BatchLabel] = "adopted"
 # Label: subtitles can be downloaded that no download placed yet (while `ready` or `transcribed`).
 LABEL_SUBTITLES_READY: Final[BatchLabel] = "subtitles_ready"
 # Label: a transcription failed or found no speech (a retry can take it).
@@ -242,3 +268,7 @@ SOURCE_CHANGING_MESSAGE: Final = "The file changed while it was probed; review t
 PROBE_ATTEMPTS: Final = 2
 # Message of `source_missing`.
 SOURCE_MISSING_MESSAGE: Final = "The file is gone or cannot be read; restore it, or exclude it from the batch."
+# Key of a run payload listing the batches the run covers (its lease lists them).
+COVERED_BATCHES_KEY: Final = "covered_batch_ids"
+# Stage of a batch another computer removed from the cloud: nothing more happens to it here.
+STAGE_WHEN_REMOVED: Final[BatchStage] = "done"

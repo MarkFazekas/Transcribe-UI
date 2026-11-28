@@ -25,6 +25,7 @@ from support.actions import (
     COPYING_RETRY,
     LANGUAGE,
     PAST_RETRY,
+    REMOVED,
     RETRIED_SOURCE,
     SCENARIOS,
     retry_job,
@@ -53,6 +54,7 @@ GUARD_CODES = frozenset(
         "results_pending",
         "retry_copying",
         "adopted_batch",
+        "batch_removed_from_cloud",
     ),
 )
 # Every action a summary can list.
@@ -122,6 +124,7 @@ EXPECTED = MappingProxyType(
         RETRIED_SOURCE: (*DOWNLOADS, CLEAN_ALL, HIDE),
         PAST_RETRY: (*DOWNLOADS, CLEAN_ALL),
         ADOPTED: (*DOWNLOADS, CLEAN_ALL),
+        REMOVED: (HIDE,),
     },
 )
 # Unlisted actions whose guard lets them through although they would change nothing: showing a
@@ -151,6 +154,7 @@ NO_OPS = MappingProxyType(
         RETRIED_SOURCE: (RETRY, CLEAN_AUDIO, SHOW),
         PAST_RETRY: SHOWN,
         ADOPTED: SHOWN,
+        REMOVED: (*DOWNLOADS, SHOW),
     },
 )
 # The request action of an allowed action that is split by scope or direction.

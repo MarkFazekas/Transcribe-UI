@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from transcribe_ui.batches import constants as rules
 from transcribe_ui.batches.payloads import CleanupScope
 from transcribe_ui.batches.responses import BatchAction, BatchLabel, BatchStage
+from transcribe_ui.batches.run_scope import RunScope
 from transcribe_ui.cleanup.constants import CLEANED, FLAGGED_STATUSES, RETRY_SOURCE_PATH
 from transcribe_ui.placement.constants import RECORDED_OUTCOMES
 from transcribe_ui.state.models import BatchRow, ItemRow, PlacementRow
@@ -119,6 +120,10 @@ class BatchFacts:
     job_counts: JobCounts
     # A retry batch of this batch is `uploading` with an item not copied yet.
     copying_retry: bool
+    # Another computer deleted the batch's manifest and results from the cloud.
+    removed_from_cloud: bool = False
+    # A live run is known that does not list the batch (`batches/run_scope.py`).
+    outside_current_run: bool = False
 
 
 def flagged_job(kind: str, status: str) -> bool:
@@ -146,8 +151,15 @@ def stored_adopted(row: BatchRow) -> bool:
     return isinstance(payload, dict) and payload.get("adopted") is not None
 
 
-def batch_facts(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], *, copying: bool) -> BatchFacts:
-    """Return the facts of a batch from its row, its item counts and its jobs."""
+def batch_facts(
+    row: BatchRow,
+    item_counts: ItemCounts,
+    jobs: Sequence[JobKey],
+    *,
+    copying: bool,
+    scope: RunScope,
+) -> BatchFacts:
+    """Return the facts of a batch from its row, its item counts, its jobs and the known run scope."""
     return BatchFacts(
         phase=row.phase,
         audio_deleted=row.audio_deleted,
@@ -157,6 +169,8 @@ def batch_facts(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], 
         item_counts=item_counts,
         job_counts=JobCounts.of_jobs(jobs),
         copying_retry=copying,
+        removed_from_cloud=row.removed_from_cloud,
+        outside_current_run=scope.waits(row.batch_id),
     )
 
 
@@ -173,20 +187,26 @@ def allowed_actions(facts: BatchFacts) -> tuple[BatchAction, ...]:
 
 
 def batch_stage(facts: BatchFacts) -> BatchStage:
-    """Return the step of the guided flow the batch is at, by its phase."""
+    """Return the step of the guided flow the batch is at, by its phase (a batch removed from the cloud is done)."""
+    if facts.removed_from_cloud:
+        return rules.STAGE_WHEN_REMOVED
     return rules.PHASE_STAGES[facts.phase]
 
 
 def batch_labels(facts: BatchFacts) -> tuple[BatchLabel, ...]:
     """Return the labels that apply to the batch, in the order to show them."""
     jobs = facts.job_counts
-    results_in = facts.phase in rules.RESULT_PHASES
+    removed = facts.removed_from_cloud
+    results_in = facts.phase in rules.RESULT_PHASES and not removed
     applies: dict[BatchLabel, bool] = {
         rules.LABEL_CLEANUP_PENDING: facts.cleanup_pending is not None,
         rules.LABEL_UPLOAD_UNFINISHED: facts.phase == UPLOADING_BATCH,
+        rules.LABEL_WAITS_FOR_CURRENT_RUN: facts.phase == rules.READY and facts.outside_current_run and not removed,
+        rules.LABEL_REMOVED_FROM_CLOUD: removed,
         rules.LABEL_SUBTITLES_READY: results_in and jobs.subtitles > 0,
         rules.LABEL_FLAGGED_JOBS: jobs.flagged > 0,
         rules.LABEL_AUDIO_DELETED: facts.audio_deleted and facts.phase != CLEANED,
+        rules.LABEL_ADOPTED: facts.adopted,
         rules.LABEL_HIDDEN: facts.hidden,
     }
     return tuple(label for label, holds in applies.items() if holds)
@@ -198,6 +218,7 @@ def _holds(condition: str, facts: BatchFacts) -> bool:
     jobs = facts.job_counts
     pending = facts.cleanup_pending
     cleaned = facts.phase == CLEANED
+    gone = cleaned or facts.removed_from_cloud
     checks = {
         rules.CONDITION_SEVERAL_ITEMS: counted.total > 1,
         rules.CONDITION_REVIEW_COMPLETE: facts.phase != REVIEWED_BATCH or counted.not_reviewed == 0,
@@ -207,12 +228,14 @@ def _holds(condition: str, facts: BatchFacts) -> bool:
         rules.CONDITION_NO_COPYING_RETRY: not facts.copying_retry,
         rules.CONDITION_REVIEW_NOT_STARTED: facts.phase == rules.COMPOSING,
         rules.CONDITION_NOT_ADOPTED: not facts.adopted,
+        rules.CONDITION_IN_CLOUD: not facts.removed_from_cloud,
+        rules.CONDITION_FINISHED: facts.phase in rules.FINISHED_PHASES or facts.removed_from_cloud,
         rules.CONDITION_ITEMS_IN_REVIEW: counted.in_review > 0,
         rules.CONDITION_VISIBLE: not facts.hidden,
         rules.CONDITION_HIDDEN: facts.hidden,
         rules.CONDITION_AUDIO_LEFT: not facts.audio_deleted or pending == "audio",
         rules.CONDITION_CLOUD_DATA_LEFT: not cleaned or pending == "everything",
-        rules.CONDITION_SUBTITLES_LEFT: not cleaned or jobs.extract > 0,
+        rules.CONDITION_SUBTITLES_LEFT: not gone or jobs.extract > 0,
     }
     return checks[condition]
 

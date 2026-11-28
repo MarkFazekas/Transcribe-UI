@@ -129,7 +129,7 @@ def test_rereview_sends_one_item_back(batch_leg: Leg, batch_store: R2ObjectStore
         return_item_to_review(context_of(batch_leg), FIRST_BATCH_ID, ids[FILM])
     row = batch_row(batch_leg)
     assert _listed(batch_store) == [key for key in keys if ids[PODCAST] in key]
-    assert (row.phase, row.manifest_held, item_phase(batch_leg, ids[FILM])) == ("uploading", False, "reviewing")
+    assert (row.phase, item_phase(batch_leg, ids[FILM])) == ("uploading", "reviewing")
 
 
 def test_review_and_resolve_serve_the_returned_item(batch_leg: Leg, batch_store: R2ObjectStore) -> None:
@@ -153,7 +153,7 @@ def _open_uploads(prefix: str) -> list[str]:
 
 
 def test_exclusion_deletes_the_audio_of_the_item(batch_leg: Leg, batch_store: R2ObjectStore) -> None:
-    """Excluding an item deletes its audio objects (recorded or not), aborts its open uploads, clears `manifest_held`."""
+    """Excluding an item deletes its audio objects (recorded or not) and aborts its open uploads."""
     ids, keys = _seeded(batch_leg, batch_store)
     film_prefix = audio_prefix(FIRST_BATCH_ID, ids[FILM])
     unrecorded = f"{film_prefix}{UNRECORDED_SUFFIX}"
@@ -164,7 +164,7 @@ def test_exclusion_deletes_the_audio_of_the_item(batch_leg: Leg, batch_store: R2
     row = batch_row(batch_leg)
     film_keys = [unrecorded, *(key for key in keys if ids[FILM] in key)]
     assert (deleted, _listed(batch_store)) == (len(film_keys), [key for key in keys if ids[PODCAST] in key])
-    assert (row.phase, row.manifest_held, list(ids_of(batch_leg))) == ("uploading", False, [PODCAST])
+    assert (row.phase, list(ids_of(batch_leg))) == ("uploading", [PODCAST])
     assert (len(opened), _open_uploads(film_prefix)) == (1, [])
 
 

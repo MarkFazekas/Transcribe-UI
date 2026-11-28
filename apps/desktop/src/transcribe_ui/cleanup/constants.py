@@ -57,5 +57,7 @@ REASON_NOT_FLAGGED: Final = "not_flagged"
 ERROR_RETRY_COPYING: Final = "retry_copying"
 # Error code: the batch has jobs without a result; deleting the audio would fail them.
 ERROR_RESULTS_PENDING: Final = "results_pending"
+# Error code: another computer removed the batch from the cloud; nothing of it is left there to delete.
+ERROR_REMOVED_FROM_CLOUD: Final = "batch_removed_from_cloud"
 # Error code: the manifest of a batch this database does not know cannot be read, so nothing is deleted.
 ERROR_MANIFEST_UNREADABLE: Final = "manifest_unreadable"

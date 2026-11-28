@@ -80,8 +80,9 @@ class BatchRow(Base):
 
     batch_id: Mapped[str] = mapped_column(String(BATCH_ID_LENGTH), primary_key=True)
     phase: Mapped[str] = mapped_column(String(STATUS_LENGTH), index=True)
-    # Upload complete, manifest kept back while a run is active (plan m5 §1, requirements "Runpod control").
-    manifest_held: Mapped[bool] = mapped_column(default=False)
+    # A `ready` batch whose manifest and `_done.json` another computer deleted from the cloud
+    # (architecture §3.9): no longer followed, its history kept.
+    removed_from_cloud: Mapped[bool] = mapped_column(default=False)
     # The audio objects were cleaned up; results stay downloadable, retry is refused.
     audio_deleted: Mapped[bool] = mapped_column(default=False)
     # A leftover manifest of this batch still to be withdrawn from R2 (`PendingWithdrawal`), or None.

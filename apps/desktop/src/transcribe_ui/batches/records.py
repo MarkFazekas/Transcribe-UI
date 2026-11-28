@@ -26,6 +26,7 @@ from transcribe_ui.batches.choices import choice_problem
 from transcribe_ui.batches.constants import ITEM_REVIEW_PHASES
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, ItemPhase, JobKind, JobPayload, StoredComposition
 from transcribe_ui.batches.responses import BatchDetail, BatchItem, BatchSelection, BatchSummary, JobView
+from transcribe_ui.batches.run_scope import RunScope, run_scope
 from transcribe_ui.state.models import (
     AudioObjectRow,
     BatchPhase,
@@ -174,15 +175,23 @@ def batch_item(member: StoredItem) -> BatchItem:
     )
 
 
-def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], *, copying: bool) -> BatchSummary:
+def batch_summary(
+    row: BatchRow,
+    item_counts: ItemCounts,
+    jobs: Sequence[JobKey],
+    *,
+    copying: bool,
+    scope: RunScope,
+) -> BatchSummary:
     """Return a batch as the batch list shows it.
 
     From its item counts, its jobs' keys (language, kind, status, and whether a download recorded
     the job's placement outcome: `placed`, which `subtitles_ready` reads) and whether a retry
-    batch still copies its audio (`actions.copying_sources`).
+    batch still copies its audio (`actions.copying_sources`), and the known run scope
+    (`batches/run_scope.py`, for `waits_for_current_run`).
     """
     languages = sorted({job.language for job in jobs})
-    facts = batch_facts(row, item_counts, jobs, copying=copying)
+    facts = batch_facts(row, item_counts, jobs, copying=copying, scope=scope)
     return BatchSummary(
         batch_id=row.batch_id,
         phase=cast("BatchPhase", row.phase),
@@ -213,7 +222,7 @@ def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem]) -
     jobs = [JobKey.of_row(job_row, placed) for job_row in stored]
     item_counts = ItemCounts.of_phases([member.phase for member in members])
     copying = row.batch_id in copying_sources(session)
-    return batch_summary(row, item_counts, jobs, copying=copying)
+    return batch_summary(row, item_counts, jobs, copying=copying, scope=run_scope(session))
 
 
 def batch_detail(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchDetail:

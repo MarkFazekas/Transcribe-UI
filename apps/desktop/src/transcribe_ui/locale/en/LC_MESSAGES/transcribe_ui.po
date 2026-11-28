@@ -193,6 +193,10 @@ msgid "Another computer"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
+msgid "Another computer has already deleted this job from the cloud."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
 msgid "Another task is working on the cloud runs; try again to continue."
 msgstr ""
 
@@ -1292,6 +1296,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/review/view.py
 msgid "Remove ticked files from the job"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Removed from the cloud by another computer"
 msgstr ""
 
 #: src/transcribe_ui/gui/review/display.py
@@ -2514,6 +2522,14 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Uploaded"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Uploaded from another computer"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Uploaded; waits for the current cloud run"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py src/transcribe_ui/i18n/state_texts.py

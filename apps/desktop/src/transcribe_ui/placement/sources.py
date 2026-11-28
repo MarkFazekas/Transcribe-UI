@@ -83,7 +83,8 @@ def load_source(context: RequestContext, batch_id: str) -> DownloadSource:
         extracted = frozenset(session.scalars(stored.where(of_batch)))
         summary = summary_of(session, row, members)
         payload = BatchPayload.model_validate(row.payload)
-        cleaned = row.phase == CLEANED_PHASE
+        # Nothing of a cleaned batch, or one another computer removed, is left in the cloud.
+        cleaned = row.phase == CLEANED_PHASE or row.removed_from_cloud
     jobs = _download_jobs(members, extracted, cleaned=cleaned)
     return DownloadSource(
         batch_id=batch_id,

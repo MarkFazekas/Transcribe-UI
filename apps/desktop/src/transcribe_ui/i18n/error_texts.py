@@ -194,6 +194,7 @@ def _cloud_errors() -> CodeTable:
             "not added.",
         ),
         "adopted_batch": tr("This is not possible for a job uploaded from another computer."),
+        "batch_removed_from_cloud": tr("Another computer has already deleted this job from the cloud."),
     }
 
 

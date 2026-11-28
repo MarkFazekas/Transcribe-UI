@@ -1,0 +1,81 @@
+"""The labels of several installations on one bucket (architecture §3.9): `waits_for_current_run`, `removed_from_cloud`.
+
+A `ready` batch that no live run lists waits for the current run: known from the local open run,
+or from another computer's lease that the last refresh read. A `ready` batch whose manifest and
+`_done.json` another computer deleted is marked removed from the cloud, no longer polled, and kept
+in the history.
+"""
+
+from support.batches import FIRST_BATCH_ID, SECOND_BATCH_ID
+from support.cleanup import confirmed
+from support.cleanup import send as send_document
+from support.launch import launch, ok_as, pods_of, send, set_up_cloud
+from support.launch_seed import seed_audio_batch
+from support.monitor import end_pod, write_status
+from support.runs import RunsWorld, seed_ready
+from transcribe_ui.batches.responses import BatchSummary, ListBatchesResponse
+from transcribe_ui.runs.responses import RefreshStatusResponse
+
+# Item of the second batch.
+SECOND_ITEM = "01JDZZZZZZZZZZZZZZZZZZZZ31"
+# The label of a batch outside the current run.
+WAITS = "waits_for_current_run"
+
+
+def _summaries(world: RunsWorld) -> dict[str, BatchSummary]:
+    listed = ok_as(send(world, "list_batches", include_hidden=True), ListBatchesResponse)
+    return {summary.batch_id: summary for summary in listed.batches}
+
+
+def _waiting(world: RunsWorld) -> list[str]:
+    return sorted(batch_id for batch_id, summary in _summaries(world).items() if WAITS in summary.labels)
+
+
+def _refresh(world: RunsWorld) -> RefreshStatusResponse:
+    return ok_as(send(world, "refresh_status"), RefreshStatusResponse)
+
+
+def _second_published(world: RunsWorld) -> None:
+    seed_audio_batch(world, SECOND_BATCH_ID, SECOND_ITEM)
+    world.step(SECOND_BATCH_ID)
+
+
+def test_batch_published_during_a_local_run_waits(runs_world: RunsWorld) -> None:
+    """The local open run lists only its scope; the batch published since waits until the run ends."""
+    seed_ready(runs_world)
+    set_up_cloud(runs_world)
+    run_id = launch(runs_world).run.run_id
+    _second_published(runs_world)
+    during = _waiting(runs_world)
+    write_status(runs_world.store, run_id, "finished", runs_world.now())
+    end_pod(runs_world, pods_of(runs_world)[0][0])
+    _refresh(runs_world)
+    assert (during, _waiting(runs_world)) == ([SECOND_BATCH_ID], [])
+
+
+def test_batch_waits_for_another_computers_run(runs_world: RunsWorld, r2_only_world: RunsWorld) -> None:
+    """The R2-only computer learns of the other computer's run from its lease at the next refresh."""
+    seed_ready(runs_world)
+    set_up_cloud(runs_world)
+    launch(runs_world)
+    _second_published(r2_only_world)
+    before = _waiting(r2_only_world)
+    _refresh(r2_only_world)
+    assert (before, _waiting(r2_only_world)) == ([], [SECOND_BATCH_ID])
+
+
+def test_batch_removed_by_another_computer(runs_world: RunsWorld, r2_only_world: RunsWorld) -> None:
+    """Deleted from the cloud by another computer: marked, not polled any more, hidden on request, kept."""
+    seed_ready(runs_world)
+    assert send_document(r2_only_world, confirmed("everything")).status == "ok"
+    marked = _refresh(runs_world)
+    summary = _summaries(runs_world)[FIRST_BATCH_ID]
+    assert (marked.awaiting_results, summary.stage, summary.labels, summary.actions) == (
+        False,
+        "done",
+        ("removed_from_cloud",),
+        ("hide_batch",),
+    )
+    assert _refresh(runs_world).batches == ()
+    assert send(runs_world, "set_batch_hidden", batch_id=FIRST_BATCH_ID, hidden=True).status == "ok"
+    assert _summaries(runs_world)[FIRST_BATCH_ID].hidden

@@ -37,7 +37,7 @@ from transcribe_ui.runs.records import note_key_missing, open_runs
 from transcribe_ui.runs.refreshing import Refreshed, refresh_open_runs
 from transcribe_ui.runs.remaining import record_progress
 from transcribe_ui.runs.responses import RefreshStatusResponse
-from transcribe_ui.runs.results import awaiting_results, check_ready_batches
+from transcribe_ui.runs.results import check_ready_batches
 from transcribe_ui.runs.settling import Listed
 
 
@@ -67,7 +67,7 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         runs=runs,
         batches=checked.batches,
         busy=checked.busy,
-        awaiting_results=awaiting_results(state),
+        awaiting_results=checked.awaiting,
     )
 
 

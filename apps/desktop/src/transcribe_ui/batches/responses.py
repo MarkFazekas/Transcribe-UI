@@ -42,9 +42,12 @@ type BatchStage = Literal["files", "review_upload", "transcription", "download",
 type BatchLabel = Literal[
     "cleanup_pending",
     "upload_unfinished",
+    "waits_for_current_run",
+    "removed_from_cloud",
     "subtitles_ready",
     "flagged_jobs",
     "audio_deleted",
+    "adopted",
     "hidden",
 ]
 

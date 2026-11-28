@@ -19,7 +19,7 @@ from transcribe_ui.batches.payloads import BatchPayload
 from transcribe_ui.batches.phases import require_not_adopted, require_phase_name
 from transcribe_ui.cleanup.classes import CleanupCloudRequest
 from transcribe_ui.cleanup.constants import AUDIO_PHASES, EVERYTHING_PHASES
-from transcribe_ui.cleanup.errors import ResultsPendingError, RetryCopyingError
+from transcribe_ui.cleanup.errors import RemovedFromCloudError, ResultsPendingError, RetryCopyingError
 from transcribe_ui.cleanup.origins import copying_retry
 from transcribe_ui.placement.constants import RECORDED_OUTCOMES
 from transcribe_ui.runs.constants import JOB_FAILED
@@ -43,6 +43,8 @@ class CleanupTarget:
     # The installation that uploaded an adopted batch (its manifest's `uploaded_by`); None for a
     # batch uploaded here, or an adopted one whose manifest did not say.
     uploaded_by: str | None = None
+    # Another computer removed the batch from the cloud (`removed_from_cloud`).
+    removed: bool = False
 
     def uploaded_by_installation(self, installation_id: str) -> bool:
         """Return whether this installation uploaded the batch: not adopted, or adopted with its id (Q35)."""
@@ -66,6 +68,7 @@ def load_target(session: Session, batch_id: str) -> CleanupTarget | None:
         copying_retry=copying_retry(session, batch_id),
         adopted=adopted is not None,
         uploaded_by=None if adopted is None else adopted.uploaded_by,
+        removed=row.removed_from_cloud,
     )
 
 
@@ -84,12 +87,15 @@ def check_target(request: CleanupCloudRequest, target: CleanupTarget) -> None:
 
     Raises:
         WrongPhaseError: The scope is not possible in the batch's phase.
+        RemovedFromCloudError: Another computer removed the batch from the cloud.
         AdoptedBatchError: `audio` on another computer's job.
         RetryCopyingError: A retry batch of the batch still copies its audio.
         ResultsPendingError: `audio` while a job has no result.
     """
     allowed = AUDIO_PHASES if request.scope == "audio" else EVERYTHING_PHASES
     require_phase_name(target.batch_id, target.phase, allowed)
+    if target.removed:
+        raise RemovedFromCloudError(target.batch_id)
     if request.scope == "audio":
         require_not_adopted(target.batch_id, adopted=target.adopted)
     if target.copying_retry is not None:

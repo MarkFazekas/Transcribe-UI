@@ -40,9 +40,12 @@ def batch_label_texts() -> CodeTable:
     return {
         "cleanup_pending": tr("Cloud cleanup interrupted; repeat it"),
         "upload_unfinished": tr("Upload not finished"),
+        "waits_for_current_run": tr("Uploaded; waits for the current cloud run"),
+        "removed_from_cloud": tr("Removed from the cloud by another computer"),
         "subtitles_ready": tr("Subtitles ready to download"),
         "flagged_jobs": tr("Some transcriptions failed or found no speech"),
         "audio_deleted": tr("Audio deleted from the cloud"),
+        "adopted": tr("Uploaded from another computer"),
         "hidden": tr("Hidden"),
     }
 

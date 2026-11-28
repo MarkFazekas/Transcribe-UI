@@ -1,4 +1,4 @@
-"""The revisions after the initial one, over a database of the initial revision (plan m6 M6.1, M6.14, M6.12).
+"""The revisions after the initial one, over a database of the initial revision (plan m6 M6.1, M6.14, M6.12, M6.13).
 
 A database written at the initial revision holds batch, run and job payloads of the old shape;
 opening it upgrades it, adding the new keys, and the app reads it: the batch has no composition,
@@ -28,7 +28,7 @@ from transcribe_ui.state.database import sqlite_engine
 # The initial revision, which the old database carries.
 INITIAL_REVISION = "5d0c3b1e7a42"
 # The newest revision.
-NEW_REVISION = "609bed4e68d4"
+NEW_REVISION = "8e5b2d7c1f40"
 BATCH_ID = "batch_20261127_120000"
 RUN_ID = "01JDQ0000000000000000000R1"
 # A fingerprint as stored (a SHA-256 in hex).
@@ -171,7 +171,7 @@ def test_old_payloads_get_the_new_keys(upgraded: tuple[Backend, Path]) -> None:
     assert _stored(database_file, "SELECT version_num FROM alembic_version") == NEW_REVISION
     batch = json.loads(_stored(database_file, "SELECT payload FROM batches"))
     run = json.loads(_stored(database_file, "SELECT payload FROM runs"))
-    assert batch == {**OLD_BATCH_PAYLOAD, "composition": None}
+    assert batch == {**OLD_BATCH_PAYLOAD, "composition": None, "adopted": None}
     added = {"worker": None, "stop_error": None, "refreshed_at": None, "cancel_acknowledged_at": None}
     assert run == {**OLD_RUN_PAYLOAD, **added, **PROGRESS_KEYS}
 

@@ -140,6 +140,9 @@
     },
     "adopted_batch": {
       "batch_id": "batch_20261127_130000"
+    },
+    "batch_removed_from_cloud": {
+      "batch_id": "batch_20261127_130000"
     }
   },
   "confirmation": {

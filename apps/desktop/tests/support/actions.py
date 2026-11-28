@@ -25,6 +25,8 @@ RETRIED_SOURCE = "retried_source"
 PAST_RETRY = "past_retry"
 # The scenario of another computer's batch (adopted), with a failed job.
 ADOPTED = "adopted_flagged"
+# The scenario of a `ready` batch another computer removed from the cloud.
+REMOVED = "removed_ready"
 # The language of every seeded job.
 LANGUAGE = "en"
 # Item phases and job statuses of the scenarios.
@@ -56,6 +58,8 @@ class Scenario:
     extracting: tuple[int, ...] = ()
     # Another computer's batch (`adopt_cloud_batch`).
     adopted: bool = False
+    # Another computer removed the batch from the cloud (`removed_from_cloud`).
+    removed: bool = False
 
 
 # The seeded batches by name, in seeding order (a retry batch after its source).
@@ -89,6 +93,7 @@ SCENARIOS = MappingProxyType(
         RETRIED_SOURCE: Scenario("downloaded", (UPLOADED_OK, UPLOADED_FAILED), audio_deleted=True),
         PAST_RETRY: Scenario("ready", (UPLOADED_PENDING,), retry_of=RETRIED_SOURCE),
         ADOPTED: Scenario("transcribed", (UPLOADED_OK, UPLOADED_FAILED), adopted=True),
+        REMOVED: Scenario("ready", (UPLOADED_OK, UPLOADED_PENDING), removed=True),
     },
 )
 
@@ -145,6 +150,7 @@ def _seed_batch(state: LocalState, name: str, scenario: Scenario, root: Path) ->
         phase=scenario.phase,
         audio_deleted=scenario.audio_deleted,
         hidden=scenario.hidden,
+        removed_from_cloud=scenario.removed,
         created_at=FIXED_NOW,
         updated_at=FIXED_NOW,
         payload=payload.model_dump(mode="json"),
