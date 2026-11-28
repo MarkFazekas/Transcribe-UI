@@ -83,6 +83,8 @@ class FilterModel:
         # Counts the changes of what is dimmed, so the tree repaints only then.
         self.version = 0
         self._generation = 0
+        # The filters `matches` belongs to (a newer match preview may be on its way).
+        self._matched_for: FilterInput | None = None
 
     def current(self) -> SelectionFilter | None:
         """Return the active filters as the request's filter, or None while they cannot be used."""
@@ -107,8 +109,14 @@ class FilterModel:
             self._show(None)
             return
         operation = SelectionOperation(operation="include", path=scanned.index.tree.root, filters=chosen)
-        matched = partial(self._matched, self._generation)
+        matched = partial(self._matched, self._generation, self.picked)
         self._channel.send(MATCH_KEY, scanned.preview_request((operation,)), matched)
+
+    def current_matches(self) -> Marks | None:
+        """Return what the active filters match, or None without an active filter or while their answer is on its way."""
+        if self._matched_for != self.picked or not self.picked.active():
+            return None
+        return self.matches
 
     def matching(self, path: str, *, folder: bool) -> bool:
         """Return whether a file matches the active filters, or a folder has a matching file below it."""
@@ -117,10 +125,11 @@ class FilterModel:
             return True
         return path in matches.folders if folder else path in matches.files
 
-    def _matched(self, generation: int, response: Response) -> None:
+    def _matched(self, generation: int, picked: FilterInput, response: Response) -> None:
         if generation != self._generation:
             return
         if isinstance(response, PreviewSelectionResponse):
+            self._matched_for = picked
             self._show(Marks.of(response))
         elif isinstance(response, ErrorResponse):
             self.error = error_view(response)

@@ -45,8 +45,9 @@ class NewJobModel(ViewModel):
         """
         scanned = self.scan.scanned
         editing = self.saver.editing is not None
-        self.saver.leave()
-        if editing or scanned is None or scanned.index.tree.root != root:
+        reset = editing or scanned is None or scanned.index.tree.root != root
+        self.saver.leave(selection_dropped=reset)
+        if reset:
             self.ticks.start(None, ())
             self.targets.reset(self.targets.languages)
         self.scan.start(self.settings.spec(root))
@@ -95,6 +96,7 @@ class NewJobModel(ViewModel):
         self._loader.load(batch_id)
 
     def _reopen(self, selection: Reopened) -> None:
+        self.saver.leave()
         self.saver.editing = selection.target
         self.ticks.start(None, selection.operations)
         self.targets.reset(selection.languages, selection.own)
@@ -108,9 +110,8 @@ class NewJobModel(ViewModel):
 def _matching_selected(model: NewJobModel, path: str) -> bool | None:
     """Return whether every file below a folder the active filters match is selected (None: unknown)."""
     scanned = model.scan.scanned
-    matches = model.filters.matches
-    active = model.filters.picked.active()
-    if scanned is None or matches is None or not active:
+    matches = model.filters.current_matches()
+    if scanned is None or matches is None:
         return None
     index = scanned.index
     node = index.nodes.get(path)

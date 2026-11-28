@@ -39,6 +39,12 @@ from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.upload.classes import RunUploadRequest
 
 ENGLISH = "en"
+HUNGARIAN = "hu"
+ENGLISH_ONLY = (ENGLISH,)
+# The file the languages panel shows, and the languages it offers.
+CLIP = "/media/clip.mkv"
+CLIP_NAME = "clip.mkv"
+OFFERED = (LanguageChoice(ENGLISH, "English (en)"), LanguageChoice(HUNGARIAN, "Hungarian (hu)"))
 BATCH_ID = "batch_20261127_120000"
 # Uploads that fill the long pool, and one more that waits for a thread.
 UPLOADS = LONG_POOL_THREADS + 1
@@ -158,7 +164,7 @@ def test_the_model_tester_while_the_selection_changes(ports: Ports, tmp_path: Pa
         model.tick(media_path(tmp_path, "Audio"), folder=True)
         model.tick(media_path(tmp_path, "Audio", PODCAST), folder=False)
         model.change_filters(FilterInput(media_kind="video"))
-        model.targets.use_languages((ENGLISH,))
+        model.targets.use_languages(ENGLISH_ONLY)
         marks = (_check(tree, tree.index(0, 0)), _check(tree, audio), tester.model() is tree)
         model.choose_folder(media_path(tmp_path, "Movies"))
     assert marks == (Qt.CheckState.PartiallyChecked, Qt.CheckState.PartiallyChecked, True)
@@ -207,7 +213,7 @@ def _job_of_movies(ports: Ports, root: Path) -> None:
         action="create_batch",
         scan=ScanSpec(root=media_path(root)),
         operations=(operation,),
-        languages=(ENGLISH,),
+        languages=ENGLISH_ONLY,
         confirm_existing_languages=True,
     )
     assert isinstance(Backend(ports).execute(request), CreateBatchResponse)
@@ -283,7 +289,7 @@ def test_a_tick_repaints_only_what_it_changed(large_tree: Path, tmp_path: Path) 
         model.tick(str(large_tree / LARGE_FOLDER), folder=True)
         ticked = list(spans)
         spans.clear()
-        model.targets.use_languages((ENGLISH,))
+        model.targets.use_languages(ENGLISH_ONLY)
         languages = list(spans)
         model.change_filters(FilterInput(media_kind="audio"))
     # The click's row, then the answer: the folder's clips, the folder's row, the root's row.
@@ -293,33 +299,66 @@ def test_a_tick_repaints_only_what_it_changed(large_tree: Path, tmp_path: Path) 
     assert layouts == [True], "turning a filter on may dim any row: one layout change"
 
 
-def test_own_languages_without_job_languages(qtbot: QtBot) -> None:
-    """With no job language ticked, unticking "Same as the job" stays unticked until a language is ticked."""
+@dataclass
+class Panel:
+    """The file languages panel in its holder widget (kept alive with it), and the changes it reported."""
+
+    holder: QWidget
+    widget: FileLanguages
+    received: list[object]
+
+
+def _panel(qtbot: QtBot, job: tuple[str, ...]) -> Panel:
+    """Return the file languages panel (its changes recorded) for a job on `job`."""
     received: list[object] = []
     holder = QWidget()
     qtbot.addWidget(holder)
     panel = FileLanguages(received.append, holder)
-    offered = (LanguageChoice(ENGLISH, "English (en)"),)
-    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    panel.use_job_languages(job)
+    return Panel(holder, panel, received)
+
+
+def _show(panel: FileLanguages, own: tuple[str, ...] | None, job: tuple[str, ...] = ENGLISH_ONLY) -> None:
+    """Repaint the panel for the clip as the page does: the job's languages, then the file."""
+    panel.use_job_languages(job)
+    panel.show_file(CLIP, CLIP_NAME, OFFERED, own)
+
+
+def test_own_languages_without_job_languages(qtbot: QtBot) -> None:
+    """With no job language ticked, unticking "Same as the job" stays unticked until a language is ticked."""
+    shown = _panel(qtbot, ())
+    panel, received = shown.widget, shown.received
+    _show(panel, None, ())
     assert (panel.same.isChecked(), panel.checks.isEnabled()) == (True, False)
     panel.same.setChecked(False)
     # The page repaints from the model, which still has no own languages for the file.
-    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    _show(panel, None, ())
     assert (panel.same.isChecked(), panel.checks.isEnabled(), received) == (False, True, [None])
     panel.checks.boxes[ENGLISH].click()
-    assert received == [None, (ENGLISH,)]
-    panel.show_file("/media/other.mkv", "other.mkv", offered, None)
-    assert panel.same.isChecked()
+    panel.show_file("/media/other.mkv", "other.mkv", OFFERED, None)
+    assert (received, panel.same.isChecked()) == ([None, ENGLISH_ONLY], True)
 
 
 def test_same_as_the_job_returns_with_a_language(qtbot: QtBot) -> None:
     """Choosing own languages with no job language, then giving the job one, shows "Same as the job" again."""
-    holder = QWidget()
-    qtbot.addWidget(holder)
-    panel = FileLanguages(lambda _languages: None, holder)
-    offered = (LanguageChoice(ENGLISH, "English (en)"),)
-    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    shown = _panel(qtbot, ())
+    panel = shown.widget
+    _show(panel, None, ())
     panel.same.setChecked(False)
-    panel.use_job_languages((ENGLISH,))
-    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
-    assert (panel.same.isChecked(), panel.checks.ticked(), panel.checks.isEnabled()) == (True, (ENGLISH,), False)
+    _show(panel, None)
+    assert (panel.same.isChecked(), panel.checks.ticked(), panel.checks.isEnabled()) == (True, ENGLISH_ONLY, False)
+
+
+def test_the_last_own_language_can_go(qtbot: QtBot) -> None:
+    """With the job on English, a file switching to Hungarian may drop English first without snapping back."""
+    shown = _panel(qtbot, ENGLISH_ONLY)
+    panel, received = shown.widget, shown.received
+    _show(panel, None)
+    panel.same.setChecked(False)
+    _show(panel, ENGLISH_ONLY)
+    panel.checks.boxes[ENGLISH].click()
+    # The model drops the empty own languages; the page repaints.
+    _show(panel, None)
+    assert (panel.same.isChecked(), panel.checks.isEnabled(), panel.checks.ticked()) == (False, True, ())
+    panel.checks.boxes[HUNGARIAN].click()
+    assert received == [ENGLISH_ONLY, None, (HUNGARIAN,)]

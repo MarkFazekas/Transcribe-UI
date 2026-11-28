@@ -402,7 +402,7 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     Tick boxes, partial folders and totals come only from the latest answer; until it arrives,
     the clicked row shows what the click asked for, so a quick second click undoes the first.
     Whether a click includes or excludes: a click still waiting for its answer decides by what
-    it asked for; under active filters with their matches known, a folder click looks at the
+    it asked for; under active filters whose own matches have answered, a folder click looks at the
     files below it the filters match (`ScanIndex.files_below`, a contiguous range): `exclude`
     when all of them are selected, else `include`, since the operation only reaches those
     files; otherwise a row with nothing selected is included and any other (ticked or partly)
@@ -434,7 +434,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     the job's stage; "Save selection" sends `edit_batch`; "Start a new job instead",
     `open_new_job` and choosing a folder go back to a new job (on that folder, with an empty
     selection). Leaving the edit (or a new job's folder) drops a load of the job still on its
-    way, and a create or save sent before and answered later only emits `batches_changed`. Scans run on the scan pool and previews on the short
+    way, and a create or save sent before (also its retry from the error dialog) and answered
+    later only emits `batches_changed`; choosing the folder already shown keeps the selection
+    and a create in flight for it. Scans run on the scan pool and previews on the short
     pool, so New job works while uploads fill the long pool.
 - **Writer lock**: the `database` start-up step sends `list_batches` (read-only) to take the
   lock. While another process holds it (`app_busy` from any response), a page that needs the

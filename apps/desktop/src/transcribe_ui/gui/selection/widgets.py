@@ -304,11 +304,11 @@ class FileLanguages(QWidget):
     def use_job_languages(self, job: Languages) -> None:
         """Take the job's languages, which a file without its own is transcribed into.
 
-        Once the job has a language, a file without its own shows "Same as the job" again.
+        When the job gets its first language, a file without its own shows "Same as the job" again.
         """
-        self._job = job
-        if job:
+        if job and not self._job:
             self._choosing = False
+        self._job = job
 
     def show_file(self, path: str | None, name: str, offered: Offered, own: OwnLanguages) -> None:
         """Show a selected file's languages (`own` None: the job's), or hide the panel (`path` None)."""

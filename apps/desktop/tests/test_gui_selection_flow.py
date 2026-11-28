@@ -16,7 +16,9 @@ import pytest
 
 from support.discovery import FILM, FILM_SEQUEL, PODCAST
 from support.selection import (
+    DeferredCall,
     DeferredExecutor,
+    RetryingOutlet,
     SelectionArea,
     media_path,
     media_ports,
@@ -25,6 +27,7 @@ from support.selection import (
 )
 from support.trees import build_tree
 from transcribe_ui.api.backend import Backend
+from transcribe_ui.api.classes import ErrorBody, ErrorResponse
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.gui.selection.display import save_hint, shown_warnings, totals_text
 from transcribe_ui.gui.selection.filters import FilterInput
@@ -37,6 +40,8 @@ PREVIEW = "preview_selection"
 BATCH_ID = "batch_20261127_120000"
 UPDATING = "Updating the selection…"
 NOTHING = "Nothing is selected."
+# The totals of every film of Movies.
+MOVIES_SELECTED = "4 files selected (4 video, 0 audio), 0 B."
 
 
 @pytest.fixture
@@ -218,21 +223,69 @@ def test_a_filtered_click_adds_the_matching_files(area: SelectionArea, tmp_path:
     assert (page.mark(MOVIES, FILM_SEQUEL), page.mark(MOVIES, FILM)) == ("unchecked", "checked")
 
 
+def _create_then_tick_another_folder(executor: DeferredExecutor, model: NewJobModel, root: Path) -> DeferredCall:
+    """Create a job of the podcast, then (before the create answers) scan Movies and tick it; return the create."""
+    model.tick(media_path(root, AUDIO, PODCAST), folder=False)
+    model.targets.use_languages((ENGLISH,))
+    executor.answer_all()
+    model.save()
+    create = executor.pending("create_batch")[0]
+    model.choose_folder(media_path(root, MOVIES))
+    executor.answer_others(create)
+    model.tick(media_path(root, MOVIES), folder=True)
+    executor.answer_others(create)
+    return create
+
+
 def test_a_create_after_another_folder_only_reloads(
     deferred: tuple[DeferredExecutor, NewJobModel],
     area: SelectionArea,
     tmp_path: Path,
 ) -> None:
-    """A job created after the user chose another folder changes the lists, not the new selection."""
+    """A job created after the user chose another folder and ticked there changes the lists, not that selection."""
     executor, model = deferred
-    model.tick(media_path(tmp_path, AUDIO, PODCAST), folder=False)
-    model.targets.use_languages((ENGLISH,))
-    executor.answer_all()
-    model.save()
-    model.choose_folder(media_path(tmp_path, MOVIES))
-    executor.answer_all()
-    model.tick(media_path(tmp_path, MOVIES), folder=True)
-    executor.answer_all()
-    assert "create_batch" in [call.request.action for call in executor.calls]
+    create = _create_then_tick_another_folder(executor, model, tmp_path)
+    executor.answer(create)
     assert area.outlet.emitted == [("batches_changed", ((BATCH_ID,),))]
-    assert len(model.ticks.operations) == 1
+    assert (len(model.ticks.operations), totals_text(model.ticks.counts)) == (1, MOVIES_SELECTED)
+
+
+def test_a_retried_create_keeps_the_new_selection(ports: Ports, tmp_path: Path) -> None:
+    """A create refused as busy and retried after the user ticked another folder keeps that selection."""
+    executor = DeferredExecutor(Backend(ports))
+    outlet = RetryingOutlet()
+    model = NewJobModel(executor, outlet)
+    model.choose_folder(media_path(tmp_path))
+    executor.answer_all()
+    create = _create_then_tick_another_folder(executor, model, tmp_path)
+    busy = ErrorResponse(action="create_batch", error=ErrorBody(code="app_busy", message="busy"))
+    executor.answer_with(create, busy)
+    outlet.retries[-1]()
+    executor.answer_all()
+    assert "create_batch" in [call.request.action for call in executor.calls if call is not create]
+    assert outlet.emitted == [("batches_changed", ((BATCH_ID,),))]
+    assert (len(model.ticks.operations), totals_text(model.ticks.counts)) == (1, MOVIES_SELECTED)
+
+
+def test_a_click_waits_for_the_new_filters_matches(
+    deferred: tuple[DeferredExecutor, NewJobModel],
+    tmp_path: Path,
+) -> None:
+    """Videos ticked; with "Video only" asked again but its matches not answered, the "Audio only" matches do not decide.
+
+    The old matches would say "not every audio file is selected" and include (no change); the
+    tick boxes say the root is partly ticked, so the click excludes the videos.
+    """
+    executor, model = deferred
+    video = FilterInput(media_kind="video")
+    model.change_filters(video)
+    executor.answer_all()
+    model.tick(media_path(tmp_path), folder=True)
+    model.change_filters(FilterInput(media_kind="audio"))
+    executor.answer_all()
+    model.change_filters(video)
+    assert model.filters.current_matches() is None
+    model.tick(media_path(tmp_path), folder=True)
+    executor.answer_all()
+    kinds = [operation.operation for operation in model.ticks.operations]
+    assert (kinds, totals_text(model.ticks.counts)) == (["include", "exclude"], NOTHING)

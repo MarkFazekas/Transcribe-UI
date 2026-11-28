@@ -109,14 +109,15 @@ class SaveCommands:
         # Counts the times the page left what it showed: a save sent before no longer counts.
         self._generation = 0
 
-    def leave(self) -> None:
-        """Leave what the page shows (an edited job, or a new job's selection).
+    def leave(self, *, selection_dropped: bool = True) -> None:
+        """Stop editing a job: a load of it still on its way is dropped.
 
-        A load of the edited job still on its way is dropped, and a save sent before, answered
-        later, no longer changes the page.
+        When the page also drops its selection (`selection_dropped`), a save sent before and
+        answered later no longer changes the page.
         """
         self.editing = None
-        self._generation += 1
+        if selection_dropped:
+            self._generation += 1
         self._on_leave()
 
     def busy(self) -> bool:
@@ -125,7 +126,11 @@ class SaveCommands:
 
     def send(self, request: SaveRequest) -> None:
         """Send the save (refused while one is in flight: a double click)."""
-        answered = partial(self._answered, request, self._generation)
+        self._send(request, self._generation)
+
+    def _send(self, request: SaveRequest, generation: int) -> None:
+        """Send the save for the page as it was at `generation` (a retry keeps the first send's)."""
+        answered = partial(self._answered, request, generation)
         self._channel.send(SAVE_KEY, request, answered)
 
     def _current(self, request: SaveRequest, generation: int) -> bool:
@@ -138,14 +143,15 @@ class SaveCommands:
         current = self._current(request, generation)
         if isinstance(response, NeedsConfirmation):
             if current:
-                confirmed = partial(self._confirmed, request, response)
+                confirmed = partial(self._confirmed, request, response, generation)
                 self._outlet.confirm(confirmation_view(response), confirmed)
         elif isinstance(response, ErrorResponse):
-            self._outlet.show_error(error_view(response), partial(self.send, request))
+            retry = partial(self._send, request, generation)
+            self._outlet.show_error(error_view(response), retry)
         elif isinstance(response, CreateBatchResponse | EditBatchResponse):
             self._saved(response.batch, current=current)
 
-    def _confirmed(self, request: SaveRequest, asked: NeedsConfirmation) -> None:
+    def _confirmed(self, request: SaveRequest, asked: NeedsConfirmation, generation: int) -> None:
         try:
             confirmed = confirmed_request(request, asked)
         except ValidationError:
@@ -153,7 +159,7 @@ class SaveCommands:
             self._outlet.show_error(_internal_error(request), None)
             return
         if isinstance(confirmed, CreateBatchRequest | EditBatchRequest):
-            self.send(confirmed)
+            self._send(confirmed, generation)
 
     def _saved(self, detail: BatchDetail, *, current: bool) -> None:
         """Tell the pages; when the page still shows this job, start a new one and open the job's page."""

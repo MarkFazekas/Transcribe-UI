@@ -18,7 +18,7 @@ from typing import Final
 import pytest
 
 from support.actions import scenario_batch_id, seeded_root
-from support.discovery import EPISODE_ONE, FILM, FILM_SEQUEL, INTERVIEW, PODCAST, build_media_tree
+from support.discovery import EPISODE_ONE, FILM, FILM_SEQUEL, INTERVIEW, PODCAST, build_media_tree, scan_direct
 from support.golden import GOLDEN_DIR, assert_golden
 from support.jobs import scenario_ports
 from support.parity import run_parity
@@ -41,6 +41,7 @@ from transcribe_ui.gui.selection.display import save_hint, size_text, subtitles_
 from transcribe_ui.gui.selection.filters import FilterInput
 from transcribe_ui.gui.selection.marks import Marks
 from transcribe_ui.gui.selection.rows import row_dimmed, row_mark
+from transcribe_ui.gui.selection.tree import ScanIndex
 from transcribe_ui.gui.selection.viewmodel import NewJobModel
 from transcribe_ui.i18n.catalog import activate
 
@@ -66,6 +67,14 @@ TARGETS_COLUMN = 4
 # Sizes in bytes of the size texts.
 SMALL_SIZE = 999
 LARGER_SIZE = 1_234_567
+# A tree with a nested folder that has a sibling after it.
+NESTED_TREE = (
+    "media/Alpha/a.mkv",
+    "media/Series/s.mkv",
+    "media/Series/S01/e1.mkv",
+    "media/Series/S01/Extras/x.webm",
+    "media/Zeta/z.mkv",
+)
 # The Qt-free modules of the New job page.
 QT_FREE_MODULES = (
     "transcribe_ui.gui.selection.changes",
@@ -418,3 +427,21 @@ def test_gui_requests_are_valid_cli_requests(tmp_path: Path, golden: Path) -> No
     exchanges = run_parity(tmp_path, templates, prepare=build_media_tree)
     statuses = {json.loads(exchange.response)["status"] for exchange in exchanges}
     assert statuses <= {"ok", "needs_confirmation"}
+
+
+def test_files_below_a_nested_folder(tmp_path: Path) -> None:
+    """A folder's files below it are its own and its subfolders', never a later sibling's."""
+    build_tree(tmp_path, NESTED_TREE)
+    index = ScanIndex.of(scan_direct(tmp_path / "media"))
+    below = {
+        name: [
+            found.name for found in index.files_below(index.nodes[str(tmp_path.joinpath("media", *name.split("/")))])
+        ]
+        for name in ("Series", "Series/S01", "Series/S01/Extras", "Zeta")
+    }
+    assert below == {
+        "Series": ["s.mkv", "e1.mkv", "x.webm"],
+        "Series/S01": ["e1.mkv", "x.webm"],
+        "Series/S01/Extras": ["x.webm"],
+        "Zeta": ["z.mkv"],
+    }

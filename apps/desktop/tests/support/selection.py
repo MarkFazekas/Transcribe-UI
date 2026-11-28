@@ -2,9 +2,10 @@
 
 import json
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import override
 
 from support.discovery import build_media_tree, media_dir
 from support.fakes import seeded_ports
@@ -22,6 +23,7 @@ from transcribe_ui.gui.executor import (
     SyncExecutor,
     cancelled_response,
 )
+from transcribe_ui.gui.feedback import ErrorView
 from transcribe_ui.gui.selection.constants import CheckMark
 from transcribe_ui.gui.selection.rows import cell_text, row_mark
 from transcribe_ui.gui.selection.tree import ScanIndex
@@ -172,6 +174,18 @@ class DeferredExecutor:
         response = cancelled_response(call.request) if call.cancelled else self.backend.execute(call.request)
         call.on_done(response)
 
+    def answer_with(self, call: DeferredCall, response: Response) -> None:
+        """Deliver `response` as the call's answer without running it (a failure the backend would give)."""
+        call.answered = True
+        call.on_done(response)
+
+    def answer_others(self, kept: DeferredCall) -> None:
+        """Answer every call not answered yet except `kept`, until none other is left."""
+        waiting = [call for call in self._waiting() if call is not kept]
+        while waiting:
+            self.answer(waiting[0])
+            waiting = [call for call in self._waiting() if call is not kept]
+
     def answer_all(self) -> None:
         """Answer every call not answered yet, oldest first, until none is left."""
         waiting = self._waiting()
@@ -181,6 +195,20 @@ class DeferredExecutor:
 
     def _waiting(self) -> list[DeferredCall]:
         return [call for call in self.calls if not call.answered]
+
+
+@dataclass
+class RetryingOutlet(RecordingOutlet):
+    """A recording outlet that also keeps each error's retry (what the error dialog's fix would call)."""
+
+    retries: list[Callable[[], object]] = field(default_factory=list)
+
+    @override
+    def show_error(self, view: ErrorView, retry: object) -> None:
+        """Record the error and its retry."""
+        super().show_error(view, retry)
+        if callable(retry):
+            self.retries.append(retry)
 
 
 class HeldUploads:
