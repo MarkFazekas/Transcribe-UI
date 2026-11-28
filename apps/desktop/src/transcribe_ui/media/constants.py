@@ -100,6 +100,8 @@ PROBE_UNREADABLE_MESSAGE: Final = "ffprobe printed output that cannot be read."
 CONVERT_FAILED_MESSAGE: Final = "ffmpeg could not convert the audio track (stream copy and FLAC both failed)."
 # Message of `media_tool_failed` from a subtitle extraction.
 EXTRACT_FAILED_MESSAGE: Final = "ffmpeg could not extract the subtitle stream as SRT."
+# Message of a tool that did not answer `-version` (the fake adapter's; the bundle check reports the exit).
+VERSION_FAILED_MESSAGE: Final = "The tool did not answer -version."
 
 # Codecs the fake adapter's "Matroska muxer" refuses, so its `convert` falls back to FLAC like the real one.
 FAKE_REFUSED_CODECS: Final = frozenset(("adpcm_ima_qt",))

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -76,3 +77,13 @@ def test_relative_override_is_refused_at_lookup() -> None:
     with pytest.raises(DomainError) as refused:
         locator.resolve(FFMPEG)
     assert (refused.value.code, refused.value.details["source"]) == ("media_tool_not_found", "settings")
+
+
+def test_the_wired_locator_looks_in_the_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """In a release build the app's own tools come from the folder PyInstaller unpacks to (`sys._MEIPASS`).
+
+    This is the folder the GUI smoke mode checks the bundled tools in (`bundle_dir`).
+    """
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "bundle"), raising=False)
+    assert media_tools(_settings(tmp_path)).locator.bundle_dir == tmp_path / "bundle"
