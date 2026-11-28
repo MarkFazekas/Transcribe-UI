@@ -479,7 +479,10 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     port (`QtTimer`; tests fire a manual one), so no test sleeps.
   - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set; with one
     (or when that is not known) `reconcile_cloud` (slot `reconcile`) and `refresh_status`
-    (slot `refresh`) run, without one both are left out (M6.13 adds those screens).
+    (slot `refresh`) run, without one both are left out (M6.13 adds those screens). The
+    settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
+    before the machines check. The cloud area asks `credentials_status` itself (a local read)
+    instead of reading the settings area's view-model, so the areas stay independent.
   - Stop and Cancel (Q34; `run_actions.py`): "Stop waiting" (Q34's Cancel, named apart from
     the confirmation dialog's own Cancel) while the stage is one of `WAITING_RUN_STAGES`
     (`launching`, `waiting`; `runs/constants.py`, shared with the question's text), "Stop"

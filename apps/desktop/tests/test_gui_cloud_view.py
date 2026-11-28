@@ -69,13 +69,6 @@ def _settled(qtbot: QtBot, window: MainWindow) -> None:
     wait_for(qtbot, lambda: not window.busy())
 
 
-def _drained(qtbot: QtBot, window: MainWindow) -> None:
-    # The tests drain first: pytest-qt deletes the window's widgets before the fixtures end.
-    _settled(qtbot, window)
-    # Answers still on their way must not reach the widgets pytest-qt deletes next.
-    window.context.executor.close()
-
-
 @pytest.fixture
 def held(world: CloudWorld) -> HeldUploads:
     """Return the world's backend with held uploads."""
@@ -87,8 +80,10 @@ def window(qtbot: QtBot, held: HeldUploads, tmp_path: Path) -> Iterator[MainWind
     """Return the window over the world (a test runs the start-up steps); drained afterwards."""
     created = window_over(qtbot, held, tmp_path)
     yield created
+    # pytest-qt has deleted the window by now, which closed the executor (late answers are
+    # dropped); the held uploads and the calls still running finish here.
     held.release()
-    _drained(qtbot, created)
+    _settled(qtbot, created)
 
 
 def _page(window: MainWindow) -> CloudPage:
@@ -149,7 +144,6 @@ def test_a_straggler_at_start_up(qtbot: QtBot, world: CloudWorld, window: MainWi
     _confirm(qtbot, window)
     wait_for(qtbot, lambda: not machines.model.attention and machines.model.checked and not window.busy())
     assert (page.attention.isHidden(), line.shown) == (True, ())
-    _settled(qtbot, window)
 
 
 def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
@@ -175,7 +169,6 @@ def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None
     panel = page.run_panel
     assert (panel.buttons.stop_button.text(), panel.buttons.start_button.isEnabled()) == ("Stop", False)
     assert "Cloud: Starting" in _status_line(window).text()
-    _settled(qtbot, window)
 
 
 def test_closing_during_a_run_adds_the_cloud_note(qtbot: QtBot, window: MainWindow) -> None:
@@ -190,7 +183,7 @@ def test_closing_during_a_run_adds_the_cloud_note(qtbot: QtBot, window: MainWind
     question.reject()
 
 
-def test_stop_is_answered_while_the_long_pool_is_busy(qtbot: QtBot, held: HeldUploads, window: MainWindow) -> None:
+def test_stop_is_answered_while_the_long_pool_is_busy(qtbot: QtBot, window: MainWindow) -> None:
     """Uploads fill every long thread; Stop (short pool) still asks and stops the run."""
     _start_a_run(qtbot, window)
     executor = window.context.executor
@@ -204,8 +197,6 @@ def test_stop_is_answered_while_the_long_pool_is_busy(qtbot: QtBot, held: HeldUp
     wait_for(qtbot, lambda: runs.current is not None and runs.current.stage == "cancelled")
     assert all(call.state == CALL_RUNNING for call in uploading)
     queued.cancel()
-    held.release()
-    _settled(qtbot, window)
 
 
 def test_a_reopened_dialog_does_not_start_on_enter(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
@@ -217,4 +208,3 @@ def test_a_reopened_dialog_does_not_start_on_enter(qtbot: QtBot, world: CloudWor
     wait_for(qtbot, lambda: dialog.isVisible() and dialog.model.reopened and dialog.start_button.isEnabled())
     assert (dialog.start_button.isDefault(), dialog.changed_notice.isHidden()) == (False, False)
     dialog.reject()
-    _settled(qtbot, window)
