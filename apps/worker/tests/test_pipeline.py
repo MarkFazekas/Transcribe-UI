@@ -430,6 +430,28 @@ def test_without_a_lease_nothing_is_processed(run_once: Callable[[], int], store
     assert (status.state, status.done_jobs, "has no lease" in (status.error or "")) == (FAILED, 0, True)
 
 
+@pytest.mark.parametrize(
+    "body",
+    [b"{not json", b'{"schema_version": "1.1", "run_id": "other", "batch_ids": [], "deadline_at": "x"}', None],
+    ids=["unreadable", "invalid", "other_run"],
+)
+def test_a_bad_lease_processes_nothing(run_once: Callable[[], int], store: S3ObjectStore, body: bytes | None) -> None:
+    """An unreadable lease, or one written for another run: nothing is processed and the run fails."""
+    put_batch(store, BATCH_A, ONE_SPEECH, leased=False)
+    lease = body
+    if lease is None:
+        # A valid lease of another run under this run's key.
+        other = RunLease(run_id=EARLIER_RUN_ID, batch_ids=(BATCH_A,), deadline_at=START + timedelta(days=2))
+        lease = other.model_dump_json().encode()
+    store.write(layout.run_lease_key(RUN_ID), lease, JSON_TYPE)
+
+    assert run_once() == EXIT_FAILED
+
+    processed = (store.list_keys(layout.results_prefix(BATCH_A)), finished_batches(store))
+    heartbeat = store.read(layout.run_status_key(RUN_ID)) or b""
+    assert (processed, b'"state":"failed"' in heartbeat, b"lease" in heartbeat) == (([], []), True, True)
+
+
 def test_unlisted_manifest_is_ignored(run_once: Callable[[], int], store: S3ObjectStore, config: WorkerConfig) -> None:
     """A batch published after the launch: no job, no backup restore, no `_done.json` for it."""
     put_batch(store, BATCH_A, ONE_SPEECH)
