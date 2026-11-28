@@ -65,7 +65,7 @@ msgstr ""
 "Egy feladatból nem vehető ki az utolsó fájl; helyette törölje a "
 "feladatot, vagy takarítsa el a felhőből."
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 #, python-brace-format
 msgid ""
 "A key must be ASCII without spaces or control characters, at most "
@@ -307,11 +307,11 @@ msgstr ""
 "Az R2 elfogadta a hozzáférési adatokat, de ehhez nincs joguk; ellenőrizze"
 " az API-token jogosultságait és bucketjét."
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 access key ID"
 msgstr "R2-hozzáférésikulcs-azonosító"
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 bucket name"
 msgstr "R2-bucket neve"
 
@@ -321,7 +321,7 @@ msgstr ""
 "Az R2 nem érhető el; ellenőrizze a hálózati kapcsolatot és a végpont URL-"
 "jét."
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 endpoint URL"
 msgstr "R2-végpont URL-je"
 
@@ -333,7 +333,7 @@ msgstr ""
 "Az R2 elutasította a hozzáférési adatokat: a hozzáférésikulcs-azonosító "
 "vagy a titkos hozzáférési kulcs hibás."
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 secret access key"
 msgstr "Titkos R2-hozzáférési kulcs"
 
@@ -353,7 +353,7 @@ msgstr "Transcribe-UI-kérések futtatása JSON-fájlokból."
 msgid "Running"
 msgstr "Fut"
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "Runpod API key"
 msgstr "Runpod API-kulcs"
 
@@ -533,7 +533,7 @@ msgid ""
 "price."
 msgstr "A Runpod árlistáján nem szerepel a GPU; a becslés a szokásos árral számol."
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
 "The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
 "starting or ending with a hyphen."
@@ -625,13 +625,13 @@ msgstr "Az egyéni terv fájlja nem olvasható ({reason})."
 msgid "The custom plan file cannot be written ({reason})."
 msgstr "Az egyéni terv fájlja nem írható ({reason})."
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
-"The endpoint URL must be an https URL with a host name only, such as "
-"https://<account>.r2.cloudflarestorage.com."
+"The endpoint URL must be an https URL with a host name only "
+"(https://<account>.r2.cloudflarestorage.com)."
 msgstr ""
-"A végpont URL-je csak gépnevet tartalmazó https URL lehet, például "
-"https://<fiókazonosító>.r2.cloudflarestorage.com."
+"A végpont URL-je csak gépnevet tartalmazó https URL lehet "
+"(https://<fiókazonosító>.r2.cloudflarestorage.com)."
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid ""

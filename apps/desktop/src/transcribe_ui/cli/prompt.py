@@ -5,7 +5,7 @@ import io
 import sys
 from typing import BinaryIO, Protocol, Self, TextIO
 
-from transcribe_ui.cli.constants import END_OF_INPUT_ANSWERS, LINE_END
+from transcribe_ui.cli.constants import END_OF_INPUT_ANSWERS, LINE_END, NOT_TEXT_ANSWER
 
 
 class Prompt(Protocol):
@@ -79,11 +79,18 @@ class TerminalPrompt:
     def ask(self, label: str) -> str:
         """Write the label to stderr and read one line from stdin (the terminal echoes it).
 
+        A line that is not text in the terminal's encoding is answered as `NOT_TEXT_ANSWER`,
+        which every credential's check refuses.
+
         Raises:
             EOFError: stdin ended before a line.
         """
         self._write(f"{label}: ".encode())
-        line = self._lines.readline()
+        try:
+            line = self._lines.readline()
+        except UnicodeDecodeError:
+            # The line is dropped with the error; the answer is then refused and asked again.
+            return NOT_TEXT_ANSWER
         if not line:
             raise EOFError
         return _checked(line.removesuffix("\n").removesuffix("\r"))

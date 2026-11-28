@@ -30,11 +30,21 @@ from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.cli.console import Console
 from transcribe_ui.cli.constants import EXIT_CANCELLED, EXIT_INVALID_REQUEST, EXIT_OK
-from transcribe_ui.cli.credentials_command import credential_labels, credential_rules
+from transcribe_ui.cli.credentials_command import answer_accepted
 from transcribe_ui.cli.main import main
 from transcribe_ui.cli.prompt import TerminalPrompt
-from transcribe_ui.credentials.constants import CREDENTIAL_ORDER
+from transcribe_ui.credentials.classes import CredentialName
+from transcribe_ui.credentials.constants import (
+    BUCKET_RULE,
+    CREDENTIAL_ORDER,
+    ENDPOINT_RULE,
+    R2_ACCESS_KEY_ID,
+    R2_BUCKET,
+    R2_ENDPOINT_URL,
+    VALUE_NOT_COMPACT,
+)
 from transcribe_ui.i18n.catalog import activate
+from transcribe_ui.i18n.credential_texts import credential_labels, credential_rules
 
 pytestmark = pytest.mark.usefixtures("no_credential_logs")
 
@@ -53,6 +63,10 @@ SESSIONS = (
 # Answers the request refuses: a URL that is not https, a key with a space.
 BAD_ENDPOINT = "http://r2.example.invalid"
 BAD_KEY = "AKID WITH SPACE"
+# The longest bucket name R2 accepts.
+BUCKET_MAX_LENGTH = 63
+LONGEST_BUCKET = "a" * BUCKET_MAX_LENGTH
+TOO_LONG_BUCKET = "a" * (BUCKET_MAX_LENGTH + 1)
 
 
 @dataclass
@@ -179,7 +193,7 @@ def test_session_equals_the_request_file(
     assert status() == expected_status
     labels = credential_labels()
     assert prompt.labels == list(labels.values())
-    assert prompt.echoed == [labels["r2_endpoint_url"], labels["r2_bucket"]]
+    assert prompt.echoed == [labels[R2_ENDPOINT_URL], labels[R2_BUCKET]]
     assert not prompted.stderr
     _assert_nothing_shown(prompted, prompt)
 
@@ -191,7 +205,7 @@ def test_refused_answer_is_asked_again(ports: Ports, status: Status) -> None:
     labels = list(credential_labels().values())
     rules = credential_rules()
     assert prompt.labels == [labels[0], *labels[:3], *labels[2:]]
-    assert prompt.told[-2:] == [rules["r2_endpoint_url"], rules["r2_access_key_id"]]
+    assert prompt.told[-2:] == [rules[R2_ENDPOINT_URL], rules[R2_ACCESS_KEY_ID]]
     assert (outcome.code, _sources(status())) == (EXIT_OK, {"keyring"})
     _assert_nothing_shown(outcome, prompt, BAD_KEY)
 
@@ -278,3 +292,34 @@ def test_terminal_prompt_follows_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not TerminalPrompt.on_process(io.BytesIO()).interactive()
     monkeypatch.setattr(sys, "stdin", None)
     assert not TerminalPrompt.on_process(io.BytesIO()).interactive()
+
+
+def test_rules_quote_the_backend() -> None:
+    """The English rule texts carry the wording of the backend's validation messages."""
+    rules = credential_rules()
+    assert ENDPOINT_RULE in rules[R2_ENDPOINT_URL]
+    assert BUCKET_RULE in rules[R2_BUCKET]
+    assert VALUE_NOT_COMPACT in rules[R2_ACCESS_KEY_ID]
+
+
+@pytest.mark.parametrize(
+    ("name", "answer", "accepted"),
+    [
+        (R2_BUCKET, "abc", True),
+        (R2_BUCKET, LONGEST_BUCKET, True),
+        (R2_BUCKET, "ab", False),
+        (R2_BUCKET, TOO_LONG_BUCKET, False),
+        (R2_ENDPOINT_URL, TEST_ENDPOINT, True),
+        (R2_ENDPOINT_URL, BAD_ENDPOINT, False),
+        (R2_ACCESS_KEY_ID, BAD_KEY, False),
+    ],
+)
+def test_answers_are_checked_by_the_backend_rules(name: CredentialName, answer: str, *, accepted: bool) -> None:
+    """The bucket's length limits and the endpoint's scheme are checked where the user types."""
+    assert answer_accepted(name, answer) is accepted
+
+
+def test_answer_not_in_the_encoding_is_refused() -> None:
+    """A line that is not text in the terminal's encoding is refused (asked again), not a crash."""
+    lines = io.TextIOWrapper(io.BytesIO(b"\xff\xfe\n"), encoding="utf-8")
+    assert not answer_accepted(R2_BUCKET, TerminalPrompt(io.BytesIO(), lines, stdin_is_terminal=True).ask("x"))

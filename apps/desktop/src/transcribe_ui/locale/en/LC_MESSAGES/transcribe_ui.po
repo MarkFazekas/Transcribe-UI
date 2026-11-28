@@ -54,7 +54,7 @@ msgid ""
 "cloud instead."
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 #, python-brace-format
 msgid ""
 "A key must be ASCII without spaces or control characters, at most "
@@ -270,11 +270,11 @@ msgid ""
 "the API token's permissions and bucket."
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 access key ID"
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 bucket name"
 msgstr ""
 
@@ -282,7 +282,7 @@ msgstr ""
 msgid "R2 cannot be reached; check the network connection and the endpoint URL."
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 endpoint URL"
 msgstr ""
 
@@ -292,7 +292,7 @@ msgid ""
 " wrong."
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "R2 secret access key"
 msgstr ""
 
@@ -312,7 +312,7 @@ msgstr ""
 msgid "Running"
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid "Runpod API key"
 msgstr ""
 
@@ -464,7 +464,7 @@ msgid ""
 "price."
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
 "The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
 "starting or ending with a hyphen."
@@ -544,10 +544,10 @@ msgstr ""
 msgid "The custom plan file cannot be written ({reason})."
 msgstr ""
 
-#: src/transcribe_ui/cli/credentials_command.py
+#: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
-"The endpoint URL must be an https URL with a host name only, such as "
-"https://<account>.r2.cloudflarestorage.com."
+"The endpoint URL must be an https URL with a host name only "
+"(https://<account>.r2.cloudflarestorage.com)."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
