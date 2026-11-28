@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 from pytestqt.qtbot import QtBot
 
 from support.cloud import CloudWorld, cloud_world
@@ -25,6 +25,7 @@ from support.runs import RUN_ID, app_pod_name
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
+from transcribe_ui.gui.cleanup.view import CleanupDialog
 from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.cloud.status_view import StatusLine
 from transcribe_ui.gui.cloud.view import CloudPage
@@ -159,6 +160,12 @@ def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
     assert dialog.isVisible()
     dialog.plan.delete_buttons[FOREIGN_BATCH_ID].click()
     wait_for(qtbot, lambda: deleted == [FOREIGN_BATCH_ID])
+    # The cleanup handlers (M6.10) ask before deleting: Cancel keeps the job, and nothing is left in flight.
+    wait_for(qtbot, lambda: isinstance(QApplication.activeModalWidget(), CleanupDialog))
+    question = QApplication.activeModalWidget()
+    assert isinstance(question, CleanupDialog)
+    question.reject()
+    _settled(qtbot, window)
 
 
 def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None:
