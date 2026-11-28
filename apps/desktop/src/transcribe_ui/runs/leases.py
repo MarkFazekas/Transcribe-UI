@@ -4,7 +4,8 @@ The launching desktop writes a run's lease after committing the run row and befo
 request: the covered batch ids and the pod name deadline. The worker processes only the batches
 listed there, so a manifest published later is never processed by that run, on any computer.
 
-A lease counts (is live) until its deadline, and no longer once the run's `status.json` is final.
+A lease counts (is live) until its deadline, and no longer once the run's `status.json` is final
+or stopped being written (a dead worker: the heartbeat rule of `runs/heartbeats.py`).
 Every lease is bounded by its R2 `LastModified` + `LEASE_MAX_SPAN_S` (the longest a run can last):
 a readable deadline is capped at that bound, an unreadable lease inside it counts and lists every
 batch, and an older lease never counts, so nothing blocks for ever. Reading fails closed: an R2
@@ -21,18 +22,22 @@ from transcribe_contracts.reading import read_run_lease, read_run_status
 from transcribe_ui.runs.classes import ActivitySource
 from transcribe_ui.runs.constants import (
     FINAL_WORKER_STATES,
+    LAUNCH_SETTLE_S,
     LEASE_CONTENT_TYPE,
     LEASE_LIVE,
     LEASE_MAX_SPAN_S,
     UNREADABLE_STATE,
 )
 from transcribe_ui.runs.errors import RunActiveError
+from transcribe_ui.runs.heartbeats import recently_written
 from transcribe_ui.state.classes import LeaseSnapshot, LiveLease
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectInfo, ObjectStore
 
 # How long after its R2 write a lease can count at most.
 MAX_SPAN = timedelta(seconds=LEASE_MAX_SPAN_S)
+# How long after its write a lease counts without a pod of its run in the Runpod lists (list lag).
+LAUNCH_SETTLE = timedelta(seconds=LAUNCH_SETTLE_S)
 
 
 def write_lease(store: ObjectStore, run_id: str, batch_ids: tuple[str, ...], deadline: datetime) -> None:
@@ -102,6 +107,17 @@ def refuse_if_leased(store: ObjectStore, batch_id: str, now: datetime) -> None:
         raise RunActiveError(lease_sources(listing))
 
 
+def may_still_run(lease: LiveLease, in_lists: set[str | None], now: datetime) -> bool:
+    """Return whether the lease's run may still be live, given the run ids of the live Runpod entries.
+
+    A lease written less than `LAUNCH_SETTLE_S` ago counts (its pod may not be listed yet); an
+    older one counts only while a live entry of its run is in the lists.
+    """
+    written = lease.written_at
+    recent = written is None or now - written < LAUNCH_SETTLE
+    return recent or lease.run_id in in_lists
+
+
 def _bound(found: ObjectInfo, now: datetime) -> datetime:
     """Return the latest moment the lease can count: its R2 write time (unknown: now) + the span."""
     written = found.modified or now
@@ -115,21 +131,31 @@ def _live(store: ObjectStore, found: ObjectInfo, now: datetime) -> LiveLease | N
     if run_id is None or now >= bound:
         return None
     body = store.read(key)
-    if body is None:
-        return None  # deleted since the listing
+    if body is None or _ended(store, run_id, now):
+        return None  # deleted since the listing, or its worker is over
+    written = found.modified
     try:
         lease = read_run_lease(key, body)
     except ContractError:
-        return LiveLease(run_id=run_id, batch_ids=None, until=bound)
+        return LiveLease(run_id=run_id, batch_ids=None, until=bound, written_at=written)
     until = min(lease.deadline_at, bound)
-    if now >= until or _finished(store, run_id):
+    if now >= until:
         return None
-    return LiveLease(run_id=run_id, batch_ids=frozenset(lease.batch_ids), until=until)
+    listed = frozenset(lease.batch_ids)
+    return LiveLease(run_id=run_id, batch_ids=listed, until=until, written_at=written)
 
 
-def _finished(store: ObjectStore, run_id: str) -> bool:
-    """Return whether the run's worker reported its end (`status.json` final); unreadable or missing: no."""
+def _ended(store: ObjectStore, run_id: str, now: datetime) -> bool:
+    """Return whether the run's worker is over: its `status.json` is final or no longer written.
+
+    No heartbeat yet (the pod may still be starting), or one that cannot be read: not over.
+    """
     key = run_status_key(run_id)
+    found = store.head(key)
+    if found is None:
+        return False
+    if not recently_written(found, now):
+        return True
     body = store.read(key)
     if body is None:
         return False

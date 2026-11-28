@@ -1814,7 +1814,9 @@ database):
     taken as at most the run's `deadline_at` + the margin. An older object never counts,
     readable or not, so a broken or far-future heartbeat cannot block for ever;
   - a run lease counts (`runs/<run_id>/launch.json`, kind `lease`; §3.9 "Run scope"), another
-    computer's included.
+    computer's included, except one written more than `LAUNCH_SETTLE_S` ago whose run has no
+    live entry in the Runpod lists (its pod was never created or is gone), so a stale lease
+    does not block Start for hours.
 
   The check fails closed: a Runpod list or lookup that fails (after the client's retries)
   or an R2 list or read that fails raises `cloud_unreachable` (details `part`: `runpod` or
@@ -2335,7 +2337,9 @@ Q28, Q35, A21 and A22.
     still held at the upgrade stays `uploading` and is published when its upload is resumed
     with `run_upload`.
   - Live lease (`runs/leases.py`): a lease counts until its deadline, and no longer once the
-    run's `status.json` is final. Every lease is bounded by its R2 `LastModified` +
+    run's `status.json` is final or no longer written (older than `HEARTBEAT_STALE_S` +
+    `HEARTBEAT_MARGIN_S` by its `LastModified`: a dead worker, the rule of
+    `runs/heartbeats.py`); an unreadable lease too. Every lease is bounded by its R2 `LastModified` +
     `LEASE_MAX_SPAN_S` (the longest wait + the longest runtime + the name deadline margin +
     `HEARTBEAT_MARGIN_S`); a readable deadline is capped at that bound, an unreadable lease
     inside it counts and lists every batch, and an older lease never counts. Reading fails

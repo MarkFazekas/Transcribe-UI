@@ -30,11 +30,18 @@ from support.launch import (
 )
 from support.monitor import end_pod, refresh, refreshed_run, write_status
 from support.runpod_api import Failure
-from support.runs import JSON_TYPE, OTHER_RUN_ID, RUN_ID, RunsWorld, seed_ready
+from support.runs import JSON_TYPE, OTHER_RUN_ID, RUN_ID, RunsWorld, app_pod_name, seed_ready
 from transcribe_contracts.classes import RunLease
 from transcribe_contracts.layout import run_lease_key
 from transcribe_contracts.reading import read_run_lease
-from transcribe_ui.runs.constants import ERROR_STOP_UNVERIFIED, LEASE_MAX_SPAN_S, WAIT_MIN_S
+from transcribe_ui.runs.constants import (
+    ERROR_STOP_UNVERIFIED,
+    HEARTBEAT_MARGIN_S,
+    HEARTBEAT_STALE_S,
+    LAUNCH_SETTLE_S,
+    LEASE_MAX_SPAN_S,
+    WAIT_MIN_S,
+)
 from transcribe_ui.runs.leases import delete_lease, live_leases, write_lease
 from transcribe_ui.storage.constants import ERROR_R2_UNREACHABLE
 from transcribe_ui.storage.errors import StorageError
@@ -44,6 +51,10 @@ from transcribe_ui.storage.r2 import ObjectStore
 LONG_AFTER = timedelta(seconds=LEASE_MAX_SPAN_S + 60)
 # A second.
 SECOND = timedelta(seconds=1)
+# Past the heartbeat rule: a `status.json` written longer ago is a dead worker's.
+SILENT = timedelta(seconds=HEARTBEAT_STALE_S + HEARTBEAT_MARGIN_S + 60)
+# Past the launch settle time: a lease's run should be in the Runpod lists by then.
+SETTLED = timedelta(seconds=LAUNCH_SETTLE_S + 60)
 # Where the ending of a run deletes leases (patched to watch or fail it).
 RELEASE_DELETE = "transcribe_ui.runs.lease_release.delete_lease"
 # The batch ids another computer's lease lists.
@@ -229,3 +240,28 @@ def test_lease_counts_for_another_launch(runs_world: RunsWorld) -> None:
     _other_lease(runs_world, timedelta(hours=1))
     sources = [(source.kind, source.status, source.run_id) for source in runs_world.activity().sources]
     assert sources == [("lease", "live", OTHER_RUN_ID)]
+
+
+def test_a_silent_worker_ends_its_lease(runs_world: RunsWorld) -> None:
+    """A lease whose run's heartbeat stopped being written (a dead worker) no longer counts, before its deadline."""
+    _other_lease(runs_world, timedelta(hours=2))
+    write_status(runs_world.store, OTHER_RUN_ID, "transcribing", runs_world.now())
+    assert live_leases(runs_world.store, runs_world.now())
+    assert not live_leases(runs_world.store, runs_world.now() + SILENT)
+
+
+def test_unreadable_lease_of_a_finished_run(runs_world: RunsWorld) -> None:
+    """A lease that cannot be read no longer counts once its run reported its end."""
+    runs_world.store.write(run_lease_key(OTHER_RUN_ID), b"{broken", JSON_TYPE)
+    write_status(runs_world.store, OTHER_RUN_ID, "finished", runs_world.now())
+    assert not live_leases(runs_world.store, runs_world.now())
+
+
+def test_a_stale_lease_without_a_pod_does_not_block(runs_world: RunsWorld) -> None:
+    """Past the settle time, a lease counts for a launch only while a pod of its run is in the Runpod lists."""
+    _other_lease(runs_world, timedelta(hours=2))
+    runs_world.cloud.clock.advance(SETTLED)
+    assert not runs_world.activity().sources
+    runs_world.cloud.api.pods.add(app_pod_name(OTHER_RUN_ID, runs_world.now()))
+    kinds = sorted(source.kind for source in runs_world.activity().sources)
+    assert kinds == ["lease", "pod"]

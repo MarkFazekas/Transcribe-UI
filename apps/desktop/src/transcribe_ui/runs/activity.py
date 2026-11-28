@@ -13,7 +13,10 @@ use the per-batch lease check instead (`runs/leases.py`), which needs no Runpod 
 - a `runs/*/status.json` written recently (`runs/heartbeats.py`, R2 `LastModified`) is
   unreadable, or not final with a recent `updated_at` (capped at the run's deadline);
 - a run lease counts (`runs/leases.py`): a `runs/*/launch.json` before its deadline whose run
-  has not reported its end, another computer's included.
+  has not reported its end, another computer's included. Since the Runpod lists were read, a
+  lease written more than `LAUNCH_SETTLE_S` ago whose run has no live entry in them is left
+  out: its pod request never created a pod, or the pod is gone (another computer's run that
+  ended while nobody followed it), so it does not block a launch for hours.
 
 The check fails closed: if the Runpod lists or R2 cannot be read, it raises
 `ActivityUnknownError` (`cloud_unreachable`) instead of answering "inactive".
@@ -30,7 +33,7 @@ from transcribe_ui.runs.cloud import CloudAccess
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
 from transcribe_ui.runs.errors import ActivityUnknownError
 from transcribe_ui.runs.heartbeats import heartbeat_sources
-from transcribe_ui.runs.leases import lease_sources, live_leases
+from transcribe_ui.runs.leases import lease_sources, live_leases, may_still_run
 from transcribe_ui.runs.pods import pod_sources
 from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.state.models import RunRow
@@ -51,7 +54,7 @@ def check_activity(state: LocalState, cloud: CloudAccess, now: datetime) -> RunA
     local = _local_runs(state)
     listed = _read_runpod(cloud, now)
     heartbeats = _read_heartbeats(cloud, now)
-    leases = _read_leases(cloud, now)
+    leases = _read_leases(cloud, now, listed)
     return RunActivity(sources=(*local, *listed, *heartbeats, *leases))
 
 
@@ -84,9 +87,12 @@ def _read_heartbeats(cloud: CloudAccess, now: datetime) -> list[ActivitySource]:
     raise failure
 
 
-def _read_leases(cloud: CloudAccess, now: datetime) -> list[ActivitySource]:
+def _read_leases(cloud: CloudAccess, now: datetime, listed: list[ActivitySource]) -> list[ActivitySource]:
     try:
-        return lease_sources(live_leases(cloud.store, now))
+        leases = live_leases(cloud.store, now)
     except StorageError as error:
         failure = ActivityUnknownError("r2", error.code)
-    raise failure
+        raise failure from None
+    in_lists = {source.run_id for source in listed}
+    counted = tuple(lease for lease in leases if may_still_run(lease, in_lists, now))
+    return lease_sources(counted)

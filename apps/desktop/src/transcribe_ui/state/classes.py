@@ -26,6 +26,8 @@ class LiveLease(FrozenModel):
     batch_ids: frozenset[str] | None
     # The moment it stops counting: its deadline, capped at its R2 write time + `LEASE_MAX_SPAN_S`.
     until: AwareDatetime
+    # Its R2 write time (`LastModified`; None when R2 did not give one).
+    written_at: AwareDatetime | None = None
 
     def lists(self, batch_id: str) -> bool:
         """Return whether the run may process the batch."""
