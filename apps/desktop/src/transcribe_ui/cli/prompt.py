@@ -31,6 +31,8 @@ class Prompt(Protocol):
     def ask_hidden(self, label: str) -> str:
         """Show the label and return the answer; the typed characters are not echoed.
 
+        A line that is not text in the terminal's encoding is answered as `NOT_TEXT_ANSWER`.
+
         Raises:
             KeyboardInterrupt: The user pressed Ctrl+C.
             EOFError: The input ended (Ctrl+D, Ctrl+Z) before a line.
@@ -96,8 +98,22 @@ class TerminalPrompt:
         return _checked(line.removesuffix("\n").removesuffix("\r"))
 
     def ask_hidden(self, label: str) -> str:
-        """Ask with `getpass`, which reads from the terminal without echo."""
-        return _checked(getpass.getpass(f"{label}: "))
+        """Ask with `getpass`, which reads from the terminal without echo.
+
+        A line that is not text in the terminal's encoding is answered as `NOT_TEXT_ANSWER`,
+        like `ask` does.
+
+        Raises:
+            EOFError: The input ended (Ctrl+D, Ctrl+Z) before a line.
+        """
+        try:
+            answer = getpass.getpass(f"{label}: ")
+        except UnicodeDecodeError:
+            # Neither the error nor the bytes it holds are kept: the answer is refused and asked again.
+            # `getpass` skips its closing newline when it raises, so the rule would follow the label.
+            self._write(LINE_END)
+            return NOT_TEXT_ANSWER
+        return _checked(answer)
 
     def _write(self, raw: bytes) -> None:
         self._stderr.write(raw)

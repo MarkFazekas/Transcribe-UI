@@ -14,6 +14,7 @@ from contextlib import closing
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
+from typing import TextIO, cast
 
 import pytest
 
@@ -29,7 +30,7 @@ from support.fakes import seeded_ports
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.cli.console import Console
-from transcribe_ui.cli.constants import EXIT_CANCELLED, EXIT_INVALID_REQUEST, EXIT_OK
+from transcribe_ui.cli.constants import EXIT_CANCELLED, EXIT_INVALID_REQUEST, EXIT_OK, LINE_END, NOT_TEXT_ANSWER
 from transcribe_ui.cli.credentials_command import answer_accepted
 from transcribe_ui.cli.main import main
 from transcribe_ui.cli.prompt import TerminalPrompt
@@ -48,6 +49,8 @@ from transcribe_ui.i18n.credential_texts import credential_labels, credential_ru
 
 pytestmark = pytest.mark.usefixtures("no_credential_logs")
 
+# The terminal's encoding.
+ENCODING = "utf-8"
 STATUS = '{"action": "credentials_status"}'
 # The command line of the command under test.
 CREDENTIALS = ("credentials",)
@@ -130,7 +133,7 @@ class Outcome:
 
     def text(self) -> str:
         """Return everything printed, as text."""
-        return (self.stdout + self.stderr).decode("utf-8")
+        return (self.stdout + self.stderr).decode(ENCODING)
 
 
 @pytest.fixture
@@ -165,7 +168,7 @@ def status(ports: Ports, tmp_path: Path) -> Status:
 
 def _status(ports: Ports, tmp_path: Path) -> bytes:
     request_file = tmp_path / "status.json"
-    request_file.write_text(STATUS, encoding="utf-8")
+    request_file.write_text(STATUS, encoding=ENCODING)
     return _cli(ports, ["run", str(request_file)]).stdout
 
 
@@ -182,7 +185,7 @@ def test_session_equals_the_request_file(
     """A session answers and stores exactly like `run` with the request of its non-empty answers."""
     given = {name: answer for name, answer in zip(CREDENTIAL_ORDER, answers, strict=True) if answer.strip()}
     request_file = tmp_path / "store.json"
-    request_file.write_text(json.dumps({"action": "store_credentials", **given}), encoding="utf-8")
+    request_file.write_text(json.dumps({"action": "store_credentials", **given}), encoding=ENCODING)
     from_file_ports = seeded_ports(tmp_path / "from-file")
     with closing(from_file_ports.state):
         expected = _cli(from_file_ports, ["run", str(request_file)])
@@ -319,7 +322,82 @@ def test_answers_are_checked_by_the_backend_rules(name: CredentialName, answer: 
     assert answer_accepted(name, answer) is accepted
 
 
-def test_answer_not_in_the_encoding_is_refused() -> None:
+@pytest.mark.parametrize("name", CREDENTIAL_ORDER)
+def test_answer_not_in_the_encoding_is_refused(name: CredentialName) -> None:
     """A line that is not text in the terminal's encoding is refused (asked again), not a crash."""
-    lines = io.TextIOWrapper(io.BytesIO(b"\xff\xfe\n"), encoding="utf-8")
-    assert not answer_accepted(R2_BUCKET, TerminalPrompt(io.BytesIO(), lines, stdin_is_terminal=True).ask("x"))
+    lines = io.TextIOWrapper(io.BytesIO(b"\xff\xfe\n"), encoding=ENCODING)
+    assert not answer_accepted(name, TerminalPrompt(io.BytesIO(), lines, stdin_is_terminal=True).ask("x"))
+    assert not answer_accepted(name, NOT_TEXT_ANSWER)
+
+
+def _not_text() -> UnicodeDecodeError:
+    """Return the error a strict terminal reader raises for a line that does not decode."""
+    return UnicodeDecodeError(ENCODING, b"\xff", 0, 1, "invalid start byte")
+
+
+@dataclass
+class NotTextLines:
+    """Stands in for stdin: the first line is not text, the next ones are `lines`."""
+
+    lines: list[str]
+    failed: bool = False
+
+    def readline(self) -> str:
+        """Raise the decode error once, then return the next line.
+
+        Raises:
+            UnicodeDecodeError: On the first call.
+        """
+        if self.failed:
+            return self.lines.pop(0)
+        self.failed = True
+        raise _not_text()
+
+
+@dataclass
+class NotTextGetpass:
+    """Stands in for `getpass.getpass`: the first line is not text, the next one is `answer`."""
+
+    answer: str
+    failed: bool = False
+
+    def __call__(self, _prompt: str = "Password: ", stream: object = None) -> str:
+        """Raise the decode error once, then return the answer.
+
+        Raises:
+            UnicodeDecodeError: On the first call.
+        """
+        assert stream is None
+        if self.failed:
+            return self.answer
+        self.failed = True
+        raise _not_text()
+
+
+def _terminal_session(ports: Ports, lines: TextIO) -> Outcome:
+    stdout = io.BytesIO()
+    stderr = io.BytesIO()
+    prompt = TerminalPrompt(stderr, lines, stdin_is_terminal=True)
+    console = Console(stdin=io.BytesIO(), stdout=stdout, stderr=stderr, prompt=prompt)
+    code = main(CREDENTIALS, make_backend=lambda: Backend(ports), console=console)
+    return Outcome(code, stdout.getvalue(), stderr.getvalue())
+
+
+def test_not_text_echoed_line_asks_again(ports: Ports, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An echoed line that is not text shows the endpoint's rule; the next valid line is stored."""
+    monkeypatch.setattr(getpass, "getpass", RecordingGetpass(""))
+    lines = cast("TextIO", NotTextLines([f"{TEST_ENDPOINT}\n", "\n"]))
+    outcome = _terminal_session(ports, lines)
+    assert outcome.code == EXIT_OK
+    assert credential_rules()[R2_ENDPOINT_URL].encode() in outcome.stderr
+    assert ports.credentials.lookup().text(R2_ENDPOINT_URL) == TEST_ENDPOINT
+
+
+def test_not_text_hidden_line_asks_again(ports: Ports, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A hidden line that is not text shows the field's rule; the next valid value is stored."""
+    monkeypatch.setattr(getpass, "getpass", NotTextGetpass(TEST_SECRET))
+    outcome = _terminal_session(ports, io.StringIO("\n\n"))
+    assert outcome.code == EXIT_OK
+    # The rule starts on a new line (the failed `getpass` wrote no newline after the label).
+    assert LINE_END + credential_rules()[R2_ACCESS_KEY_ID].encode() in outcome.stderr
+    assert ports.credentials.lookup().text(R2_ACCESS_KEY_ID) == TEST_SECRET
