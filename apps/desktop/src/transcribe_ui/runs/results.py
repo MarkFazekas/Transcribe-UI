@@ -72,16 +72,21 @@ class _Bucket:
         self.store = store
         self._proven = False
 
-    def holds(self, batch_id: str) -> bool:
+    def holds(self, batch_id: str, *, done_known_missing: bool = False) -> bool:
         """Return whether R2 holds the batch's `_done.json` or manifest.
+
+        `done_known_missing`: the caller has just found no `_done.json`, so only the manifest is
+        looked for.
 
         Raises:
             StorageError: R2 could not be read, or the bucket does not exist.
         """
         store = self.store
-        for key in (done_key(batch_id), manifest_key(batch_id)):
-            if store.head(key) is not None:
-                return True
+        keys = [manifest_key(batch_id)]
+        if not done_known_missing:
+            keys.insert(0, done_key(batch_id))
+        if any(store.head(key) is not None for key in keys):
+            return True
         if not self._proven:
             store.check_access()
             self._proven = True
@@ -127,7 +132,7 @@ def _check_batch(context: RequestContext, bucket: _Bucket, batch_id: str) -> Bat
     """Check one `ready` batch whose lock this thread holds."""
     state = context.ports.state
     done = bucket.store.head(done_key(batch_id)) is not None
-    if not done and not bucket.holds(batch_id):
+    if not done and not bucket.holds(batch_id, done_known_missing=True):
         return _removed(context, batch_id)
     with state.session() as session:
         pending = _pending_jobs(session, batch_id)

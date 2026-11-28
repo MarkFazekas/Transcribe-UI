@@ -1840,7 +1840,7 @@ database):
     taken as at most the run's `deadline_at` + the margin. An older object never counts,
     readable or not, so a broken or far-future heartbeat cannot block for ever;
   - a run lease counts (`runs/<run_id>/launch.json`, kind `lease`; §3.9 "Run scope"), another
-    computer's included, except one written more than `LAUNCH_SETTLE_S` ago whose run has no
+    computer's included, except one written more than `LAUNCH_SETTLE_S` + `HEARTBEAT_MARGIN_S` (the clock difference to R2) ago whose run has no
     live entry in the Runpod lists (its pod was never created or is gone), so a stale lease
     does not block Start for hours.
 
@@ -2358,7 +2358,7 @@ Q28, Q35, A21 and A22.
     single `POST /v2/pods` (`runs/starting.py`). A failed lease write makes the run
     `launch_failed` with nothing created. Two computers with a key can pass their activity
     checks at the same moment, so after writing its lease the launch lists the leases again: a
-    lease of another run written less than `LAUNCH_SETTLE_S` ago (`concurrent_leases`) makes
+    lease of another run written less than `LAUNCH_SETTLE_S` + `HEARTBEAT_MARGIN_S` ago (`concurrent_leases`) makes
     the run `launch_failed` with `run_active` before the POST (both may back off; Start again
     then works for one of them). The worker (§5.3) processes only the batches listed
     there; without a readable lease it processes nothing, reports a failed status and its entry

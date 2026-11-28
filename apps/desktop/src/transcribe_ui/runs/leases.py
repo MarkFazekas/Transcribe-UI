@@ -22,6 +22,7 @@ from transcribe_contracts.reading import read_run_lease, read_run_status
 from transcribe_ui.runs.classes import ActivitySource
 from transcribe_ui.runs.constants import (
     FINAL_WORKER_STATES,
+    HEARTBEAT_MARGIN_S,
     LAUNCH_SETTLE_S,
     LEASE_CONTENT_TYPE,
     LEASE_LIVE,
@@ -37,8 +38,9 @@ from transcribe_ui.storage.r2 import ObjectInfo, ObjectStore
 
 # How long after its R2 write a lease can count at most.
 MAX_SPAN = timedelta(seconds=LEASE_MAX_SPAN_S)
-# How long after its write a lease counts without a pod of its run in the Runpod lists (list lag).
-LAUNCH_SETTLE = timedelta(seconds=LAUNCH_SETTLE_S)
+# How long after its write a lease counts without a pod of its run in the Runpod lists: the list
+# lag, plus the clock difference between the R2 write time and this computer's clock.
+LAUNCH_SETTLE = timedelta(seconds=LAUNCH_SETTLE_S + HEARTBEAT_MARGIN_S)
 
 
 def write_lease(store: ObjectStore, run_id: str, batch_ids: tuple[str, ...], deadline: datetime) -> None:
@@ -124,8 +126,9 @@ def concurrent_leases(store: ObjectStore, run_id: str, now: datetime) -> tuple[L
 def may_still_run(lease: LiveLease, in_lists: set[str | None], now: datetime) -> bool:
     """Return whether the lease's run may still be live, given the run ids of the live Runpod entries.
 
-    A lease written less than `LAUNCH_SETTLE_S` ago counts (its pod may not be listed yet); an
-    older one counts only while a live entry of its run is in the lists.
+    A lease written less than `LAUNCH_SETTLE_S` + `HEARTBEAT_MARGIN_S` ago (R2's write time
+    against this computer's clock) counts: its pod may not be listed yet. An older one counts
+    only while a live entry of its run is in the lists.
     """
     written = lease.written_at
     recent = written is None or now - written < LAUNCH_SETTLE

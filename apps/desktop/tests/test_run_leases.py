@@ -53,8 +53,10 @@ LONG_AFTER = timedelta(seconds=LEASE_MAX_SPAN_S + 60)
 SECOND = timedelta(seconds=1)
 # Past the heartbeat rule: a `status.json` written longer ago is a dead worker's.
 SILENT = timedelta(seconds=HEARTBEAT_STALE_S + HEARTBEAT_MARGIN_S + 60)
-# Past the launch settle time: a lease's run should be in the Runpod lists by then.
-SETTLED = timedelta(seconds=LAUNCH_SETTLE_S + 60)
+# Past the launch settle time and the clock margin: a lease's run should be in the Runpod lists by then.
+SETTLED = timedelta(seconds=LAUNCH_SETTLE_S + HEARTBEAT_MARGIN_S + 60)
+# Past the launch settle time, within the clock margin: the lease still counts.
+WITHIN_MARGIN = timedelta(seconds=LAUNCH_SETTLE_S + 60)
 # Where the ending of a run deletes leases (patched to watch or fail it).
 RELEASE_DELETE = "transcribe_ui.runs.lease_release.delete_lease"
 # The batch ids another computer's lease lists.
@@ -260,7 +262,9 @@ def test_unreadable_lease_of_a_finished_run(runs_world: RunsWorld) -> None:
 def test_a_stale_lease_without_a_pod_does_not_block(runs_world: RunsWorld) -> None:
     """Past the settle time, a lease counts for a launch only while a pod of its run is in the Runpod lists."""
     _other_lease(runs_world, timedelta(hours=2))
-    runs_world.cloud.clock.advance(SETTLED)
+    runs_world.cloud.clock.advance(WITHIN_MARGIN)
+    assert runs_world.activity().sources, "a clock behind R2 by up to the margin still counts it"
+    runs_world.cloud.clock.advance(SETTLED - WITHIN_MARGIN)
     assert not runs_world.activity().sources
     runs_world.cloud.api.pods.add(app_pod_name(OTHER_RUN_ID, runs_world.now()))
     kinds = sorted(source.kind for source in runs_world.activity().sources)
