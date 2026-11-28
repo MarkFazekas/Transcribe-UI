@@ -52,6 +52,10 @@ class CloudPoll(ViewModel):
         self.awaiting = False
         # Jobs changed since the last check that answered: only a check's answer may stop the poll.
         self._owed = False
+        # Count of job changes (`start` with ids), and its value when the check in flight was sent:
+        # a check answers only for the changes made before it was sent.
+        self._changes = 0
+        self._sent_changes = 0
         # `proceed` of the start-up step waiting for the check in flight.
         self._waiting: list[Proceed] = []
         # Refresh now was asked while a check was in flight: check again once that one answers.
@@ -79,6 +83,7 @@ class CloudPoll(ViewModel):
         """
         if batch_ids and not self._runs.announcing_end:
             self._owed = True
+            self._changes += 1
         if not self._timer.active:
             self._timer.start()
 
@@ -93,6 +98,7 @@ class CloudPoll(ViewModel):
             # Before the send: an executor may answer inside it.
             self._waiting.append(proceed)
         request = RefreshStatusRequest(action="refresh_status", recheck_removed=recheck_removed)
+        self._sent_changes = self._changes
         self._channel.send(request, self._answered, self.changed)
         self.changed()
         return True
@@ -129,6 +135,8 @@ class CloudPoll(ViewModel):
         self.tick()
 
     def _answered(self, response: Response) -> None:
+        # Before this check's own signal below: it answers for the changes made before it was sent.
+        settled = _final(response) and self._changes == self._sent_changes
         reported: tuple[str, ...] = ()
         if isinstance(response, RefreshStatusResponse):
             self.error = None
@@ -140,8 +148,8 @@ class CloudPoll(ViewModel):
         self._runs.announce()
         if reported:
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, reported)
-        if isinstance(response, RefreshStatusResponse):
-            # After the signal: this check has answered for the jobs it reported, and for any change before it.
+        if settled:
+            # After the signal: this check has answered for the jobs it reported, and for the changes before it.
             self._owed = False
         self.follow()
         self.changed()
@@ -152,3 +160,16 @@ class CloudPoll(ViewModel):
         if self._again:
             self._again = False
             self.refresh_now()
+
+
+def _final(response: Response) -> bool:
+    """Return whether a check's answer settles what it was sent for: a success, or an error the next tick would only repeat.
+
+    A retrying error (`RETRYING_CODES`) or a cancel settles nothing; a lasting one (R2 missing, a
+    revoked key) settles it, so the poll does not go on owing a check that keeps failing.
+    """
+    if isinstance(response, RefreshStatusResponse):
+        return True
+    if isinstance(response, ErrorResponse):
+        return response.error.code not in RETRYING_CODES and response.error.code != ERROR_CANCELLED
+    return False

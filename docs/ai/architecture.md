@@ -495,7 +495,9 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     the key is known to be missing (`CloudModels.machines_error`). The poll also runs while the last check's
     `awaiting_results` is true, without a run of this computer; `batches_changed` (an upload,
     an adoption) starts a stopped poll and owes it a check, so until a check answers a load of
-    the run list does not stop it (the Cloud area's own signals for its runs, launched, stopped
+    the run list does not stop it (a check answers for the changes made before it was sent, by
+    success or by an error the next tick would only repeat; a retrying error or a cancel settles
+    nothing) (the Cloud area's own signals for its runs, launched, stopped
     or ended, owe none: `gui/cloud/runs.py` `emit_ended`); Refresh now during a check checks once more
     after it. The settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
     before the machines check. The cloud area asks `credentials_status` itself (a local read)

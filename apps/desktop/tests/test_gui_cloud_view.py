@@ -11,21 +11,24 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 from pytestqt.qtbot import QtBot
 
+from support.batches import FIRST_BATCH_ID
 from support.cloud import CloudWorld, cloud_world
 from support.fakes import FIXED_NOW
 from support.gated import POLL_S, upload, uploads, wait_for
 from support.gui import window_over
 from support.launch import FOREIGN_BATCH_ID, write_foreign
 from support.runs import RUN_ID, app_pod_name
+from support.worker_sim import SimulatedJob, finished
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.gui.cleanup.view import CleanupDialog
+from transcribe_ui.gui.cloud.constants import REFRESH_INTERVAL_MS
 from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.cloud.status_view import StatusLine
 from transcribe_ui.gui.cloud.view import CloudPage
@@ -34,6 +37,9 @@ from transcribe_ui.gui.dialogs import CloseQuestion, ConfirmationDialog
 from transcribe_ui.gui.executor import cancelled_response
 from transcribe_ui.gui.shell import MainWindow
 
+# The seeded job's two files (their ids in the launch world).
+FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
+PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
 # Another computer's second job, written while the start dialog is open.
 LATE_BATCH_ID = "batch_20260102_090000"
 
@@ -231,3 +237,19 @@ def test_a_reopened_dialog_does_not_start_on_enter(
     QTest.keyClick(dialog, Qt.Key.Key_Return)
     _settled(qtbot, window)
     assert (dialog.isHidden(), held.actions.count("launch_worker")) == (True, launches)
+
+
+def test_a_run_that_ends_stops_the_poll(qtbot: QtBot, world: CloudWorld, held: HeldUploads, window: MainWindow) -> None:
+    """The run's end reloads the jobs (the area's own signal owes no check): the poll stops, no extra check is sent."""
+    _start_a_run(qtbot, window)
+    _settled(qtbot, window)
+    page = _page(window)
+    current = page.history.runs.current
+    assert current is not None
+    jobs = (SimulatedJob(FILM_ID, "en", "ok"), SimulatedJob(PODCAST_ID, "en", "no_speech"))
+    finished(world.cloud, world.store, current.run.run_id, FIRST_BATCH_ID, jobs)
+    page.check_now()
+    wait_for(qtbot, lambda: not page.history.runs.run_active() and not window.busy())
+    checks = held.actions.count("refresh_status")
+    timers = [timer for timer in window.findChildren(QTimer) if timer.interval() == REFRESH_INTERVAL_MS]
+    assert ([timer.isActive() for timer in timers], held.actions.count("refresh_status")) == ([False], checks)
