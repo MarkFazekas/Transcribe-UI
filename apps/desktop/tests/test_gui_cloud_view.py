@@ -40,6 +40,8 @@ from transcribe_ui.gui.shell import MainWindow
 # The seeded job's two files (their ids in the launch world).
 FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
 PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
+# How long a test lets queued events run (ms).
+SETTLE_MS = 200
 # Another computer's second job, written while the start dialog is open.
 LATE_BATCH_ID = "batch_20260102_090000"
 
@@ -248,8 +250,12 @@ def test_a_run_that_ends_stops_the_poll(qtbot: QtBot, world: CloudWorld, held: H
     assert current is not None
     jobs = (SimulatedJob(FILM_ID, "en", "ok"), SimulatedJob(PODCAST_ID, "en", "no_speech"))
     finished(world.cloud, world.store, current.run.run_id, FIRST_BATCH_ID, jobs)
+    before = held.actions.count("refresh_status")
     page.check_now()
     wait_for(qtbot, lambda: not page.history.runs.run_active() and not window.busy())
-    checks = held.actions.count("refresh_status")
+    # Let queued events run: a check the run's end owed would be sent now.
+    qtbot.wait(SETTLE_MS)
+    _settled(qtbot, window)
     timers = [timer for timer in window.findChildren(QTimer) if timer.interval() == REFRESH_INTERVAL_MS]
-    assert ([timer.isActive() for timer in timers], held.actions.count("refresh_status")) == ([False], checks)
+    sent = held.actions.count("refresh_status") - before
+    assert ([timer.isActive() for timer in timers], sent) == ([False], 1)

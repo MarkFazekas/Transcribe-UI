@@ -63,3 +63,16 @@ def test_a_change_during_a_check_is_still_owed(area: tuple[CloudArea, ManualExec
     cloud.timers.poll.fire()
     manual.answer(REFRESH, _nothing_awaited())
     assert (during, cloud.timers.poll.active) == (True, False)
+
+
+def test_the_note_names_finished_cleanups(area: tuple[CloudArea, ManualExecutor]) -> None:
+    """A check that finished an interrupted cleanup says so in the page's note until the next check."""
+    cloud, manual = area
+    poll = cloud.models.poll
+    poll.tick()
+    done = RefreshStatusResponse(runs=(), batches=(), awaiting_results=False, finished_cleanups=(FIRST_JOB,))
+    manual.answer(REFRESH, done)
+    noted = poll.note()
+    poll.tick()
+    manual.answer(REFRESH, _nothing_awaited())
+    assert (noted, poll.note()) == ("Finished an interrupted cloud cleanup of another computer's job.", "")
