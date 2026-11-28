@@ -1,6 +1,6 @@
 """The macOS floor of a desktop build: wheel tags, Mach-O minimum versions, the bundle's sources."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from importlib.metadata import PathDistribution
 from pathlib import Path
 from types import MappingProxyType
@@ -50,6 +50,7 @@ MINIMUMS: Mapping[str, list[MacosVersion]] = MappingProxyType(
         "/opt/homebrew/lib/Shiboken.abi3.so": [(15, 0)],
         "/out/dist/transcribe-ui-macos-arm64-gui": [(11, 0)],
         "/out/dist/too-new": [(14, 0), (15, 0)],
+        "/out/dist/unversioned": [],
         "/py/lib/libpython3.13.dylib": [(14, 0)],
         "/ffmpeg/libav.dylib": [(14, 0), (15, 2)],
     }
@@ -148,6 +149,7 @@ def test_the_executable_follows_the_minos_rule() -> None:
     """The bootloader is checked by its own minimum macOS, whatever wheel PyInstaller came in."""
     assert not executable_problems(Path("/out/dist/transcribe-ui-macos-arm64-gui"), _read)
     assert executable_problems(Path("/out/dist/too-new"), _read) == ["too-new needs macOS 15.0 (the floor is 14.0)"]
+    assert executable_problems(Path("/out/dist/unversioned"), _read) == ["unversioned: no minimum macOS found"]
 
 
 def test_check_bundle_without_otool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -155,3 +157,22 @@ def test_check_bundle_without_otool(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     monkeypatch.setattr("shutil.which", lambda _name: None)
     report = check_bundle(tmp_path / "PKG-00.toc", tmp_path / "executable")
     assert report.problems == ("otool not found",)
+
+
+def test_check_bundle_checks_the_executable_too(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A too-new executable fails even though PyInstaller's wheel is tagged at the floor."""
+    bundled = tmp_path / "site" / "PyInstaller" / "_internal.so"
+    table = tmp_path / "PKG-00.toc"
+    entries = [("PyInstaller/_internal.so", str(bundled), "BINARY")]
+    table.write_text(repr(("/w/x.pkg", {"BINARY": True}, entries, False)), encoding="utf-8")
+    minimums: dict[Path, list[MacosVersion]] = {bundled.resolve(): [(26, 0)], tmp_path / "too-new": [(15, 0)]}
+    wheel = Wheel("pyinstaller", "6.22.3", ("py3-none-macosx_14_0_universal2",))
+    monkeypatch.setattr("build_desktop_macos.otool_reader", lambda: _reader(minimums))
+    monkeypatch.setattr("build_desktop_macos.installed_wheels", lambda: {str(bundled.resolve()): wheel})
+    report = check_bundle(table, tmp_path / "too-new")
+    assert report.problems == ("too-new needs macOS 15.0 (the floor is 14.0)",)
+    assert report.wheels == ("wheel pyinstaller 6.22.3: tags py3-none-macosx_14_0_universal2; highest minos 26.0",)
+
+
+def _reader(minimums: Mapping[Path, list[MacosVersion]]) -> Callable[[Path], list[MacosVersion]]:
+    return lambda binary: minimums[binary.resolve()]

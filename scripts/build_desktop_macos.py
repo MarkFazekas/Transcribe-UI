@@ -191,8 +191,11 @@ def floor_report(
 
 
 def executable_problems(executable: Path, read: MinimumReader, floor: MacosVersion = MACOS_FLOOR) -> list[str]:
-    """Return the problem of the built executable (the bootloader) when it needs a newer macOS than `floor`."""
-    newest = max(read(executable), default=(0,))
+    """Return the problem of the built executable (the bootloader): a newer macOS than `floor`, or none named."""
+    versions = read(executable)
+    if not versions:
+        return [f"{executable.name}: no minimum macOS found"]
+    newest = max(versions)
     return [_too_new(executable.name, newest, floor)] if newest > floor else []
 
 
