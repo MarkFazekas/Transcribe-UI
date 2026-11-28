@@ -1,4 +1,4 @@
-"""A change of jobs owes the poll a check (plan m6 M6.13; architecture §3.1 "Cloud").
+"""A change of jobs owes the poll a check, and the start-up without R2 (plan m6 M6.13; architecture §3.1 "Cloud").
 
 On the Cloud area's view-models over the launch world, driven by a manual executor and timer:
 after `batches_changed` only a check's final answer stops the poll. A lasting error settles the
@@ -13,6 +13,9 @@ import pytest
 
 from support.cloud import CloudArea, ManualExecutor, cloud_area, cloud_world
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse
+from transcribe_ui.credentials.classes import CredentialsStatusResponse, CredentialStatus
+from transcribe_ui.gui.cloud.startup import register_startup
+from transcribe_ui.gui.signals import StartupHooks
 from transcribe_ui.runs.responses import RefreshStatusResponse
 
 REFRESH = "refresh_status"
@@ -76,3 +79,17 @@ def test_the_note_names_finished_cleanups(area: tuple[CloudArea, ManualExecutor]
     poll.tick()
     manual.answer(REFRESH, _nothing_awaited())
     assert (noted, poll.note()) == ("Finished an interrupted cloud cleanup of another computer's job.", "")
+
+
+def test_no_cloud_check_without_r2(area: tuple[CloudArea, ManualExecutor]) -> None:
+    """Without the R2 credentials (a first start) the start-up sends no cloud check and still finishes."""
+    cloud, manual = area
+    hooks = StartupHooks()
+    register_startup(hooks, cloud.models)
+    done: list[bool] = []
+    hooks.run(lambda: done.append(True))
+    manual.answer("list_runs")
+    key = CredentialStatus(name="runpod_api_key", environment_variable="RUNPOD_API_KEY", source="missing")
+    nothing = CredentialsStatusResponse(keyring="available", credentials=(key,), runpod_key_set=False, r2_set=False)
+    manual.answer("credentials_status", nothing)
+    assert (done, [held.request.action for held in manual.held]) == ([True], ["list_runs", "credentials_status"])

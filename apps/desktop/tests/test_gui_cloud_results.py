@@ -41,10 +41,10 @@ def manual_area(world: CloudWorld) -> tuple[CloudArea, ManualExecutor]:
     return area, manual
 
 
-def _credentials(*, key_set: bool, r2_set: bool = True) -> CredentialsStatusResponse:
+def _credentials(*, key_set: bool) -> CredentialsStatusResponse:
     """Return a status whose Runpod key is found nowhere: whether it counts as set is the backend's `runpod_key_set`."""
     key = CredentialStatus(name="runpod_api_key", environment_variable="RUNPOD_API_KEY", source="missing")
-    return CredentialsStatusResponse(keyring="available", credentials=(key,), runpod_key_set=key_set, r2_set=r2_set)
+    return CredentialsStatusResponse(keyring="available", credentials=(key,), runpod_key_set=key_set, r2_set=True)
 
 
 def _refreshed(*, awaiting: bool) -> RefreshStatusResponse:
@@ -214,16 +214,3 @@ def test_a_change_of_jobs_owes_a_check(manual_area: tuple[CloudArea, ManualExecu
     area.timers.poll.fire()
     manual.answer(REFRESH, _refreshed(awaiting=False))
     assert not area.timers.poll.active
-
-
-def test_no_cloud_check_without_r2(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
-    """Without the R2 credentials (a first start) the start-up sends no cloud check and still finishes."""
-    area = manual_area[0]
-    manual = manual_area[1]
-    hooks = StartupHooks()
-    register_startup(hooks, area.models)
-    done: list[bool] = []
-    hooks.run(lambda: done.append(True))
-    manual.answer(LIST)
-    manual.answer(CREDENTIALS, _credentials(key_set=False, r2_set=False))
-    assert (done, _actions(manual)) == ([True], [LIST, CREDENTIALS])
