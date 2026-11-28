@@ -33,7 +33,7 @@ from transcribe_ui.batches.classes import (
 )
 from transcribe_ui.gui.review.constants import ReviewTab
 from transcribe_ui.gui.review.display import ReviewRow, review_rows
-from transcribe_ui.gui.review.status import Buttons, buttons, review_status
+from transcribe_ui.gui.review.status import Buttons, buttons, review_counts, review_status
 from transcribe_ui.i18n.catalog import activate
 
 SUBPROCESS_TIMEOUT_S = 60
@@ -48,6 +48,7 @@ ATTENTION: Final[ReviewTab] = "attention"
 GET: Final = "get_batch"
 REVIEW: Final = "review_batch"
 RESOLVE: Final = "resolve_review"
+EXCLUDE: Final = "exclude_items"
 # The requests of a load: the job, its review, the job again.
 LOAD = (GET, REVIEW, GET)
 # The batch id of a job the database does not hold.
@@ -250,7 +251,7 @@ def test_remove_goes_through_the_confirmation(area: ReviewArea) -> None:
     area.model.editor.tick(ids_of(area.leg)[SILENT], ticked=True)
     assert (_buttons(area).remove_enabled, _row(area, SUBTITLES, SILENT, HU).ticked) == (True, True)
     area.model.commands.remove_ticked()
-    excluded = [request for request in _sent(area, "exclude_items") if isinstance(request, ExcludeItemsRequest)]
+    excluded = [request for request in _sent(area, EXCLUDE) if isinstance(request, ExcludeItemsRequest)]
     assert ([request.confirm for request in excluded], len(area.outlet.asked)) == ([False, True], 1)
     assert (_rows(area, SUBTITLES), area.model.editor.ticked()) == (FILM_ROWS, ())
     assert SILENT not in ids_of(area.leg)
@@ -423,8 +424,8 @@ def test_a_removal_answered_while_hidden_waits(leg: Leg) -> None:
     executor.answer_all()
     area.model.editor.tick(ids_of(area.leg)[SILENT], ticked=True)
     area.model.commands.remove_ticked()
-    executor.answer(_pending(executor, "exclude_items"))
-    confirmed = _pending(executor, "exclude_items")
+    executor.answer(_pending(executor, EXCLUDE))
+    confirmed = _pending(executor, EXCLUDE)
     area.model.visibility_changed(shown=False)
     sent = len(executor.calls)
     executor.answer(confirmed)
@@ -443,7 +444,7 @@ def test_choices_no_longer_listed_are_dropped(area: ReviewArea) -> None:
     assert isinstance(last, ReviewBatchRequest)
     assert (_buttons(area).filters_enabled, last.filters.languages) == (False, ())
     film = ids_of(area.leg)[FILM]
-    excluded = ExcludeItemsRequest(action="exclude_items", batch_id=FIRST_BATCH_ID, item_ids=(film,), confirm=True)
+    excluded = ExcludeItemsRequest(action=EXCLUDE, batch_id=FIRST_BATCH_ID, item_ids=(film,), confirm=True)
     assert area.leg.backend.execute(excluded).status == "ok"
     area.model.on_batches_changed((FIRST_BATCH_ID,))
     assert (area.model.editor.draft.pending(), buttons(area.model).apply_shown) == ((), False)
@@ -460,6 +461,25 @@ def test_choices_go_with_the_review(area: ReviewArea) -> None:
     area.model.loader.load_review()
     state = buttons(area.model)
     assert (area.model.editor.draft.pending(), state.apply_shown, state.filters_enabled) == ((), False, True)
+
+
+def test_a_removed_file_no_longer_counts(leg: Leg) -> None:
+    """Removed while the next review is still on its way: the file shows as removed and the counts and hint leave it out."""
+    (leg.root / "media" / "Audio" / EPISODE).unlink()
+    executor = DeferredExecutor(leg.backend)
+    area = review_area(leg, lambda _runner: executor)
+    area.model.open_batch(FIRST_BATCH_ID)
+    executor.answer_all()
+    area.model.editor.tick(ids_of(area.leg)[EPISODE], ticked=True)
+    area.model.commands.remove_ticked()
+    executor.answer(_pending(executor, EXCLUDE))
+    executor.answer(_pending(executor, EXCLUDE))
+    rows = review_rows(area.model, ATTENTION)
+    assert [(row.status, row.ticked) for row in rows] == [("Removed from the job", False)]
+    # The review after the removal is still running here; the counts already leave the file out.
+    assert review_counts(area.model) == (3, 0)
+    executor.answer_all()
+    assert not review_rows(area.model, ATTENTION)
 
 
 def test_the_texts_follow_the_language(leg: Leg) -> None:

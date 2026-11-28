@@ -647,8 +647,12 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     with Retry. A review still queued on its pool does not hold the job (a decision of the main
     session, not a product answer): choices stay open; Apply and Remove pre-empt it (it is taken
     off its queue, the action runs at once on the short pool, and the same review is queued again
-    after it); Upload drops it (it would meet the upload's lock) and shows the wait, and the end
-    of the upload loads the review again.
+    after it; actions always go before reviews still waiting); Upload drops it first (it would
+    run first or meet the upload's lock) and shows the wait, and the end of the upload loads the
+    review again. Whether a review started is read from its call's state, not only from its
+    start signal. Apply's answer is shown at once (it is newer than nothing; a review still
+    waiting replaces it later); files removed meanwhile show "Removed from the job" with no tick
+    or choice, and the counts and hints leave them out until the next review.
   - One at a time: `review_batch`, `resolve_review` and `exclude_items` hold the job's lock
     (`batch_busy` is never waited for), so `SerialSender` sends them one after the other: a new
     review replaces a waiting one and cancels a running one (its answer is dropped), an action

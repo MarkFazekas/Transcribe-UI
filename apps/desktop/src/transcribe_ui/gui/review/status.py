@@ -86,16 +86,21 @@ def changes_hint() -> str:
     return tr("Apply or discard your changes before changing the filters or uploading.")
 
 
+def _incomplete(model: ReviewModel) -> bool:
+    """Return whether files not removed since still need attention."""
+    counts = review_counts(model)
+    return counts is not None and counts[1] > 0
+
+
 def _hint(model: ReviewModel) -> str:
     """Return what blocks the page's actions now (the first that applies), or ""."""
-    review = model.loader.loaded.review
     blocked = (
         (_uploading(model), tr("The job is uploading; its review waits until the upload stops.")),
         (model.sender.acting(), tr("Saving…")),
         (model.sender.reviewing(started_only=True), tr("Wait until the files are checked.")),
         (bool(model.editor.draft.keys()), changes_hint()),
         (
-            review is not None and not review.complete,
+            _incomplete(model),
             tr("Choose for the files that need attention, or remove them from the job, before the upload."),
         ),
     )
@@ -110,7 +115,7 @@ def buttons(model: ReviewModel) -> Buttons:
     review = model.loader.loaded.review
     detail = model.loader.loaded.detail
     upload_allowed = _allowed(model, UPLOAD_ACTION)
-    incomplete = review is not None and not review.complete
+    incomplete = _incomplete(model)
     return Buttons(
         apply_shown=pending,
         apply_enabled=pending and free and _allowed(model, RESOLVE_ACTION),
@@ -127,20 +132,31 @@ def buttons(model: ReviewModel) -> Buttons:
     )
 
 
-def _counts_text(model: ReviewModel) -> str:
+def review_counts(model: ReviewModel) -> tuple[int, int] | None:
+    """Return the files in review and those that need attention, without the files removed since (None: no review)."""
     review = model.loader.loaded.review
     if review is None:
+        return None
+    removed = model.editor.removed
+    attention = model.editor.views.current().tabs["attention"].by_item
+    removed_attention = sum(1 for item_id in attention if item_id in removed)
+    return review.items_in_review - len(removed), review.items_unresolved - removed_attention
+
+
+def _counts_text(model: ReviewModel) -> str:
+    counts = review_counts(model)
+    if counts is None:
         loaded_job = model.loader.loaded.detail is not None
         nothing = loaded_job and not _allowed(model, REVIEW_ACTION)
         return tr("No file of this job waits for review.") if nothing else ""
-    if not review.items_in_review:
+    in_review, unresolved = counts
+    if not in_review:
         return tr("No file of this job waits for review.")
-    files = ntr("{count} file in review", "{count} files in review", review.items_in_review)
-    in_review = files.format(count=format_number(review.items_in_review))
-    if review.complete:
-        return tr("{files}; every one is ready to upload.").format(files=in_review)
-    unresolved = ntr("{count} needs attention", "{count} need attention", review.items_unresolved)
-    return f"{in_review}; {unresolved.format(count=format_number(review.items_unresolved))}."
+    files = ntr("{count} file in review", "{count} files in review", in_review).format(count=format_number(in_review))
+    if not unresolved:
+        return tr("{files}; every one is ready to upload.").format(files=files)
+    attention = ntr("{count} needs attention", "{count} need attention", unresolved)
+    return f"{files}; {attention.format(count=format_number(unresolved))}."
 
 
 def _checking_text(event: ProgressEvent | None) -> str:

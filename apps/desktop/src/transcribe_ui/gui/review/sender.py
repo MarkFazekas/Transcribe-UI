@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 from transcribe_ui.api.classes import ProgressEvent, Request, Response
+from transcribe_ui.gui.constants import CALL_QUEUED
 from transcribe_ui.gui.executor import CallHandle, DoneCallback, Executor, ProgressCallback, StartedCallback
 
 # A review's progress events and the start of its call (it left its pool's queue).
@@ -26,6 +27,10 @@ class _Queued:
     on_started: StartedCallback | None = None
     # The call left its pool's queue and runs.
     started: bool = False
+
+
+def _is_review(queued: _Queued | None) -> bool:
+    return queued is not None and queued.review
 
 
 class SerialSender:
@@ -45,16 +50,15 @@ class SerialSender:
 
         A review still queued behind other calls does not hold the job yet: the page stays usable.
         """
-        running = self._running
         if started_only:
             # A started review holds the job's lock until it answers, even when dropped.
-            return running is not None and running.review and running.started
-        live = self._running_review() and not self._dropped
+            return self._review_started()
+        live = _is_review(self._running) and not self._dropped
         return live or any(queued.review for queued in self._waiting)
 
     def acting(self) -> bool:
         """Return whether an action (Apply, Remove) is running or waiting."""
-        running = self._running is not None and not self._running_review()
+        running = self._running is not None and not _is_review(self._running)
         return running or any(not queued.review for queued in self._waiting)
 
     def send_review(self, request: Request, on_done: DoneCallback, follow: ReviewFollow) -> None:
@@ -74,10 +78,13 @@ class SerialSender:
         A review still queued on its pool (not started) does not hold the action back: it is taken
         off its queue and sent again after the action, so Apply or Remove answers at once.
         """
-        self._waiting.append(_Queued(request, on_done, None, review=False))
+        # Actions go before the reviews still waiting, so no action waits for a review's turn.
+        reviews = [index for index, queued in enumerate(self._waiting) if queued.review]
+        position = reviews[0] if reviews else len(self._waiting)
+        self._waiting.insert(position, _Queued(request, on_done, None, review=False))
         running = self._running
         call = self._call
-        queued_review = running is not None and running.review and not running.started
+        queued_review = _is_review(running) and not self._review_started()
         if running is not None and queued_review and call is not None and not self._dropped:
             self._waiting.append(replace(running, started=False))
             self._dropped = True
@@ -88,12 +95,17 @@ class SerialSender:
         """Drop the reviews still waiting and cancel a running one (none of them answers)."""
         self._waiting = [queued for queued in self._waiting if not queued.review]
         call = self._call
-        if self._running_review() and call is not None and not self._dropped:
+        if _is_review(self._running) and call is not None and not self._dropped:
             self._dropped = True
             call.cancel()
 
-    def _running_review(self) -> bool:
-        return self._running is not None and self._running.review
+    def _review_started(self) -> bool:
+        """Return whether the running review left its pool's queue (its call's state, or its started signal)."""
+        running = self._running
+        if running is None or not running.review:
+            return False
+        call = self._call
+        return running.started or (call is not None and call.state != CALL_QUEUED)
 
     def _next(self) -> None:
         if self._running is not None or not self._waiting:
@@ -113,10 +125,11 @@ class SerialSender:
 
     def _follow(self, queued: _Queued, event: ProgressEvent | None) -> None:
         """Pass a progress event of the running review on (None: its call left the queue)."""
+        if event is None:
+            # Recorded even for a dropped review: it holds the job's lock until it answers.
+            queued.started = True
         if queued is not self._running or self._dropped:
             return
-        if event is None:
-            queued.started = True
         if event is None and queued.on_started is not None:
             queued.on_started()
         elif event is not None and queued.on_progress is not None:

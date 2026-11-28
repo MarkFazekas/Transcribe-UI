@@ -119,14 +119,15 @@ class ReviewCommands:
         loader = self._loader
         if batch_id == loader.batch_id and isinstance(response, ResolveReviewResponse):
             self._editor.draft.forget(request.choices)
-            current = generation == loader.generation and not self._sender.reviewing()
-            if current and loader.filters == ReviewFilter():
+            if generation == loader.generation and loader.filters == ReviewFilter():
+                # Answers come one at a time, so a review still waiting will be newer anyway.
                 loaded = loader.loaded
                 loaded.review = response.review
                 loaded.review_error = None
-                loaded.state = "shown"
+                if not self._sender.reviewing():
+                    loaded.state = "shown"
                 loader.load_detail()
-            else:
+            elif not self._sender.reviewing():
                 loader.reload()
             applied = frozenset(choice_key(choice) for choice in request.choices)
             self._editor.edits(EditChange(keys=applied))

@@ -1343,6 +1343,10 @@ msgstr "Eltávolítás"
 msgid "Remove ticked files from the job"
 msgstr "A bejelölt fájlok eltávolítása a feladatból"
 
+#: src/transcribe_ui/gui/review/display.py
+msgid "Removed from the job"
+msgstr "Kivéve a feladatból"
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Repeat cleanup"
 msgstr "Takarítás megismétlése"

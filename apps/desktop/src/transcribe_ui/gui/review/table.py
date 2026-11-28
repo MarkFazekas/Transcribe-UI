@@ -158,11 +158,14 @@ class ReviewTableModel(QAbstractTableModel):
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
         column = index.column()
+        shape = self.shown_rows.shapes[index.row()]
+        shown = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        if shape.item_id in self._model.editor.removed:
+            # Removed from the job: nothing to tick or choose until the next review drops the row.
+            return shown
         if column == TICK_COLUMN:
             return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable
-        shown = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        options = self.shown_rows.shapes[index.row()].options
-        if column == CHOICE_COLUMN and options and self._model.editable():
+        if column == CHOICE_COLUMN and shape.options and self._model.editable():
             return shown | Qt.ItemFlag.ItemIsEditable
         return shown
 

@@ -92,12 +92,14 @@ class ReviewModel(ViewModel):
         free = self.editable() and not self.editor.draft.keys()
         if batch_id is None or not allowed or not free:
             return False
-        if not self.uploads.start(batch_id):
-            return False
-        # A review still queued would wait for the lock the upload holds and fail: drop it and show
-        # the wait; the end of the upload loads the review again.
-        self.loader.load_review()
-        return True
+        # A review still queued would run before the upload, or meet the lock it holds: drop it
+        # first; the page then shows the wait, and the end of the upload loads the review again.
+        waiting = self.sender.reviewing()
+        self.sender.drop_reviews()
+        started = self.uploads.start(batch_id)
+        if waiting:
+            self.loader.load_review()
+        return started
 
     def editable(self) -> bool:
         """Return whether nothing holds the job now (a check, a save, its upload), so what is shown can change."""

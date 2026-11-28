@@ -31,7 +31,7 @@ from transcribe_ui.gui.constants import LONG_POOL_THREADS, PAGE_JOBS
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.jobs.view import JobsPage
 from transcribe_ui.gui.review import index as index_module
-from transcribe_ui.gui.review.constants import CHOICE_COLUMN, STATUS_COLUMN, TICK_COLUMN
+from transcribe_ui.gui.review.constants import CHOICE_COLUMN, STATUS_COLUMN, TICK_COLUMN, ReviewTab
 from transcribe_ui.gui.review.index import ReviewIndex
 from transcribe_ui.gui.review.table import ReviewTableModel
 from transcribe_ui.gui.review.view import ReviewPage
@@ -39,6 +39,8 @@ from transcribe_ui.gui.review.widgets import ReviewTable
 from transcribe_ui.gui.shell import MainWindow
 
 EN: Final = "en"
+# The embedded-subtitle table.
+SUBTITLES: Final[ReviewTab] = "subtitles"
 HU: Final = "hu"
 # The film's English text subtitle, among its options.
 EXTRACT_ENGLISH = 2
@@ -81,19 +83,24 @@ def _review(window: MainWindow) -> ReviewPage:
 
 
 def _subtitles(page: ReviewPage) -> ReviewTable:
-    return page.tabs.tables["subtitles"]
+    return page.tabs.tables[SUBTITLES]
+
+
+def _rows_table(page: ReviewPage) -> ReviewTable:
+    """Return the embedded-subtitle table."""
+    return page.tabs.tables[SUBTITLES]
 
 
 def _rows_of(page: ReviewPage) -> ReviewTableModel:
     """Return the model of the embedded-subtitle table."""
-    return page.tabs.tables["subtitles"].rows
+    return page.tabs.tables[SUBTITLES].rows
 
 
 def _opened(qtbot: QtBot, window: MainWindow) -> ReviewPage:
     """Open the first batch's review and wait for its tables."""
     window.context.signals.open_review.emit(FIRST_BATCH_ID)
     page = _review(window)
-    rows = page.tabs.tables["subtitles"].rows
+    rows = page.tabs.tables[SUBTITLES].rows
     wait_for(qtbot, lambda: rows.rowCount() == SUBTITLE_ROWS)
     return page
 
@@ -253,7 +260,7 @@ class _CountedBuild:
 def _progress(page: ReviewPage) -> _Counter:
     """Repaint the page as progress events do; return the counter of the subtitle table's resets."""
     resets = _Counter()
-    rows = page.tabs.tables["subtitles"].rows
+    rows = page.tabs.tables[SUBTITLES].rows
     rows.modelReset.connect(resets)
     for _ in range(PROGRESS_REPAINTS):
         page.model.changed()
@@ -316,6 +323,26 @@ def _removed_silent(qtbot: QtBot, window: MainWindow, page: ReviewPage) -> None:
     wait_for(qtbot, lambda: not page.model.sender.acting())
 
 
+def _apply_extract(qtbot: QtBot, page: ReviewPage) -> tuple[object, object]:
+    """Choose the film's English subtitle and Apply; return the choice and status the row shows once applied."""
+    _choose_in_cell(qtbot, page, EXTRACT_ENGLISH)
+    wait_for(qtbot, page.action_row.apply_button.isEnabled)
+    page.action_row.apply_button.click()
+    draft = page.model.editor.draft
+    wait_for(qtbot, lambda: not draft.keys() and not page.model.sender.acting())
+    table = _subtitles(page)
+    wait_for(qtbot, lambda: _text(table, 0, CHOICE_COLUMN) == "Extract subtitle 1: eng, subrip")
+    return _text(table, 0, CHOICE_COLUMN), _text(table, 0, STATUS_COLUMN)
+
+
+def _removed_row(page: ReviewPage) -> tuple[object, bool, bool]:
+    """Return the silent video's status, and whether its tick and its choice can still be used."""
+    rows = _rows_of(page)
+    tick = rows.flags(rows.index(SILENT_ROW, TICK_COLUMN)) & Qt.ItemFlag.ItemIsUserCheckable
+    choice = rows.flags(rows.index(SILENT_ROW, CHOICE_COLUMN)) & Qt.ItemFlag.ItemIsEditable
+    return rows.data(rows.index(SILENT_ROW, STATUS_COLUMN)), bool(tick), bool(choice)
+
+
 def test_a_queued_review_leaves_the_page_usable(qtbot: QtBot, leg: Leg, tmp_path: Path) -> None:
     """With the long pool full, Check again waits in its queue; choices, Apply and Remove still answer at once."""
     runner = HeldUploads(leg.backend)
@@ -324,17 +351,13 @@ def test_a_queued_review_leaves_the_page_usable(qtbot: QtBot, leg: Leg, tmp_path
         page = _queued_review(qtbot, window, runner)
         status = page.controls.status
         wait_for(qtbot, lambda: status.text().startswith("Waiting to check the files; you can keep choosing"))
-        _choose_in_cell(qtbot, page, EXTRACT_ENGLISH)
-        wait_for(qtbot, page.action_row.apply_button.isEnabled)
-        page.action_row.apply_button.click()
-        draft = page.model.editor.draft
-        wait_for(qtbot, lambda: not draft.keys() and not page.model.sender.acting())
+        applied = _apply_extract(qtbot, page)
+        table = _rows_table(page)
         _removed_silent(qtbot, window, page)
-        held = (runner.held, page.model.loader.loaded.state, page.model.editor.removed)
-    assert held[:2] == (LONG_POOL_THREADS, "queued")
-    assert len(held[2]) == 1
+        held = (runner.held, page.model.loader.loaded.state, _removed_row(page))
+    assert applied == ("Extract subtitle 1: eng, subrip", "")
+    assert held == (LONG_POOL_THREADS, "queued", ("Removed from the job", False, False))
     wait_for(qtbot, lambda: page.model.loader.loaded.state == "shown")
-    table = _subtitles(page)
     wait_for(qtbot, lambda: _names(table) == [(FILM, EN), (FILM, HU)])
     assert _text(table, 0, CHOICE_COLUMN) == "Extract subtitle 1: eng, subrip"
 
@@ -350,20 +373,33 @@ def test_upload_drops_a_queued_review(qtbot: QtBot, leg: Leg, tmp_path: Path) ->
         waiting = page.model.loader.loaded.state
         reviewing = page.model.sender.reviewing()
     assert (waiting, reviewing) == ("waiting_upload", False)
-    # Released, the upload fails without credentials; its end loads the review again.
+    # HeldUploads also held the page's own upload; released, it answers as stopped, and its end
+    # loads the review again.
     wait_for(qtbot, lambda: page.model.loader.loaded.state == "shown")
     wait_for(qtbot, lambda: not window.busy())
+    status = page.model.uploads.status(FIRST_BATCH_ID)
+    assert status is not None
+    assert (status.entry.state, status.entry.error) == ("stopped", None)
 
 
-def test_a_commit_of_the_shown_choice_says_nothing(qtbot: QtBot, window: MainWindow) -> None:
-    """The editor committing the choice the row already shows (it lost the focus) keeps it silently."""
-    page = _opened(qtbot, window)
-    rows = _rows_of(page)
-    shown = rows.row(0)
-    assert shown.chosen is not None
-    page.model.loader.load_review()
-    kept = rows.setData(rows.index(0, CHOICE_COLUMN), shown.shape.options[shown.chosen].choice)
-    assert (kept, window.statusBar().currentMessage(), page.model.editor.draft.keys()) == (True, "", ())
+def test_a_commit_of_the_shown_choice_says_nothing(qtbot: QtBot, leg: Leg, tmp_path: Path) -> None:
+    """While the job is held, committing the choice the row already shows (the editor lost the focus) is silent."""
+    runner = HeldUploads(leg.backend)
+    with released(runner):
+        window = settled_window(qtbot, runner, tmp_path)
+        page = _opened(qtbot, window)
+        wait_for(qtbot, page.action_row.upload_button.isEnabled)
+        page.action_row.upload_button.click()
+        wait_for(qtbot, lambda: not page.model.editable())
+        rows = _rows_of(page)
+        shown = rows.row(0)
+        assert shown.chosen is not None
+        same = rows.setData(rows.index(0, CHOICE_COLUMN), shown.shape.options[shown.chosen].choice)
+        unchanged = (same, window.statusBar().currentMessage())
+        other = rows.setData(rows.index(0, CHOICE_COLUMN), shown.shape.options[EXTRACT_ENGLISH].choice)
+        refused = (other, window.statusBar().currentMessage(), page.model.editor.draft.keys())
+    assert unchanged == (True, "")
+    assert refused == (False, "The job is busy; your choice was not kept. Choose again when it is free.", ())
 
 
 def _ignore(_response: object) -> None:

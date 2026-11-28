@@ -1271,6 +1271,10 @@ msgstr ""
 msgid "Remove ticked files from the job"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/display.py
+msgid "Removed from the job"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Repeat cleanup"
 msgstr ""

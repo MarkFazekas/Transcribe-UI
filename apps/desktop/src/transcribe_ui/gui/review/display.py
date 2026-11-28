@@ -30,6 +30,9 @@ def row_state(model: ReviewModel, shape: RowShape) -> ReviewRow:
     """Return a row with what the user's edits show in it."""
     chosen = None
     status = shape.note
+    if shape.item_id in model.editor.removed:
+        # Removed from the job; the next review no longer lists it.
+        return ReviewRow(shape, None, tr("Removed from the job"), ticked=False)
     if shape.language is not None and shape.options:
         key = (shape.item_id, shape.language)
         draft = model.editor.draft
