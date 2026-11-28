@@ -2,7 +2,6 @@
 
 from transcribe_ui.credentials.classes import CredentialsStatusResponse
 from transcribe_ui.credentials.constants import R2_CREDENTIALS
-from transcribe_ui.gui.settings.constants import OPTIONAL_CREDENTIAL
 
 
 def r2_missing(status: CredentialsStatusResponse) -> bool:
@@ -12,8 +11,9 @@ def r2_missing(status: CredentialsStatusResponse) -> bool:
 
 
 def runpod_key_set(status: CredentialsStatusResponse | None) -> bool:
-    """Return whether the Runpod API key is set (the cloud setup needs it, §3.9)."""
-    if status is None:
-        return False
-    sources = {credential.name: credential.source for credential in status.credentials}
-    return sources.get(OPTIONAL_CREDENTIAL, "missing") != "missing"
+    """Return whether the backend counts the Runpod API key as set (the cloud setup needs it, §3.9).
+
+    The backend's rule: a keyring that failed while reading may hold it, so the cloud setup is
+    then offered and its check reports the keyring's error.
+    """
+    return status is not None and status.runpod_key_set

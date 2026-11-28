@@ -1680,7 +1680,9 @@ database):
   - `credentials_status`: the keyring state (`available`, `unavailable`, `failed`), per
     credential its environment variable and source (`keyring`, `environment`, `missing`), and
     `runpod_key_set` (`Lookup.runpod_key_set`, the rule `runs/cloud.py` `runpod_key_set` also
-    uses: the key was found, or the keyring failed while reading, so it may hold it).
+    uses: the key was found, or the keyring failed while reading, so it may hold it). Every
+    GUI area reads that field: the Cloud page's key and the settings area's cloud setup (a
+    failed keyring offers the cloud setup, whose check reports the keyring's error).
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
