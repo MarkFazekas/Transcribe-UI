@@ -136,8 +136,8 @@ def _sent_back(qtbot: QtBot, page: ReviewPage) -> None:
     box = page.upload_box
     wait_for(qtbot, lambda: "back in review" in box.state.text())
     assert FILM in box.state.text()
-    tracks = page.tabs.tables["tracks"]
-    wait_for(qtbot, lambda: [row.shape.file_name for row in tracks.rows] == [FILM, FILM])
+    tracks = page.tabs.tables["tracks"].rows
+    wait_for(qtbot, lambda: [tracks.row(row).shape.file_name for row in range(tracks.rowCount())] == [FILM, FILM])
     wait_for(qtbot, lambda: page.controls.status.text() == "1 file in review; every one is ready to upload.")
 
 

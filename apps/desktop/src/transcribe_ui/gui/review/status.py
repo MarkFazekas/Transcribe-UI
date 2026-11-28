@@ -44,8 +44,11 @@ class Buttons:
     upload_shown: bool
     upload_enabled: bool
     upload_label: str
+    # Choices can change (the combo boxes and "Transcribe/Extract all shown").
     choose_enabled: bool
     check_enabled: bool
+    # The filters can change (not while choices wait for Apply).
+    filters_enabled: bool
     hint: str
 
 
@@ -68,11 +71,6 @@ def _allowed(model: ReviewModel, action: str) -> bool:
     return detail is not None and action in detail.summary.actions
 
 
-def _locked(model: ReviewModel) -> bool:
-    """Return whether a check, a save or the job's upload holds the job now."""
-    return _uploading(model) or model.sender.reviewing() or model.sender.acting()
-
-
 def _uploading(model: ReviewModel) -> bool:
     batch_id = model.loader.batch_id
     return batch_id is not None and model.uploads.busy(batch_id)
@@ -85,7 +83,7 @@ def _hint(model: ReviewModel) -> str:
         (_uploading(model), tr("The job is uploading; its review waits until the upload stops.")),
         (model.sender.acting(), tr("Saving…")),
         (model.sender.reviewing(), tr("Wait until the files are checked.")),
-        (bool(model.editor.draft.pending()), tr("Apply or discard your changes before the upload.")),
+        (bool(model.editor.draft.keys()), tr("Apply or discard your changes before the upload.")),
         (
             review is not None and not review.complete,
             tr("Choose for the files that need attention, or remove them from the job, before the upload."),
@@ -96,22 +94,23 @@ def _hint(model: ReviewModel) -> str:
 
 def buttons(model: ReviewModel) -> Buttons:
     """Return the states of the page's buttons and the hint."""
-    locked = _locked(model)
-    pending = bool(model.editor.draft.pending())
+    free = model.editable()
+    pending = bool(model.editor.draft.keys())
     review = model.loader.loaded.review
     detail = model.loader.loaded.detail
     upload_allowed = _allowed(model, UPLOAD_ACTION)
     incomplete = review is not None and not review.complete
     return Buttons(
         apply_shown=pending,
-        apply_enabled=pending and not locked and _allowed(model, RESOLVE_ACTION),
+        apply_enabled=pending and free and _allowed(model, RESOLVE_ACTION),
         remove_shown=_allowed(model, EXCLUDE_ACTION),
-        remove_enabled=bool(model.editor.ticked()) and not locked,
+        remove_enabled=bool(model.editor.ticked()) and free,
         upload_shown=upload_allowed or incomplete,
-        upload_enabled=upload_allowed and not pending and not locked,
+        upload_enabled=upload_allowed and not pending and free,
         upload_label="" if detail is None else button_label("upload", detail.summary),
-        choose_enabled=review is not None and bool(review.subtitle_view) and _allowed(model, RESOLVE_ACTION),
-        check_enabled=not locked and _allowed(model, REVIEW_ACTION),
+        choose_enabled=review is not None and free and _allowed(model, RESOLVE_ACTION),
+        check_enabled=free and _allowed(model, REVIEW_ACTION),
+        filters_enabled=not pending,
         hint=_hint(model),
     )
 
@@ -144,6 +143,7 @@ def review_status(model: ReviewModel) -> str:
     """Return the line above the review: the check's progress, a stop, the upload's wait, or the counts."""
     loaded = model.loader.loaded
     texts: dict[ReviewState, str] = {
+        "queued": tr("Waiting to check the files (other long tasks run first)…"),
         "checking": _checking_text(loaded.probe),
         "stopped": tr("Checking stopped; continue any time with Check again."),
         "waiting_upload": tr("The job is uploading; its review continues once the upload stops."),

@@ -6,25 +6,29 @@ goes through the backend's confirmation dialog, the filters narrow the tables, a
 sends nothing when its job changes.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QPushButton, QTableWidgetItem
+from PySide6.QtWidgets import QComboBox, QPushButton
 from pytestqt.qtbot import QtBot
 
 from support.batches import FILM, FIRST_BATCH_ID, SILENT
 from support.gated import wait_for
 from support.jobs import RecordingRunner
 from support.parity import Leg
-from support.review import review_leg
-from support.selection_window import settled_window
+from support.review import large_review, review_area, review_leg
+from support.selection_window import ChangedSpans, settled_window
+from transcribe_ui.batches.responses import BatchDetail, BatchReview
 from transcribe_ui.gui.constants import PAGE_JOBS
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.jobs.view import JobsPage
-from transcribe_ui.gui.review.constants import STATUS_COLUMN, TICK_COLUMN
+from transcribe_ui.gui.review import index as index_module
+from transcribe_ui.gui.review.constants import CHOICE_COLUMN, STATUS_COLUMN, TICK_COLUMN
+from transcribe_ui.gui.review.index import ReviewIndex
 from transcribe_ui.gui.review.view import ReviewPage
 from transcribe_ui.gui.review.widgets import ReviewTable
 from transcribe_ui.gui.shell import MainWindow
@@ -79,19 +83,27 @@ def _opened(qtbot: QtBot, window: MainWindow) -> ReviewPage:
     """Open the first batch's review and wait for its tables."""
     window.context.signals.open_review.emit(FIRST_BATCH_ID)
     page = _review(window)
-    table = _subtitles(page).table
-    wait_for(qtbot, lambda: table.rowCount() == SUBTITLE_ROWS)
+    rows = page.tabs.tables["subtitles"].rows
+    wait_for(qtbot, lambda: rows.rowCount() == SUBTITLE_ROWS)
     return page
 
 
-def _cell(table: ReviewTable, row: int, column: int) -> QTableWidgetItem:
-    cell = table.table.item(row, column)
-    assert cell is not None
-    return cell
+def _text(table: ReviewTable, row: int, column: int) -> object:
+    return table.rows.data(table.rows.index(row, column))
 
 
 def _names(table: ReviewTable) -> list[tuple[str, str | None]]:
-    return [(row.shape.file_name, row.shape.language) for row in table.rows]
+    shapes = [table.rows.row(row).shape for row in range(table.rows.rowCount())]
+    return [(shape.file_name, shape.language) for shape in shapes]
+
+
+def _edit(table: ReviewTable, row: int) -> QComboBox:
+    """Start editing a row's choice as a click does; return its combo box."""
+    index = table.rows.index(row, CHOICE_COLUMN)
+    table.clicked.emit(index)
+    combo = table.indexWidget(index)
+    assert isinstance(combo, QComboBox)
+    return combo
 
 
 def test_review_opens_the_page_on_the_jobs_page(qtbot: QtBot, window: MainWindow) -> None:
@@ -105,33 +117,44 @@ def test_review_opens_the_page_on_the_jobs_page(qtbot: QtBot, window: MainWindow
     assert not window.statusBar().currentMessage()
 
 
+def _choose_in_cell(qtbot: QtBot, page: ReviewPage, option: int) -> None:
+    """Pick an option in the first row's combo box, as a click and a choice do; wait until the editor closed."""
+    table = _subtitles(page)
+    wait_for(qtbot, page.model.editable)
+    combo = _edit(table, 0)
+    combo.setCurrentIndex(option)
+    combo.activated.emit(option)
+    wait_for(qtbot, lambda: _text(table, 0, STATUS_COLUMN) == "Changed; not applied yet")
+    wait_for(qtbot, lambda: not table.findChildren(QComboBox))
+
+
+def _defaults(page: ReviewPage) -> list[str]:
+    """Return the buttons a stray Enter would press (default or auto-default)."""
+    buttons = page.findChildren(QPushButton)
+    return [button.text() for button in buttons if button.autoDefault() or button.isDefault()]
+
+
 def test_a_choice_waits_for_apply(qtbot: QtBot, window: MainWindow) -> None:
-    """Choosing an option marks the row in place; Apply stores it; no button reacts to a stray Enter."""
+    """A choice made in the cell's combo box marks the row; Apply stores it; no button reacts to a stray Enter."""
     page = _opened(qtbot, window)
     table = _subtitles(page)
-    combo = table.combo(0)
-    assert combo is not None
-    combo.setCurrentIndex(EXTRACT_ENGLISH)
-    combo.activated.emit(EXTRACT_ENGLISH)
-    wait_for(qtbot, lambda: _cell(table, 0, STATUS_COLUMN).text() == "Changed; not applied yet")
+    _choose_in_cell(qtbot, page, EXTRACT_ENGLISH)
     actions = page.action_row
-    assert table.combo(0) is combo
-    enabled = (actions.apply_button.isEnabled(), actions.upload_button.isEnabled(), actions.hint.text())
-    assert enabled == (True, False, "Apply or discard your changes before the upload.")
-    buttons = page.findChildren(QPushButton)
-    defaults = [button.text() for button in buttons if button.autoDefault() or button.isDefault()]
-    assert not defaults
+    wait_for(qtbot, actions.apply_button.isEnabled)
+    enabled = (actions.upload_button.isEnabled(), actions.hint.text(), _defaults(page))
+    assert enabled == (False, "Apply or discard your changes before the upload.", [])
     actions.apply_button.click()
     wait_for(qtbot, lambda: not actions.apply_button.isVisible())
-    wait_for(qtbot, lambda: _cell(table, 0, STATUS_COLUMN).text() == "")
-    assert combo.currentIndex() == EXTRACT_ENGLISH
+    wait_for(qtbot, lambda: _text(table, 0, STATUS_COLUMN) == "")
+    assert _text(table, 0, CHOICE_COLUMN) == "Extract subtitle 1: eng, subrip"
 
 
 def test_remove_goes_through_the_confirmation_dialog(qtbot: QtBot, window: MainWindow) -> None:
     """A ticked file is removed after the backend's question is confirmed in the dialog."""
     page = _opened(qtbot, window)
     table = _subtitles(page)
-    _cell(table, SILENT_ROW, TICK_COLUMN).setCheckState(Qt.CheckState.Checked)
+    tick = table.rows.index(SILENT_ROW, TICK_COLUMN)
+    table.rows.setData(tick, Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
     remove = page.action_row.remove_button
     wait_for(qtbot, remove.isEnabled)
     remove.click()
@@ -173,3 +196,62 @@ def test_a_hidden_page_sends_nothing(qtbot: QtBot, window: MainWindow, runner: R
     assert sum(request.action == "review_batch" for request in runner.requests) == reviews
     window.context.signals.open_review.emit(FIRST_BATCH_ID)
     wait_for(qtbot, lambda: sum(request.action == "review_batch" for request in runner.requests) == reviews + 1)
+
+
+# Files of the large review (a row each in the embedded-subtitle table).
+LARGE = 20_000
+# Repaints of the page while an upload or a probe reports progress.
+PROGRESS_REPAINTS = 50
+
+
+def _large_page(qtbot: QtBot, leg: Leg) -> ReviewPage:
+    """Return the shown review page over a review of `LARGE` files."""
+    area = review_area(leg)
+    area.model.loader.loaded.review = large_review(LARGE)
+    page = ReviewPage(area.model)
+    qtbot.addWidget(page)
+    page.show()
+    return page
+
+
+def _combos(page: ReviewPage) -> list[QComboBox]:
+    return [combo for table in page.tabs.tables.values() for combo in table.findChildren(QComboBox)]
+
+
+@dataclass
+class _Counter:
+    calls: int = 0
+
+    def __call__(self, *_arguments: object) -> None:
+        self.calls += 1
+
+
+@dataclass
+class _CountedBuild:
+    """Counts the builds of the review index, then builds it."""
+
+    build: Callable[[BatchReview, BatchDetail | None], ReviewIndex]
+    calls: int = 0
+
+    def __call__(self, review: BatchReview, detail: BatchDetail | None) -> ReviewIndex:
+        self.calls += 1
+        return self.build(review, detail)
+
+
+def test_a_large_review_costs_per_change(qtbot: QtBot, leg: Leg, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tens of thousands of rows: no widget per row, rows built once, progress repaints reset nothing, an edit repaints one row."""
+    built = _CountedBuild(index_module.build_index)
+    monkeypatch.setattr(index_module, "build_index", built)
+    page = _large_page(qtbot, leg)
+    table = _subtitles(page)
+    rows = table.rows
+    resets = _Counter()
+    rows.modelReset.connect(resets)
+    for _ in range(PROGRESS_REPAINTS):
+        page.model.changed()
+        page.refresh()
+    assert (rows.rowCount(), built.calls, resets.calls, _combos(page)) == (LARGE, 1, 0, [])
+    spans = ChangedSpans()
+    rows.dataChanged.connect(spans)
+    page.model.editor.choose(rows.row(LARGE - 1).shape.options[1].choice)
+    assert (spans.spans, _text(table, LARGE - 1, STATUS_COLUMN)) == ([(1, 0, 6)], "Changed; not applied yet")

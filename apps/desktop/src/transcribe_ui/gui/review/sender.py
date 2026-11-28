@@ -11,7 +11,10 @@ from dataclasses import dataclass
 from functools import partial
 
 from transcribe_ui.api.classes import ProgressEvent, Request, Response
-from transcribe_ui.gui.executor import CallHandle, DoneCallback, Executor, ProgressCallback
+from transcribe_ui.gui.executor import CallHandle, DoneCallback, Executor, ProgressCallback, StartedCallback
+
+# A review's progress events and the start of its call (it left its pool's queue).
+type ReviewFollow = tuple[ProgressCallback, StartedCallback]
 
 
 @dataclass
@@ -20,6 +23,7 @@ class _Queued:
     on_done: DoneCallback
     on_progress: ProgressCallback | None
     review: bool
+    on_started: StartedCallback | None = None
 
 
 class SerialSender:
@@ -43,10 +47,15 @@ class SerialSender:
         running = self._running is not None and not self._running_review()
         return running or any(not queued.review for queued in self._waiting)
 
-    def send_review(self, request: Request, on_done: DoneCallback, on_progress: ProgressCallback) -> None:
-        """Send a review once the call before it answered; an older review is dropped (a running one cancelled)."""
+    def send_review(self, request: Request, on_done: DoneCallback, follow: ReviewFollow) -> None:
+        """Send a review once the call before it answered; an older review is dropped (a running one cancelled).
+
+        `follow` gets the review's progress events and is told when it leaves its pool's queue.
+        """
         self.drop_reviews()
-        self._waiting.append(_Queued(request, on_done, on_progress, review=True))
+        on_progress, on_started = follow
+        queued = _Queued(request, on_done, on_progress, review=True, on_started=on_started)
+        self._waiting.append(queued)
         self._next()
 
     def send_action(self, request: Request, on_done: DoneCallback) -> None:
@@ -71,15 +80,23 @@ class SerialSender:
         queued = self._waiting.pop(0)
         self._running = queued
         self._dropped = False
-        progress = None if queued.on_progress is None else partial(self._progressed, queued)
+        progress = None if queued.on_progress is None else partial(self._follow, queued)
+        started = None
+        if queued.on_started is not None:
+            started = partial(self._follow, queued, None)
         done = partial(self._done, queued)
-        call = self._executor.submit(queued.request, done, progress)
+        call = self._executor.submit(queued.request, done, progress, started)
         if self._running is queued:
             # Not answered yet (`SyncExecutor` answers inside `submit`).
             self._call = call
 
-    def _progressed(self, queued: _Queued, event: ProgressEvent) -> None:
-        if queued is self._running and not self._dropped and queued.on_progress is not None:
+    def _follow(self, queued: _Queued, event: ProgressEvent | None) -> None:
+        """Pass a progress event of the running review on (None: its call left the queue)."""
+        if queued is not self._running or self._dropped:
+            return
+        if event is None and queued.on_started is not None:
+            queued.on_started()
+        elif event is not None and queued.on_progress is not None:
             queued.on_progress(event)
 
     def _done(self, queued: _Queued, response: Response) -> None:

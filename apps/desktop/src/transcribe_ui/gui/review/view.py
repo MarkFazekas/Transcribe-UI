@@ -15,8 +15,9 @@ from PySide6.QtWidgets import QHBoxLayout, QTabWidget, QVBoxLayout, QWidget
 from transcribe_ui.gui.constants import PROGRESS_REPAINT_MS
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.review.constants import TABS, ReviewTab
-from transcribe_ui.gui.review.display import review_rows, tab_title
+from transcribe_ui.gui.review.display import tab_title
 from transcribe_ui.gui.review.header import ReviewControls, ReviewHeader
+from transcribe_ui.gui.review.models import ReviewTableModel
 from transcribe_ui.gui.review.status import Buttons, buttons, upload_view
 from transcribe_ui.gui.review.viewmodel import ReviewModel
 from transcribe_ui.gui.review.widgets import ReviewTable, UploadBox, action_button
@@ -33,7 +34,7 @@ class ReviewTabs(QTabWidget):
         editor = model.editor
         self.tables: dict[ReviewTab, ReviewTable] = {}
         for tab in TABS:
-            self.tables[tab] = ReviewTable(editor.choose, self._tick, self)
+            self.tables[tab] = ReviewTable(ReviewTableModel(model, tab, self), self)
         self.transcribe_button = action_button(tr("Transcribe all shown"), editor.transcribe_shown, self)
         self.extract_button = action_button(tr("Extract all shown"), editor.extract_shown, self)
         self.addTab(self._subtitles_page(), "")
@@ -43,9 +44,8 @@ class ReviewTabs(QTabWidget):
     def refresh(self) -> None:
         """Show each table's rows and count."""
         for index, tab in enumerate(TABS):
-            rows = review_rows(self._model, tab)
-            self.tables[tab].show_rows(rows)
-            self.setTabText(index, tab_title(tab, len(rows)))
+            count = self.tables[tab].show_rows()
+            self.setTabText(index, tab_title(tab, count))
         enabled = buttons(self._model).choose_enabled
         self.transcribe_button.setEnabled(enabled)
         self.extract_button.setEnabled(enabled)
@@ -61,9 +61,6 @@ class ReviewTabs(QTabWidget):
         layout.addLayout(line)
         layout.addWidget(self.tables["subtitles"])
         return page
-
-    def _tick(self, item_id: str, ticked: bool) -> None:  # noqa: FBT001 -- the table passes the tick positionally
-        self._model.editor.tick(item_id, ticked=ticked)
 
 
 class ActionRow(QWidget):

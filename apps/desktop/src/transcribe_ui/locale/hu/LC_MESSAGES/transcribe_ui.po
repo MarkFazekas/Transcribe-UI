@@ -215,6 +215,10 @@ msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha vég
 msgid "Apply choices"
 msgstr "Választások alkalmazása"
 
+#: src/transcribe_ui/gui/review/header.py
+msgid "Apply or discard your changes before changing the filters."
+msgstr "A szűrők módosítása előtt alkalmazza vagy vesse el a módosításait."
+
 #: src/transcribe_ui/gui/review/status.py
 msgid "Apply or discard your changes before the upload."
 msgstr "A feltöltés előtt alkalmazza vagy vesse el a módosításait."
@@ -327,7 +331,7 @@ msgstr "A fájlok ellenőrzése…"
 msgid "Checking what is waiting for transcription..."
 msgstr "Annak ellenőrzése, mi vár átírásra..."
 
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Choice"
 msgstr "Választás"
 
@@ -347,7 +351,7 @@ msgstr "Válassza ki a beolvasandó mappát"
 msgid "Choose a folder, then tick the files to transcribe."
 msgstr "Válasszon mappát, majd jelölje be az átírandó fájlokat."
 
-#: src/transcribe_ui/gui/review/display.py
+#: src/transcribe_ui/gui/review/index.py
 #, python-brace-format
 msgid "Choose a track or a subtitle for {languages}."
 msgstr "Válasszon hangsávot vagy feliratot ehhez: {languages}."
@@ -410,7 +414,7 @@ msgid "Choose the subtitle stream to extract."
 msgstr "Válassza ki a kinyerendő feliratsávot."
 
 #: src/transcribe_ui/gui/download/panels.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Choose…"
 msgstr "Tallózás…"
 
@@ -607,6 +611,7 @@ msgstr "Adat"
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
 #: src/transcribe_ui/gui/download/results.py
+#: src/transcribe_ui/gui/review/models.py
 #: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
@@ -741,7 +746,7 @@ msgstr "Sikertelen"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "File"
 msgstr "Fájl"
 
@@ -805,7 +810,7 @@ msgid "Fix the marked fields, then save again."
 msgstr "Javítsa a megjelölt mezőket, majd mentsen újra."
 
 #: src/transcribe_ui/gui/download/results.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Folder"
 msgstr "Mappa"
 
@@ -929,7 +934,7 @@ msgid "Kind"
 msgstr "Típus"
 
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 #: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -1091,7 +1096,7 @@ msgid "Not checked yet"
 msgstr "Még nincs ellenőrizve"
 
 #: src/transcribe_ui/gui/cloud/sections.py
-#: src/transcribe_ui/gui/review/display.py
+#: src/transcribe_ui/gui/review/index.py
 msgid "Not checked yet."
 msgstr "Még nincs ellenőrizve."
 
@@ -1127,7 +1132,7 @@ msgstr "Nincs semmi kijelölve."
 msgid "Nothing is waiting for transcription: upload a job first."
 msgstr "Semmi nem vár átírásra: előbb töltsön fel egy feladatot."
 
-#: src/transcribe_ui/gui/review/display.py
+#: src/transcribe_ui/gui/review/index.py
 #, python-brace-format
 msgid ""
 "Nothing to transcribe or extract for {languages}: remove the file from "
@@ -1333,7 +1338,7 @@ msgstr "Frissítés most"
 msgid "Remaining"
 msgstr "Hátralévő idő"
 
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Remove"
 msgstr "Eltávolítás"
 
@@ -1712,7 +1717,7 @@ msgstr "Állapot"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Status"
 msgstr "Állapot"
 
@@ -2715,6 +2720,10 @@ msgstr "Gépre vár"
 msgid "Waiting to check the cloud..."
 msgstr "Várakozás a felhő ellenőrzésére..."
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "Waiting to check the files (other long tasks run first)…"
+msgstr "Várakozás a fájlok ellenőrzésére (előbb más hosszú feladatok futnak)…"
+
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"
 msgstr "Indításra vár"
@@ -2788,6 +2797,12 @@ msgid ""
 msgstr ""
 "A korábbi indítás nem indított semmit, mert a munka megváltozott; nézze "
 "meg itt a tervet."
+
+#: src/transcribe_ui/gui/review/viewmodel.py
+msgid "Your review choices are not applied yet; open Review to apply them."
+msgstr ""
+"Az ellenőrzésben tett választásai még nincsenek alkalmazva; az Ellenőrzés"
+" gombbal alkalmazhatja őket."
 
 #: src/transcribe_ui/cli/parser.py
 msgid ""

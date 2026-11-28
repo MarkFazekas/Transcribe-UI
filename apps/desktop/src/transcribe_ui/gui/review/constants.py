@@ -2,9 +2,10 @@
 
 from typing import Final, Literal
 
-# Where the review views of the page's job are: being checked (`review_batch` in flight),
-# stopped by the user, waiting for the job's upload to stop, or shown.
-type ReviewState = Literal["checking", "stopped", "waiting_upload", "shown"]
+# Where the review views of the page's job are: a check waiting for a thread of the long pool,
+# being checked (`review_batch` running), stopped by the user, waiting for the job's upload to
+# stop, or shown.
+type ReviewState = Literal["queued", "checking", "stopped", "waiting_upload", "shown"]
 # Which part of the review a table shows: embedded subtitles, audio tracks, or the files that
 # need attention.
 type ReviewTab = Literal["subtitles", "tracks", "attention"]

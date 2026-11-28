@@ -33,7 +33,7 @@ from transcribe_ui.batches.classes import (
 )
 from transcribe_ui.gui.review.constants import ReviewTab
 from transcribe_ui.gui.review.display import ReviewRow, review_rows
-from transcribe_ui.gui.review.status import buttons, review_status
+from transcribe_ui.gui.review.status import Buttons, buttons, review_status
 from transcribe_ui.i18n.catalog import activate
 
 SUBPROCESS_TIMEOUT_S = 60
@@ -107,8 +107,18 @@ def _row(area: ReviewArea, tab: ReviewTab, name: str, language: str) -> ReviewRo
 
 
 def _choose(area: ReviewArea, name: str, language: str, option: int) -> None:
-    item_id = ids_of(area.leg)[name]
-    area.model.editor.choose(item_id, language, option)
+    """Choose the option at `option` of a transcription, as its combo box does."""
+    shape = _row(area, SUBTITLES, name, language).shape
+    area.model.editor.choose(shape.options[option].choice)
+
+
+def _extract_english(area: ReviewArea) -> None:
+    """Choose extracting the film's English text subtitle for its English transcription."""
+    _choose(area, FILM, EN, EXTRACT_ENGLISH)
+
+
+def _buttons(area: ReviewArea) -> Buttons:
+    return buttons(area.model)
 
 
 def _sent(area: ReviewArea, action: str) -> list[Request]:
@@ -155,13 +165,13 @@ def test_opening_shows_both_views(area: ReviewArea) -> None:
     sent = tuple(request.action for request in area.runner.requests)
     assert (sent, shown) == (LOAD, ((*FILM_ROWS, (SILENT, HU)), FILM_ROWS, ()))
     film = _row(area, SUBTITLES, FILM, EN)
-    assert (film.shape.options, film.chosen, film.shape.folder) == (FILM_OPTIONS, 1, "Movies")
-    silent = _row(area, SUBTITLES, SILENT, HU).shape.options
+    assert (film.shape.labels, film.chosen, film.shape.folder) == (FILM_OPTIONS, 1, "Movies")
+    silent = _row(area, SUBTITLES, SILENT, HU).shape.labels
     assert ("picture-based: transcribe only" in film.shape.details, silent) == (
         True,
         ("Extract subtitle 1: hun, ass, default",),
     )
-    state = buttons(area.model)
+    state = _buttons(area)
     expected = ("4 files in review; every one is ready to upload.", True, False, "")
     assert (review_status(area.model), state.upload_enabled, state.apply_shown, state.hint) == expected
 
@@ -196,7 +206,7 @@ def test_track_choice_is_applied(area: ReviewArea) -> None:
 def test_the_stored_choice_again_is_no_change(area: ReviewArea) -> None:
     """A choice set back to the stored one leaves nothing to apply; Discard drops the others."""
     editor = area.model.editor
-    _choose(area, FILM, EN, EXTRACT_ENGLISH)
+    _extract_english(area)
     _choose(area, FILM, EN, 1)
     assert not editor.draft.pending()
     _choose(area, FILM, HU, 1)
@@ -227,7 +237,7 @@ def test_folder_filter_and_extract_all_shown(area: ReviewArea, leg: Leg) -> None
 
 def test_transcribe_all_shown_takes_the_suggestion(area: ReviewArea) -> None:
     """After an extraction, "Transcribe all shown" goes back to the pre-selected track; a file without audio keeps extracting."""
-    _choose(area, FILM, EN, EXTRACT_ENGLISH)
+    _extract_english(area)
     area.model.commands.apply()
     area.model.editor.transcribe_shown()
     film = ids_of(area.leg)[FILM]
@@ -238,7 +248,7 @@ def test_transcribe_all_shown_takes_the_suggestion(area: ReviewArea) -> None:
 def test_remove_goes_through_the_confirmation(area: ReviewArea) -> None:
     """Remove asks the backend's question; confirmed, the file leaves the job and the views."""
     area.model.editor.tick(ids_of(area.leg)[SILENT], ticked=True)
-    assert (buttons(area.model).remove_enabled, _row(area, SUBTITLES, SILENT, HU).ticked) == (True, True)
+    assert (_buttons(area).remove_enabled, _row(area, SUBTITLES, SILENT, HU).ticked) == (True, True)
     area.model.commands.remove_ticked()
     excluded = [request for request in _sent(area, "exclude_items") if isinstance(request, ExcludeItemsRequest)]
     assert ([request.confirm for request in excluded], len(area.outlet.asked)) == ([False, True], 1)
@@ -252,7 +262,7 @@ def test_a_file_that_needs_attention_is_listed(leg: Leg) -> None:
     area = review_area(leg)
     area.model.open_batch(FIRST_BATCH_ID)
     rows = review_rows(area.model, ATTENTION)
-    assert [(row.shape.file_name, row.shape.options, row.status) for row in rows] == [
+    assert [(row.shape.file_name, row.shape.labels, row.status) for row in rows] == [
         (EPISODE, (), "The file is gone or cannot be read; restore it, or remove it from the job."),
     ]
     state = buttons(area.model)
@@ -261,18 +271,26 @@ def test_a_file_that_needs_attention_is_listed(leg: Leg) -> None:
     assert review_status(area.model) == "4 files in review; 1 needs attention."
 
 
-def _deferred(leg: Leg) -> tuple[ReviewArea, DeferredExecutor]:
+def _held(area: ReviewArea) -> DeferredExecutor:
+    """Return the deferred executor of a view-model from `_deferred`."""
+    executor = area.executor
+    assert isinstance(executor, DeferredExecutor)
+    return executor
+
+
+def _deferred(leg: Leg) -> ReviewArea:
     """Return the view-model on a deferred executor, the job opened and loaded: its review waits for an answer."""
     executor = DeferredExecutor(leg.backend)
     area = review_area(leg, lambda _runner: executor)
     area.model.open_batch(FIRST_BATCH_ID)
     executor.answer(_pending(executor, GET))
-    return area, executor
+    return area
 
 
 def test_a_late_review_after_a_filter_is_dropped(leg: Leg) -> None:
     """A filter change cancels the review in flight; only the new one, sent after it answered, is shown."""
-    area, executor = _deferred(leg)
+    area = _deferred(leg)
+    executor = _held(area)
     first = _pending(executor, REVIEW)
     area.model.filter_by((HU,), None)
     assert (first.cancelled, executor.pending(REVIEW)) == (True, [first])
@@ -291,7 +309,7 @@ def test_answers_about_another_job_are_dropped(leg: Leg) -> None:
     area = review_area(leg, lambda _runner: executor)
     area.model.open_batch(FIRST_BATCH_ID)
     executor.answer_all()
-    _choose(area, FILM, EN, EXTRACT_ENGLISH)
+    _extract_english(area)
     area.model.commands.apply()
     area.model.open_batch(OTHER_BATCH_ID)
     executor.answer_all()
@@ -302,11 +320,12 @@ def test_answers_about_another_job_are_dropped(leg: Leg) -> None:
 
 def test_actions_wait_for_the_check(leg: Leg) -> None:
     """Apply is disabled while the files are checked, and an Apply sent then waits for the check to answer."""
-    area, executor = _deferred(leg)
+    area = _deferred(leg)
+    executor = _held(area)
     executor.answer_all()
-    _choose(area, FILM, EN, EXTRACT_ENGLISH)
+    _extract_english(area)
     area.model.loader.load_review()
-    state = buttons(area.model)
+    state = _buttons(area)
     assert (state.apply_enabled, state.hint) == (False, "Wait until the files are checked.")
     area.model.commands.apply()
     assert not executor.pending(RESOLVE)
@@ -318,7 +337,8 @@ def test_actions_wait_for_the_check(leg: Leg) -> None:
 
 def test_stop_checking_and_check_again(leg: Leg) -> None:
     """Stop drops the check in flight (shown as stopped, not failed); Check again continues."""
-    area, executor = _deferred(leg)
+    area = _deferred(leg)
+    executor = _held(area)
     area.model.loader.stop()
     assert review_status(area.model) == "Checking stopped; continue any time with Check again."
     executor.answer_all()
@@ -343,10 +363,98 @@ def test_a_hidden_page_sends_nothing(area: ReviewArea) -> None:
     assert len(area.runner.requests) == sent + len(LOAD)
 
 
-def test_the_texts_follow_the_language(area: ReviewArea) -> None:
-    """The options and the status are shown in the language of the texts."""
+def test_choices_wait_while_a_filter_change_is_checked(leg: Leg) -> None:
+    """While a filter change is checked, the shown view is old: choices, "Extract all shown" and Apply do nothing."""
+    area = _deferred(leg)
+    executor = _held(area)
+    executor.answer_all()
+    area.model.filter_by((), str(leg.root / "media" / "Movies"))
+    area.model.editor.extract_shown()
+    _extract_english(area)
+    area.model.commands.apply()
+    assert (area.model.editor.draft.pending(), buttons(area.model).choose_enabled) == ((), False)
+    executor.answer_all()
+    assert not executor.pending(RESOLVE)
+    area.model.editor.extract_shown()
+    assert [type(choice) for choice in area.model.editor.draft.pending()] == [ExtractChoice]
+
+
+def test_choices_wait_for_the_upload(leg: Leg) -> None:
+    """During the job's upload nothing can be chosen and the review waits; once it ended, the review runs."""
+    area = _deferred(leg)
+    executor = _held(area)
+    executor.answer_all()
+    model = area.model
+    model.upload()
+    assert _pending(executor, "run_upload").request.action == "run_upload"
+    _extract_english(area)
+    model.loader.load_review()
+    assert (model.editor.draft.pending(), model.loader.loaded.state, executor.pending(REVIEW)) == (
+        (),
+        "waiting_upload",
+        [],
+    )
+    executor.answer_all()
+    # The end of the upload emits `batches_changed` (here it failed without credentials); the bus brings it back.
+    assert (CHANGED, ((FIRST_BATCH_ID,),)) in area.outlet.emitted
+    model.on_batches_changed((FIRST_BATCH_ID,))
+    executor.answer_all()
+    assert (model.loader.loaded.state, model.editable(), len(_rows(area, TRACKS))) == ("shown", True, 2)
+
+
+def test_hiding_during_a_review_reloads_once(leg: Leg) -> None:
+    """A review running when the page hides is dropped; shown again, the page loads exactly once."""
+    area = _deferred(leg)
+    executor = _held(area)
+    running = _pending(executor, REVIEW)
+    area.model.visibility_changed(shown=False)
+    executor.answer_all()
+    assert (running.cancelled, area.model.loader.page.stale, executor.pending(GET)) == (True, True, [])
+    sent = len(executor.calls)
+    area.model.visibility_changed(shown=True)
+    executor.answer_all()
+    assert tuple(call.request.action for call in executor.calls[sent:]) == LOAD
+
+
+def test_a_removal_answered_while_hidden_waits(leg: Leg) -> None:
+    """Remove confirmed, then Back before the answer: no review is sent until the page shows, then one load."""
+    area = _deferred(leg)
+    executor = _held(area)
+    executor.answer_all()
+    area.model.editor.tick(ids_of(area.leg)[SILENT], ticked=True)
+    area.model.commands.remove_ticked()
+    executor.answer(_pending(executor, "exclude_items"))
+    confirmed = _pending(executor, "exclude_items")
+    area.model.visibility_changed(shown=False)
+    sent = len(executor.calls)
+    executor.answer(confirmed)
+    assert (len(executor.calls), area.model.loader.page.stale) == (sent, True)
+    area.model.visibility_changed(shown=True)
+    executor.answer_all()
+    assert tuple(call.request.action for call in executor.calls[sent:]) == LOAD
+    assert _rows(area, SUBTITLES) == FILM_ROWS
+
+
+def test_choices_no_longer_listed_are_dropped(area: ReviewArea) -> None:
+    """A choice of a file removed elsewhere is dropped by the next review, so Apply never sends it."""
+    _extract_english(area)
+    area.model.filter_by((HU,), None)
+    last = _sent(area, REVIEW)[-1]
+    assert isinstance(last, ReviewBatchRequest)
+    assert (_buttons(area).filters_enabled, last.filters.languages) == (False, ())
+    film = ids_of(area.leg)[FILM]
+    excluded = ExcludeItemsRequest(action="exclude_items", batch_id=FIRST_BATCH_ID, item_ids=(film,), confirm=True)
+    assert area.leg.backend.execute(excluded).status == "ok"
+    area.model.on_batches_changed((FIRST_BATCH_ID,))
+    assert (area.model.editor.draft.pending(), buttons(area.model).apply_shown) == ((), False)
+
+
+def test_the_texts_follow_the_language(leg: Leg) -> None:
+    """The options and the status are shown in the language of the texts (chosen at start-up)."""
     activate(HU)
-    assert _row(area, SUBTITLES, SILENT, HU).shape.options == ("1. felirat kinyerése: hun, ass, alapértelmezett",)
+    area = review_area(leg)
+    area.model.open_batch(FIRST_BATCH_ID)
+    assert _row(area, SUBTITLES, SILENT, HU).shape.labels == ("1. felirat kinyerése: hun, ass, alapértelmezett",)
     assert review_status(area.model) == "4 fájl ellenőrzés alatt; mind feltölthető."
 
 

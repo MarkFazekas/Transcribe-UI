@@ -4,14 +4,19 @@ Qt-free. A choice is one of the options of its transcription (`options.py`); it 
 draft until Apply. "Transcribe all shown" and "Extract all shown" choose for every transcription
 the embedded-subtitle view shows (narrowed by the filters, so per folder or per language): the
 backend's suggestion (`ReviewFile.suggestions`: the pre-selected track, the text subtitle tagged
-with the language), where it is one of the options. Ticks for "Remove from job" are per file.
+with the language), where it is one of the options. Choices can only be made while nothing holds
+the job (a check, a save, its upload): what is shown is then the latest review. Ticks for
+"Remove from job" are per file. Each edit tells the tables which rows it changed (`EditSignal`),
+so they repaint only those.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 
 from transcribe_ui.batches.classes import ExtractChoice, ReviewChoice, TranscribeChoice
-from transcribe_ui.batches.responses import BatchReview, JobView, ReviewFile, ReviewSuggestion
-from transcribe_ui.gui.review.draft import ChoiceDraft
+from transcribe_ui.batches.responses import JobView, ReviewFile, ReviewSuggestion
+from transcribe_ui.gui.review.draft import ChoiceDraft, ChoiceKey, choice_key
+from transcribe_ui.gui.review.index import IndexCache
 from transcribe_ui.gui.review.loading import ReviewLoader
 from transcribe_ui.gui.review.options import current_choice, job_options
 
@@ -19,12 +24,37 @@ from transcribe_ui.gui.review.options import current_choice, job_options
 type Suggested = Callable[[ReviewFile, JobView, ReviewChoice | None, ReviewChoice | None], ReviewChoice | None]
 
 
-def review_files(review: BatchReview | None) -> dict[str, ReviewFile]:
-    """Return every file the review shows, by item id."""
-    if review is None:
-        return {}
-    files = (*review.subtitle_view, *review.track_view, *review.unresolved)
-    return {review_file.item_id: review_file for review_file in files}
+@dataclass(frozen=True)
+class EditChange:
+    """What an edit changed: the transcriptions whose choice changed and the files whose tick changed."""
+
+    keys: frozenset[ChoiceKey] = frozenset()
+    files: frozenset[str] = frozenset()
+
+
+# Told what an edit changed.
+type EditListener = Callable[[EditChange], None]
+# Says whether the choices can change now.
+type Check = Callable[[], bool]
+
+
+class EditSignal:
+    """Tells the tables which rows an edit changed, then the page that its display data changed."""
+
+    def __init__(self, after: Callable[[], None]) -> None:
+        """Call `after` following every edit."""
+        self._listeners: list[EditListener] = []
+        self._after = after
+
+    def __call__(self, change: EditChange) -> None:
+        """Tell the listeners what changed, then the page."""
+        for listener in list(self._listeners):
+            listener(change)
+        self._after()
+
+    def subscribe(self, listener: EditListener) -> None:
+        """Tell `listener` what each edit changes."""
+        self._listeners.append(listener)
 
 
 def _job(review_file: ReviewFile, language: str) -> JobView | None:
@@ -35,27 +65,60 @@ def _suggestion(review_file: ReviewFile, language: str) -> ReviewSuggestion | No
     return next((shown for shown in review_file.suggestions if shown.language == language), None)
 
 
+def _fits(review_file: ReviewFile, choice: ReviewChoice) -> bool:
+    return choice in [option.choice for option in job_options(review_file, choice.language)]
+
+
+class TickSet:
+    """The files ticked for "Remove from job", in the order ticked."""
+
+    def __init__(self) -> None:
+        """Start without ticks."""
+        self._ticked: dict[str, None] = {}
+
+    def __contains__(self, item_id: object) -> bool:
+        """Return whether a file is ticked."""
+        return item_id in self._ticked
+
+    def mark(self, item_id: str, *, ticked: bool) -> None:
+        """Tick or untick a file."""
+        if ticked:
+            self._ticked[item_id] = None
+        else:
+            self._ticked.pop(item_id, None)
+
+    def among(self, shown: Mapping[str, object]) -> tuple[str, ...]:
+        """Return the ticked files `shown` lists, in the order ticked."""
+        return tuple(item_id for item_id in self._ticked if item_id in shown)
+
+    def keep_only(self, shown: Mapping[str, object]) -> None:
+        """Drop the ticks of files `shown` does not list (another job: empty)."""
+        self._ticked = dict.fromkeys(self.among(shown))
+
+
 class ChoiceEditor:
     """The choices not applied yet and the files ticked for removal."""
 
-    def __init__(self, loader: ReviewLoader, notify: Callable[[], None]) -> None:
-        """Edit the review `loader` shows now; `notify` follows every edit."""
-        self._loader = loader
-        # Tells the page that its display data changed.
-        self.notify = notify
+    def __init__(self, loader: ReviewLoader, editable: Check, notify: Callable[[], None]) -> None:
+        """Edit the review `loader` shows while `editable` holds; `notify` follows every edit."""
+        # The rows of the review shown.
+        self.views = IndexCache(loader)
+        # Tells the tables which rows an edit changed.
+        self.edits = EditSignal(notify)
         self.draft = ChoiceDraft()
-        self._ticked: dict[str, None] = {}
+        self.ticks = TickSet()
+        self._editable = editable
 
-    def choose(self, item_id: str, language: str, index: int) -> None:
-        """Choose the option at `index` for a transcription."""
-        review_file = review_files(self._loader.loaded.review).get(item_id)
-        job = None if review_file is None else _job(review_file, language)
-        if review_file is None or job is None:
+    def choose(self, choice: ReviewChoice) -> None:
+        """Choose for a transcription (ignored when it is not one of its options, or while the job is held)."""
+        review_file = self.views.current().files.get(choice.item_id)
+        job = None if review_file is None else _job(review_file, choice.language)
+        if review_file is None or job is None or not self._editable():
             return
-        options = job_options(review_file, language)
-        if 0 <= index < len(options):
-            self.draft.choose(options[index].choice, current_choice(item_id, job))
-            self.notify()
+        if not _fits(review_file, choice):
+            return
+        self.draft.choose(choice, current_choice(choice.item_id, job))
+        self.edits(EditChange(keys=frozenset((choice_key(choice),))))
 
     def transcribe_shown(self) -> None:
         """Choose transcribing (from the suggested track) for every transcription of the embedded-subtitle view."""
@@ -67,46 +130,51 @@ class ChoiceEditor:
 
     def discard(self) -> None:
         """Drop every choice not applied yet."""
+        changed = frozenset(self.draft.keys())
         self.draft.clear()
-        self.notify()
+        self.edits(EditChange(keys=changed))
 
     def tick(self, item_id: str, *, ticked: bool) -> None:
         """Tick or untick a file for "Remove from job"."""
-        if ticked:
-            self._ticked[item_id] = None
-        else:
-            self._ticked.pop(item_id, None)
-        self.notify()
+        self.ticks.mark(item_id, ticked=ticked)
+        self.edits(EditChange(files=frozenset((item_id,))))
 
     def ticked(self) -> tuple[str, ...]:
         """Return the files ticked for removal that the review still shows, in the order ticked."""
-        shown = review_files(self._loader.loaded.review)
-        return tuple(item_id for item_id in self._ticked if item_id in shown)
+        return self.ticks.among(self.views.current().files)
 
-    def forget_items(self, item_ids: tuple[str, ...]) -> None:
-        """Drop the ticks and choices of files that left the job."""
-        for item_id in item_ids:
-            self._ticked.pop(item_id, None)
-        self.draft.drop_items(item_ids)
+    def prune(self) -> None:
+        """Drop the choices and ticks of what the latest review no longer lists."""
+        index = self.views.current()
+        self.draft.keep_only(index.keys)
+        self.ticks.keep_only(index.files)
 
     def reset(self) -> None:
         """Drop every choice and tick (another job)."""
         self.draft.clear()
-        self._ticked = {}
+        self.ticks.keep_only({})
 
     def _choose_shown(self, suggested: Suggested) -> None:
-        review = self._loader.loaded.review
-        if review is None:
+        if not self._editable():
             return
-        for review_file in review.subtitle_view:
-            for job in review_file.jobs:
-                stored = current_choice(review_file.item_id, job)
-                shown = self.draft.shown((review_file.item_id, job.language), stored)
-                choice = suggested(review_file, job, shown, stored)
-                options = [option.choice for option in job_options(review_file, job.language)]
-                if choice is not None and choice in options:
-                    self.draft.choose(choice, stored)
-        self.notify()
+        changed: set[ChoiceKey] = set()
+        for review_file in self.views.current().files.values():
+            if review_file.subtitle_streams:
+                changed.update(_choose_file(self.draft, review_file, suggested))
+        self.edits(EditChange(keys=frozenset(changed)))
+
+
+def _choose_file(draft: ChoiceDraft, review_file: ReviewFile, suggested: Suggested) -> list[ChoiceKey]:
+    """Choose the suggestion for each job of a file; return the transcriptions chosen for."""
+    chosen = []
+    for job in review_file.jobs:
+        key = (review_file.item_id, job.language)
+        stored = current_choice(review_file.item_id, job)
+        choice = suggested(review_file, job, draft.shown(key, stored), stored)
+        if choice is not None and _fits(review_file, choice):
+            draft.choose(choice, stored)
+            chosen.append(key)
+    return chosen
 
 
 def _transcribe_suggestion(

@@ -10,6 +10,8 @@ since a probe can change what the job allows.
 Late answers never change the page: each open of a job and each change of the filters starts a
 new generation, and an answer of an earlier generation (or about another job) is dropped. A
 review is not sent while the job's upload runs (both hold the job's lock); the page waits for it.
+A hidden page sends nothing: a load asked for meanwhile marks the page stale, and it loads once
+when it is shown again.
 """
 
 from collections.abc import Callable
@@ -39,6 +41,27 @@ class Loaded:
     probe: ProgressEvent | None = None
 
 
+@dataclass
+class Visibility:
+    """Whether the page is shown, and whether it must load again once it is."""
+
+    shown: bool = False
+    stale: bool = False
+
+
+def _review_allowed(loaded: Loaded) -> bool:
+    detail = loaded.detail
+    return detail is None or REVIEW_ACTION in detail.summary.actions
+
+
+def _without_review(loaded: Loaded, *, waiting: bool) -> Loaded:
+    """Return what the page shows when no review can run: the upload holds the job, or nothing waits for review."""
+    if waiting:
+        loaded.state = "waiting_upload"
+        return loaded
+    return Loaded(detail=loaded.detail, detail_error=loaded.detail_error)
+
+
 class ReviewLoader:
     """The page's job and its review views, with the probe's progress and the errors of both loads."""
 
@@ -57,6 +80,7 @@ class ReviewLoader:
         self.batch_id: str | None = None
         self.filters = ReviewFilter()
         self.loaded = Loaded()
+        self.page = Visibility()
         # Told the job's id after a review answered (the probe may have changed the job).
         self.on_reviewed: Callable[[str], None] | None = None
         self.generation = 0
@@ -81,25 +105,22 @@ class ReviewLoader:
     def load_review(self) -> None:
         """Check the files waiting for review and load the views (a review in flight is replaced)."""
         batch_id = self.batch_id
-        if batch_id is None:
+        if batch_id is None or self._held():
             return
-        if self._upload_busy(batch_id):
+        waiting = self._upload_busy(batch_id)
+        if waiting or not _review_allowed(self.loaded):
             self._sender.drop_reviews()
-            self.loaded.state = "waiting_upload"
-            self._notify()
-            return
-        if not self._review_allowed():
-            # No file waits for review (the job moved on, or every file is uploaded).
-            self._sender.drop_reviews()
-            self.loaded = Loaded(detail=self.loaded.detail, detail_error=self.loaded.detail_error)
+            self.loaded = _without_review(self.loaded, waiting=waiting)
             self._notify()
             return
         request = ReviewBatchRequest(action="review_batch", batch_id=batch_id, filters=self.filters)
         generation = self.generation
-        self.loaded.state = "checking"
+        self.loaded.state = "queued"
         self.loaded.probe = None
         reviewed = partial(self._reviewed, batch_id, generation)
-        self._sender.send_review(request, reviewed, partial(self._probed, generation))
+        started = partial(self._followed, generation, None)
+        follow = (partial(self._followed, generation), started)
+        self._sender.send_review(request, reviewed, follow)
         self._notify()
 
     def stop(self) -> None:
@@ -113,18 +134,26 @@ class ReviewLoader:
     def load_detail(self) -> None:
         """Load the job (step, allowed actions, files)."""
         batch_id = self.batch_id
-        if batch_id is not None:
+        if batch_id is not None and not self._held():
             request = GetBatchRequest(action="get_batch", batch_id=batch_id)
             self._channel.send(DETAIL_KEY, request, partial(self._detailed, batch_id))
 
-    def _review_allowed(self) -> bool:
-        detail = self.loaded.detail
-        return detail is None or REVIEW_ACTION in detail.summary.actions
+    def _held(self) -> bool:
+        """Return whether the page is hidden: nothing is sent, and it loads once it is shown again."""
+        if self.page.shown:
+            return False
+        self.page.stale = True
+        self._review_after = False
+        return True
 
-    def _probed(self, generation: int, event: ProgressEvent) -> None:
-        if generation == self.generation:
+    def _followed(self, generation: int, event: ProgressEvent | None) -> None:
+        """Note a review's progress event (None: its call left its pool's queue and runs now)."""
+        if generation != self.generation:
+            return
+        self.loaded.state = "checking"
+        if event is not None:
             self.loaded.probe = event
-            self._notify()
+        self._notify()
 
     def _reviewed(self, batch_id: str, generation: int, response: Response) -> None:
         if batch_id != self.batch_id or generation != self.generation:

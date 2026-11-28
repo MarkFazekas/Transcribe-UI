@@ -119,6 +119,9 @@ class UploadTracker:
             event = entry.last_event
             if event is not None:
                 self._events[batch_id, event.stage] = (entry.call, event)
+            if event is not None and event.stage == ITEM_STAGE:
+                # The object of the latest part event is done with its file.
+                self._events.pop((batch_id, BYTES_STAGE), None)
             changed.append(batch_id)
         for batch_id in changed:
             self._notify(batch_id)

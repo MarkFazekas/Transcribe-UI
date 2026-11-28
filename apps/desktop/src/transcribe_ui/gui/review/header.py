@@ -5,9 +5,10 @@ filters' choices are display data, and a change of a filter calls the view-model
 """
 
 from functools import partial
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.jobs.widgets import ErrorBanner
@@ -18,14 +19,16 @@ from transcribe_ui.gui.review.constants import (
     REVIEW_STEP,
     TRANSCRIPTION_STAGE,
 )
-from transcribe_ui.gui.review.folders import FolderChoice, folder_choices
 from transcribe_ui.gui.review.status import buttons, review_status
 from transcribe_ui.gui.review.viewmodel import ReviewModel
-from transcribe_ui.gui.review.widgets import action_button
+from transcribe_ui.gui.review.widgets import WheelSafeCombo, action_button
 from transcribe_ui.gui.selection.choices import LanguageChoice
 from transcribe_ui.gui.selection.widgets import LanguageChecks
 from transcribe_ui.gui.steps.view import Navigate, StepHeader
 from transcribe_ui.i18n.catalog import tr
+
+if TYPE_CHECKING:
+    from transcribe_ui.gui.review.folders import FolderChoice
 
 
 class ReviewHeader(QWidget):
@@ -79,10 +82,10 @@ class ReviewControls(QWidget):
         self._model = model
         self.status = wrapped_label("", self)
         self.stop_button = action_button(tr("Stop checking"), model.loader.stop, self)
-        self.check_button = action_button(tr("Check again"), model.loader.load_review, self)
+        self.check_button = action_button(tr("Check again"), self._check_again, self)
         self.banner = ErrorBanner(model.loader.load_review, self)
         self.languages = LanguageChecks(self._filter_languages, self)
-        self.folder = QComboBox(self)
+        self.folder = WheelSafeCombo(self)
         self.folder.activated.connect(self._filter_folder)
         self._folders: tuple[FolderChoice, ...] = ()
         self._lay_out()
@@ -91,13 +94,14 @@ class ReviewControls(QWidget):
         """Show the check's state and the filters of the job shown."""
         model = self._model
         loaded = model.loader.loaded
-        checking = loaded.state == "checking"
+        checking = loaded.state in {"queued", "checking"}
+        state = buttons(model)
         self.status.setText(review_status(model))
         self.stop_button.setVisible(checking)
         self.check_button.setVisible(not checking)
-        self.check_button.setEnabled(buttons(model).check_enabled)
+        self.check_button.setEnabled(state.check_enabled)
         self.banner.show_error(loaded.review_error)
-        self._show_filters()
+        self._show_filters(enabled=state.filters_enabled)
 
     def _lay_out(self) -> None:
         layout = QVBoxLayout(self)
@@ -119,15 +123,19 @@ class ReviewControls(QWidget):
         filters.addStretch()
         return filters
 
-    def _show_filters(self) -> None:
+    def _show_filters(self, *, enabled: bool) -> None:
         loader = self._model.loader
         detail = loader.loaded.detail
         languages = () if detail is None else detail.summary.languages
         offered = tuple(LanguageChoice(code, code) for code in languages)
         self.languages.show_languages(offered, loader.filters.languages)
-        choices = () if detail is None else folder_choices(detail)
+        hint = "" if enabled else tr("Apply or discard your changes before changing the filters.")
+        for widget in (self.languages, self.folder):
+            widget.setEnabled(enabled)
+            widget.setToolTip(hint)
+        choices = self._model.editor.views.folders()
         with QSignalBlocker(self.folder):
-            if choices != self._folders:
+            if choices is not self._folders:
                 self._folders = choices
                 self.folder.clear()
                 self.folder.addItems([choice.label for choice in choices])
@@ -135,6 +143,11 @@ class ReviewControls(QWidget):
             folder = loader.filters.folder
             index = paths.index(folder) if folder in paths else 0
             self.folder.setCurrentIndex(index)
+
+    def _check_again(self) -> None:
+        # The button may still show enabled for up to one repaint after the job became held.
+        if buttons(self._model).check_enabled:
+            self._model.loader.load_review()
 
     def _filter_languages(self, languages: tuple[str, ...]) -> None:
         self._model.filter_by(languages, self._model.loader.filters.folder)

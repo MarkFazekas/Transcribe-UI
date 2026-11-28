@@ -2,8 +2,9 @@
 
 Qt-free. A choice is kept per transcription (file and language) in the order the user made it,
 until Apply sends it (`resolve_review`) or Discard drops it. A choice equal to the stored one is
-no change. Choices stay while filters hide their rows, so a choice made in one folder is applied
-with the others.
+no change. Only transcriptions the latest review lists keep a choice: the filters cannot change
+while choices wait (so none is hidden), and a review that no longer lists a transcription (its
+file was uploaded or removed meanwhile) drops its choice, so Apply never sends a stale one.
 """
 
 from collections.abc import Iterable
@@ -52,11 +53,14 @@ class ChoiceDraft:
             if self._choices.get(key) == choice:
                 self._choices.pop(key)
 
-    def drop_items(self, item_ids: Iterable[str]) -> None:
-        """Drop the choices of files that left the job."""
-        gone = frozenset(item_ids)
+    def keys(self) -> tuple[ChoiceKey, ...]:
+        """Return the transcriptions with a choice waiting for Apply."""
+        return tuple(self._choices)
+
+    def keep_only(self, listed: frozenset[ChoiceKey]) -> None:
+        """Drop the choices of transcriptions the latest review does not list (left the review, or the job)."""
         for key in list(self._choices):
-            if key[0] in gone:
+            if key not in listed:
                 self._choices.pop(key)
 
     def clear(self) -> None:

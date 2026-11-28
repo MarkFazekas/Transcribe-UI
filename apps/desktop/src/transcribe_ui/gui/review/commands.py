@@ -21,7 +21,8 @@ from transcribe_ui.api.constants import ERROR_INTERNAL
 from transcribe_ui.batches.classes import ExcludeItemsRequest, ResolveReviewRequest, ReviewFilter
 from transcribe_ui.batches.responses import ExcludeItemsResponse, ResolveReviewResponse
 from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, confirmation_view, confirmed_request, error_view
-from transcribe_ui.gui.review.editing import ChoiceEditor
+from transcribe_ui.gui.review.draft import choice_key
+from transcribe_ui.gui.review.editing import ChoiceEditor, EditChange
 from transcribe_ui.gui.review.loading import ReviewLoader
 from transcribe_ui.gui.review.sender import SerialSender
 
@@ -86,12 +87,12 @@ class ReviewCommands:
         ticked = self._editor.ticked()
         if batch_id is not None and ticked:
             request = ExcludeItemsRequest(action="exclude_items", batch_id=batch_id, item_ids=ticked)
-            self._send(request, partial(self._removed, batch_id, ticked))
+            self._send(request, partial(self._removed, batch_id))
 
     def _send(self, request: Request, on_success: Succeeded) -> None:
         """Send a changing request; `on_success` gets its answer once it succeeded (after a confirmation)."""
         self._sender.send_action(request, partial(self._answered, request, on_success))
-        self._editor.notify()
+        self._editor.edits(EditChange())
 
     def _answered(self, request: Request, on_success: Succeeded, response: Response) -> None:
         if isinstance(response, NeedsConfirmation):
@@ -102,7 +103,7 @@ class ReviewCommands:
             self._outlet.show_error(error_view(response), retry)
         else:
             on_success(response)
-        self._editor.notify()
+        self._editor.edits(EditChange())
 
     def _confirmed(self, request: Request, asked: NeedsConfirmation, on_success: Succeeded) -> None:
         try:
@@ -114,21 +115,24 @@ class ReviewCommands:
         self._send(confirmed, on_success)
 
     def _applied(self, batch_id: str, generation: int, request: ResolveReviewRequest, response: Response) -> None:
-        self._tell(batch_id)
         loader = self._loader
-        if batch_id != loader.batch_id or not isinstance(response, ResolveReviewResponse):
-            return
-        self._editor.draft.forget(request.choices)
-        current = generation == loader.generation and not self._sender.reviewing()
-        if current and loader.filters == ReviewFilter():
-            loader.loaded.review = response.review
-            loader.load_detail()
-        else:
-            loader.reload()
-
-    def _removed(self, batch_id: str, ticked: tuple[str, ...], response: Response) -> None:
+        if batch_id == loader.batch_id and isinstance(response, ResolveReviewResponse):
+            self._editor.draft.forget(request.choices)
+            current = generation == loader.generation and not self._sender.reviewing()
+            if current and loader.filters == ReviewFilter():
+                loaded = loader.loaded
+                loaded.review = response.review
+                loaded.review_error = None
+                loaded.state = "shown"
+                loader.load_detail()
+            else:
+                loader.reload()
+            applied = frozenset(choice_key(choice) for choice in request.choices)
+            self._editor.edits(EditChange(keys=applied))
         self._tell(batch_id)
+
+    def _removed(self, batch_id: str, response: Response) -> None:
         if batch_id == self._loader.batch_id and isinstance(response, ExcludeItemsResponse):
-            self._editor.forget_items(ticked)
             self._loader.loaded.detail = response.batch
             self._loader.load_review()
+        self._tell(batch_id)

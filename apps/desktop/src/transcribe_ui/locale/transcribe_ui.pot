@@ -179,6 +179,10 @@ msgstr ""
 msgid "Apply choices"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/header.py
+msgid "Apply or discard your changes before changing the filters."
+msgstr ""
+
 #: src/transcribe_ui/gui/review/status.py
 msgid "Apply or discard your changes before the upload."
 msgstr ""
@@ -288,7 +292,7 @@ msgstr ""
 msgid "Checking what is waiting for transcription..."
 msgstr ""
 
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Choice"
 msgstr ""
 
@@ -308,7 +312,7 @@ msgstr ""
 msgid "Choose a folder, then tick the files to transcribe."
 msgstr ""
 
-#: src/transcribe_ui/gui/review/display.py
+#: src/transcribe_ui/gui/review/index.py
 #, python-brace-format
 msgid "Choose a track or a subtitle for {languages}."
 msgstr ""
@@ -367,7 +371,7 @@ msgid "Choose the subtitle stream to extract."
 msgstr ""
 
 #: src/transcribe_ui/gui/download/panels.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Choose…"
 msgstr ""
 
@@ -559,6 +563,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
 #: src/transcribe_ui/gui/download/results.py
+#: src/transcribe_ui/gui/review/models.py
 #: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
@@ -689,7 +694,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "File"
 msgstr ""
 
@@ -751,7 +756,7 @@ msgid "Fix the marked fields, then save again."
 msgstr ""
 
 #: src/transcribe_ui/gui/download/results.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Folder"
 msgstr ""
 
@@ -873,7 +878,7 @@ msgid "Kind"
 msgstr ""
 
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 #: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -1031,7 +1036,7 @@ msgid "Not checked yet"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py
-#: src/transcribe_ui/gui/review/display.py
+#: src/transcribe_ui/gui/review/index.py
 msgid "Not checked yet."
 msgstr ""
 
@@ -1067,7 +1072,7 @@ msgstr ""
 msgid "Nothing is waiting for transcription: upload a job first."
 msgstr ""
 
-#: src/transcribe_ui/gui/review/display.py
+#: src/transcribe_ui/gui/review/index.py
 #, python-brace-format
 msgid ""
 "Nothing to transcribe or extract for {languages}: remove the file from "
@@ -1261,7 +1266,7 @@ msgstr ""
 msgid "Remaining"
 msgstr ""
 
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Remove"
 msgstr ""
 
@@ -1616,7 +1621,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/widgets.py
+#: src/transcribe_ui/gui/review/models.py
 msgid "Status"
 msgstr ""
 
@@ -2512,6 +2517,10 @@ msgstr ""
 msgid "Waiting to check the cloud..."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "Waiting to check the files (other long tasks run first)…"
+msgstr ""
+
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"
 msgstr ""
@@ -2577,6 +2586,10 @@ msgstr ""
 msgid ""
 "Your earlier Start started nothing, as the work changed; check the plan "
 "here."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/viewmodel.py
+msgid "Your review choices are not applied yet; open Review to apply them."
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
