@@ -39,7 +39,7 @@ class GuiSignals(QObject):
     run_upload = Signal(str)
     # Open a batch's download dialog (`batch_id`; `download/`).
     open_download = Signal(str)
-    # Retry jobs of a batch (`batch_id`, the ticked job ids as a tuple of str; `cleanup/`).
+    # Retry jobs of a batch (`batch_id`, the ticked jobs as a tuple of `RetryJob`; `cleanup/`).
     retry_jobs = Signal(str, object)
     # Clean up a batch's cloud data (`batch_id`, the cleanup scope; `cleanup/`).
     clean_up = Signal(str, str)

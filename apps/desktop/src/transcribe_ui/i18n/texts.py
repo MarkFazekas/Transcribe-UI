@@ -25,6 +25,14 @@ from transcribe_ui.i18n.codes import CodeTable, Details, render_code
 from transcribe_ui.i18n.constants import ERROR_VARIANTS, PLAN_ERROR_VARIANTS, TextKind
 from transcribe_ui.i18n.error_texts import error_texts
 from transcribe_ui.i18n.formats import format_number
+from transcribe_ui.i18n.state_texts import (
+    batch_label_texts,
+    batch_phase_texts,
+    batch_stage_texts,
+    item_phase_texts,
+    job_kind_texts,
+    job_status_texts,
+)
 
 
 def _checks() -> CodeTable:
@@ -45,6 +53,12 @@ TABLES: Mapping[TextKind, Callable[[], CodeTable]] = MappingProxyType(
         "item_problem": item_problem_texts,
         "price_source": price_source_texts,
         "stage": stage_texts,
+        "batch_phase": batch_phase_texts,
+        "batch_stage": batch_stage_texts,
+        "batch_label": batch_label_texts,
+        "item_phase": item_phase_texts,
+        "job_status": job_status_texts,
+        "job_kind": job_kind_texts,
     },
 )
 # The variant keys of the kinds that have variants (a check's codes are error codes).

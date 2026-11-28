@@ -2,8 +2,9 @@
 
 Confirmations (`Confirmation.code`), placement plan errors and reasons, download failures,
 credential checks that passed, the desktop's job failures (`result_error_code`), scan warnings,
-item problems, the cost estimate's price source and the progress stages. The GUI calls jobs what
-the backend calls batches, and transcriptions what it calls jobs.
+item problems, the cost estimate's price source and the progress stages (the states of batches,
+items and jobs: `i18n/state_texts.py`). The GUI calls jobs what the backend calls batches, and
+transcriptions what it calls jobs.
 """
 
 from transcribe_ui.i18n.catalog import ntr, tr

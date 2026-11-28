@@ -1,7 +1,8 @@
 """The main window and the wiring of the bus (architecture §3.1 "GUI").
 
-Areas register their page here (`add_page` replaces the placeholder of its key) and connect the
-action signals they handle with `connect_handler` (one line each, in `build_shell`). The window
+Areas register their page (`add_page` replaces the placeholder of its key) and connect the action
+signals they handle with `connect_handler`, each from its install function, called by
+`gui/areas.py` (one line each). The window
 decides no business rule: errors and confirmations come from the backend, and the close
 question (Q30, `gui/closing.py`) sends no request.
 """
@@ -15,13 +16,13 @@ from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
 from transcribe_ui.gui import constants
 from transcribe_ui.gui.activity_view import ActivityPanel
+from transcribe_ui.gui.areas import install_areas
 from transcribe_ui.gui.closing import CloseGuard
 from transcribe_ui.gui.context import GuiContext
 from transcribe_ui.gui.dialogs import ConfirmationDialog, ErrorDialog
 from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, Fix
-from transcribe_ui.gui.pages import PageArea, placeholder
+from transcribe_ui.gui.pages import PageArea, add_placeholders
 from transcribe_ui.gui.signals import ACTION_SIGNALS, StartupSlot
-from transcribe_ui.gui.texts import page_title
 from transcribe_ui.i18n.catalog import tr
 
 
@@ -43,9 +44,7 @@ class MainWindow(QMainWindow):
         self.closing = CloseGuard(self, context.executor, context.quit_now, context.run_active)
         self.dialog: ErrorDialog | ConfirmationDialog | None = None
         self._handled: set[str] = set()
-        for key, needs_database in constants.PAGES:
-            title = page_title(key)
-            self.pages.add_page(key, title, placeholder(self), needs_database=needs_database)
+        add_placeholders(self.pages, self)
 
     def connect_handler(self, signal_name: str, slot: Callable[..., object]) -> None:
         """Connect the handler of an area to the action signal `signal_name` (`ACTION_SIGNALS`)."""
@@ -121,6 +120,7 @@ def build_shell(context: GuiContext) -> MainWindow:
     """Build the window and wire the bus: navigation, fallbacks, the start-up probe of the writer lock."""
     window = MainWindow(context)
     _connect_navigation(window)
+    install_areas(window)
     window.connect_fallbacks()
     context.executor.observe(context.lock.note)
     context.hooks.register(StartupSlot.DATABASE, context.lock.probe)

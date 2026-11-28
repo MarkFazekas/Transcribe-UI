@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QListWidget, QPushButton, QStackedWidget, QVBoxLayout, QWidget
 
+from transcribe_ui.gui.constants import PAGES
 from transcribe_ui.gui.dialogs import wrapped_label
+from transcribe_ui.gui.texts import page_title
 from transcribe_ui.gui.writer_lock import WriterLockGate
 from transcribe_ui.i18n.catalog import tr
 
@@ -46,6 +48,12 @@ def placeholder(parent: QWidget) -> QWidget:
     label = QLabel(tr("This page is not available yet."), parent)
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     return label
+
+
+def add_placeholders(area: "PageArea", parent: QWidget) -> None:
+    """Register a placeholder for every page of the navigation, in order (each part replaces its own)."""
+    for key, needs_database in PAGES:
+        area.add_page(key, page_title(key), placeholder(parent), needs_database=needs_database)
 
 
 @dataclass(frozen=True)
