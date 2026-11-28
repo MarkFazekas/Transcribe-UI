@@ -60,12 +60,12 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   shiboken6 6.12.0 (tag `macosx_14_0`) has `LC_BUILD_VERSION minos 26.0` (sdk 26.0) in
   `libshiboken6.abi3.6.12.dylib` and `Shiboken.abi3.so`, libpyside6 the same; the Qt frameworks
   and plugins of pyside6-essentials 6.12 have `minos 14.4`; shiboken6 6.11.2 (tag
-  `macosx_13_0`) has `minos 15.0`. Checked with `llvm-objdump --macho --private-headers` on the
-  PyPI wheels and by the macOS legs of PR #53's run 46150560721. So the `minos` of a wheel's own
+  `macosx_13_0`) has `minos 15.0`. Checked with `llvm-objdump` on the PyPI wheels and by the
+  macOS legs of PR #53's run 46150560721. So the `minos` of a wheel's own
   dylibs is not a floor signal; the build checks wheel binaries by their tag
   (`scripts/build_desktop_macos.py`). [I] dyld does not refuse a dylib whose `minos` is newer
-  than the running macOS (only a main executable's); the smoke tests on `macos-15` loading the
-  `minos 26.0` shiboken show it for 15.
+  than the running macOS (only a main executable's); to be confirmed by the smoke tests on
+  `macos-15`, which load the `minos 26.0` shiboken on macOS 15.
 
 - [V] `pyside6-essentials` 6.12.0 (2026-10-08; the version in `uv.lock`) wheels:
   `cp310-abi3-manylinux_2_34_x86_64`, `manylinux_2_39_aarch64`, `macosx_14_0_universal2`,
