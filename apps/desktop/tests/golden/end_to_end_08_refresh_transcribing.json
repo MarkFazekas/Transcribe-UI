@@ -45,7 +45,10 @@
         "ended_at": null,
         "end_reason": null,
         "stop_error": null,
-        "worker_log": null
+        "worker_log": null,
+        "progress_fraction": 0.0,
+        "remaining_estimate_s": 2568,
+        "estimated_finish_at": "2026-11-27T13:02:48Z"
       }
     ],
     "batches": [
