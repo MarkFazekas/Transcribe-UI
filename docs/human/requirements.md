@@ -323,6 +323,14 @@ Naming and conflicts:
 - A Claude hook runs a code review in a sub-agent before the session returns with code or any
   other change.
 
+## README
+
+- Before MCP, once we are done, a README update should be planned too (architect,
+  2026-11-28). It should have a nice picture of the app, a description of how it works, a
+  link to the download of the latest version, a description, a feature list, a CLI
+  description, a setup guide, what is needed before use, etc. It should be a complete
+  software experience.
+
 ## Documentation
 
 - Documentation lives in `docs/`.
