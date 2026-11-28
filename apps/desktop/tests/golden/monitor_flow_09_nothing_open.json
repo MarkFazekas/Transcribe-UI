@@ -6,7 +6,8 @@
     "runs": [],
     "batches": [],
     "busy": [],
-    "awaiting_results": false
+    "awaiting_results": false,
+    "finished_cleanups": []
   },
   "events": []
 }

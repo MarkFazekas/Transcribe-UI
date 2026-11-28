@@ -843,6 +843,19 @@ msgstr "Befejezés"
 msgid "Finished"
 msgstr "Kész"
 
+#: src/transcribe_ui/gui/cloud/poll.py
+#, python-brace-format
+msgid "Finished an interrupted cloud cleanup of another computer's job."
+msgid_plural ""
+"Finished the interrupted cloud cleanups of {count} jobs of other "
+"computers."
+msgstr[0] ""
+"Befejeződött {count}, más számítógépről feltöltött feladat félbeszakadt "
+"felhőtakarítása."
+msgstr[1] ""
+"Befejeződött {count}, más számítógépről feltöltött feladat félbeszakadt "
+"felhőtakarítása."
+
 #: src/transcribe_ui/gui/cloud/display.py
 msgid "Finishing"
 msgstr "Befejeződik"

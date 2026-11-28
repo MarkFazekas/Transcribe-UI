@@ -30,7 +30,7 @@ def _refresh(models: CloudModels, proceed: Proceed) -> None:
 
     A check in flight already: Refresh now's check follows it (with that recheck).
     """
-    if not models.poll.tick(proceed, recheck_removed=True):
+    if not models.poll.tick(proceed, recheck=True):
         models.poll.refresh_now()
         proceed()
 

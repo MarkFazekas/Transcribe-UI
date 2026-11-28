@@ -11,7 +11,7 @@ next tick tries again), never as an error dialog; another error shows in the pag
 reloads the run list (what the page shows), even a failed one, and reloads the jobs it reported.
 Refresh now asked while a check is in flight checks once more after it, so a job added meanwhile
 is covered. The start-up check and Refresh now also look again for the jobs marked removed from
-the cloud (`recheck_removed`, architecture §3.9): one that is back (the right bucket again, or
+the cloud (`recheck`, architecture §3.9): one that is back (the right bucket again, or
 published again) is followed again; the timer's checks do not, so they stay cheap. The timer is
 injected, so the poll's timing is tested without sleeping.
 """
@@ -28,7 +28,8 @@ from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL, CALL_QUEUED, CAL
 from transcribe_ui.gui.executor import Executor, SingleFlightChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.viewmodel import ViewModel
-from transcribe_ui.i18n.catalog import tr
+from transcribe_ui.i18n.catalog import ntr, tr
+from transcribe_ui.i18n.formats import format_number
 from transcribe_ui.runs.classes import RefreshStatusRequest
 from transcribe_ui.runs.responses import RefreshStatusResponse
 
@@ -50,6 +51,8 @@ class CloudPoll(ViewModel):
         self.error: ErrorView | None = None
         # Whether the last check said that some uploaded job still waits for its results.
         self.awaiting = False
+        # How many interrupted cleanups of other computers' jobs the last check finished (a notice).
+        self.finished_cleanups = 0
         # Jobs changed since the last check that answered: only a check's answer may stop the poll.
         self._owed = False
         # Count of job changes (`start` with ids), and its value when the check in flight was sent:
@@ -87,17 +90,17 @@ class CloudPoll(ViewModel):
         if not self._timer.active:
             self._timer.start()
 
-    def tick(self, proceed: Proceed | None = None, *, recheck_removed: bool = False) -> bool:
+    def tick(self, proceed: Proceed | None = None, *, recheck: bool = False) -> bool:
         """Check the cloud unless the previous check is still queued or running; return whether one was sent.
 
-        `recheck_removed`: also look again for the jobs marked removed from the cloud.
+        `recheck`: also look again for the jobs marked removed from the cloud.
         """
         if self.checking:
             return False
         if proceed is not None:
             # Before the send: an executor may answer inside it.
             self._waiting.append(proceed)
-        request = RefreshStatusRequest(action="refresh_status", recheck_removed=recheck_removed)
+        request = RefreshStatusRequest(action="refresh_status", recheck=recheck)
         self._sent_changes = self._changes
         self._channel.send(request, self._answered, self.changed)
         self.changed()
@@ -107,7 +110,7 @@ class CloudPoll(ViewModel):
         """Check the cloud now ("Refresh now"; after the check in flight, if any); the next automatic one waits an interval."""
         if self.checking:
             self._again = True
-        elif self.tick(recheck_removed=True) and self._timer.active:
+        elif self.tick(recheck=True) and self._timer.active:
             self._timer.start()
 
     def note(self) -> str:
@@ -118,7 +121,7 @@ class CloudPoll(ViewModel):
         if state == CALL_QUEUED:
             return tr("Waiting to check the cloud...")
         if self.error is None or self.error.code not in RETRYING_CODES:
-            return ""
+            return _finished_text(self.finished_cleanups) if self.error is None else ""
         current = self._runs.current
         refreshed = None if current is None else current.refreshed_at
         if refreshed is None:
@@ -141,6 +144,7 @@ class CloudPoll(ViewModel):
         if isinstance(response, RefreshStatusResponse):
             self.error = None
             self.awaiting = response.awaiting_results
+            self.finished_cleanups = len(response.finished_cleanups)
             reported = tuple(batch.batch_id for batch in response.batches)
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
@@ -173,3 +177,15 @@ def _final(response: Response) -> bool:
     if isinstance(response, ErrorResponse):
         return response.error.code not in RETRYING_CODES and response.error.code != ERROR_CANCELLED
     return False
+
+
+def _finished_text(count: int) -> str:
+    """Return the notice of the interrupted cleanups the last check finished, or ""."""
+    if not count:
+        return ""
+    text = ntr(
+        "Finished an interrupted cloud cleanup of another computer's job.",
+        "Finished the interrupted cloud cleanups of {count} jobs of other computers.",
+        count,
+    )
+    return text.format(count=format_number(count))

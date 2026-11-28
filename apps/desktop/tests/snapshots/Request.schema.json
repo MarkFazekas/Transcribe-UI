@@ -952,9 +952,9 @@
           "title": "Action",
           "type": "string"
         },
-        "recheck_removed": {
+        "recheck": {
           "default": false,
-          "title": "Recheck Removed",
+          "title": "Recheck",
           "type": "boolean"
         }
       },

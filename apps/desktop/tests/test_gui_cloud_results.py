@@ -56,8 +56,8 @@ def _actions(manual: ManualExecutor) -> list[str]:
 
 
 def _rechecks(manual: ManualExecutor) -> list[bool | None]:
-    """Return `recheck_removed` of each held check of the cloud."""
-    return [getattr(held.request, "recheck_removed", None) for held in manual.held if held.request.action == REFRESH]
+    """Return `recheck` of each held check of the cloud."""
+    return [getattr(held.request, "recheck", None) for held in manual.held if held.request.action == REFRESH]
 
 
 def test_no_key_still_checks_the_results(manual_area: tuple[CloudArea, ManualExecutor]) -> None:

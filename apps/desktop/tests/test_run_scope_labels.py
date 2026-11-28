@@ -128,7 +128,7 @@ def test_switching_back_to_the_bucket_restores(runs_world: RunsWorld) -> None:
     marked = _labels(runs_world)
     _use_bucket(runs_world, TEST_BUCKET)
     still = None if _refresh(runs_world).batches else _labels(runs_world)
-    restored = ok_as(send(runs_world, "refresh_status", recheck_removed=True), RefreshStatusResponse)
+    restored = ok_as(send(runs_world, "refresh_status", recheck=True), RefreshStatusResponse)
     assert (marked, still, _labels(runs_world), restored.awaiting_results) == (
         ("removed_from_cloud",),
         ("removed_from_cloud",),
@@ -147,7 +147,7 @@ def test_a_republished_manifest_is_followed_again(runs_world: RunsWorld) -> None
     _refresh(runs_world)
     marked = _labels(runs_world)
     runs_world.store.write(key, body, JSON_TYPE)
-    send(runs_world, "refresh_status", recheck_removed=True)
+    send(runs_world, "refresh_status", recheck=True)
     assert (marked, _labels(runs_world)) == (("removed_from_cloud",), ())
 
 

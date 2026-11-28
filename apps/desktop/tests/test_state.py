@@ -53,6 +53,7 @@ EXPECTED_TABLES = frozenset(
         "items",
         "jobs",
         "known_leases",
+        "pending_cleanups",
         "placements",
         "probe_cache",
         "runs",

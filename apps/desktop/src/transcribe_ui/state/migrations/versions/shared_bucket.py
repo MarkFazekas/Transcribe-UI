@@ -7,7 +7,8 @@ batch). The manifest is no longer held back during a run (a run processes only t
 lease lists), so `manifest_held` goes: a batch still held at the upgrade stays `uploading` and is
 published when its upload is resumed with `run_upload` (architecture §3.9 "Run scope", §3.8).
 The new table `known_leases` keeps the live run leases the last `refresh_status` read (empty until
-the first refresh).
+the first refresh), and `pending_cleanups` this computer's unfinished cleanups of other computers'
+batches (empty).
 Every stored run payload gets the key `known_batch_ids` as null (a run launched before: its
 progress follows the covered batches the database has).
 
@@ -32,12 +33,18 @@ def _flag(name: str) -> "sa.Column[bool]":
 
 
 def upgrade() -> None:
-    """Add `removed_from_cloud`, drop `manifest_held`, add the payload keys `adopted` and `known_batch_ids`, `known_leases`."""
+    """Add `removed_from_cloud`, drop `manifest_held`, add the payload keys `adopted` and `known_batch_ids`, two tables."""
     with op.batch_alter_table("batches") as batch:
         batch.add_column(_flag("removed_from_cloud"))
         batch.drop_column("manifest_held")
     op.execute("UPDATE batches SET payload = json_insert(payload, '$.adopted', NULL)")
     op.execute("UPDATE runs SET payload = json_insert(payload, '$.known_batch_ids', NULL)")
+    op.create_table(
+        "pending_cleanups",
+        sa.Column("batch_id", sa.String(length=40), nullable=False),
+        sa.Column("started_at", sa.DateTime(), nullable=False),
+        sa.PrimaryKeyConstraint("batch_id", name=op.f("pk_pending_cleanups")),
+    )
     op.create_table(
         "known_leases",
         sa.Column("run_id", sa.String(), nullable=False),
@@ -50,6 +57,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Undo `upgrade`: restore `manifest_held` (false), drop the rest (never run by the app)."""
     op.drop_table("known_leases")
+    op.drop_table("pending_cleanups")
     op.execute("UPDATE runs SET payload = json_remove(payload, '$.known_batch_ids')")
     op.execute("UPDATE batches SET payload = json_remove(payload, '$.adopted')")
     with op.batch_alter_table("batches") as batch:

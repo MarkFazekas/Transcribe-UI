@@ -14,7 +14,8 @@ no database transaction is open across a Runpod or R2 call. In order:
    The lease of every run that became final is deleted (`runs/lease_release.py`). Without a key
    (an R2-only installation, architecture §3.9 "Roles") nothing is followed: a run left open
    records `credentials_missing` as its `stop_error`.
-2. Every `ready` batch gets its job results and, with `_done.json`, moves to `transcribed`
+2. With `recheck` (start-up, Refresh now), this computer's interrupted cleanups of other
+   computers' jobs are finished or undone (`cleanup/pending.py`). Every `ready` batch gets its job results and, with `_done.json`, moves to `transcribed`
    (`runs/results.py`), and the live run leases are kept in memory with the refresh time
    (`waits_for_current_run`); then each followed run's progress and remaining time are computed
    from the jobs done and stored (`runs/remaining.py`).
@@ -56,7 +57,7 @@ def refresh_status(request: RefreshStatusRequest, context: RequestContext) -> Re
         client = stack.enter_context(open_runpod(context)) if runpod_key_set(context) else None
         open_ids = [run.run_id for run in open_runs(state)]
         refreshed, listed = _follow_runs(context, client, store)
-        checked = check_ready_batches(context, store.get(), recheck_removed=request.recheck_removed)
+        checked = check_ready_batches(context, store.get(), recheck=request.recheck)
         remember_leases(state, store.get(), context.ports.clock.now())
         record_progress(context, refreshed, store.get())
         if client is not None:
@@ -68,6 +69,7 @@ def refresh_status(request: RefreshStatusRequest, context: RequestContext) -> Re
         batches=checked.batches,
         busy=checked.busy,
         awaiting_results=checked.awaiting,
+        finished_cleanups=checked.finished_cleanups,
     )
 
 

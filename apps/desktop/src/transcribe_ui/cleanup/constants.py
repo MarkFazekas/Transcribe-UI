@@ -49,6 +49,8 @@ CONFIRMATION_UNKNOWN_ELSEWHERE: Final = "cleanup_unknown_batch_uploaded_elsewher
 CONFIRMATION_UNKNOWN_LEFTOVER: Final = "cleanup_unknown_leftover"
 # Content type of the marker of an unknown batch's cleanup in progress (`layout.deleting_key`).
 DELETING_CONTENT_TYPE: Final = "application/json"
+# Action named by the progress events of the interrupted cleanups the refresh finishes (`cleanup/pending.py`).
+FINISH_PENDING_ACTION: Final = "refresh_status"
 # Progress stage of `cleanup_cloud`: objects deleted so far.
 CLEANUP_STAGE: Final = "delete_objects"
 

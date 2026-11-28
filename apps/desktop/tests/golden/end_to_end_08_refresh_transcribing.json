@@ -62,7 +62,8 @@
       }
     ],
     "busy": [],
-    "awaiting_results": true
+    "awaiting_results": true,
+    "finished_cleanups": []
   },
   "events": []
 }

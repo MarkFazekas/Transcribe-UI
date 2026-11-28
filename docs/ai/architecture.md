@@ -474,7 +474,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs and
     no results are awaited.
     "Refresh now" checks at once and restarts the interval. The start-up check and "Refresh
-    now" send `recheck_removed` (§3.9 "A batch removed from the cloud"); the timer's checks do
+    now" send `recheck` (§3.9 "A batch removed from the cloud"); the timer's checks do
     not. A check's `runs_busy`,
     `state_busy` or `cloud_unreachable` shows as "Last updated <time>; retrying at the next
     check", another error in the page's banner with its fix and as a status bar link, never as
@@ -1392,7 +1392,16 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     to `transcribed`), the results and everything else under `<id>/`, and the marker last. A
     cancel before the manifest delete removes the marker again (best effort), so the batch
     stays as it was. The uploading computer deletes the marker whenever it reclaims its prefix
-    (`finish_withdrawal`, `clear_leftovers`), so a stale marker cannot purge a new upload. A marker without a manifest is the proof that an interrupted cleanup left the
+    (`finish_withdrawal`, `clear_leftovers`), so a stale marker cannot purge a new upload.
+    The cleanup is also recorded locally (table `pending_cleanups`: the batch id and when it
+    started; written before the marker, dropped after it; `cleanup/pending.py`), since the
+    batch is gone from every listing once its manifest is: `refresh_status` with `recheck`
+    (start-up, Refresh now) settles every record, under the batch's lock (only tried) and
+    unless a live lease lists it. Manifest gone, marker there: the deletion passed its point
+    of no return and was confirmed, so the rest is deleted without a question; manifest still
+    there: the marker is deleted and the batch stays as it was; neither: nothing to do. The
+    record is then dropped, and the response lists the finished ones (`finished_cleanups`; the
+    Cloud page notes them). A marker without a manifest is the proof that an interrupted cleanup left the
     rest, transcribed or not: repeating the request asks `cleanup_unknown_leftover` (details:
     `batch_id`, `known: false`) and deletes what the listing still shows. A prefix with
     neither a manifest nor the marker (perhaps another computer's upload in progress; an
@@ -2042,7 +2051,8 @@ database):
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
   `worker.py`, `results.py`, `ready_batches.py`, `result_reads.py`, `collect.py`,
   `lease_release.py`, `leases.py`, `progress.py`; request `refresh_status`, field
-  `recheck_removed` (default false; §3.9 "A batch removed from the cloud"); runs lock
+  `recheck` (default false; the GUI's start-up check and Refresh now: §3.9 "A batch removed
+  from the cloud", and the interrupted cleanups of §3.3 "Unknown batch"); runs lock
   for the whole request, no transaction across a Runpod or R2 call). The GUI sends it
   periodically while a run is active, or while `awaiting_results` says so, and once at
   start-up, with or without the Runpod key. The Runpod client is opened only when a key is set
@@ -2251,8 +2261,9 @@ directories, the settings store, the locks and the lazily opened database.
   `transcribing_since`, `progress_fraction`, `remaining_estimate_s`, `estimated_finish_at` to run
   payloads and `result_run_id`, `result_started_at`, `result_finished_at` to job payloads as
   null) and `shared_bucket` (M6.13: drops `manifest_held`, adds the column `removed_from_cloud`
-  (false), the batch payload key `adopted` as null and the table `known_leases`: the live run
-  leases the last refresh read, `state/leases.py`, §3.9 "Run scope"). The data dir also holds
+  (false), the batch payload key `adopted` as null, the run payload key `known_batch_ids` as
+  null, the table `known_leases`: the live run leases the last refresh read, `state/leases.py`,
+  §3.9 "Run scope", and the table `pending_cleanups`, §3.3 "Unknown batch"). The data dir also holds
   the file `installation_id` (§3.9 "Downloading twice"). Every change
   is a new revision, including any change of a stored payload's shape (a field added, removed,
   renamed or retyped, a literal value dropped; the payload models forbid unknown fields, so an
@@ -2461,7 +2472,7 @@ Q28, Q35, A21 and A22.
   stays. A HEAD in a bucket that does not exist also finds nothing, so before the first mark of
   a refresh the bucket is listed once (`check_access`): a missing bucket (a mistyped name) is
   the refresh's R2 error, never a removal. The mark can be undone: `refresh_status` with
-  `recheck_removed` (the GUI sets it at start-up and on "Refresh now") first HEADs the marked
+  `recheck` (the GUI sets it at start-up and on "Refresh now") first HEADs the marked
   batches again, and one whose manifest or `_done.json` is back is followed again. So another
   existing bucket of the account still marks every `ready` batch removed, but switching back
   and refreshing restores them; the same covers a batch whose uploader withdrew and published

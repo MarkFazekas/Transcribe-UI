@@ -225,3 +225,5 @@ class RefreshStatusResponse(OkResponse):
     # Whether some `ready` batch still waits for its results (the GUI keeps polling while it does,
     # with or without a Runpod key; architecture §3.9 "Results poll").
     awaiting_results: bool
+    # Other computers' jobs whose interrupted cleanup this refresh finished (`recheck`; architecture §3.3).
+    finished_cleanups: tuple[str, ...] = ()

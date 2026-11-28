@@ -8,7 +8,8 @@ lists the batch. The deletes start with the marker `<id>/_deleting.json`, then t
 no listing, adoption or launch sees the batch meanwhile, and end with the marker
 (`cleanup/stages.py`): a marker without a manifest is the proof that an interrupted cleanup left
 the rest, so repeating the request resumes it from the listing, after its own confirmation
-(`cleanup_unknown_leftover`). A prefix with neither a manifest nor the marker is never touched
+(`cleanup_unknown_leftover`); the cleanup is also recorded locally (`cleanup/pending.py`), so the
+refresh finishes it without a question. A prefix with neither a manifest nor the marker is never touched
 (`batch_not_found`): it may be another computer's upload in progress, and an uploader never
 writes the marker.
 
@@ -34,6 +35,7 @@ from transcribe_ui.cleanup.constants import (
     UPLOADED_ELSEWHERE,
 )
 from transcribe_ui.cleanup.manifests import find_unknown_manifest
+from transcribe_ui.cleanup.pending import drop_pending, record_pending
 from transcribe_ui.cleanup.stages import Purge, delete_unknown
 from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.runs.leases import refuse_if_leased
@@ -74,7 +76,10 @@ def cleanup_unknown(
         return NeedsConfirmation(action=request.action, confirmations=(confirmation,))
     refuse_if_leased(store, batch_id, context.ports.clock.now())
     purge = Purge(store, context, request.action)
+    # Recorded before the marker and dropped after it: an interruption is finished by the refresh.
+    record_pending(context.ports.state, batch_id, context.ports.clock.now())
     aborted = delete_unknown(purge, batch_id)
+    drop_pending(context.ports.state, batch_id)
     return CleanupCloudResponse(
         batch_id=batch_id,
         scope=request.scope,

@@ -2864,6 +2864,14 @@
           "title": "Busy",
           "type": "array"
         },
+        "finished_cleanups": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Finished Cleanups",
+          "type": "array"
+        },
         "runs": {
           "items": {
             "$ref": "#/$defs/RunProgress"
@@ -2884,7 +2892,8 @@
         "runs",
         "batches",
         "busy",
-        "awaiting_results"
+        "awaiting_results",
+        "finished_cleanups"
       ],
       "title": "RefreshStatusResponse",
       "type": "object"

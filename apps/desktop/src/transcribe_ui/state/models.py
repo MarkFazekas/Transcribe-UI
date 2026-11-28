@@ -167,6 +167,19 @@ class RunRow(Base):
     payload: Mapped[Payload] = mapped_column(JSON)
 
 
+class PendingCleanupRow(Base):
+    """This computer's cleanup of another computer's batch that has started and not ended (architecture §3.3).
+
+    Written before the cleanup's marker, removed after it; the refresh with `recheck` finishes
+    or undoes what an interruption left (`cleanup/pending.py`).
+    """
+
+    __tablename__ = "pending_cleanups"
+
+    batch_id: Mapped[str] = mapped_column(String(BATCH_ID_LENGTH), primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
 class LeaseRow(Base):
     """A live run lease the last `refresh_status` read (any computer's run; architecture §3.9 "Run scope").
 
