@@ -1,13 +1,14 @@
 """What the credentials' status means for the first start and the cloud setup (Qt-free; architecture §3.9)."""
 
 from transcribe_ui.credentials.classes import CredentialsStatusResponse
-from transcribe_ui.credentials.constants import R2_CREDENTIALS
 
 
 def r2_missing(status: CredentialsStatusResponse) -> bool:
-    """Return whether an R2 credential is set nowhere (the first-start wizard opens then)."""
-    r2 = [credential for credential in status.credentials if credential.name in R2_CREDENTIALS]
-    return any(credential.source == "missing" for credential in r2)
+    """Return whether the backend counts the R2 credentials as not all set (the first-start wizard opens then).
+
+    The backend's rule (`r2_set`): a keyring that failed while reading may hold them.
+    """
+    return not status.r2_set
 
 
 def runpod_key_set(status: CredentialsStatusResponse | None) -> bool:

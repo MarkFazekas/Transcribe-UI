@@ -1729,7 +1729,7 @@ database):
     failed keyring offers the cloud setup, whose check reports the keyring's error). `r2_set`:
     every R2 credential found, or the keyring failed; without it the Cloud area's start-up
     sends no `refresh_status` (nothing in the cloud can be checked; the first-start wizard asks
-    for R2).
+    for R2), and the settings area opens the first-start wizard (one rule for both areas).
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
