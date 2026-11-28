@@ -144,6 +144,18 @@ class BatchDetail(FrozenModel):
     items: tuple[BatchItem, ...]  # noqa: WPS110 -- the batch's items
 
 
+class ReviewSuggestion(FrozenModel):
+    """What the pre-selection chooses for a job of a probed file, so a frontend can offer it again."""
+
+    language: str
+    # The audio track a transcription uses: tagged with the language, else the default-flagged
+    # one, else the first; None for an audio file (uploaded as it is) and a file without audio.
+    track_index: NonNegativeInt | None
+    # The first text subtitle stream tagged with the language, which an extraction uses; None when
+    # the file has none.
+    stream_index: NonNegativeInt | None
+
+
 class ReviewFile(FrozenModel):
     """A file in review: what was probed and the choice of each of its jobs."""
 
@@ -156,6 +168,8 @@ class ReviewFile(FrozenModel):
     audio_tracks: tuple[AudioTrack, ...]
     subtitle_streams: tuple[SubtitleStream, ...]
     jobs: tuple[JobView, ...]
+    # The pre-selection's choice for each of `jobs`, in the same order (empty until probed).
+    suggestions: tuple[ReviewSuggestion, ...]
 
 
 class BatchReview(FrozenModel):

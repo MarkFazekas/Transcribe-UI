@@ -23,6 +23,7 @@ from support.batches import (
     MEDIA_ROOT,
     PODCAST,
     SECOND_BATCH_ID,
+    SILENT,
     batch_ports,
     batch_request,
     build_batch_tree,
@@ -44,6 +45,8 @@ from transcribe_ui.state.models import BatchRow, ProbeCacheRow
 
 # Target language of these tests.
 HU = "hu"
+# The second target language of the suggestions' test.
+EN = "en"
 # Longest a test waits for a thread to reach its blocking point or to finish.
 THREAD_TIMEOUT_S = 10
 # Content written over the film to change its size and mtime.
@@ -115,6 +118,22 @@ def test_missing_file_is_an_item_problem(batch_leg: Leg) -> None:
     review = run_ok(batch_leg, REVIEW)["review"]
     problems = [(entry["name"], entry["problem"]["code"]) for entry in review["unresolved"]]
     assert (review["complete"], problems) == (False, [(PODCAST, "source_missing")])
+
+
+def test_review_suggests_the_pre_selected_choices(batch_leg: Leg) -> None:
+    """Each job of a probed file carries the pre-selection's track and its language's text subtitle, if any."""
+    start(batch_leg, EN, HU)
+    review = run_ok(batch_leg, REVIEW)["review"]
+    files = {entry["name"]: entry for entry in review["subtitle_view"]}
+    suggested = {
+        name: [(entry["language"], entry["track_index"], entry["stream_index"]) for entry in files[name]["suggestions"]]
+        for name in (FILM, SILENT)
+    }
+    # The film: English from its English (default) track or its English text subtitle, Hungarian from its
+    # Hungarian track (its Hungarian subtitle is a picture); the silent video has no track to transcribe.
+    assert suggested == {FILM: [(EN, 1, 0), (HU, 0, None)], SILENT: [(EN, None, None), (HU, None, 0)]}
+    jobs = [[job["language"] for job in files[name]["jobs"]] for name in (FILM, SILENT)]
+    assert jobs == [[EN, HU], [EN, HU]]
 
 
 def test_edit_refused_after_composing(batch_leg: Leg) -> None:

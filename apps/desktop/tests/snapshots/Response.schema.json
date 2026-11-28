@@ -3012,6 +3012,13 @@
           },
           "title": "Subtitle Streams",
           "type": "array"
+        },
+        "suggestions": {
+          "items": {
+            "$ref": "#/$defs/ReviewSuggestion"
+          },
+          "title": "Suggestions",
+          "type": "array"
         }
       },
       "required": [
@@ -3023,9 +3030,51 @@
         "problem",
         "audio_tracks",
         "subtitle_streams",
-        "jobs"
+        "jobs",
+        "suggestions"
       ],
       "title": "ReviewFile",
+      "type": "object"
+    },
+    "ReviewSuggestion": {
+      "additionalProperties": false,
+      "description": "What the pre-selection chooses for a job of a probed file, so a frontend can offer it again.",
+      "properties": {
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "stream_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stream Index"
+        },
+        "track_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Track Index"
+        }
+      },
+      "required": [
+        "language",
+        "track_index",
+        "stream_index"
+      ],
+      "title": "ReviewSuggestion",
       "type": "object"
     },
     "RunDownloadResponse": {

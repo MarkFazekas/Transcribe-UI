@@ -2,10 +2,13 @@
 
 from sqlalchemy.orm import Session
 
+from transcribe_ui.batches.choices import preselected_track, tagged_text_stream
 from transcribe_ui.batches.classes import ReviewFilter
+from transcribe_ui.batches.payloads import ItemPayload
 from transcribe_ui.batches.records import StoredItem, job_view, stored_items
-from transcribe_ui.batches.responses import BatchReview, ReviewFile
+from transcribe_ui.batches.responses import BatchReview, ReviewFile, ReviewSuggestion
 from transcribe_ui.discovery.rules import PathRules
+from transcribe_ui.media.classes import ProbeResult
 from transcribe_ui.state.models import BatchRow
 
 
@@ -13,6 +16,24 @@ def _under(rules: PathRules, path: str, folder: str) -> bool:
     folder_keys = [rules.key(part) for part in rules.parts(folder)]
     path_keys = [rules.key(part) for part in rules.parts(path)]
     return path_keys[: len(folder_keys)] == folder_keys
+
+
+def _suggestion(payload: ItemPayload, probe: ProbeResult, language: str) -> ReviewSuggestion:
+    """Return the pre-selection's track and text stream for a job of the language."""
+    track = preselected_track(probe.audio_tracks, language) if payload.kind == "video" else None
+    stream = tagged_text_stream(probe.subtitle_streams, language)
+    return ReviewSuggestion(language=language, track_index=track, stream_index=stream)
+
+
+# The pre-selection's choices of a file's jobs.
+type Suggestions = tuple[ReviewSuggestion, ...]
+
+
+def _suggestions(payload: ItemPayload, probe: ProbeResult | None, languages: list[str]) -> Suggestions:
+    """Return the pre-selection's choices for jobs of these languages (none before the probe)."""
+    if probe is None:
+        return ()
+    return tuple(_suggestion(payload, probe, language) for language in languages)
 
 
 def review_file(member: StoredItem, languages: frozenset[str]) -> ReviewFile:
@@ -31,6 +52,7 @@ def review_file(member: StoredItem, languages: frozenset[str]) -> ReviewFile:
         audio_tracks=() if probe is None else probe.audio_tracks,
         subtitle_streams=() if probe is None else probe.subtitle_streams,
         jobs=tuple(job_view(payload, job) for job in jobs),
+        suggestions=_suggestions(payload, probe, [job.row.language for job in jobs]),
     )
 
 
