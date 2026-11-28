@@ -220,7 +220,7 @@ msgid "Apply or discard your changes before changing the filters or uploading."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr ""
@@ -748,7 +748,7 @@ msgid "File types"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr ""
@@ -886,7 +886,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/start_view.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr ""
@@ -1097,6 +1097,7 @@ msgid "Not checked yet"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/download/others_view.py
 #: src/transcribe_ui/gui/review/index.py
 msgid "Not checked yet."
 msgstr ""
@@ -1107,10 +1108,6 @@ msgstr ""
 
 #: src/transcribe_ui/gui/download/display.py
 msgid "Not finished yet"
-msgstr ""
-
-#: src/transcribe_ui/gui/download/others_view.py
-msgid "Not looked yet."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -1553,6 +1550,10 @@ msgstr ""
 msgid "See the log for what went wrong."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Select a job in the list first."
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Selected"
 msgstr ""
@@ -1694,7 +1695,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr ""
@@ -2424,6 +2425,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "This is not possible for a job uploaded from another computer."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "This job is being added to this computer's jobs."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py

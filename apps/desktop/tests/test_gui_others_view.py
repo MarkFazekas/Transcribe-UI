@@ -15,7 +15,9 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
 from support.batches import FILM, FIRST_BATCH_ID
@@ -31,7 +33,8 @@ from transcribe_ui.gui.constants import PAGE_CLOUD, PAGE_JOBS, PAGE_SETTINGS
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.download.constants import STRATEGY_CHOICES
 from transcribe_ui.gui.download.install import DownloadArea
-from transcribe_ui.gui.download.others_view import OtherJobsSection
+from transcribe_ui.gui.download.others_display import CloudJobRow
+from transcribe_ui.gui.download.others_view import OtherJobsSection, OtherJobsTable
 from transcribe_ui.gui.download.view import DownloadDialog
 from transcribe_ui.gui.jobs.view import JobsPage
 from transcribe_ui.gui.shell import MainWindow
@@ -71,16 +74,37 @@ def _poll_timer(window: MainWindow) -> QTimer:
     return found[0]
 
 
-def _adopt(qtbot: QtBot, window: MainWindow) -> DownloadDialog:
-    """List the cloud's jobs, Download the uploaded one, confirm; return its download dialog once checked."""
+def _listed_and_selected(qtbot: QtBot, window: MainWindow) -> OtherJobsSection:
+    """Show the Cloud page, list the cloud's jobs and select the uploaded one (Download is disabled until then)."""
+    window.pages.show_page(PAGE_CLOUD)
     section = _page(window).findChild(OtherJobsSection)
     assert isinstance(section, OtherJobsSection)
     section.look_button.click()
-    wait_for(qtbot, lambda: FIRST_BATCH_ID in section.download_buttons)
-    state = section.table.item(0, 3)
-    assert state is not None
-    assert state.text() in {"Transcribed", "Waiting for transcription"}
-    section.download_buttons[FIRST_BATCH_ID].click()
+    wait_for(qtbot, lambda: section.table.rows.row_of(FIRST_BATCH_ID) is not None)
+    assert section.table.rows.index(0, 3).data() in {"Transcribed", "Waiting for transcription"}
+    download = section.download_button
+    assert (download.isEnabled(), download.toolTip()) == (False, "Select a job in the list first.")
+    section.table.selectRow(0)
+    assert download.isEnabled()
+    return section
+
+
+def _double_click(section: OtherJobsSection) -> None:
+    """Double-click the first row (QTest sends only a double-click's second press, so a click comes first)."""
+    table = section.table
+    cell = table.visualRect(table.rows.index(0, 0)).center()
+    left = Qt.MouseButton.LeftButton
+    QTest.mouseClick(table.viewport(), left, Qt.KeyboardModifier.NoModifier, cell)
+    QTest.mouseDClick(table.viewport(), left, Qt.KeyboardModifier.NoModifier, cell)
+
+
+def _adopt(qtbot: QtBot, window: MainWindow, *, by_double_click: bool = False) -> DownloadDialog:
+    """List the cloud's jobs, Download the uploaded one (or double-click it), confirm; return its dialog once checked."""
+    section = _listed_and_selected(qtbot, window)
+    if by_double_click:
+        _double_click(section)
+    else:
+        section.download_button.click()
     wait_for(qtbot, lambda: isinstance(window.dialog, ConfirmationDialog) and window.dialog.isVisible())
     question = window.dialog
     assert isinstance(question, ConfirmationDialog)
@@ -88,7 +112,7 @@ def _adopt(qtbot: QtBot, window: MainWindow) -> DownloadDialog:
     area = window.findChild(DownloadArea)
     assert isinstance(area, DownloadArea)
     wait_for(qtbot, lambda: FIRST_BATCH_ID in area.dialogs and area.dialogs[FIRST_BATCH_ID].isVisible())
-    wait_for(qtbot, lambda: not window.busy() and not section.download_buttons)
+    wait_for(qtbot, lambda: not window.busy() and not section.table.rows.rows)
     return area.dialogs[FIRST_BATCH_ID]
 
 
@@ -129,6 +153,27 @@ def test_a_key_stored_meanwhile_counts_on_show(
     banner = page.findChild(KeyBanner)
     assert isinstance(banner, KeyBanner)
     assert (banner.isHidden(), start.toolTip(), page.machines.check_button.isEnabled()) == (True, "", True)
+
+
+def test_a_double_click_downloads_the_job(qtbot: QtBot, runs_world: RunsWorld, window: MainWindow) -> None:
+    """A double-click on a listed job does what Download does: the confirmation, then its download dialog."""
+    uploaded_elsewhere(runs_world, transcribed=False)
+    dialog = _adopt(qtbot, window, by_double_click=True)
+    assert dialog.options.strategy.currentIndex() == STRATEGY_CHOICES.index("mirror")
+
+
+def test_a_new_list_keeps_the_selected_job(qtbot: QtBot) -> None:
+    """A list whose rows changed keeps the selected job selected while it is still listed."""
+    holder = QWidget()
+    qtbot.addWidget(holder)
+    table = OtherJobsTable(holder)
+    first, second, third = (CloudJobRow(f"batch_2026010{day}_000000", "1", "1 min", "Transcribed") for day in "123")
+    table.show_rows((first, second))
+    table.selectRow(1)
+    table.show_rows((third, second))
+    kept = table.selected()
+    table.show_rows((third,))
+    assert (kept, table.selected()) == (second.batch_id, None)
 
 
 def test_another_computers_job_is_adopted_and_mirrored(

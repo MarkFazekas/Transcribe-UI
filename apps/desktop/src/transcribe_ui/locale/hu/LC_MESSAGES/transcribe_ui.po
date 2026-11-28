@@ -265,7 +265,7 @@ msgstr ""
 "módosításait."
 
 #: src/transcribe_ui/gui/cloud/start_view.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr "Hang"
@@ -809,7 +809,7 @@ msgid "File types"
 msgstr "Fájltípusok"
 
 #: src/transcribe_ui/gui/cloud/start_view.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr "Fájlok"
@@ -951,7 +951,7 @@ msgstr "JSON-fájlok (*.json)"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/start_view.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr "Feladat"
@@ -1169,6 +1169,7 @@ msgid "Not checked yet"
 msgstr "Még nincs ellenőrizve"
 
 #: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/download/others_view.py
 #: src/transcribe_ui/gui/review/index.py
 msgid "Not checked yet."
 msgstr "Még nincs ellenőrizve."
@@ -1180,10 +1181,6 @@ msgstr "Nincs kiválasztva"
 #: src/transcribe_ui/gui/download/display.py
 msgid "Not finished yet"
 msgstr "Még nincs kész"
-
-#: src/transcribe_ui/gui/download/others_view.py
-msgid "Not looked yet."
-msgstr "Még nem történt keresés."
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Not set"
@@ -1649,6 +1646,10 @@ msgstr "Titok"
 msgid "See the log for what went wrong."
 msgstr "A hiba oka a naplóban olvasható."
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Select a job in the list first."
+msgstr "Előbb jelöljön ki egy feladatot a listában."
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Selected"
 msgstr "Kijelölve"
@@ -1802,7 +1803,7 @@ msgstr "Állapot"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py
-#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr "Állapot"
@@ -2645,6 +2646,10 @@ msgstr "Ez a feladat jelenlegi lépésénél nem lehetséges."
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "This is not possible for a job uploaded from another computer."
 msgstr "Ez nem lehetséges egy másik számítógépről feltöltött feladatnál."
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "This job is being added to this computer's jobs."
+msgstr "A feladat hozzáadása ennek a számítógépnek a feladataihoz folyamatban van."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""

@@ -556,12 +556,15 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   opens the job's download dialog, step 4 of the step header: non-modal and one per job,
   kept while the window lives, so it reopens with the user's choices and the window stays
   usable while it is open.
-  - Jobs of other computers (`others.py`, `others_display.py`, `others_view.py`; §3.9
-    "Adoption"): a section of the Cloud page, below the current run, added by the download
-    area through `CloudPage.add_section`. "Look in the cloud" sends `list_cloud_batches`
+  - Jobs of other computers (`others.py`, `others_display.py`, `others_table.py`,
+    `others_view.py`; §3.9 "Adoption"): a section of the Cloud page, below the current run,
+    added by the download area through `CloudPage.add_section`. "Look in the cloud" sends `list_cloud_batches`
     (latest wins; only when asked) and lists the jobs with `known` false (files, audio length,
-    state); Download sends `adopt_cloud_batch` (exclusive per job), whose confirmation the
-    generic dialog shows without its details table. Once adopted, the jobs reload
+    state) in a table view over a Qt model (`others_table.py`; nothing is built per row, and a
+    new list keeps the selected job selected). One Download (or a double-click on a row) acts
+    on the selected job; it is disabled with a hint while no job is selected or the selected
+    one is being adopted. It sends `adopt_cloud_batch` (exclusive per job), whose confirmation
+    the generic dialog shows without its details table. Once adopted, the jobs reload
     (`batches_changed`), its download dialog opens (`open_download`), the Cloud page checks
     the cloud (`check_now`) and the list loads again; until a list succeeds, the adopted job's
     row counts as adopting (its Download stays disabled, so a second click cannot hit
