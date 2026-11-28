@@ -110,10 +110,12 @@ class NewJobModel(ViewModel):
 def _matching_selected(model: NewJobModel, path: str) -> bool | None:
     """Return whether every file below a folder the active filters match is selected (None: unknown)."""
     scanned = model.scan.scanned
-    matches = model.filters.current_matches()
-    if scanned is None or matches is None:
+    if scanned is None:
         return None
     index = scanned.index
+    matches = model.filters.current_matches(index.tree.scan_id)
+    if matches is None:
+        return None
     node = index.nodes.get(path)
     if node is None:
         return None

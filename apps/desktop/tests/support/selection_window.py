@@ -24,7 +24,7 @@ def settled(qtbot: QtBot, window: MainWindow) -> None:
     wait_for(qtbot, lambda: not window.busy())
 
 
-def drained_window(qtbot: QtBot, runner: RequestRunner, log_dir: Path) -> MainWindow:
+def settled_window(qtbot: QtBot, runner: RequestRunner, log_dir: Path) -> MainWindow:
     """Return the shown window over `runner`; pytest-qt lets its calls finish before it closes it."""
     window = untracked_window(runner, log_dir)
     qtbot.addWidget(window, before_close_func=partial(settled, qtbot))

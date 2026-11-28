@@ -53,7 +53,8 @@ def row_mark(model: NewJobModel, index: ScanIndex, node: int) -> CheckMark:
 def row_dimmed(model: NewJobModel, index: ScanIndex, node: int) -> bool:
     """Return whether a row is dimmed: the active filters match neither the file nor anything below the folder."""
     folder = index.is_folder(node)
-    return not model.filters.matching(index.path(node), folder=folder)
+    path = index.path(node)
+    return not model.filters.matching(path, folder=folder, root=index.tree.root)
 
 
 def cell_tooltip(index: ScanIndex, node: int, column: int) -> str:

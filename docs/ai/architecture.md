@@ -404,10 +404,10 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     Tick boxes, partial folders and totals come only from the latest answer; until it arrives,
     the clicked row shows what the click asked for, so a quick second click undoes the first.
     Whether a click includes or excludes: a click still waiting for its answer decides by what
-    it asked for; under active filters whose own matches have answered, a folder click looks at the
-    files below it the filters match (`ScanIndex.files_below`, a contiguous range): `exclude`
-    when all of them are selected, else `include`, since the operation only reaches those
-    files; otherwise a row with nothing selected is included and any other (ticked or partly)
+    it asked for; under active filters whose own matches on this scan have answered, a folder
+    click looks at the files below it the filters match (`ScanIndex.files_below`, a contiguous
+    range): `exclude` when all of them are selected, else `include`, since the operation only
+    reaches those files; otherwise a row with nothing selected is included and any other (ticked or partly)
     excluded. Another folder (or a reopened job) drops a preview still on its way. A folder's
     operation carries the filters active then; a file's carries none (an explicit file click
     always selects that file). Clear selection drops every operation. The warnings listed are
@@ -417,7 +417,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     the request's `SelectionFilter`; its own validation refuses a bad regular expression,
     which is shown, and folder ticks wait until it is fixed. While a filter is active, a
     preview of one `include` of the scan root with it (its own `latest` key) tells which files
-    match: the others, and folders without a match, are dimmed.
+    match: the others, and folders without a match, are dimmed. Matches belong to their filters
+    and their scan: another folder is not dimmed until its own answer arrives (a new scan of
+    the same folder keeps the dimming meanwhile).
   - Languages: the job's target languages (none ticked at first; the spoken language is the
     user's choice); a file selected in the tree can have its own ("Same as the job" unticked),
     sent as `item_languages` only for files the latest preview selected (kept for the others

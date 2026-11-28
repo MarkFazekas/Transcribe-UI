@@ -31,6 +31,8 @@ from transcribe_ui.api.classes import ErrorBody, ErrorResponse
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.gui.selection.display import save_hint, shown_warnings, totals_text
 from transcribe_ui.gui.selection.filters import FilterInput
+from transcribe_ui.gui.selection.marks import Marks
+from transcribe_ui.gui.selection.rows import row_dimmed
 from transcribe_ui.gui.selection.viewmodel import NewJobModel
 
 ENGLISH = "en"
@@ -284,8 +286,34 @@ def test_a_click_waits_for_the_new_filters_matches(
     model.change_filters(FilterInput(media_kind="audio"))
     executor.answer_all()
     model.change_filters(video)
-    assert model.filters.current_matches() is None
+    assert _current_matches(model) is None
     model.tick(media_path(tmp_path), folder=True)
     executor.answer_all()
     kinds = [operation.operation for operation in model.ticks.operations]
     assert (kinds, totals_text(model.ticks.counts)) == (["include", "exclude"], NOTHING)
+
+
+def _current_matches(model: NewJobModel) -> Marks | None:
+    scanned = model.scan.scanned
+    assert scanned is not None
+    return model.filters.current_matches(scanned.index.tree.scan_id)
+
+
+def test_another_folder_waits_for_its_own_matches(
+    deferred: tuple[DeferredExecutor, NewJobModel],
+    tmp_path: Path,
+) -> None:
+    """With a filter on, the newly chosen folder shows undimmed until its own matches answer; clicks do not use the old ones."""
+    executor = deferred[0]
+    model = deferred[1]
+    model.change_filters(FilterInput(media_kind="audio"))
+    executor.answer_all()
+    model.choose_folder(media_path(tmp_path, MOVIES))
+    executor.answer(executor.pending("scan_tree")[0])
+    scanned = model.scan.scanned
+    assert scanned is not None
+    index = scanned.index
+    nodes = range(index.folder_count + len(index.tree.files))
+    assert (any(row_dimmed(model, index, node) for node in nodes), _current_matches(model)) == (False, None)
+    executor.answer_all()
+    assert all(row_dimmed(model, index, node) for node in nodes), "no audio file in Movies: all dimmed"

@@ -51,7 +51,10 @@ def shown_of(model: "NewJobModel") -> Shown:
     """Return what the page's tree shows now."""
     ticks = model.ticks
     targets = model.targets
-    matches = model.filters.matches
+    scanned = model.scan.scanned
+    matches = None
+    if scanned is not None:
+        matches = model.filters.matches_on(scanned.index.tree.root)
     return Shown(ticks.marks, ticks.pending, matches, targets.languages, targets.own_map())
 
 

@@ -22,7 +22,7 @@ from pytestqt.qtbot import QtBot
 from support.discovery import FILM, PODCAST, media_dir
 from support.gated import wait_for
 from support.selection import HeldUploads, media_path, media_ports, selection_area
-from support.selection_window import ChangedSpans, drained_window, released
+from support.selection_window import ChangedSpans, released, settled_window
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.batches.classes import CreateBatchRequest
@@ -78,7 +78,7 @@ def ports(tmp_path: Path) -> Iterator[Ports]:
 @pytest.fixture
 def window(qtbot: QtBot, ports: Ports, tmp_path: Path) -> MainWindow:
     """Return the window over the seeded backend, its start-up steps run."""
-    created = drained_window(qtbot, Backend(ports), tmp_path)
+    created = settled_window(qtbot, Backend(ports), tmp_path)
     created.context.hooks.run()
     return created
 
@@ -261,7 +261,7 @@ def _held_uploads(window: MainWindow) -> list[object]:
 def test_a_new_job_while_uploads_run(qtbot: QtBot, ports: Ports, tmp_path: Path) -> None:
     """With the long pool full of uploads (and one waiting), New job still scans and previews."""
     runner = HeldUploads(Backend(ports))
-    window = drained_window(qtbot, runner, tmp_path)
+    window = settled_window(qtbot, runner, tmp_path)
     with released(runner):
         answered = _held_uploads(window)
         wait_for(qtbot, lambda: runner.held == LONG_POOL_THREADS)

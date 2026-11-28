@@ -51,6 +51,15 @@ class FilterInput:
         return narrowed or self.media_kind != "any"
 
 
+@dataclass(frozen=True)
+class MatchedFor:
+    """What a match answer belongs to: the filters, and the scan it was made on."""
+
+    picked: FilterInput
+    scan_id: str
+    root: str
+
+
 def selection_filter(filters: FilterInput) -> SelectionFilter:
     """Return the request's filter of the bar's values.
 
@@ -83,8 +92,8 @@ class FilterModel:
         # Counts the changes of what is dimmed, so the tree repaints only then.
         self.version = 0
         self._generation = 0
-        # The filters `matches` belongs to (a newer match preview may be on its way).
-        self._matched_for: FilterInput | None = None
+        # The filters and the scan `matches` belongs to (a newer match preview may be on its way).
+        self._matched_for: MatchedFor | None = None
 
     def current(self) -> SelectionFilter | None:
         """Return the active filters as the request's filter, or None while they cannot be used."""
@@ -109,27 +118,45 @@ class FilterModel:
             self._show(None)
             return
         operation = SelectionOperation(operation="include", path=scanned.index.tree.root, filters=chosen)
-        matched = partial(self._matched, self._generation, self.picked)
+        tree = scanned.index.tree
+        matched_for = MatchedFor(self.picked, tree.scan_id, tree.root)
+        matched = partial(self._matched, self._generation, matched_for)
         self._channel.send(MATCH_KEY, scanned.preview_request((operation,)), matched)
 
-    def current_matches(self) -> Marks | None:
-        """Return what the active filters match, or None without an active filter or while their answer is on its way."""
-        if self._matched_for != self.picked or not self.picked.active():
-            return None
-        return self.matches
+    def current_matches(self, scan_id: str) -> Marks | None:
+        """Return what the active filters match on the scan `scan_id`.
 
-    def matching(self, path: str, *, folder: bool) -> bool:
-        """Return whether a file matches the active filters, or a folder has a matching file below it."""
-        matches = self.matches
+        None without an active filter, or while the answer for these filters on that scan is
+        on its way (the matches shown are another filter's or another scan's).
+        """
+        matched = self._matched_for
+        if matched is None or not self.picked.active():
+            return None
+        current = matched.picked == self.picked and matched.scan_id == scan_id
+        return self.matches if current else None
+
+    def matches_on(self, root: str) -> Marks | None:
+        """Return the matches to dim the tree of a scan of `root` with (None: dim nothing).
+
+        Matches of another folder never dim this one; a new scan of the same folder keeps them
+        until its own answer arrives, so the dimming does not flash.
+        """
+        matched = self._matched_for
+        same_root = matched is not None and matched.root == root
+        return self.matches if same_root else None
+
+    def matching(self, path: str, *, folder: bool, root: str) -> bool:
+        """Return whether a file of a scan of `root` matches the active filters, or a folder has a match below it."""
+        matches = self.matches_on(root)
         if matches is None:
             return True
         return path in matches.folders if folder else path in matches.files
 
-    def _matched(self, generation: int, picked: FilterInput, response: Response) -> None:
+    def _matched(self, generation: int, matched: MatchedFor, response: Response) -> None:
         if generation != self._generation:
             return
         if isinstance(response, PreviewSelectionResponse):
-            self._matched_for = picked
+            self._matched_for = matched
             self._show(Marks.of(response))
         elif isinstance(response, ErrorResponse):
             self.error = error_view(response)

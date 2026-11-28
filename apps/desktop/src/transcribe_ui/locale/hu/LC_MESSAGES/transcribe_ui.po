@@ -950,7 +950,7 @@ msgstr "Mentés folyamatban..."
 
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Saving…"
-msgstr "Mentés…"
+msgstr "Mentés folyamatban…"
 
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Scan again"
@@ -1075,7 +1075,7 @@ msgstr[1] ""
 
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Start a new job instead"
-msgstr "Új feladat indítása helyette"
+msgstr "Inkább új feladat indítása"
 
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "State"
