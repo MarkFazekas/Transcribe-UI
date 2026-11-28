@@ -31,7 +31,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
-from build_desktop_macos import bundled_binaries, floor_problems
+from build_desktop_macos import check_bundle
 
 # Root of the repository.
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -334,9 +334,12 @@ def _stamp() -> int:
 
 
 def _macos_floor_problems(variant: Variant, paths: BuildPaths) -> list[str]:
-    """Return the bundled binaries that need a newer macOS than the release supports."""
+    """Return what in the bundle needs a newer macOS than the release supports; print each wheel's line."""
     stem = asset_stem(variant, platform_tag(sys.platform, platform.machine()))
-    return floor_problems(bundled_binaries(paths.work / "build" / stem / "PKG-00.toc"))
+    report = check_bundle(paths.work / "build" / stem / "PKG-00.toc")
+    for line in report.wheels:
+        sys.stdout.write(f"{line}\n")
+    return list(report.problems)
 
 
 def _build(variants: Sequence[Variant], version: str, dist: Path, work: Path) -> int:

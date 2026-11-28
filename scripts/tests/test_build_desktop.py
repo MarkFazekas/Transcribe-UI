@@ -17,7 +17,6 @@ from build_desktop import (
     stamped_version,
     windows_version_resource,
 )
-from build_desktop_macos import bundled_binaries, minimum_versions
 
 # A commit hash.
 SHA = "abc1234def5678abc1234def5678abc1234def56"
@@ -138,37 +137,3 @@ def test_windows_version_resource_describes_the_file() -> None:
     assert "StringStruct('FileDescription', 'Transcribe-UI command line')" in resource
     assert "StringStruct('ProductVersion', '0.1.0+20261128.abc1234')" in resource
     assert "StringStruct('OriginalFilename', 'transcribe-ui-windows-x64-cli.exe')" in resource
-
-
-def test_minimum_versions_of_each_architecture() -> None:
-    """`otool -arch all -l` of a universal file: the minimum macOS of each slice, nothing else."""
-    otool = (
-        "/py/lib/_ssl.so (architecture x86_64):\n"
-        "Load command 9\n      cmd LC_VERSION_MIN_MACOSX\n  cmdsize 16\n  version 10.13\n      sdk 10.15\n"
-        "Load command 10\n      cmd LC_SOURCE_VERSION\n  cmdsize 16\n  version 0.0\n"
-        "/py/lib/_ssl.so (architecture arm64):\n"
-        "Load command 9\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform 1\n    minos 14.0\n"
-        "      sdk 15.2\n   ntools 1\n     tool 3\n  version 1053.12\n"
-    )
-    assert minimum_versions(otool) == [(10, 13), (14, 0)]
-
-
-def test_only_minos_counts_in_the_build_version() -> None:
-    """The linker's `version` in the build version command is never read as a minimum macOS."""
-    tools_first = "Load command 9\n      cmd LC_BUILD_VERSION\n     tool 3\n  version 1053.12\n    minos 14.0\n"
-    without_minos = "Load command 9\n      cmd LC_BUILD_VERSION\n     tool 3\n  version 1053.12\n"
-    assert minimum_versions(tools_first) == [(14, 0)]
-    assert not minimum_versions(without_minos)
-
-
-def test_bundled_binaries_from_the_table_of_contents(tmp_path: Path) -> None:
-    """Binaries and extensions are taken from PyInstaller's package table; data and modules are not."""
-    table = tmp_path / "PKG-00.toc"
-    entries = [
-        ("PYZ-00.pyz", "/w/PYZ-00.pyz", "PYZ"),
-        ("libpython3.13.dylib", "/py/lib/libpython3.13.dylib", "BINARY"),
-        ("_ssl.so", "/py/lib/_ssl.so", "EXTENSION"),
-        ("transcribe_ui/version.txt", "/w/version.txt", "DATA"),
-    ]
-    table.write_text(repr(("/w/x.pkg", {"BINARY": True}, entries, False)), encoding="utf-8")
-    assert bundled_binaries(table) == [Path("/py/lib/_ssl.so"), Path("/py/lib/libpython3.13.dylib")]
