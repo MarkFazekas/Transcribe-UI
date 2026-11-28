@@ -2946,11 +2946,14 @@ Few unit tests; mostly regression and flow tests:
   so the floor of both macOS builds rests on these two rules (and on a real macOS 14 machine in
   the manual acceptance, A24, if one is at hand); the executables run on macOS 15. The macOS
   GUI (A23) is built `--onedir --windowed` as `Transcribe-UI.app`, ad hoc signed by
-  PyInstaller (on both architectures), with PyInstaller's default icon until M8.3 sets the
+  PyInstaller (on both architectures; with `PYINSTALLER_STRICT_BUNDLE_CODESIGN_ERROR=1`, so a
+  failed signature fails the build instead of a warning, and
+  `PYINSTALLER_VERIFY_BUNDLE_SIGNATURE=1`, so PyInstaller verifies it), with PyInstaller's default icon until M8.3 sets the
   project's (`APP_ICON` in `scripts/build_desktop_app.py`). Its `Info.plist` has
-  `CFBundleIdentifier` `io.github.markfazekas.transcribe-ui`, `CFBundleShortVersionString`
-  the base version's release segment, `CFBundleVersion` the commit date as `YYYY.M.D` (three
-  integers, as Apple asks), `LSMinimumSystemVersion` 14.0 and `NSHighResolutionCapable`;
+  `CFBundleIdentifier` `io.github.markfazekas.transcribe-ui`, and from the stamped version
+  (which must be `<base>+<YYYYMMDD>.<short sha>` with a real date, else the build stops)
+  `CFBundleShortVersionString`, the release segment of its public part, and `CFBundleVersion`,
+  the commit date as `YYYY.M.D` (three integers, as Apple asks), `LSMinimumSystemVersion` 14.0 and `NSHighResolutionCapable`;
   PyInstaller's command line cannot set them, so the build writes them to a plist file that
   `packaging/pyinstaller_main.py` passes to PyInstaller's `BUNDLE` (before it signs the
   bundle), and the build fails if the written `Info.plist` differs. The floor check covers
@@ -2958,10 +2961,14 @@ Few unit tests; mostly regression and flow tests:
   table of contents of `BUNDLE` names (by its bundled name, PyInstaller's `__dot__` folder
   names restored) follows its source's wheel tag or `minos` as above, one it does not name
   follows its own `minos` (so a missed lookup fails the build), and the main executable
-  follows its `minos`. The app and an `Applications` link are then packed with `hdiutil create`
+  follows its `minos`; a table of contents the check cannot read is a build problem. An ad hoc
+  signed app's keychain access follows its code hash, not its identifier, so each new build
+  may ask for keychain access again. The app and an `Applications` link are then packed with `hdiutil create`
   into `transcribe-ui-macos-<arch>-gui.dmg` (HFS+, `ULFO`: lzfse, smaller than `UDZO` at its
-  default zlib level and faster to open, readable since macOS 10.11; tried three times, since
-  `hdiutil` sometimes reports "Resource busy" on hosted runners). The build runs in an environment without dev tools, with the app
+  default zlib level and faster to open, readable since macOS 10.11; tried three times with a
+  300 s limit each, since `hdiutil` sometimes reports "Resource busy" on hosted runners, and
+  between two tries a device that try left attached, found through `hdiutil info`, is detached
+  as far as that works). The build runs in an environment without dev tools, with the app
   installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
   own OS on fresh per-user state, with every check under a timeout that kills the process
   tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic
@@ -2972,7 +2979,9 @@ Few unit tests; mostly regression and flow tests:
   offscreen and on the native platform (Linux under Xvfb; on macOS the disk image is
   attached read-only and hidden from Finder, it must hold exactly the app and the
   `Applications` link, the GUI checks run the app's main executable, `gui-bundle` lists the
-  app's files by their bundled names, and the image is detached however the run ends), and on Linux the same CLI and
+  app's files by their bundled names, `gui-signature` verifies the app's signature in the
+  image with `codesign --verify --deep --strict`, which also shows that packing kept it, and
+  the image is detached however the run ends), and on Linux the same CLI and
   offscreen checks in an `ubuntu:22.04` container with only the libraries of
   `apps/desktop/packaging/linux-packages.txt`. Each leg uploads only its two files
   (`actions/upload-artifact` with `archive: false`, 7 days; names
