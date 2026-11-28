@@ -71,7 +71,7 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   CPython 3.13.18). Only a
   main executable's `minos` is enforced at start [I].
 - [I] Whether those binaries' symbols newer than macOS 14.0 resolve on macOS 14 is unproven: no
-  hosted macOS 14 runner exists; the manual acceptance (A24) on a macOS 14 machine would show it.
+  hosted macOS 14 runner exists and no macOS is tested by hand (A24).
 
 - [V] `pyside6-essentials` 6.12.0 (2026-10-08; the version in `uv.lock`) wheels:
   `cp310-abi3-manylinux_2_34_x86_64`, `manylinux_2_39_aarch64`, `macosx_14_0_universal2`,

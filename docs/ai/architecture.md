@@ -2946,9 +2946,8 @@ Few unit tests; mostly regression and flow tests:
   commit, which is not in the branch's history. Only uv's own CPython builds
   (`UV_PYTHON_PREFERENCE=only-managed`), never a Python found on the runner. On macOS the build
   checks a floor of macOS 14 (`scripts/build_desktop_macos.py`). It is a regression guard, not
-  a support claim (architect): it keeps our own build (the bootloader, libpython, ffmpeg) from
-  needlessly raising the macOS version below which the app cannot work, which is the 14.0 that
-  Qt's wheels declare. A bundled binary from an
+  a support claim (architect): it keeps our own binaries (bootloader, libpython, ffmpeg) from
+  needing a newer macOS than Qt's wheels declare (14.0). A bundled binary from an
   installed wheel (its resolved source path listed in the wheel's `RECORD`) follows the wheel's
   platform tag (a `macosx` tag above 14.0 fails), since Qt's wheels carry a higher Mach-O
   `minos` than their tag (shiboken6 6.12.0, tagged `macosx_14_0`: 26.0); everything else must

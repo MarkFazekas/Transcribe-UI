@@ -347,8 +347,8 @@ M8 manual acceptance (A24, architect): the architect runs the checklist of `plan
 "Manual acceptance" on Windows only, and M8 is marked built after it. Part of it: change the
 language in Settings, choose Restart now, and the new window opens in the new language and
 comes to the foreground (Windows may only flash it in the task bar, since the starting process
-has exited). Linux (no VM installed) and macOS (no Mac) are not tested by hand; the release
-notes' known limits say so. What CI cannot click there and stays untested:
+has exited). Linux is not tested by hand (no VM installed), and macOS is not tested by hand; the
+release notes' known limits say so. What CI cannot click there and stays untested:
 
 - Linux: the double-click start, the desktop keyring, the language restart in front;
 - macOS: the language restart from `/Applications` and from a translocated copy (the app
