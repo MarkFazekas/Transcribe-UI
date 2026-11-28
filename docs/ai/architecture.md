@@ -3035,7 +3035,7 @@ next step are in `docs/ai/status.md`.
 - **M5** (built; planned in `plans/m5.md`): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement, retry and cloud cleanup (§3.1-3.7).
-- **M6** (planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
+- **M6** (built; planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
