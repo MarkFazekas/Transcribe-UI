@@ -119,6 +119,8 @@ class _PausingSink:
 def large_review(count: int) -> BatchReview:
     """Return a review of `count` video files, each with two audio tracks, an English text subtitle and one English job.
 
+    Each file is in both views (embedded subtitles, several tracks), so each table has `count` rows.
+
     Built without validation (`model_construct`), so a test of tens of thousands of rows starts fast.
     """
     tracks = tuple(
@@ -136,7 +138,7 @@ def large_review(count: int) -> BatchReview:
         items_unresolved=0,
         complete=True,
         subtitle_view=files,
-        track_view=(),
+        track_view=files,
         unresolved=(),
     )
 

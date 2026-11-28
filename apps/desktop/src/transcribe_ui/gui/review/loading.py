@@ -17,6 +17,7 @@ when it is shown again.
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
+from typing import Protocol
 
 from transcribe_ui.api.classes import ErrorResponse, ProgressEvent, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
@@ -26,6 +27,13 @@ from transcribe_ui.gui.executor import Executor, LatestChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.review.constants import DETAIL_KEY, REVIEW_ACTION, ReviewState
 from transcribe_ui.gui.review.sender import SerialSender
+
+
+class Settled(Protocol):
+    """Told that the views of a job changed; `tell` whether the other pages should hear it."""
+
+    def __call__(self, batch_id: str, *, tell: bool) -> None:
+        """Note the change."""
 
 
 @dataclass
@@ -81,8 +89,9 @@ class ReviewLoader:
         self.filters = ReviewFilter()
         self.loaded = Loaded()
         self.page = Visibility()
-        # Told the job's id after a review answered (the probe may have changed the job).
-        self.on_reviewed: Callable[[str], None] | None = None
+        # Told the job's id after a review answered (the probe may have changed the job: `tell`), or
+        # after the views went away (nothing to review); the page then drops what they no longer list.
+        self.on_settled: Settled | None = None
         self.generation = 0
         # A review waits for the job's next load (`reload`).
         self._review_after = False
@@ -112,6 +121,9 @@ class ReviewLoader:
             self._sender.drop_reviews()
             self.loaded = _without_review(self.loaded, waiting=waiting)
             self._notify()
+            settled = self.on_settled
+            if settled is not None and not waiting:
+                settled(batch_id, tell=False)
             return
         request = ReviewBatchRequest(action="review_batch", batch_id=batch_id, filters=self.filters)
         generation = self.generation
@@ -170,9 +182,9 @@ class ReviewLoader:
             loaded.review_error = None
         self._notify()
         self.load_detail()
-        reviewed = self.on_reviewed
-        if reviewed is not None and isinstance(response, ReviewBatchResponse):
-            reviewed(batch_id)
+        settled = self.on_settled
+        if settled is not None and isinstance(response, ReviewBatchResponse):
+            settled(batch_id, tell=True)
 
     def _detailed(self, batch_id: str, response: Response) -> None:
         if batch_id != self.batch_id:

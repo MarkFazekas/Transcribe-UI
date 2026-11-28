@@ -3,9 +3,10 @@
 Qt-free. It ties the parts together: the job and its review views (`loading.py`), the choices
 and ticks the user makes (`editing.py`), Apply and Remove from job (`commands.py`), all sent one
 at a time (`sender.py`, since each holds the job's lock), and the job's upload in the activity
-panel (`uploads.py`). The page works only while it is shown: a hidden page cancels its review,
-sends nothing, and loads once when it is shown again, so a change of the job elsewhere costs
-nothing meanwhile. Choices change only while nothing holds the job (`editable`).
+panel (`uploads.py`). The page works only while it is shown: a hidden page cancels its review and
+sends nothing; shown again, it loads once if something asked for a load meanwhile (it is stale),
+so a change of the job elsewhere costs nothing meanwhile. Choices change only while nothing holds
+the job (`editable`); a review still queued behind other long calls does not hold it.
 """
 
 from transcribe_ui.batches.classes import ReviewFilter
@@ -30,7 +31,7 @@ class ReviewModel(ViewModel):
         self.uploads = uploads
         self.sender = SerialSender(executor)
         self.loader = ReviewLoader(executor, self.sender, self.changed, uploads.busy)
-        self.loader.on_reviewed = self._settled
+        self.loader.on_settled = self._settled
         self.editor = ChoiceEditor(self.loader, self.editable, self.changed)
         settled = self._settled
         self.commands = ReviewCommands(self.sender, self.loader, self.editor, outlet, settled)
@@ -82,20 +83,22 @@ class ReviewModel(ViewModel):
             self.loader.generation += 1
             self.loader.load_review()
 
-    def upload(self) -> None:
-        """Start (or resume) the job's upload in the activity panel, if the job allows it now."""
+    def upload(self) -> bool:
+        """Start (or resume) the job's upload in the activity panel; False when the job does not allow it now."""
         batch_id = self.loader.batch_id
         detail = self.loader.loaded.detail
         allowed = detail is not None and UPLOAD_ACTION in detail.summary.actions
         free = self.editable() and not self.editor.draft.keys()
-        if batch_id is not None and allowed and free:
-            self.uploads.start(batch_id)
+        if batch_id is None or not allowed or not free:
+            return False
+        return self.uploads.start(batch_id)
 
     def editable(self) -> bool:
         """Return whether nothing holds the job now (a check, a save, its upload), so what is shown can change."""
         batch_id = self.loader.batch_id
         upload = batch_id is not None and self.uploads.busy(batch_id)
-        return not (upload or self.sender.reviewing() or self.sender.acting())
+        checking = self.sender.reviewing(started_only=True)
+        return not (upload or checking or self.sender.acting())
 
     def _load_if_shown(self) -> None:
         page = self.loader.page
@@ -103,9 +106,12 @@ class ReviewModel(ViewModel):
             page.stale = False
             self.loader.reload()
 
-    def _settled(self, batch_id: str) -> None:
-        """Drop the choices and ticks the latest review no longer lists, and tell the other pages."""
+    def _settled(self, batch_id: str, *, tell: bool = True) -> None:
+        """Drop the choices and ticks the latest review no longer lists; `tell` the other pages the job changed."""
         self.editor.prune()
+        if not tell:
+            self.changed()
+            return
         self._telling = True
         self.outlet.emit(BATCHES_CHANGED_SIGNAL, (batch_id,))
         self._telling = False

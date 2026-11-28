@@ -215,13 +215,11 @@ msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha vég
 msgid "Apply choices"
 msgstr "Választások alkalmazása"
 
-#: src/transcribe_ui/gui/review/header.py
-msgid "Apply or discard your changes before changing the filters."
-msgstr "A szűrők módosítása előtt alkalmazza vagy vesse el a módosításait."
-
 #: src/transcribe_ui/gui/review/status.py
-msgid "Apply or discard your changes before the upload."
-msgstr "A feltöltés előtt alkalmazza vagy vesse el a módosításait."
+msgid "Apply or discard your changes before changing the filters or uploading."
+msgstr ""
+"A szűrők módosítása vagy a feltöltés előtt alkalmazza vagy vesse el a "
+"módosításait."
 
 #: src/transcribe_ui/gui/cloud/start_view.py
 #: src/transcribe_ui/gui/selection/display.py
@@ -331,7 +329,7 @@ msgstr "A fájlok ellenőrzése…"
 msgid "Checking what is waiting for transcription..."
 msgstr "Annak ellenőrzése, mi vár átírásra..."
 
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Choice"
 msgstr "Választás"
 
@@ -414,7 +412,7 @@ msgid "Choose the subtitle stream to extract."
 msgstr "Válassza ki a kinyerendő feliratsávot."
 
 #: src/transcribe_ui/gui/download/panels.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Choose…"
 msgstr "Tallózás…"
 
@@ -611,7 +609,7 @@ msgstr "Adat"
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
 #: src/transcribe_ui/gui/download/results.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 #: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
@@ -746,7 +744,7 @@ msgstr "Sikertelen"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "File"
 msgstr "Fájl"
 
@@ -810,7 +808,7 @@ msgid "Fix the marked fields, then save again."
 msgstr "Javítsa a megjelölt mezőket, majd mentsen újra."
 
 #: src/transcribe_ui/gui/download/results.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Folder"
 msgstr "Mappa"
 
@@ -934,8 +932,7 @@ msgid "Kind"
 msgstr "Típus"
 
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/models.py
-#: src/transcribe_ui/gui/settings/form.py
+#: src/transcribe_ui/gui/review/table.py src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Language"
@@ -1338,7 +1335,7 @@ msgstr "Frissítés most"
 msgid "Remaining"
 msgstr "Hátralévő idő"
 
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Remove"
 msgstr "Eltávolítás"
 
@@ -1717,7 +1714,7 @@ msgstr "Állapot"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr "Állapot"
 
@@ -2236,6 +2233,12 @@ msgstr "A feladatban nincs ilyen fájl."
 msgid "The job has nothing to transcribe in the cloud."
 msgstr "A feladatban nincs semmi, amit a felhőben kellene átírni."
 
+#: src/transcribe_ui/gui/review/table.py
+msgid "The job is busy; your choice was not kept. Choose again when it is free."
+msgstr ""
+"A feladat foglalt; a választása nem maradt meg. Válasszon újra, ha a "
+"feladat szabad."
+
 #: src/transcribe_ui/gui/review/status.py
 msgid "The job is uploading; its review continues once the upload stops."
 msgstr ""
@@ -2431,6 +2434,10 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The track or stream number must not be negative."
 msgstr "A sáv sorszáma nem lehet negatív."
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "The upload cannot start now."
+msgstr "A feltöltés most nem indítható."
 
 #: src/transcribe_ui/gui/review/uploads.py
 #, python-brace-format
@@ -2721,8 +2728,12 @@ msgid "Waiting to check the cloud..."
 msgstr "Várakozás a felhő ellenőrzésére..."
 
 #: src/transcribe_ui/gui/review/status.py
-msgid "Waiting to check the files (other long tasks run first)…"
-msgstr "Várakozás a fájlok ellenőrzésére (előbb más hosszú feladatok futnak)…"
+msgid ""
+"Waiting to check the files; you can keep choosing meanwhile, or stop "
+"checking."
+msgstr ""
+"A fájlok ellenőrzése várakozik; addig is választhat tovább, vagy "
+"leállíthatja az ellenőrzést."
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"

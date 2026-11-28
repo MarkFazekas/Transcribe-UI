@@ -182,7 +182,7 @@ def test_embedded_subtitle_choice_is_applied(area: ReviewArea) -> None:
     row = _row(area, SUBTITLES, FILM, EN)
     state = buttons(area.model)
     assert (row.chosen, row.status) == (EXTRACT_ENGLISH, "Changed; not applied yet")
-    expected = (True, False, "Apply or discard your changes before the upload.")
+    expected = (True, False, "Apply or discard your changes before changing the filters or uploading.")
     assert (state.apply_enabled, state.upload_enabled, state.hint) == expected
     area.model.commands.apply()
     assert [type(choice) for choice in _resolved(area).choices] == [ExtractChoice]
@@ -447,6 +447,19 @@ def test_choices_no_longer_listed_are_dropped(area: ReviewArea) -> None:
     assert area.leg.backend.execute(excluded).status == "ok"
     area.model.on_batches_changed((FIRST_BATCH_ID,))
     assert (area.model.editor.draft.pending(), buttons(area.model).apply_shown) == ((), False)
+
+
+def test_choices_go_with_the_review(area: ReviewArea) -> None:
+    """When the job no longer allows a review, its views go and so do the choices: nothing stale stays to apply."""
+    _choose(area, FILM, EN, EXTRACT_ENGLISH)
+    loaded = area.model.loader.loaded
+    detail = loaded.detail
+    assert detail is not None
+    summary = detail.summary.model_copy(update={"actions": ()})
+    loaded.detail = detail.model_copy(update={"summary": summary})
+    area.model.loader.load_review()
+    state = buttons(area.model)
+    assert (area.model.editor.draft.pending(), state.apply_shown, state.filters_enabled) == ((), False, True)
 
 
 def test_the_texts_follow_the_language(leg: Leg) -> None:

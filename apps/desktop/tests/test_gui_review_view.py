@@ -6,6 +6,7 @@ goes through the backend's confirmation dialog, the filters narrow the tables, a
 sends nothing when its job changes.
 """
 
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,17 +14,20 @@ from typing import Final
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtTest import QAbstractItemModelTester
 from PySide6.QtWidgets import QComboBox, QPushButton
 from pytestqt.qtbot import QtBot
 
 from support.batches import FILM, FIRST_BATCH_ID, SILENT
-from support.gated import wait_for
+from support.gated import uploads, wait_for
+from support.gui import qt_messages
 from support.jobs import RecordingRunner
 from support.parity import Leg
 from support.review import large_review, review_area, review_leg
-from support.selection_window import ChangedSpans, settled_window
+from support.selection import HeldUploads
+from support.selection_window import ChangedSpans, released, settled_window
 from transcribe_ui.batches.responses import BatchDetail, BatchReview
-from transcribe_ui.gui.constants import PAGE_JOBS
+from transcribe_ui.gui.constants import LONG_POOL_THREADS, PAGE_JOBS
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.jobs.view import JobsPage
 from transcribe_ui.gui.review import index as index_module
@@ -142,7 +146,7 @@ def test_a_choice_waits_for_apply(qtbot: QtBot, window: MainWindow) -> None:
     actions = page.action_row
     wait_for(qtbot, actions.apply_button.isEnabled)
     enabled = (actions.upload_button.isEnabled(), actions.hint.text(), _defaults(page))
-    assert enabled == (False, "Apply or discard your changes before the upload.", [])
+    assert enabled == (False, "Apply or discard your changes before changing the filters or uploading.", [])
     actions.apply_button.click()
     wait_for(qtbot, lambda: not actions.apply_button.isVisible())
     wait_for(qtbot, lambda: _text(table, 0, STATUS_COLUMN) == "")
@@ -202,6 +206,8 @@ def test_a_hidden_page_sends_nothing(qtbot: QtBot, window: MainWindow, runner: R
 LARGE = 20_000
 # Repaints of the page while an upload or a probe reports progress.
 PROGRESS_REPAINTS = 50
+# Most seconds the rows of the large review may take to build (generous: shared CI runners).
+BUILD_LIMIT_S = 10
 
 
 def _large_page(qtbot: QtBot, leg: Leg) -> ReviewPage:
@@ -238,20 +244,65 @@ class _CountedBuild:
         return self.build(review, detail)
 
 
-def test_a_large_review_costs_per_change(qtbot: QtBot, leg: Leg, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tens of thousands of rows: no widget per row, rows built once, progress repaints reset nothing, an edit repaints one row."""
-    built = _CountedBuild(index_module.build_index)
-    monkeypatch.setattr(index_module, "build_index", built)
-    page = _large_page(qtbot, leg)
-    table = _subtitles(page)
-    rows = table.rows
+def _progress(page: ReviewPage) -> _Counter:
+    """Repaint the page as progress events do; return the counter of the subtitle table's resets."""
     resets = _Counter()
+    rows = page.tabs.tables["subtitles"].rows
     rows.modelReset.connect(resets)
     for _ in range(PROGRESS_REPAINTS):
         page.model.changed()
         page.refresh()
+    return resets
+
+
+def test_a_large_review_costs_per_change(qtbot: QtBot, leg: Leg, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tens of thousands of rows: no widget per row, rows built once, progress repaints reset nothing, an edit repaints one row."""
+    built = _CountedBuild(index_module.build_index)
+    monkeypatch.setattr(index_module, "build_index", built)
+    with qt_messages() as collected:
+        page = _large_page(qtbot, leg)
+        table = _subtitles(page)
+        rows = table.rows
+        tester = QAbstractItemModelTester(rows, QAbstractItemModelTester.FailureReportingMode.Warning)
+        resets = _progress(page)
+        spans = ChangedSpans()
+        rows.dataChanged.connect(spans)
+        page.model.editor.choose(rows.row(LARGE - 1).shape.options[1].choice)
+        failures = [message for message in collected.messages if "FAIL" in message]
     assert (rows.rowCount(), built.calls, resets.calls, _combos(page)) == (LARGE, 1, 0, [])
-    spans = ChangedSpans()
-    rows.dataChanged.connect(spans)
-    page.model.editor.choose(rows.row(LARGE - 1).shape.options[1].choice)
     assert (spans.spans, _text(table, LARGE - 1, STATUS_COLUMN)) == ([(1, 0, 6)], "Changed; not applied yet")
+    assert (tester.model() is rows, failures) == (True, [])
+
+
+def test_a_large_review_is_indexed_fast() -> None:
+    """The rows of two tables of tens of thousands of files are built well within a second per ten thousand rows."""
+    review = large_review(LARGE)
+    started = time.monotonic()
+    index = index_module.build_index(review, None)
+    elapsed = time.monotonic() - started
+    sizes = [len(index.tabs[tab].shapes) for tab in ("subtitles", "tracks")]
+    assert (sizes, elapsed < BUILD_LIMIT_S) == ([LARGE, LARGE], True), elapsed
+
+
+def test_a_queued_review_leaves_the_page_usable(qtbot: QtBot, leg: Leg, tmp_path: Path) -> None:
+    """With the long pool full, Check again waits in its queue: the page says so, and choices still work."""
+    runner = HeldUploads(leg.backend)
+    with released(runner):
+        window = settled_window(qtbot, runner, tmp_path)
+        page = _opened(qtbot, window)
+        wait_for(qtbot, page.model.editable)
+        for request in uploads(LONG_POOL_THREADS):
+            window.context.executor.submit(request, _ignore)
+        wait_for(qtbot, lambda: runner.held == LONG_POOL_THREADS)
+        page.controls.check_button.click()
+        wait_for(qtbot, lambda: page.model.loader.loaded.state == "queued")
+        status = page.controls.status
+        wait_for(qtbot, lambda: status.text().startswith("Waiting to check the files; you can keep choosing"))
+        assert page.model.editable()
+        _choose_in_cell(qtbot, page, EXTRACT_ENGLISH)
+    wait_for(qtbot, lambda: page.model.loader.loaded.state == "shown")
+    assert _text(_subtitles(page), 0, STATUS_COLUMN) == "Changed; not applied yet"
+
+
+def _ignore(_response: object) -> None:
+    """Answer of a call nobody waits for."""

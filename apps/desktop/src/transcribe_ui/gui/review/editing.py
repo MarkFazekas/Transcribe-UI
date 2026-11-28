@@ -109,16 +109,17 @@ class ChoiceEditor:
         self.ticks = TickSet()
         self._editable = editable
 
-    def choose(self, choice: ReviewChoice) -> None:
-        """Choose for a transcription (ignored when it is not one of its options, or while the job is held)."""
+    def choose(self, choice: ReviewChoice) -> bool:
+        """Choose for a transcription; False (nothing kept) when it is not one of its options, or while the job is held."""
         review_file = self.views.current().files.get(choice.item_id)
         job = None if review_file is None else _job(review_file, choice.language)
         if review_file is None or job is None or not self._editable():
-            return
+            return False
         if not _fits(review_file, choice):
-            return
+            return False
         self.draft.choose(choice, current_choice(choice.item_id, job))
         self.edits(EditChange(keys=frozenset((choice_key(choice),))))
+        return True
 
     def transcribe_shown(self) -> None:
         """Choose transcribing (from the suggested track) for every transcription of the embedded-subtitle view."""

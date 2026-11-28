@@ -44,8 +44,10 @@ class Buttons:
     upload_shown: bool
     upload_enabled: bool
     upload_label: str
-    # Choices can change (the combo boxes and "Transcribe/Extract all shown").
+    # Choices can change (the combo boxes).
     choose_enabled: bool
+    # "Transcribe all shown" and "Extract all shown" apply (choices can change, the embedded-subtitle view has rows).
+    bulk_enabled: bool
     check_enabled: bool
     # The filters can change (not while choices wait for Apply).
     filters_enabled: bool
@@ -63,6 +65,9 @@ class UploadView:
     percent: int | None
     can_cancel: bool
     can_resume: bool
+    # Resume (and the error's retry) can be pressed now; else `blocked` says why.
+    resume_enabled: bool
+    blocked: str
     error: ErrorView | None
 
 
@@ -76,14 +81,19 @@ def _uploading(model: ReviewModel) -> bool:
     return batch_id is not None and model.uploads.busy(batch_id)
 
 
+def changes_hint() -> str:
+    """Return why the filters and the upload wait while choices are not applied."""
+    return tr("Apply or discard your changes before changing the filters or uploading.")
+
+
 def _hint(model: ReviewModel) -> str:
     """Return what blocks the page's actions now (the first that applies), or ""."""
     review = model.loader.loaded.review
     blocked = (
         (_uploading(model), tr("The job is uploading; its review waits until the upload stops.")),
         (model.sender.acting(), tr("Saving…")),
-        (model.sender.reviewing(), tr("Wait until the files are checked.")),
-        (bool(model.editor.draft.keys()), tr("Apply or discard your changes before the upload.")),
+        (model.sender.reviewing(started_only=True), tr("Wait until the files are checked.")),
+        (bool(model.editor.draft.keys()), changes_hint()),
         (
             review is not None and not review.complete,
             tr("Choose for the files that need attention, or remove them from the job, before the upload."),
@@ -96,6 +106,7 @@ def buttons(model: ReviewModel) -> Buttons:
     """Return the states of the page's buttons and the hint."""
     free = model.editable()
     pending = bool(model.editor.draft.keys())
+    subtitles = model.editor.views.current().tabs["subtitles"].shapes
     review = model.loader.loaded.review
     detail = model.loader.loaded.detail
     upload_allowed = _allowed(model, UPLOAD_ACTION)
@@ -109,6 +120,7 @@ def buttons(model: ReviewModel) -> Buttons:
         upload_enabled=upload_allowed and not pending and free,
         upload_label="" if detail is None else button_label("upload", detail.summary),
         choose_enabled=review is not None and free and _allowed(model, RESOLVE_ACTION),
+        bulk_enabled=bool(subtitles) and free and _allowed(model, RESOLVE_ACTION),
         check_enabled=free and _allowed(model, REVIEW_ACTION),
         filters_enabled=not pending,
         hint=_hint(model),
@@ -143,7 +155,7 @@ def review_status(model: ReviewModel) -> str:
     """Return the line above the review: the check's progress, a stop, the upload's wait, or the counts."""
     loaded = model.loader.loaded
     texts: dict[ReviewState, str] = {
-        "queued": tr("Waiting to check the files (other long tasks run first)…"),
+        "queued": tr("Waiting to check the files; you can keep choosing meanwhile, or stop checking."),
         "checking": _checking_text(loaded.probe),
         "stopped": tr("Checking stopped; continue any time with Check again."),
         "waiting_upload": tr("The job is uploading; its review continues once the upload stops."),
@@ -220,6 +232,7 @@ def upload_view(model: ReviewModel) -> UploadView | None:
     entry = status.entry
     running = entry.state == "running"
     part, percent = _part(status) if running else ("", None)
+    state = buttons(model)
     return UploadView(
         state=_state_text(model, status),
         files=_files_text(status) if running else "",
@@ -227,5 +240,7 @@ def upload_view(model: ReviewModel) -> UploadView | None:
         percent=percent,
         can_cancel=entry.can_cancel,
         can_resume=entry.can_resume,
+        resume_enabled=state.upload_enabled,
+        blocked="" if state.upload_enabled else state.hint,
         error=entry.error,
     )

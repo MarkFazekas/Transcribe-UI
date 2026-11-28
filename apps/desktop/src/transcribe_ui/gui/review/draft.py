@@ -53,6 +53,13 @@ class ChoiceDraft:
             if self._choices.get(key) == choice:
                 self._choices.pop(key)
 
+    def drop_items(self, item_ids: Iterable[str]) -> None:
+        """Drop the choices of files that left the job."""
+        gone = frozenset(item_ids)
+        for key in list(self._choices):
+            if key[0] in gone:
+                self._choices.pop(key)
+
     def keys(self) -> tuple[ChoiceKey, ...]:
         """Return the transcriptions with a choice waiting for Apply."""
         return tuple(self._choices)

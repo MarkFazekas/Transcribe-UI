@@ -23,7 +23,7 @@ from transcribe_ui.batches.responses import ExcludeItemsResponse, ResolveReviewR
 from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, confirmation_view, confirmed_request, error_view
 from transcribe_ui.gui.review.draft import choice_key
 from transcribe_ui.gui.review.editing import ChoiceEditor, EditChange
-from transcribe_ui.gui.review.loading import ReviewLoader
+from transcribe_ui.gui.review.loading import ReviewLoader, Settled
 from transcribe_ui.gui.review.sender import SerialSender
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class ReviewCommands:
         loader: ReviewLoader,
         editor: ChoiceEditor,
         outlet: ReviewOutlet,
-        tell: Callable[[str], None],
+        tell: Settled,
     ) -> None:
         """Send through `sender`; questions and errors go to `outlet`; `tell` says a job changed."""
         self._sender = sender
@@ -87,7 +87,7 @@ class ReviewCommands:
         ticked = self._editor.ticked()
         if batch_id is not None and ticked:
             request = ExcludeItemsRequest(action="exclude_items", batch_id=batch_id, item_ids=ticked)
-            self._send(request, partial(self._removed, batch_id))
+            self._send(request, partial(self._removed, batch_id, ticked))
 
     def _send(self, request: Request, on_success: Succeeded) -> None:
         """Send a changing request; `on_success` gets its answer once it succeeded (after a confirmation)."""
@@ -129,10 +129,14 @@ class ReviewCommands:
                 loader.reload()
             applied = frozenset(choice_key(choice) for choice in request.choices)
             self._editor.edits(EditChange(keys=applied))
-        self._tell(batch_id)
+        self._tell(batch_id, tell=True)
 
-    def _removed(self, batch_id: str, response: Response) -> None:
+    def _removed(self, batch_id: str, removed: tuple[str, ...], response: Response) -> None:
         if batch_id == self._loader.batch_id and isinstance(response, ExcludeItemsResponse):
+            editor = self._editor
+            editor.draft.drop_items(removed)
+            for item_id in removed:
+                editor.ticks.mark(item_id, ticked=False)
             self._loader.loaded.detail = response.batch
             self._loader.load_review()
-        self._tell(batch_id)
+        self._tell(batch_id, tell=True)

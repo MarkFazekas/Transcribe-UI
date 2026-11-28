@@ -179,12 +179,8 @@ msgstr ""
 msgid "Apply choices"
 msgstr ""
 
-#: src/transcribe_ui/gui/review/header.py
-msgid "Apply or discard your changes before changing the filters."
-msgstr ""
-
 #: src/transcribe_ui/gui/review/status.py
-msgid "Apply or discard your changes before the upload."
+msgid "Apply or discard your changes before changing the filters or uploading."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
@@ -292,7 +288,7 @@ msgstr ""
 msgid "Checking what is waiting for transcription..."
 msgstr ""
 
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Choice"
 msgstr ""
 
@@ -371,7 +367,7 @@ msgid "Choose the subtitle stream to extract."
 msgstr ""
 
 #: src/transcribe_ui/gui/download/panels.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Choose…"
 msgstr ""
 
@@ -563,7 +559,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
 #: src/transcribe_ui/gui/download/results.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 #: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
@@ -694,7 +690,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "File"
 msgstr ""
 
@@ -756,7 +752,7 @@ msgid "Fix the marked fields, then save again."
 msgstr ""
 
 #: src/transcribe_ui/gui/download/results.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Folder"
 msgstr ""
 
@@ -878,8 +874,7 @@ msgid "Kind"
 msgstr ""
 
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/models.py
-#: src/transcribe_ui/gui/settings/form.py
+#: src/transcribe_ui/gui/review/table.py src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Language"
@@ -1266,7 +1261,7 @@ msgstr ""
 msgid "Remaining"
 msgstr ""
 
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Remove"
 msgstr ""
 
@@ -1621,7 +1616,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/models.py
+#: src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr ""
 
@@ -2084,6 +2079,10 @@ msgstr ""
 msgid "The job has nothing to transcribe in the cloud."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/table.py
+msgid "The job is busy; your choice was not kept. Choose again when it is free."
+msgstr ""
+
 #: src/transcribe_ui/gui/review/status.py
 msgid "The job is uploading; its review continues once the upload stops."
 msgstr ""
@@ -2246,6 +2245,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The track or stream number must not be negative."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "The upload cannot start now."
 msgstr ""
 
 #: src/transcribe_ui/gui/review/uploads.py
@@ -2518,7 +2521,9 @@ msgid "Waiting to check the cloud..."
 msgstr ""
 
 #: src/transcribe_ui/gui/review/status.py
-msgid "Waiting to check the files (other long tasks run first)…"
+msgid ""
+"Waiting to check the files; you can keep choosing meanwhile, or stop "
+"checking."
 msgstr ""
 
 #: src/transcribe_ui/gui/texts.py

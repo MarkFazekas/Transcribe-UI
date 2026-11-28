@@ -24,6 +24,8 @@ class _Queued:
     on_progress: ProgressCallback | None
     review: bool
     on_started: StartedCallback | None = None
+    # The call left its pool's queue and runs.
+    started: bool = False
 
 
 class SerialSender:
@@ -38,8 +40,14 @@ class SerialSender:
         # The running review was replaced or stopped: its answer goes nowhere.
         self._dropped = False
 
-    def reviewing(self) -> bool:
-        """Return whether a review is running or waiting."""
+    def reviewing(self, *, started_only: bool = False) -> bool:
+        """Return whether a review is running or waiting (`started_only`: whether one runs on a pool thread now).
+
+        A review still queued behind other calls does not hold the job yet: the page stays usable.
+        """
+        running = self._running
+        if started_only:
+            return running is not None and running.review and running.started
         return self._running_review() or any(queued.review for queued in self._waiting)
 
     def acting(self) -> bool:
@@ -94,6 +102,8 @@ class SerialSender:
         """Pass a progress event of the running review on (None: its call left the queue)."""
         if queued is not self._running or self._dropped:
             return
+        if event is None:
+            queued.started = True
         if event is None and queued.on_started is not None:
             queued.on_started()
         elif event is not None and queued.on_progress is not None:

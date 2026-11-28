@@ -635,7 +635,7 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     runs in the panel too, so it shows (and can be cancelled) while the long pool is full.
 - **Review and upload** (`gui/review/`, step 2 of a job; Qt-free `constants.py`, `options.py`,
   `draft.py`, `folders.py`, `sender.py`, `loading.py`, `index.py`, `editing.py`, `commands.py`,
-  `uploads.py`, `viewmodel.py`, `display.py`, `status.py`; Qt `models.py`, `widgets.py`,
+  `uploads.py`, `viewmodel.py`, `display.py`, `status.py`; Qt `table.py`, `widgets.py`,
   `header.py`, `view.py`, `install.py`). The page lives on the Jobs page's stack (`open_review` shows it
   there; Back to the job and the job page hide it); `run_upload` (Upload or Resume upload on
   the job page) starts the upload without leaving the page it came from.
@@ -643,8 +643,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     while the job allows it (else "No file of this job waits for review"), then `get_batch`
     again, since a probe can change what the job allows. The page shows the probe's progress
     with Stop checking (shown as stopped, not failed; Check again continues with the files not
-    checked yet), "waiting" while the review is queued behind other long requests, and a load
-    error with Retry.
+    checked yet), "waiting" while the review is queued behind other calls (the page stays usable
+    meanwhile: only a review running on a pool thread holds the job), and a load error with
+    Retry.
   - One at a time: `review_batch`, `resolve_review` and `exclude_items` hold the job's lock
     (`batch_busy` is never waited for), so `SerialSender` sends them one after the other: a new
     review replaces a waiting one and cancels a running one (its answer is dropped), an action
@@ -668,29 +669,37 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     `suggestions` (§3.3 "Views"), so a choice can be made per folder or per language.
   - Scale (tens of thousands of files): what a row shows that only a new review changes
     (`index.py`: file, folder, language, the choices with their labels, the stored choice,
-    details; where each transcription and file is) is built once per review, the folder
-    filter's choices once per load of the job. Each table is a `QTableView` over a
-    `QAbstractTableModel` (`models.py`) that reads a row's state (choice shown, status, tick)
+    details; where each transcription and file is; each transcription's choices computed once
+    and shared by the tables) is built once per review, the folder filter's choices only when the
+    job's files change. Each table is a `QTableView` over a `QAbstractTableModel` (`table.py`) that reads a row's state (choice shown, status, tick)
     only when the view paints it, is reset only by a new review, and gets `dataChanged` only for
     the rows an edit changed (`EditSignal`); rows have a fixed height. The choice column has no
     widget per row: a delegate creates a combo box when a cell is edited (a click) and hands the
     chosen `ReviewChoice` itself to the view-model, so the mouse wheel cannot change a choice it
-    passes over (the folder filter's combo box takes the wheel only while focused). Progress
-    repaints touch only the status line, the buttons and the upload box.
+    passes over (the editor ignores the wheel; the folder filter's combo box takes it only while
+    focused). An open editor is closed once choices cannot change, and a pick refused then is
+    said in the status bar, never lost silently. A new review keeps the current row (by
+    transcription) and the scroll position; the columns are sized to their contents only on a
+    job's first load. Progress repaints touch only the status line, the buttons and the upload
+    box.
   - Choices wait in a draft (per file and language, in the order made; choosing the stored
     choice again drops the change) until Apply choices (`resolve_review`); Discard changes drops
     them. Choices change only while nothing holds the job (a check, a save, its upload), so what
-    is shown is the latest review; the filters are locked while choices wait, and a review that
-    no longer lists a transcription (its file uploaded or removed meanwhile) drops its choice and
-    tick, so Apply never sends a stale one. The views come from the answer when it is the page's current, unfiltered view, else
+    is shown is the latest review (a review only queued does not hold it: the new review drops
+    the choices it no longer lists); the filters are locked while choices wait ("Apply or discard
+    your changes before changing the filters or uploading"), and a review that no longer lists a
+    transcription (its file uploaded or removed meanwhile), or views that go away, drop its
+    choice and tick, so Apply never sends a stale one. Removed files lose theirs at once. The views come from the answer when it is the page's current, unfiltered view, else
     they are loaded again (`resolve_review` answers unfiltered). Remove ticked files from the
     job sends `exclude_items` through its backend confirmation; Remove tick boxes are per file.
   - Buttons follow `actions` (Upload, "Resume upload" while labelled `upload_unfinished`;
     Remove while `exclude_items` is listed; Apply while `resolve_review` is) and are disabled
     while a check, a save or the job's upload runs, while choices wait for Apply, or while files
     need attention; one hint says why. No button is a default or auto-default button, so a
-    stray Enter starts nothing. Upload and Check again check their precondition again when
-    clicked (the button may show enabled for up to one repaint).
+    stray Enter starts nothing. Upload, Resume upload and the error's retry share one
+    precondition (`upload_enabled`), are disabled with the hint while it fails, and check it again
+    when clicked (a refusal is said in the status bar); Check again too. "Transcribe all shown"
+    and "Extract all shown" are disabled while the embedded-subtitle view is empty.
   - Upload (`UploadTracker`): `run_upload` in the activity panel, one per job (a second start
     says "already running" in the status bar). The tracker follows its entries in the panel
     (each progress event comes with a change of the panel's view-model) and keeps the latest

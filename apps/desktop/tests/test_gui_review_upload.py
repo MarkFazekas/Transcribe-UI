@@ -125,6 +125,8 @@ def test_upload_cancelled_between_parts_resumes(qtbot: QtBot, world: RunsWorld, 
     box = page.upload_box
     stopped = (box.state.text(), phase_of(world), open_uploads(BUCKET))
     assert stopped == ("Upload: Stopped; continue any time.", "uploading", 0)
+    # The stop reloads the job's review; Resume waits until the job is free again.
+    wait_for(qtbot, box.resume_button.isEnabled)
     box.resume_button.click()
     wait_for(qtbot, lambda: box.state.text() == "Upload: Upload complete: the job is ready for transcription.")
     first, second = _uploads(runner)

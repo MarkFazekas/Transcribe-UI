@@ -63,9 +63,10 @@ class ReviewIndex:
     tabs: Mapping[ReviewTab, TableRows]
 
 
-# The index of no review.
-_NO_ROWS = MappingProxyType({tab: TableRows() for tab in TABS})
-EMPTY_INDEX = ReviewIndex(MappingProxyType({}), frozenset(), _NO_ROWS)
+def empty_index() -> ReviewIndex:
+    """Return the index of no review: no files, no rows."""
+    tabs = {tab: TableRows() for tab in TABS}
+    return ReviewIndex(MappingProxyType({}), frozenset(), MappingProxyType(tabs))
 
 
 def _streams_text(review_file: ReviewFile) -> str:
@@ -101,13 +102,21 @@ class _Builder:
 
     def __init__(self, detail: BatchDetail | None) -> None:
         self._detail = detail
+        # The choices of each transcription, shared by the tables that list it.
+        self._options: dict[ChoiceKey, tuple[ChoiceOption, ...]] = {}
+
+    def options(self, review_file: ReviewFile, language: str) -> tuple[ChoiceOption, ...]:
+        key = (review_file.item_id, language)
+        if key not in self._options:
+            self._options[key] = job_options(review_file, language)
+        return self._options[key]
 
     def folder(self, path: str) -> str:
         detail = self._detail
         return "" if detail is None else relative_folder(detail, path)
 
     def choice_row(self, review_file: ReviewFile, job: JobView, details: str) -> RowShape:
-        options = job_options(review_file, job.language)
+        options = self.options(review_file, job.language)
         return RowShape(
             item_id=review_file.item_id,
             language=job.language,
@@ -174,16 +183,25 @@ def build_index(review: BatchReview, detail: BatchDetail | None) -> ReviewIndex:
     return ReviewIndex(MappingProxyType(files), keys, MappingProxyType(tabs))
 
 
+# What the folder filter's choices depend on: the job's folder and its files with their phases.
+type FolderKey = tuple[str, tuple[tuple[str, str], ...]]
+
+
+def _folder_key(detail: BatchDetail) -> FolderKey:
+    files = tuple((member.path, member.phase) for member in detail.items)
+    return detail.scan_root, files
+
+
 class IndexCache:
     """The index of the review the page shows, rebuilt only when the review (or the job's folder) changes."""
 
     def __init__(self, loader: ReviewLoader) -> None:
         """Index what `loader` shows."""
         self._loader = loader
-        self._index = EMPTY_INDEX
+        self._index = empty_index()
         self._indexed: tuple[BatchReview | None, str | None] = (None, None)
         self._folders: tuple[FolderChoice, ...] = ()
-        self._folders_of: BatchDetail | None = None
+        self._folders_of: FolderKey | None = None
 
     def current(self) -> ReviewIndex:
         """Return the index of the review shown now."""
@@ -194,13 +212,14 @@ class IndexCache:
         indexed = self._indexed
         if review is not indexed[0] or root != indexed[1]:
             self._indexed = (review, root)
-            self._index = EMPTY_INDEX if review is None else build_index(review, detail)
+            self._index = empty_index() if review is None else build_index(review, detail)
         return self._index
 
     def folders(self) -> tuple[FolderChoice, ...]:
-        """Return the folder filter's choices for the job shown (built once per load of the job)."""
+        """Return the folder filter's choices for the job shown (built again only when its files change)."""
         detail = self._loader.loaded.detail
-        if detail is not self._folders_of:
-            self._folders_of = detail
+        key = None if detail is None else _folder_key(detail)
+        if key != self._folders_of:
+            self._folders_of = key
             self._folders = () if detail is None else folder_choices(detail)
         return self._folders

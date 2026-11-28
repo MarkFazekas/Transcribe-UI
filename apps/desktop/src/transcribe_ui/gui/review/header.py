@@ -19,7 +19,7 @@ from transcribe_ui.gui.review.constants import (
     REVIEW_STEP,
     TRANSCRIPTION_STAGE,
 )
-from transcribe_ui.gui.review.status import buttons, review_status
+from transcribe_ui.gui.review.status import buttons, changes_hint, review_status
 from transcribe_ui.gui.review.viewmodel import ReviewModel
 from transcribe_ui.gui.review.widgets import WheelSafeCombo, action_button
 from transcribe_ui.gui.selection.choices import LanguageChoice
@@ -129,7 +129,7 @@ class ReviewControls(QWidget):
         languages = () if detail is None else detail.summary.languages
         offered = tuple(LanguageChoice(code, code) for code in languages)
         self.languages.show_languages(offered, loader.filters.languages)
-        hint = "" if enabled else tr("Apply or discard your changes before changing the filters.")
+        hint = "" if enabled else changes_hint()
         for widget in (self.languages, self.folder):
             widget.setEnabled(enabled)
             widget.setToolTip(hint)

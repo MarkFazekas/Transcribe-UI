@@ -6,6 +6,7 @@ and only while it is visible (a hidden page repaints once when it is shown again
 view-model when it is shown or hidden, so a hidden page sends nothing.
 """
 
+from functools import partial
 from typing import override
 
 from PySide6.QtCore import QTimer
@@ -17,11 +18,20 @@ from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.review.constants import TABS, ReviewTab
 from transcribe_ui.gui.review.display import tab_title
 from transcribe_ui.gui.review.header import ReviewControls, ReviewHeader
-from transcribe_ui.gui.review.models import ReviewTableModel
 from transcribe_ui.gui.review.status import Buttons, buttons, upload_view
+from transcribe_ui.gui.review.table import ReviewTableModel
 from transcribe_ui.gui.review.viewmodel import ReviewModel
 from transcribe_ui.gui.review.widgets import ReviewTable, UploadBox, action_button
 from transcribe_ui.i18n.catalog import tr
+
+
+def start_upload(model: ReviewModel) -> None:
+    """Start or resume the job's upload; when the job does not allow it now, say why in the status bar."""
+    state = buttons(model)
+    if not state.upload_enabled:
+        model.outlet.show_status(state.hint or tr("The upload cannot start now."))
+        return
+    model.upload()
 
 
 class ReviewTabs(QTabWidget):
@@ -43,12 +53,13 @@ class ReviewTabs(QTabWidget):
 
     def refresh(self) -> None:
         """Show each table's rows and count."""
+        state = buttons(self._model)
+        batch_id = self._model.loader.batch_id
         for index, tab in enumerate(TABS):
-            count = self.tables[tab].show_rows()
+            count = self.tables[tab].show_rows(batch_id, editable=state.choose_enabled)
             self.setTabText(index, tab_title(tab, count))
-        enabled = buttons(self._model).choose_enabled
-        self.transcribe_button.setEnabled(enabled)
-        self.extract_button.setEnabled(enabled)
+        self.transcribe_button.setEnabled(state.bulk_enabled)
+        self.extract_button.setEnabled(state.bulk_enabled)
 
     def _subtitles_page(self) -> QWidget:
         """Return the embedded-subtitle view with its buttons that choose for every row shown."""
@@ -74,7 +85,7 @@ class ActionRow(QWidget):
         self.discard_button = action_button(tr("Discard changes"), model.editor.discard, self)
         self.remove_button = action_button(tr("Remove ticked files from the job"), model.commands.remove_ticked, self)
         self.remove_button.setToolTip(tr("Tick the files to remove in the tables above."))
-        self.upload_button = action_button(tr("Upload"), model.upload, self)
+        self.upload_button = action_button(tr("Upload"), partial(start_upload, model), self)
         self.hint = wrapped_label("", self)
         self._lay_out()
 
@@ -113,7 +124,7 @@ class ReviewPage(QWidget):
         self.controls = ReviewControls(model, self)
         self.tabs = ReviewTabs(model, self)
         self.action_row = ActionRow(model, self)
-        upload_actions = (self._cancel_upload, model.upload, self._upload_details)
+        upload_actions = (self._cancel_upload, partial(start_upload, model), self._upload_details)
         self.upload_box = UploadBox(upload_actions, self)
         layout = QVBoxLayout(self)
         for widget in (self.header, self.controls, self.tabs, self.action_row, self.upload_box):
@@ -162,4 +173,4 @@ class ReviewPage(QWidget):
     def _upload_details(self) -> None:
         view = upload_view(self.model)
         if view is not None and view.error is not None:
-            self.model.outlet.show_error(view.error, self.model.upload)
+            self.model.outlet.show_error(view.error, partial(start_upload, self.model))
