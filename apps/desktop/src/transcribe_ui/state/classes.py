@@ -32,10 +32,3 @@ class LiveLease(FrozenModel):
     def lists(self, batch_id: str) -> bool:
         """Return whether the run may process the batch."""
         return self.batch_ids is None or batch_id in self.batch_ids
-
-
-class LeaseSnapshot(FrozenModel):
-    """The live leases the last `refresh_status` read, and when (kept in memory, never stored)."""
-
-    read_at: AwareDatetime
-    leases: tuple[LiveLease, ...]

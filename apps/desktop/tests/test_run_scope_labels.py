@@ -6,6 +6,8 @@ or from another computer's lease that the last refresh read. A `ready` batch who
 in the history.
 """
 
+from contextlib import closing
+
 from support.batches import FIRST_BATCH_ID, SECOND_BATCH_ID
 from support.buckets import create_bucket
 from support.cleanup import confirmed
@@ -17,7 +19,9 @@ from support.monitor import end_pod, write_status
 from support.runs import JSON_TYPE, RunsWorld, seed_ready
 from transcribe_contracts.layout import manifest_key
 from transcribe_ui.batches.responses import BatchSummary, ListBatchesResponse
+from transcribe_ui.batches.run_scope import run_scope
 from transcribe_ui.runs.responses import RefreshStatusResponse
+from transcribe_ui.state.store import LocalState
 
 # Item of the second batch.
 SECOND_ITEM = "01JDZZZZZZZZZZZZZZZZZZZZ31"
@@ -135,3 +139,18 @@ def test_a_republished_manifest_is_followed_again(runs_world: RunsWorld) -> None
     runs_world.store.write(key, body, JSON_TYPE)
     send(runs_world, "refresh_status", recheck_removed=True)
     assert (marked, _labels(runs_world)) == (("removed_from_cloud",), ())
+
+
+def test_another_process_sees_the_same_run_scope(runs_world: RunsWorld, r2_only_world: RunsWorld) -> None:
+    """The leases the refresh read are stored: a fresh process (a CLI call) gives the same label as the GUI's backend."""
+    seed_ready(runs_world)
+    set_up_cloud(runs_world)
+    launch(runs_world)
+    _second_published(r2_only_world)
+    _refresh(r2_only_world)
+    state = r2_only_world.ports.state
+    state.close()
+    fresh = LocalState(state.paths)
+    with closing(fresh), fresh.session() as session:
+        scope = run_scope(session)
+    assert (scope.waits(SECOND_BATCH_ID), scope.waits(FIRST_BATCH_ID)) == (True, False)

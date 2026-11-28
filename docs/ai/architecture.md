@@ -2219,9 +2219,9 @@ directories, the settings store, the locks and the lazily opened database.
   `transcribing_since`, `progress_fraction`, `remaining_estimate_s`, `estimated_finish_at` to run
   payloads and `result_run_id`, `result_started_at`, `result_finished_at` to job payloads as
   null) and `shared_bucket` (M6.13: drops `manifest_held`, adds the column `removed_from_cloud`
-  (false) and the batch payload key `adopted` as null). The data dir also holds the file
-  `installation_id` (§3.9 "Downloading twice"), and the backend's memory the live run leases
-  the last refresh read (`state/leases.py`, §3.9 "Run scope"). Every change
+  (false), the batch payload key `adopted` as null and the table `known_leases`: the live run
+  leases the last refresh read, `state/leases.py`, §3.9 "Run scope"). The data dir also holds
+  the file `installation_id` (§3.9 "Downloading twice"). Every change
   is a new revision, including any change of a stored payload's shape (a field added, removed,
   renamed or retyped, a literal value dropped; the payload models forbid unknown fields, so an
   older app could not read a payload with an added field, and the revision makes it refuse the
@@ -2374,10 +2374,11 @@ Q28, Q35, A21 and A22.
   - `waits_for_current_run` (batch label, "uploaded, waits for the current run", requirements
     Q27): on a `ready` batch while a live run is known and none lists it
     (`batches/run_scope.py`). Known: the local runs that are not final (their covered batch
-    ids) and the live leases `refresh_status` step 3 last read, kept in the backend's memory
-    with the refresh time (`state/leases.py`, carried in every session's `info`; leases of runs
-    that are final here since are left out; no database change, the start-up refresh fills it
-    again), so no list request reads R2. An unreadable lease lists every batch, so it makes no
+    ids) and the live leases `refresh_status` step 3 last read, stored in the table
+    `known_leases` (`state/leases.py`; replaced as a whole by each refresh, after R2 was read;
+    leases of runs that are final here since are left out), so no list request reads R2 and
+    every frontend and process (a fresh CLI call too) gives the same label. Decision: stored
+    rather than derived from local state alone, since only R2 knows other computers' runs. An unreadable lease lists every batch, so it makes no
     batch wait. The label is as of the last refresh; the poll keeps it current while results
     are awaited.
   - Activity: `cleanup_cloud` and the withdrawal of a leftover manifest (§3.3) use only the

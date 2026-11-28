@@ -1,38 +1,37 @@
-"""The run leases the last `refresh_status` read, kept in the backend's memory (architecture §3.9 "Run scope").
+"""The run leases the last `refresh_status` read, kept in the database (architecture §3.9 "Run scope").
 
-Nothing is stored: the start-up refresh reads them again. Every session carries the snapshot in
-its `info` (`state/store.py`), so a batch summary can tell which `ready` batches wait for the
-current run (`waits_for_current_run`) without reading R2.
+`refresh_status` reads the live leases from R2 and then replaces the table `known_leases` in one
+transaction, so a batch summary built by any request, the GUI's or a fresh CLI process's, can tell
+which `ready` batches wait for the current run (`waits_for_current_run`) without reading R2. The
+rows are as of the last refresh.
 """
 
-import threading
+from collections.abc import Iterable
 
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from transcribe_ui.state.classes import LeaseSnapshot
-from transcribe_ui.state.constants import KNOWN_LEASES_INFO
+from transcribe_ui.state.classes import LiveLease
+from transcribe_ui.state.models import LeaseRow
 
 
-class LeaseMemory:
-    """The last snapshot of the live leases; safe to use from several threads."""
-
-    def __init__(self) -> None:
-        """Know no lease yet."""
-        self._lock = threading.Lock()
-        self._snapshot: LeaseSnapshot | None = None
-
-    def remember(self, snapshot: LeaseSnapshot) -> None:
-        """Replace the snapshot by a newer reading."""
-        with self._lock:
-            self._snapshot = snapshot
-
-    def snapshot(self) -> LeaseSnapshot | None:
-        """Return the last snapshot (None before the first refresh read the leases)."""
-        with self._lock:
-            return self._snapshot
+def replace_known_leases(session: Session, leases: Iterable[LiveLease]) -> None:
+    """Replace the stored leases by those of a newer reading."""
+    session.execute(delete(LeaseRow))
+    session.add_all(_row(lease) for lease in leases)
 
 
-def known_leases(session: Session) -> LeaseSnapshot | None:
-    """Return the lease snapshot the session was opened with."""
-    found = session.info.get(KNOWN_LEASES_INFO)
-    return found if isinstance(found, LeaseSnapshot) else None
+def _row(lease: LiveLease) -> LeaseRow:
+    listed = None if lease.batch_ids is None else sorted(lease.batch_ids)
+    return LeaseRow(run_id=lease.run_id, batch_ids=listed, until=lease.until)
+
+
+def known_leases(session: Session) -> list[LiveLease]:
+    """Return the leases the last refresh read (none before the first one)."""
+    rows = session.scalars(select(LeaseRow).order_by(LeaseRow.run_id))
+    return [_lease(row) for row in rows]
+
+
+def _lease(row: LeaseRow) -> LiveLease:
+    listed = None if row.batch_ids is None else frozenset(row.batch_ids)
+    return LiveLease(run_id=row.run_id, batch_ids=listed, until=row.until)

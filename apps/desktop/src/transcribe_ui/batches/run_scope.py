@@ -3,8 +3,9 @@
 A run processes only the batches its lease lists (A21, architecture §3.9 "Run scope"). A `ready`
 batch waits for the current run while a live run is known and none lists it. What is known: the
 local runs that are not final (their covered batch ids), and the live leases the last
-`refresh_status` read (`state/leases.py`, kept in memory with the refresh time; leases of runs
-that are final here since are left out). No list request reads R2 for it.
+`refresh_status` read (`state/leases.py`, stored in the database, so every request and process
+sees the same; leases of runs that are final here since are left out). No list request reads R2
+for it.
 """
 
 from dataclasses import dataclass
@@ -66,9 +67,7 @@ def _local_runs(session: Session) -> tuple[frozenset[str], list[Listing]]:
 
 def _leases(session: Session, final: frozenset[str]) -> list[LiveLease]:
     """Return the leases the last refresh read, less those of runs that are final here since."""
-    snapshot = known_leases(session)
-    found = () if snapshot is None else snapshot.leases
-    return [lease for lease in found if lease.run_id not in final]
+    return [lease for lease in known_leases(session) if lease.run_id not in final]
 
 
 def _covered(payload: JsonValue) -> list[str]:

@@ -30,7 +30,8 @@ from transcribe_ui.runs.constants import (
 )
 from transcribe_ui.runs.errors import RunActiveError
 from transcribe_ui.runs.heartbeats import recently_written
-from transcribe_ui.state.classes import LeaseSnapshot, LiveLease
+from transcribe_ui.state.classes import LiveLease
+from transcribe_ui.state.leases import replace_known_leases
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.r2 import ObjectInfo, ObjectStore
 
@@ -71,13 +72,14 @@ def live_leases(store: ObjectStore, now: datetime) -> tuple[LiveLease, ...]:
 
 
 def remember_leases(state: LocalState, store: ObjectStore, now: datetime) -> None:
-    """Read the live leases and keep them in memory with the reading time (`waits_for_current_run`).
+    """Read the live leases, then store them (`waits_for_current_run`; R2 is read outside the transaction).
 
     Raises:
-        StorageError: R2 could not be read.
+        StorageError: R2 could not be read (the stored leases stay as they were).
     """
     leases = live_leases(store, now)
-    state.leases.remember(LeaseSnapshot(read_at=now, leases=leases))
+    with state.session() as session:
+        replace_known_leases(session, leases)
 
 
 def lease_sources(leases: tuple[LiveLease, ...]) -> list[ActivitySource]:

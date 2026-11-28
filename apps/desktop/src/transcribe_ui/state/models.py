@@ -167,6 +167,22 @@ class RunRow(Base):
     payload: Mapped[Payload] = mapped_column(JSON)
 
 
+class LeaseRow(Base):
+    """A live run lease the last `refresh_status` read (any computer's run; architecture §3.9 "Run scope").
+
+    The rows are replaced as a whole at each refresh, so every request, of any frontend or
+    process, sees the same run scope (`waits_for_current_run`).
+    """
+
+    __tablename__ = "known_leases"
+
+    run_id: Mapped[str] = mapped_column(String, primary_key=True)
+    # The listed batch ids; None for a lease that cannot be read (it lists every batch).
+    batch_ids: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    # The moment it stops counting (its deadline, capped at its write time + the longest span).
+    until: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
 class PlacementRow(Base):
     """The placement outcome of one job in one download (placed or skipped, and why)."""
 

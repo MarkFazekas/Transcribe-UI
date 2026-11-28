@@ -123,5 +123,3 @@ DEFAULT_PLACEMENT_FOLDER_COUNT: Final = 1
 DEFAULT_LANGUAGE_SETTING: Final = "system"
 # Settings field of the language, read on its own at the frontends' start-up.
 LANGUAGE_FIELD: Final = "language"
-# Key of a session's `info` holding the run leases the last refresh read (`state/leases.py`).
-KNOWN_LEASES_INFO: Final = "known_leases"

@@ -52,6 +52,7 @@ EXPECTED_TABLES = frozenset(
         "extracted_subtitles",
         "items",
         "jobs",
+        "known_leases",
         "placements",
         "probe_cache",
         "runs",
