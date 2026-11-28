@@ -102,8 +102,11 @@ def detach(mount_point: Path) -> None:
 
 
 def verify_command(app: Path) -> list[str]:
-    """Return the `codesign` command that verifies the app's signature, nested code included."""
-    return [CODESIGN, "--verify", "--deep", "--strict", str(app)]
+    """Return the `codesign` command that verifies the app's signature: every architecture, nested code included.
+
+    The options are those of PyInstaller's own verification of the bundle at build time.
+    """
+    return [CODESIGN, "--verify", "--all-architectures", "--deep", "--strict", str(app)]
 
 
 def check_signature(smoke: Smoke) -> Outcome:

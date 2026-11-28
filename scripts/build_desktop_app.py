@@ -22,16 +22,21 @@ import re
 import subprocess
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
 from types import MappingProxyType
+from xml.parsers.expat import ExpatError
 
 from build_desktop_bundle import read_info_plist
 from build_desktop_macos import MACOS_FLOOR, FloorReport, check_app, check_bundle
 
 # Entries of the app's `Info.plist` that the build sets.
 type PlistEntries = Mapping[str, str | bool]
+# One attached image as `hdiutil info -plist` lists it.
+type AttachedImage = Mapping[str, object]
+# What identifies an attached image across two listings: its path and its sorted devices.
+type AttachedKey = tuple[str, tuple[str, ...]]
 
 # Name of the app: PyInstaller's `--name` of the macOS GUI, the bundle's and the disk image's volume name.
 MACOS_APP_NAME = "Transcribe-UI"
@@ -242,8 +247,16 @@ def _is_app_volume(mount_point: str) -> bool:
     return mount_point == APP_VOLUME or (numbered != mount_point and numbered.isdigit())
 
 
-def _leftover(attached: Mapping[str, object], image: Path) -> str | None:
-    """Return the whole-disk device of an attached image if making `image` left it, else None."""
+def _attached_key(attached: AttachedImage) -> AttachedKey:
+    """Return what identifies an attached image across two listings: its path and its devices."""
+    path = attached.get("image-path")
+    entities = attached.get("system-entities")
+    disks = tuple(sorted(_strings(entities, "dev-entry")))
+    return (path if isinstance(path, str) else "", disks)
+
+
+def _leftover(attached: AttachedImage, image: Path) -> str | None:
+    """Return the whole-disk device of an attached image if it is `image` or holds the app's volume, else None."""
     entities = attached.get("system-entities")
     path = attached.get("image-path")
     source = Path(path).resolve() if isinstance(path, str) else None
@@ -256,39 +269,55 @@ def _leftover(attached: Mapping[str, object], image: Path) -> str | None:
     return min(disks, key=len)
 
 
-def leftover_devices(listing: Mapping[str, object], image: Path) -> list[str]:
-    """Return the device of each attached image (`hdiutil info -plist`) that making `image` left behind.
+def leftover_devices(before: Sequence[AttachedImage], after: Sequence[AttachedImage], image: Path) -> list[str]:
+    """Return the device of each image attached since `before` that a failed `hdiutil create` of `image` left.
 
-    That is `image` itself, or an image with a volume named after the app (the one `hdiutil
-    create -srcfolder` fills). Each is given by its shortest device entry, the whole disk.
+    Both are the images of `hdiutil info -plist`. Only an image that is new since `before` (by its
+    path and devices) counts, so a volume attached before the try (a downloaded release image
+    with the app running from it) is never touched. Of those, `image` itself and an image with a
+    volume named after the app (the one `hdiutil create -srcfolder` fills) count, each by its
+    shortest device entry, the whole disk.
     """
-    attached = listing.get("images")
-    entries = attached if isinstance(attached, list) else []
-    found = [_leftover(entry, image) for entry in entries if isinstance(entry, dict)]
+    known = {_attached_key(attached) for attached in before}
+    new = [attached for attached in after if _attached_key(attached) not in known]
+    found = [_leftover(attached, image) for attached in new]
     return [device for device in found if device is not None]
 
 
-def _run_quietly(command: list[str]) -> str | None:
+def _run_quietly(command: list[str]) -> bytes | None:
     """Run a clean-up command; return its output, or None when it could not run or failed."""
     try:
         completed = subprocess.run(command, capture_output=True, timeout=HDIUTIL_CLEANUP_TIMEOUT_S, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
-    return None if completed.returncode else completed.stdout.decode("utf-8", errors="replace")
+    return None if completed.returncode else completed.stdout
 
 
-def detach_leftovers(image: Path) -> None:
-    """Detach, forced, what a failed `hdiutil create` of `image` left attached; as far as that works (nothing is raised)."""
+def attached_images() -> list[AttachedImage] | None:
+    """Return the attached images (`hdiutil info -plist`), or None when they cannot be listed (nothing is raised)."""
     listed = _run_quietly([HDIUTIL, "info", "-plist"])
     if listed is None:
-        return
+        return None
     try:
-        parsed = plistlib.loads(listed.encode())
-    except (plistlib.InvalidFileException, ValueError):
+        parsed = plistlib.loads(listed)
+    except (plistlib.InvalidFileException, ValueError, ExpatError):
+        return None
+    images = parsed.get("images") if isinstance(parsed, dict) else None
+    if not isinstance(images, list):
+        return None
+    return [attached for attached in images if isinstance(attached, dict)]
+
+
+def detach_leftovers(image: Path, before: Sequence[AttachedImage] | None) -> None:
+    """Detach, forced, what a failed `hdiutil create` of `image` left attached since `before`; nothing is raised.
+
+    Without a listing from before the try (`before` None) nothing is detached: an image attached
+    earlier could not be told apart.
+    """
+    after = attached_images()
+    if before is None or after is None:
         return
-    if not isinstance(parsed, dict):
-        return
-    for device in leftover_devices(parsed, image):
+    for device in leftover_devices(before, after, image):
         sys.stdout.write(f"Detaching {device}, left attached by hdiutil\n")
         _run_quietly([HDIUTIL, "detach", "-force", device])
 
@@ -304,12 +333,17 @@ def make_disk_image(app: Path, staging: Path, image: Path) -> Path:
     command = create_image_command(staging, image)
     errors = []
     for attempt in range(1, IMAGE_ATTEMPTS + 1):
+        before = attached_images()
+        started = time.monotonic()
         error = _create(command)
+        seconds = time.monotonic() - started
+        outcome = error or "done"
+        sys.stdout.write(f"hdiutil create, try {attempt}: {seconds:.1f} s, {outcome}\n")
         if error is None:
             return image
         errors.append(f"try {attempt}: {error}")
         if attempt < IMAGE_ATTEMPTS:
-            detach_leftovers(image)
+            detach_leftovers(image, before)
             time.sleep(IMAGE_RETRY_PAUSE_S)
     report = os.linesep.join(errors)
     msg = f"hdiutil could not create {image}:{os.linesep}{report}"

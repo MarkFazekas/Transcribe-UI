@@ -11,6 +11,7 @@ from build_desktop import PYINSTALLER_RUNNER
 from build_desktop_app import (
     IMAGE_ATTEMPTS,
     INFO_PLIST_VARIABLE,
+    attached_images,
     create_image_command,
     detach_leftovers,
     info_plist,
@@ -25,6 +26,10 @@ from build_desktop_app import (
 BASE = "0.1.0"
 # A stamped version of it, committed on 5 November 2026.
 STAMPED = f"{BASE}+20261105.abc1234"
+# Where the volume of the app's image is mounted, and with a number appended.
+FIRST_VOLUME = "/Volumes/Transcribe-UI"
+# The second such volume.
+NUMBERED_VOLUME = "/Volumes/Transcribe-UI 1"
 # Key of a system entity's device in `hdiutil info -plist`.
 DEVICE_KEY = "dev-entry"
 
@@ -44,7 +49,8 @@ class _Recorder:
     def __init__(self) -> None:
         self.images: list[Path] = []
 
-    def __call__(self, image: Path) -> None:
+    def __call__(self, image: Path, before: object) -> None:
+        assert before == []
         self.images.append(image)
 
 
@@ -162,6 +168,7 @@ def test_disk_image_holds_app_and_link(monkeypatch: pytest.MonkeyPatch, tmp_path
     monkeypatch.setattr(subprocess, "run", hdiutil)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
     monkeypatch.setattr("build_desktop_app.detach_leftovers", leftovers)
+    monkeypatch.setattr("build_desktop_app.attached_images", list)
     app = _app(tmp_path / "app", {"CFBundleExecutable": "Transcribe-UI"})
     staging = tmp_path / "image"
     image = tmp_path / "dist" / "transcribe-ui-macos-arm64-gui.dmg"
@@ -182,6 +189,7 @@ def test_disk_image_fails_after_its_tries(monkeypatch: pytest.MonkeyPatch, tmp_p
     monkeypatch.setattr(subprocess, "run", hdiutil)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
     monkeypatch.setattr("build_desktop_app.detach_leftovers", leftovers)
+    monkeypatch.setattr("build_desktop_app.attached_images", list)
     app = _app(tmp_path / "app", {})
     with pytest.raises(RuntimeError, match=r"try 1: exit 1: hdiutil: create failed - Resource busy") as raised:
         make_disk_image(app, tmp_path / "image", tmp_path / "dist" / "gui.dmg")
@@ -199,6 +207,16 @@ def _entity(device: str, mount_point: str | None = None) -> dict[str, str]:
     return entity
 
 
+class _Printer:
+    """Stands in for `subprocess.run`: every command succeeds and prints `output`."""
+
+    def __init__(self, output: bytes) -> None:
+        self.output = output
+
+    def __call__(self, command: list[str], **_options: object) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, self.output, b"")
+
+
 class _InfoRunner:
     """Stands in for `subprocess.run`: `hdiutil info` lists `listing`; None makes every command fail to start."""
 
@@ -213,36 +231,51 @@ class _InfoRunner:
         return subprocess.CompletedProcess(command, 0, plistlib.dumps(dict(self.listing)), b"")
 
 
+def _attached(path: str, *entities: dict[str, str]) -> dict[str, object]:
+    """Return one attached image of `hdiutil info -plist`."""
+    return {"image-path": path, "system-entities": list(entities)}
+
+
 def test_leftover_devices_of_the_image(tmp_path: Path) -> None:
-    """The image itself and a volume named after the app count; another image does not."""
+    """Of the images new since the try started, the image itself and a volume named after the app count."""
     image = tmp_path / "gui.dmg"
-    listing = {
-        "images": [
-            {"image-path": str(image), "system-entities": [_entity("/dev/disk4s1"), _entity("/dev/disk4")]},
-            {
-                "image-path": "/private/tmp/dmg.Ab12/temp.dmg",
-                "system-entities": [_entity("/dev/disk5"), _entity("/dev/disk5s1", "/Volumes/Transcribe-UI 1")],
-            },
-            {"image-path": "/other.dmg", "system-entities": [_entity("/dev/disk6", "/Volumes/Transcribe-UI-old")]},
-            "not a dictionary",
-        ],
-    }
-    assert leftover_devices(listing, image) == ["/dev/disk4", "/dev/disk5"]
-    assert not leftover_devices({}, image)
+    after = [
+        _attached(str(image), _entity("/dev/disk4s1"), _entity("/dev/disk4")),
+        _attached("/private/tmp/dmg.Ab12/temp.dmg", _entity("/dev/disk5"), _entity("/dev/disk5s1", NUMBERED_VOLUME)),
+        _attached("/other.dmg", _entity("/dev/disk6", "/Volumes/Transcribe-UI-old")),
+    ]
+    assert leftover_devices([], after, image) == ["/dev/disk4", "/dev/disk5"]
+    assert not leftover_devices([], [], image)
+
+
+def test_a_volume_attached_earlier_is_left_alone(tmp_path: Path) -> None:
+    """A release image the developer attached (the app running from it) matches by name, but is not new."""
+    own = _attached("/Users/me/Downloads/transcribe-ui-macos-arm64-gui.dmg", _entity("/dev/disk3", FIRST_VOLUME))
+    left = _attached("/private/tmp/dmg.Cd34/temp.dmg", _entity("/dev/disk7", NUMBERED_VOLUME))
+    assert leftover_devices([own], [own, left], tmp_path / "gui.dmg") == ["/dev/disk7"]
 
 
 def test_detach_leftovers_is_best_effort(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Each leftover device is detached, forced; a missing `hdiutil` raises nothing."""
+    """Each new leftover device is detached, forced; no listing from before, or no `hdiutil`, detaches nothing."""
     image = tmp_path / "gui.dmg"
-    runner = _InfoRunner({"images": [{"image-path": str(image), "system-entities": [_entity("/dev/disk4")]}]})
+    runner = _InfoRunner({"images": [_attached(str(image), _entity("/dev/disk4"))]})
     monkeypatch.setattr(subprocess, "run", runner)
-    detach_leftovers(image)
+    detach_leftovers(image, [])
     listing = ["/usr/bin/hdiutil", "info", "-plist"]
     assert runner.commands == [listing, ["/usr/bin/hdiutil", "detach", "-force", "/dev/disk4"]]
+    detach_leftovers(image, None)
+    assert runner.commands[2:] == [listing]
     missing = _InfoRunner(None)
     monkeypatch.setattr(subprocess, "run", missing)
-    detach_leftovers(image)
+    detach_leftovers(image, [])
     assert missing.commands == [listing]
+
+
+def test_a_listing_that_is_no_plist_is_no_listing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Output `plistlib` cannot read (broken XML included) gives no listing instead of an error."""
+    for output in (b"<?xml version='1.0'?><plist><dict><key>images", b"not a plist", b""):
+        monkeypatch.setattr(subprocess, "run", _Printer(output))
+        assert attached_images() is None
 
 
 def test_the_runner_reads_the_same_variable() -> None:

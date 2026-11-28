@@ -207,7 +207,14 @@ def test_a_detach_that_cannot_run_is_a_warning(
 def test_signature_of_the_app_in_the_image(monkeypatch: pytest.MonkeyPatch) -> None:
     """`gui-signature` verifies the app the GUI checks run, deep and strict; a rejected signature fails it."""
     app = Path("/t/volume/Transcribe-UI.app")
-    assert verify_command(app) == ["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)]
+    assert verify_command(app) == [
+        "/usr/bin/codesign",
+        "--verify",
+        "--all-architectures",
+        "--deep",
+        "--strict",
+        str(app),
+    ]
     accepted = _Codesign(0)
     monkeypatch.setattr(RUN_PROCESS, accepted)
     passed = check_signature(_smoke(app / EXECUTABLE)).passed
