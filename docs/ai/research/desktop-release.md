@@ -56,6 +56,17 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 
 ## PySide6 wheels
 
+- [V] Qt's macOS wheels carry a higher Mach-O minimum macOS than their platform tag:
+  shiboken6 6.12.0 (tag `macosx_14_0`) has `LC_BUILD_VERSION minos 26.0` (sdk 26.0) in
+  `libshiboken6.abi3.6.12.dylib` and `Shiboken.abi3.so`, libpyside6 the same; the Qt frameworks
+  and plugins of pyside6-essentials 6.12 have `minos 14.4`; shiboken6 6.11.2 (tag
+  `macosx_13_0`) has `minos 15.0`. Checked with `llvm-objdump --macho --private-headers` on the
+  PyPI wheels and by the macOS legs of PR #53's run 46150560721. So the `minos` of a wheel's own
+  dylibs is not a floor signal; the build checks wheel binaries by their tag
+  (`scripts/build_desktop_macos.py`). [I] dyld does not refuse a dylib whose `minos` is newer
+  than the running macOS (only a main executable's); the smoke tests on `macos-15` loading the
+  `minos 26.0` shiboken show it for 15.
+
 - [V] `pyside6-essentials` 6.12.0 (2026-10-08; the version in `uv.lock`) wheels:
   `cp310-abi3-manylinux_2_34_x86_64`, `manylinux_2_39_aarch64`, `macosx_14_0_universal2`,
   `win_amd64`, `win_arm64` (https://pypi.org/project/PySide6-Essentials/#files). So the Linux
@@ -70,6 +81,11 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 - [V] `ubuntu-26.04` is generally available; `ubuntu-latest` moves from 24.04 to 26.04 between
   2026-10-19 and 2026-11-19; pin `ubuntu-24.04` to stay
   (https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration).
+- [V] `macos-14` (and `-large`, `-xlarge`) was retired on 2026-11-02 (brownouts in October
+  2026); the recommended labels are `macos-15`, `macos-26` and their `-xlarge` arm64 variants
+  (https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement). No
+  hosted macOS 14 runner remains, and there was never an Intel `macos-14` label for free plans
+  [I]; a macOS 14 start can only be checked on a machine of one's own.
 - [V] `macos-latest` moves from macOS 15 to macOS 26 from 2026-06-15 (30 days); pin `macos-15`
   to stay. `windows-2025` (and `windows-latest`) use Visual Studio 2026 from 2026-06-15
   (https://github.blog/changelog/2026-05-14-github-actions-upcoming-image-migrations).

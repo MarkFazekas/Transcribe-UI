@@ -2929,9 +2929,16 @@ Few unit tests; mostly regression and flow tests:
   source there is none). A pull request run builds GitHub's temporary merge commit
   (`refs/pull/<n>/merge`), so the hash and date in a pull request artifact's version name that
   commit, which is not in the branch's history. Only uv's own CPython builds
-  (`UV_PYTHON_PREFERENCE=only-managed`), never a Python found on the runner; on macOS the build
-  fails when a bundled binary needs a newer macOS than 14 (`scripts/build_desktop_macos.py`,
-  `otool -arch all -l` on every binary PyInstaller bundled). The build runs in an environment without dev tools, with the app
+  (`UV_PYTHON_PREFERENCE=only-managed`), never a Python found on the runner. On macOS the build
+  checks the macOS 14 floor (`scripts/build_desktop_macos.py`): a binary from an installed wheel
+  (mapped through the wheels' `RECORD` files) follows the wheel's platform tag (a `macosx` tag
+  above 14.0 fails), since Qt's wheels carry a higher Mach-O `minos` than their tag (shiboken6
+  6.12.0, tagged `macosx_14_0`: 26.0); every other binary (the bootloader, libpython, later
+  ffmpeg) must have a `minos` of at most 14.0 (`otool -arch all -l`, every architecture). Each
+  wheel's tags and highest `minos` are printed. No CI run starts the executables on macOS 14:
+  GitHub retired the `macos-14` runner image on 2026-11-02 and no Intel macOS 14 label exists,
+  so the floor of both macOS builds rests on these two rules (and on a real macOS 14 machine in
+  the manual acceptance, A24, if one is at hand); the executables run on macOS 15. The build runs in an environment without dev tools, with the app
   installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
   own OS on fresh per-user state, with every check under a timeout that kills the process
   tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic
