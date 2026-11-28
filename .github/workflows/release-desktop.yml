@@ -54,9 +54,11 @@ jobs:
   ffmpeg:
     # Builds ffmpeg and ffprobe per platform from the pinned source (scripts/build_ffmpeg.py) only
     # when the cache has no entry for its key (FFmpeg's version, the platform, a hash of the build
-    # scripts and of the pinned image and packages this job installs); a hit costs seconds. It runs on every workflow run, so an entry evicted after a
-    # week unused is rebuilt before a build leg needs it. Windows is cross-compiled on Linux, so
-    # nothing here runs the programs; the build legs do.
+    # scripts, which pin the image and packages this job installs); a hit costs seconds. A change
+    # to this job's commands needs a CACHE_SALT bump in scripts/build_ffmpeg_pins.py. It runs on
+    # every workflow run, so an entry evicted after a week unused is rebuilt before a build leg
+    # needs it. Windows is cross-compiled on Linux, so nothing here runs the programs; the build
+    # legs do.
     name: ffmpeg (${{ matrix.platform }})
     strategy:
       fail-fast: false

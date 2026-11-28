@@ -284,11 +284,14 @@ ffmpeg build notes (`scripts/build_ffmpeg.py`, `build_ffmpeg_pins.py`, `build_ff
   `ffmpeg-build.json` and the licence texts (`licences/`) next to the programs.
 - A version bump: download the new tarball and its `.asc`, check the signature with the key
   of the pinned fingerprint, and change the version, URL and SHA-256 together (plus
-  `research/desktop-release.md`). The cache key hashes every `scripts/build_ffmpeg*.py` and the
-  pinned inputs the workflow reads through `build_ffmpeg.py pins` (`CACHE_SALT`, the manylinux
-  image, `BUILD_PACKAGES`), so any change there rebuilds all four platforms on the next run.
-  The runners' own compilers and SDKs are not pinned: a cached binary may predate the runner's
-  current compiler, and bumping a pin or `CACHE_SALT` forces a rebuild.
+  `research/desktop-release.md`). The cache key hashes every `scripts/build_ffmpeg*.py`,
+  `build_ffmpeg_pins.py` among them with the inputs the workflow reads through
+  `build_ffmpeg.py pins` (`CACHE_SALT`, the manylinux image, `BUILD_PACKAGES`), so any change
+  there rebuilds all four platforms on the next run. The workflow's own commands are not
+  hashed: a change to the `ffmpeg` job's install or build commands (the `apt`, `brew` or `dnf`
+  flags, the docker `--env` list) needs a `CACHE_SALT` bump. Neither are the runners' own
+  compilers and SDKs: a cached binary may predate the runner's current compiler, and bumping a
+  pin or `CACHE_SALT` forces a rebuild.
 - `build` runs only where it can (the Windows build on Linux, every other platform on itself)
   and refuses an `--out` folder that holds files but no `ffmpeg-build.json`, since it replaces
   that folder. It downloads with `curl` (three retries), refuses a tarball whose SHA-256
