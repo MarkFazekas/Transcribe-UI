@@ -168,12 +168,11 @@ def _golden_status(index: int) -> tuple[str, str]:
 def _found_nothing(response: Response | None) -> bool:
     """Return whether the answer is a cloud check's that found and changed nothing.
 
-    A refresh with no run, ready batch or held manifest; a reconcile with no run, no machine and
+    A refresh with no run, ready batch or busy batch; a reconcile with no run, no machine and
     nothing needing attention.
     """
     if isinstance(response, RefreshStatusResponse):
-        reports = (response.runs, response.batches, response.busy, response.published, response.held)
-        return not any(reports)
+        return not (response.runs or response.batches or response.busy)
     if isinstance(response, ReconcileCloudResponse):
         return not (response.entries or response.runs or response.attention)
     return False

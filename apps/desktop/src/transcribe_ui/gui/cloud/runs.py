@@ -91,11 +91,13 @@ class RunList(ViewModel):
             self.error = None
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
-        self.changed()
         for progress in ended:
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, progress.run.covered_batch_ids)
         if ended:
             self._outlet.alert()
+        # After the signal, which starts a stopped poll (`CloudPoll.start`): the poll follows this
+        # list next and stops again when no run is active and no results are awaited.
+        self.changed()
         waiting = self._waiting
         self._waiting = []
         for proceed in waiting:
