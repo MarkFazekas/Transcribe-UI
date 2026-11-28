@@ -218,4 +218,10 @@ run it in a separate terminal: the Claude Code `!` prefix cannot answer the prom
 an empty secret).
 
 PyInstaller notes: disable UPX; for keyring add `--copy-metadata keyring` and
-`--collect-submodules keyring.backends`; exclude unused Qt modules.
+`--collect-submodules keyring.backends`; exclude unused Qt modules. PyInstaller 6.9 or later:
+the GUI's restart after a language change (architecture §3.1 "Settings") starts the one-file
+executable again with `PYINSTALLER_RESET_ENVIRONMENT=1`, which earlier versions ignore (the
+new process would reuse the unpacked files the exiting one removes). M8 manual check on each
+OS, Windows first: change the language in Settings, choose Restart now, and the new window
+opens in the new language and comes to the foreground (Windows may only flash it in the task
+bar, since the starting process has exited).

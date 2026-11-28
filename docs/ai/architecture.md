@@ -412,11 +412,13 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     problem of no field (the extension overlap) shows above Save, and editing a field clears
     its hint. A refused save (local or from the backend) never changes what was typed; a
     backend error other than `invalid_request` opens the error dialog. A failed load shows its
-    error with Retry and Restore defaults (`update_settings` with `state.settings.
-    default_settings()`). A save emits `settings_changed`.
-  - Language restart (Q32): after a save whose language resolves (`system`: the OS language)
-    to another language than the one shown, "Restart now to change the language?" (Restart
-    now / Later). Restart now sets `GuiContext.restart` and closes the window through the
+    error with Retry and Restore defaults (`reset_settings`, §3.8). A save emits
+    `settings_changed`.
+  - Language restart (Q32): after a save that changed the stored language to one that
+    resolves to another language than the one shown, "Restart now to change the language?"
+    (Restart now / Later); a later save that keeps the language does not ask again. `system`
+    resolves with the OS language read once at start-up (`gui/language.py` `use_language`
+    returns `StartLanguages`; `GuiContext.system_language`), never again on the GUI thread. Restart now sets `GuiContext.restart` and closes the window through the
     close handling (Q30); keeping the window open there withdraws it
     (`CloseGuard.when_kept_open`), "Quit now" quits without a restart. `run_gui` starts the GUI
     again only after the backend is closed, so the new process can take the writer lock: the
@@ -428,14 +430,17 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     `credentials_status`; the keyring's state when it is not usable; the note that the Runpod
     key is optional (§3.9). Save sends `store_credentials` with only the fields typed into,
     validated like the preferences (a refused value keeps what was typed and shows a hint);
-    after a store the fields are emptied and the status is read again. Typed values stay in
-    the view-model as `SecretStr` until then; display data name credentials and sources, never
-    values. Test sends `check_credentials` and shows one line per service (the catalog text of
+    after a store the fields are emptied and the status is read again. The fields are disabled
+    while a store is in flight, and a store drops only the values it sent. Typed values stay in
+    the view-model as `SecretStr` until then (the wizard forgets those not stored when it opens
+    and closes, so no value outlives its field); display data name credentials and sources,
+    never values. Test sends `check_credentials` and shows one line per service (the catalog text of
     its code).
   - Cloud setup: Check (`cloud_setup_status`: a row per object with its state, outdated
     fields named), Set up / Update (`setup_cloud` in the activity panel under the key
-    `setup_cloud`, then a new check; the summary of what was created, updated or left), the
-    error of a check or setup in the page with Details. Without a Runpod key the page is
+    `setup_cloud`, then a new check; the summary of what was created, updated or left, until
+    the next check), the error of a check or setup in the page with Details. A check asked
+    for while one runs waits for it. Without a Runpod key the page is
     unavailable and says that another computer with the key starts the transcription.
   - About: the app and data format versions (`get_app_info`; the window title gets the app's
     version) and the log folder with "Open log folder".
@@ -445,7 +450,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     new widgets on the same view-models) opens once per session: at accounts while an R2
     credential is missing, else at the cloud setup when an object is missing or outdated
     (`duplicated` alone is left to the page). It can be closed ("Set up later"); without a
-    Runpod key accounts is its last step. A notice above the pages stays while the cause
+    Runpod key accounts is its last step. On accounts, Next / Finish first stores what was
+    typed and moves on once it is stored; a refused value keeps the step open with its hint. A notice above the pages stays while the cause
     lasts: R2 incomplete (with the Runpod note; Open accounts), the cloud setup missing or
     outdated (Open cloud setup), or a failed cloud check (its text; Retry), each with Hide (for
     the session).
