@@ -17,9 +17,10 @@ from functools import partial
 
 from transcribe_ui.api.classes import ProgressEvent, Response
 from transcribe_ui.gui.activity import Activity, ActivityEntry
+from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.executor import CallHandle
 from transcribe_ui.gui.review.commands import ReviewOutlet
-from transcribe_ui.gui.review.constants import BATCHES_CHANGED_SIGNAL, BYTES_STAGE, ITEM_STAGE
+from transcribe_ui.gui.review.constants import BYTES_STAGE, ITEM_STAGE
 from transcribe_ui.i18n.catalog import ntr, tr
 from transcribe_ui.upload.classes import RunUploadRequest
 from transcribe_ui.upload.responses import RunUploadResponse

@@ -20,8 +20,6 @@ TRANSCRIPTION_STAGE: Final = "transcription"
 LATER_STAGES: Final = frozenset(("download", "done"))
 # The review tables in the order of their tabs.
 TABS: Final[tuple[ReviewTab, ...]] = ("subtitles", "tracks", "attention")
-# Signal that tells the pages that batches changed (a tuple of batch ids).
-BATCHES_CHANGED_SIGNAL: Final = "batches_changed"
 # Signal that opens a job page (`batch_id`).
 OPEN_JOB_SIGNAL: Final = "open_job"
 # Signal that opens the Cloud page (start transcription).

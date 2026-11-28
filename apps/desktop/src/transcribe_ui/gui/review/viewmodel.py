@@ -10,9 +10,10 @@ the job (`editable`); a review still queued behind other long calls does not hol
 """
 
 from transcribe_ui.batches.classes import ReviewFilter
+from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.executor import Executor
 from transcribe_ui.gui.review.commands import ReviewCommands, ReviewOutlet
-from transcribe_ui.gui.review.constants import BATCHES_CHANGED_SIGNAL, UPLOAD_ACTION
+from transcribe_ui.gui.review.constants import UPLOAD_ACTION
 from transcribe_ui.gui.review.editing import ChoiceEditor
 from transcribe_ui.gui.review.loading import ReviewLoader
 from transcribe_ui.gui.review.sender import SerialSender

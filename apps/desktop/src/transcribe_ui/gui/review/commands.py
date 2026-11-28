@@ -16,11 +16,17 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, NeedsConfirmation, Request, Response
-from transcribe_ui.api.constants import ERROR_INTERNAL
+from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Request, Response
 from transcribe_ui.batches.classes import ExcludeItemsRequest, ResolveReviewRequest, ReviewFilter
 from transcribe_ui.batches.responses import ExcludeItemsResponse, ResolveReviewResponse
-from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, confirmation_view, confirmed_request, error_view
+from transcribe_ui.gui.feedback import (
+    ConfirmationView,
+    ErrorView,
+    confirmation_mismatch,
+    confirmation_view,
+    confirmed_request,
+    error_view,
+)
 from transcribe_ui.gui.review.draft import choice_key
 from transcribe_ui.gui.review.editing import ChoiceEditor, EditChange
 from transcribe_ui.gui.review.loading import ReviewLoader, Settled
@@ -46,11 +52,6 @@ class ReviewOutlet(Protocol):
 
     def show_status(self, text: str) -> None:
         """Show a short message in the window's status bar."""
-
-
-def _internal_error(request: Request) -> ErrorView:
-    body = ErrorBody(code=ERROR_INTERNAL, message="The confirmation does not fit the request.")
-    return error_view(ErrorResponse(action=request.action, error=body))
 
 
 class ReviewCommands:
@@ -110,7 +111,7 @@ class ReviewCommands:
             confirmed = confirmed_request(request, asked)
         except ValidationError:
             logger.exception("The confirmation of %s does not fit the request", request.action)
-            self._outlet.show_error(_internal_error(request), None)
+            self._outlet.show_error(confirmation_mismatch(request), None)
             return
         self._send(confirmed, on_success)
 
