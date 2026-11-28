@@ -108,8 +108,8 @@ def update_run(
             # The settle anchor of a pod first known from its queued pod without `resolvedAt`.
             updates.setdefault("pod_recorded_at", now)
         if status in FINAL_RUN_STATUSES:
-            # A final run has no stop left to retry.
-            updates["stop_error"] = None
+            # A final run has no stop left to retry and no remaining time.
+            updates.update(stop_error=None, remaining_estimate_s=None, estimated_finish_at=None)
         payload = earlier.model_copy(update=updates)
         # Validated again, so a wrong field type fails here rather than when read back.
         row.payload = RunPayload.model_validate(payload.model_dump()).model_dump(mode="json")

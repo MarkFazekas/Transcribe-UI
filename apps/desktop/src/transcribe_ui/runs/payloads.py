@@ -1,10 +1,10 @@
 """Pydantic payload of the `runs` rows (the JSON column of `state/models.py`)."""
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, NonNegativeFloat, PositiveInt
+from pydantic import AwareDatetime, BaseModel, ConfigDict, NonNegativeFloat, NonNegativeInt, PositiveInt
 
 from transcribe_contracts.classes import RunStatus as WorkerStatus
 from transcribe_ui.api.base import FrozenModel
-from transcribe_ui.runs.classes import CostEstimate, EndReason
+from transcribe_ui.runs.classes import CostEstimate, EndReason, ProgressFraction
 from transcribe_ui.runs.stopping import KnownPod
 
 
@@ -61,6 +61,13 @@ class RunPayload(FrozenModel):
     # Pending audio of the confirmed scope (seconds) and the confirmed cost estimate.
     pending_duration_s: NonNegativeFloat
     estimate: CostEstimate
+    # Pending audio of the covered batches this database knows, `careful` jobs counted twice
+    # (seconds): the jobs whose progress the app follows. None for a run launched before it was kept.
+    weighted_known_duration_s: NonNegativeFloat | None = None
+    # Runtime of the pending jobs of the covered batches this database does not know (another
+    # computer's), by the launch estimate's factors without the margin: in the remaining time until
+    # the worker's pace is measured. None for a run launched before it was kept.
+    unknown_runtime_s: NonNegativeFloat | None = None
     # Runpod ids once known.
     pod_id: str | None = None
     queued_pod_id: str | None = None
@@ -101,6 +108,13 @@ class RunPayload(FrozenModel):
     # When a cancel of the run's queued pod was first acknowledged (recorded only after the success
     # answer): no pod deploys after it, so a vanished queued pod settles from it (`stopping`).
     cancel_acknowledged_at: AwareDatetime | None = None
+    # The progress as of `refreshed_at` (`runs/remaining.py`): the done share of the followed audio,
+    # the remaining processing time and when it ends; None when unknown, the last two also once final.
+    progress_fraction: ProgressFraction | None = None
+    # `updated_at` (worker clock) of the first worker report that showed `transcribing` with a current job.
+    transcribing_since: AwareDatetime | None = None
+    remaining_estimate_s: NonNegativeInt | None = None
+    estimated_finish_at: AwareDatetime | None = None
 
     def known_pod(self) -> KnownPod | None:
         """Return the run's pod with what is known of its sightings (None without a pod id).

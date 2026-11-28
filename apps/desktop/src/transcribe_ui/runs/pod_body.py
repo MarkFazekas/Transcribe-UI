@@ -9,6 +9,8 @@ from transcribe_ui.runpod.bodies import CreatePod, GlobalMount, GpuRequest, Moun
 from transcribe_ui.runpod.inventory import CloudSetup
 from transcribe_ui.runs import constants as launch_settings
 from transcribe_ui.runs.classes import LaunchPlan, ScopeBatch
+from transcribe_ui.runs.estimate import job_runtime_s, weighted_duration
+from transcribe_ui.runs.manifests import total_duration
 from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.upload.classes import HeldPublication
 
@@ -26,6 +28,22 @@ class Decided:
         still_held = {*self.published.busy, *self.published.incomplete}
         scope = self.plan.scope.batches
         return tuple(batch.batch_id for batch in scope if _covered(batch, still_held))
+
+    def unknown_runtime_s(self) -> float:
+        """Return the launch-factor runtime of the covered batches this database does not know (another computer's)."""
+        jobs = [job for batch in self._covered_batches(known=False) for job in batch.pending_jobs]
+        return total_duration(job_runtime_s(job) for job in jobs)
+
+    def followed_duration_s(self) -> float:
+        """Return the weighted pending audio of the covered batches this database knows (their progress is followed)."""
+        jobs = [job for batch in self._covered_batches(known=True) for job in batch.pending_jobs]
+        return weighted_duration(jobs)
+
+    def _covered_batches(self, *, known: bool) -> list[ScopeBatch]:
+        """Return the covered batches this database knows, or those it does not."""
+        covered = frozenset(self.covered())
+        of_run = [batch for batch in self.plan.scope.batches if batch.batch_id in covered]
+        return [batch for batch in of_run if batch.known == known]
 
 
 def _covered(batch: ScopeBatch, still_held: set[str]) -> bool:

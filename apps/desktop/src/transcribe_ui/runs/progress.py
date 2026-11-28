@@ -1,11 +1,12 @@
-"""A run as the frontends show it: stage, worker report, deadline, elapsed time and cost so far.
+"""A run as the frontends show it: stage, worker report, deadline, elapsed time, cost so far, progress.
 
 Built from the stored run only (`refresh_status` stores the worker report, the deadline stop's
 error and the refresh time; `runs/refreshing.py`), so `refresh_status` and `list_runs` show a run
 the same way. Elapsed time counts from the pod's creation (`createdAt`, else its first sighting)
 until the run ended, else until its last refresh, never until the moment of the request; the cost
 so far is that time at the pod's price per hour (`cost`). Both are estimates for the display;
-Runpod's own bill is what counts.
+Runpod's own bill is what counts. The progress fields are shown as the last refresh stored them
+(`runs/remaining.py`).
 """
 
 from collections.abc import Sequence
@@ -76,6 +77,9 @@ def _progress(state: LocalState, run: RunInfo, payload: RunPayload) -> RunProgre
         end_reason=payload.end_reason,
         stop_error=payload.stop_error,
         worker_log=str(log) if kept_log else None,
+        progress_fraction=payload.progress_fraction,
+        remaining_estimate_s=payload.remaining_estimate_s,
+        estimated_finish_at=payload.estimated_finish_at,
     )
 
 

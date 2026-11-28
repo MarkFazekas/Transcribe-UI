@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 
 from transcribe_contracts.errors import ContractError
 from transcribe_contracts.layout import parse_result_key, results_prefix
@@ -33,6 +34,10 @@ class ResultRead:
     error: str | None = None
     # The code of a failure the desktop decided (None for the worker's own errors).
     error_code: ResultErrorCode | None = None
+    # The run that wrote it and when it worked on the job (worker clock); None when not read.
+    run_id: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 # The outcome recorded for a job whose result cannot be read once the batch has `_done.json`.
@@ -72,4 +77,10 @@ def _result_of(key: str, body: bytes) -> ResultRead | None:
     except ContractError:
         logger.warning("The job result %s cannot be read", key)
         return None
-    return ResultRead(job_result.status, job_result.error)
+    return ResultRead(
+        job_result.status,
+        job_result.error,
+        run_id=job_result.run_id,
+        started_at=job_result.started_at,
+        finished_at=job_result.finished_at,
+    )

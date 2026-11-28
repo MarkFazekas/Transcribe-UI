@@ -1,9 +1,10 @@
-"""The revisions after the initial one, over a database of the initial revision (plan m6 M6.1, M6.14).
+"""The revisions after the initial one, over a database of the initial revision (plan m6 M6.1, M6.14, M6.12).
 
 A database written at the initial revision holds batch, run and job payloads of the old shape;
 opening it upgrades it, adding the new keys, and the app reads it: the batch has no composition,
-the run no stored report and no refresh time (`composition_and_run_report`), and a job that
-failed with the desktop's own texts gets their codes (`result_error_code`).
+the run no stored report and no refresh time (`composition_and_run_report`), a job that failed
+with the desktop's own texts gets their codes (`result_error_code`), and the run has no progress
+and the jobs no result run or times (`run_progress`).
 """
 
 import json
@@ -27,7 +28,7 @@ from transcribe_ui.state.database import sqlite_engine
 # The initial revision, which the old database carries.
 INITIAL_REVISION = "5d0c3b1e7a42"
 # The newest revision.
-NEW_REVISION = "c41f8e2a6d93"
+NEW_REVISION = "609bed4e68d4"
 BATCH_ID = "batch_20261127_120000"
 RUN_ID = "01JDQ0000000000000000000R1"
 # A fingerprint as stored (a SHA-256 in hex).
@@ -83,6 +84,19 @@ OLD_ITEM_PAYLOAD: Mapping[str, object] = MappingProxyType(
     },
 )
 LANGUAGES = MappingProxyType({1: "en", 2: "de", 3: "fr", 4: "hu"})
+# The run payload keys of the revision `run_progress` (plan m6 M6.12), added as null.
+PROGRESS_KEYS = MappingProxyType(
+    {
+        "weighted_known_duration_s": None,
+        "unknown_runtime_s": None,
+        "transcribing_since": None,
+        "progress_fraction": None,
+        "remaining_estimate_s": None,
+        "estimated_finish_at": None,
+    },
+)
+# The job payload keys of the revision `run_progress`, added as null.
+RESULT_KEYS = MappingProxyType({"result_run_id": None, "result_started_at": None, "result_finished_at": None})
 # Elapsed seconds of the stored run: from the pod's creation to its end.
 RUN_SECONDS = 1800.0
 
@@ -159,7 +173,7 @@ def test_old_payloads_get_the_new_keys(upgraded: tuple[Backend, Path]) -> None:
     run = json.loads(_stored(database_file, "SELECT payload FROM runs"))
     assert batch == {**OLD_BATCH_PAYLOAD, "composition": None}
     added = {"worker": None, "stop_error": None, "refreshed_at": None, "cancel_acknowledged_at": None}
-    assert run == {**OLD_RUN_PAYLOAD, **added}
+    assert run == {**OLD_RUN_PAYLOAD, **added, **PROGRESS_KEYS}
 
 
 def test_upgraded_rows_read_as_before(upgraded: tuple[Backend, Path]) -> None:
@@ -171,6 +185,8 @@ def test_upgraded_rows_read_as_before(upgraded: tuple[Backend, Path]) -> None:
     run = runs[0]
     assert (run["worker"], run["refreshed_at"], run["elapsed_s"]) == (None, None, RUN_SECONDS)
     assert run["elapsed_until"] == OLD_RUN_PAYLOAD["ended_at"]
+    progress = (run["progress_fraction"], run["remaining_estimate_s"], run["estimated_finish_at"])
+    assert progress == (None, None, None)
     jobs = detail["batch"]["items"][0]["jobs"]
     codes = {job["language"]: job["result_error_code"] for job in jobs}
     assert codes == {LANGUAGES[job_id]: code for job_id, code in JOB_CODES.items()}
@@ -183,5 +199,8 @@ def test_old_jobs_get_their_result_error_code(upgraded: tuple[Backend, Path]) ->
     with closing(sqlite3.connect(database_file)) as connection:
         rows = connection.execute("SELECT job_id, payload FROM jobs ORDER BY job_id").fetchall()
     stored = {job_id: json.loads(payload) for job_id, payload in rows}
-    expected = {job_id: {**OLD_JOB_PAYLOADS[job_id], "result_error_code": code} for job_id, code in JOB_CODES.items()}
+    expected = {
+        job_id: {**OLD_JOB_PAYLOADS[job_id], "result_error_code": code, **RESULT_KEYS}
+        for job_id, code in JOB_CODES.items()
+    }
     assert stored == expected

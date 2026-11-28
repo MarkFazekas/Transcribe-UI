@@ -68,9 +68,13 @@ def refresh_runs(context: RequestContext, pods: PodsApi, store: LazyStore, liste
 def _record(state: LocalState, refreshed: Refreshed, now: datetime) -> None:
     """Store what the refresh saw of the run: when, the deadline stop's error, the worker report if read.
 
-    `list_runs` shows these after a restart; a report not read this time keeps the last one.
+    `list_runs` shows these after a restart; a report not read this time keeps the last one. The
+    remaining time and finish of the last refresh are cleared: the refresh computes them again
+    once the results are recorded (`runs/remaining.py`), and a refresh that fails before leaves
+    them unknown rather than stale next to the new refresh time.
     """
     changes: dict[str, object] = {"refreshed_at": now, "stop_error": refreshed.stop_error}
+    changes.update(remaining_estimate_s=None, estimated_finish_at=None)
     if refreshed.read:
         worker = refreshed.worker
         changes["worker"] = None if worker is None else stored_report(state, worker)

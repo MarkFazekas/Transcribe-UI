@@ -2,7 +2,8 @@
 
 For every `ready` batch (not only the run's: the worker processes every manifest), each pending
 transcribe job whose result JSON is listed gets its status (`ok`, `no_speech` or `failed`, read
-through `reading.read_job_result`, with the result's `error`), and a batch whose `_done.json`
+through `reading.read_job_result`, with the result's `error`, its run and the worker's times on the
+job for the remaining-time estimate), and a batch whose `_done.json`
 exists moves to `transcribed` by compare-and-set. `_done.json` is looked for before the results
 are listed: the worker writes it after the batch's last result, so a listing made after seeing
 it holds every result (one written in between is seen at the next refresh, before the batch can
@@ -113,12 +114,19 @@ def _outcomes(found: FoundResults, pending: PendingJobs, *, done: bool) -> dict[
 
 
 def _record_result(session: Session, job_id: int, outcome: ResultRead) -> None:
-    """Set a job's status (and its failure reason) from its result, unless it is no longer pending."""
+    """Set a job's status, failure reason, run and times from its result, unless it is no longer pending."""
     row = session.get(JobRow, job_id)
     if row is None or row.status != JOB_PENDING:
         return
     stored = JobPayload.model_validate(row.payload)
-    payload = stored.model_copy(update={"result_error": outcome.error, "result_error_code": outcome.error_code})
+    worked = {
+        "result_error": outcome.error,
+        "result_error_code": outcome.error_code,
+        "result_run_id": outcome.run_id,
+        "result_started_at": outcome.started_at,
+        "result_finished_at": outcome.finished_at,
+    }
+    payload = stored.model_copy(update=worked)
     row.status = outcome.status
     row.payload = payload.model_dump(mode="json")
 

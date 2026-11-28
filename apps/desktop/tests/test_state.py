@@ -42,7 +42,7 @@ GET_APP_INFO_JSON = '{"action": "get_app_info"}'
 BATCH_ID = "batch_20261127_120000"
 COMPOSING: Final = "composing"
 REVIEWING: Final = "reviewing"
-HEAD = "c41f8e2a6d93"
+HEAD = "609bed4e68d4"
 UNKNOWN_REVISION = "ffffffffffff"
 EXPECTED_TABLES = frozenset(
     (

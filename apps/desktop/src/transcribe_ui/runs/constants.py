@@ -143,7 +143,8 @@ ERROR_POD_NOT_FOUND: Final = "pod_not_found"
 DESKTOP_DEADLINE_MARGIN_S: Final = 600
 # Worker state while the worker transcribes (the stage the app shows).
 WORKER_TRANSCRIBING: Final = "transcribing"
-# Worker state of a worker that is starting up (image pulled, model loading).
+# Worker state of a worker that is starting up (reading its plan); it reports `transcribing` before
+# it loads the model, and names its first job (`current`) once the model is loaded.
 WORKER_STARTING: Final = "starting"
 # Worker state of a worker that finished every job it could.
 WORKER_FINISHED: Final = "finished"
@@ -183,6 +184,10 @@ WORKER_LOG_FILE_MODE: Final = 0o600
 WORKER_LOG_CREATE_FLAGS: Final = os.O_CREAT | os.O_EXCL | os.O_WRONLY
 # Decimals of the cost so far (dollars).
 COST_SO_FAR_DECIMALS: Final = 2
+# Decimals of a run's `progress_fraction`.
+PROGRESS_FRACTION_DECIMALS: Final = 4
+# Job statuses whose processing time measures the worker's pace (a failed job may have taken none).
+PACED_JOB_STATUSES: Final = frozenset(("ok", "no_speech"))
 
 # Error code: the pod or queued pod is not one of the app's (`transcribe-ui-*`).
 ERROR_NOT_APP_POD: Final = "not_an_app_pod"
