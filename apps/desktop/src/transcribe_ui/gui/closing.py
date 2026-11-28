@@ -17,8 +17,9 @@ from dataclasses import dataclass
 from PySide6.QtWidgets import QWidget
 
 from transcribe_ui.gui.bridge import QtExecutor
-from transcribe_ui.gui.constants import CLOSE_CLOUD_NOTE, CLOSE_QUESTION, FINISHING_TEXT, QUIT_NOW_EXIT_CODE
+from transcribe_ui.gui.constants import QUIT_NOW_EXIT_CODE
 from transcribe_ui.gui.dialogs import CloseQuestion, FinishingDialog
+from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.media.runner import kill_running_tools
 
 
@@ -48,6 +49,14 @@ class QuitNow:
         self.exit_process(QUIT_NOW_EXIT_CODE)
 
 
+def _cloud_note() -> str:
+    """Return the note added to the close question while a run is not final (Q30)."""
+    return tr(
+        "The cloud machine keeps working without the app: it stops itself when the work is done or at its "
+        "time limit, and the app shows its results the next time it starts.",
+    )
+
+
 class CloseGuard:
     """Decides whether the window may close now, and runs the close question and the wait."""
 
@@ -74,12 +83,13 @@ class CloseGuard:
         if self._allowed or not (self._executor.pending() or run_active):
             return True
         if not self._asking:
-            self._ask(cloud_note=CLOSE_CLOUD_NOTE if run_active else None)
+            self._ask(cloud_note=_cloud_note() if run_active else None)
         return False
 
     def _ask(self, cloud_note: str | None) -> None:
         self._asking = True
-        question = CloseQuestion(CLOSE_QUESTION, cloud_note, self._window)
+        text = tr("Stop and close? The work continues from where it stopped the next time you start it.")
+        question = CloseQuestion(text, cloud_note, self._window)
         question.accepted.connect(self._stop_and_close)
         question.rejected.connect(self._keep_open)
         self.question = question
@@ -92,7 +102,7 @@ class CloseGuard:
         self._executor.shutdown()
         # Calls still queued were just cancelled; only running ones make the user wait.
         if self._executor.running():
-            self.finishing = FinishingDialog(FINISHING_TEXT, self._quit_now, self._window)
+            self.finishing = FinishingDialog(tr("Finishing the current step..."), self._quit_now, self._window)
             self.finishing.open()
         self._executor.when_idle(self._close_now)
 

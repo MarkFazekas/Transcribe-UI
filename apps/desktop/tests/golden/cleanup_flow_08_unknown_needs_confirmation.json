@@ -5,6 +5,7 @@
     "action": "cleanup_cloud",
     "confirmations": [
       {
+        "code": "cleanup_unknown_batch",
         "field": "confirm",
         "set_to": true,
         "message": "This batch is not known on this computer; all its data will be deleted from the cloud.",

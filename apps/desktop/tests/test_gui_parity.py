@@ -67,6 +67,7 @@ def _ask_confirmation(root: Path, request: GetAppInfoRequest, context: RequestCo
     path = str(root / "media" / "clip.mkv")
     context.progress.emit(ProgressEvent(action=request.action, stage="probe", completed=1, total=2, path=path))
     confirmation = Confirmation(
+        code="overwrite_targets",
         field="confirmed",
         set_to=True,
         message="Overwrite the existing subtitle?",

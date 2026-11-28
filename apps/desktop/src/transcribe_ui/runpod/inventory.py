@@ -12,7 +12,7 @@ from functools import partial
 from itertools import starmap
 from typing import Self
 
-from transcribe_ui.api.errors import DomainError
+from transcribe_ui.api.errors import Details, DomainError
 from transcribe_ui.runpod.access import api_failure
 from transcribe_ui.runpod.bodies import TemplateSpec
 from transcribe_ui.runpod.classes import CloudObjectKind, CloudObjectStatus
@@ -184,7 +184,8 @@ def volume_duplicated(volume_ids: tuple[str, ...]) -> DomainError:
         "backups, so the app deletes none of them: delete the unwanted ones in the Runpod console (Storage page), then "
         "run the cloud setup again."
     )
-    return DomainError(ERROR_CLOUD_VOLUME_DUPLICATED, message, {"volume_ids": list(volume_ids)})
+    details: Details = {"name": GLOBAL_VOLUME_NAME, "count": len(volume_ids), "volume_ids": list(volume_ids)}
+    return DomainError(ERROR_CLOUD_VOLUME_DUPLICATED, message, details)
 
 
 def require_cloud_setup(client: RunpodClient) -> CloudSetup:

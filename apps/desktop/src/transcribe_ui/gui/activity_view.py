@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 from transcribe_ui.gui.activity import Activity, ActivityEntry
 from transcribe_ui.gui.constants import PROGRESS_REPAINT_MS
 from transcribe_ui.gui.feedback import ErrorView
+from transcribe_ui.i18n.catalog import tr
 
 # Shows the error of a failed entry (the generic error dialog) with the re-send its Retry uses.
 type ShowError = Callable[[ErrorView, Callable[[], object]], object]
@@ -41,10 +42,14 @@ class ActivityRow(QWidget):
         self._path = QLabel(self)
         self._layout.addWidget(self._path)
         self._layout.addStretch()
-        self.cancel_button = self._button("Cancel", partial(activity.cancel, entry))
-        self.resume_button = self._button("Resume", partial(activity.resume, entry))
-        self.details_button = self._button("Details", partial(_show_entry_error, show_error, activity, entry))
-        self.dismiss_button = self._button("Dismiss", partial(activity.dismiss, entry))
+        cancel = partial(activity.cancel, entry)
+        self.cancel_button = self._button(tr("Cancel"), cancel)
+        resume = partial(activity.resume, entry)
+        self.resume_button = self._button(tr("Resume"), resume)
+        show_details = partial(_show_entry_error, show_error, activity, entry)
+        self.details_button = self._button(tr("Details"), show_details)
+        dismiss = partial(activity.dismiss, entry)
+        self.dismiss_button = self._button(tr("Dismiss"), dismiss)
         self.refresh()
 
     def refresh(self) -> None:

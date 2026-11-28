@@ -8,7 +8,7 @@ from transcribe_contracts.classes import PathFlavor
 from transcribe_ui.api.classes import Confirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.classes import BatchComposition
-from transcribe_ui.batches.constants import RELATIVE_SEPARATOR
+from transcribe_ui.batches.constants import CONFIRMATION_EXISTING_LANGUAGES, RELATIVE_SEPARATOR
 from transcribe_ui.batches.errors import NothingSelectedError, PathNotSelectedError
 from transcribe_ui.batches.payloads import ItemPayload
 from transcribe_ui.discovery.classes import ScanTreeResponse, ScanWarning, SelectedFile
@@ -56,7 +56,13 @@ class Composition:
         if not files:
             return None
         message = f"{len(files)} selected file(s) already have a subtitle in a target language."
-        return Confirmation(field="confirm_existing_languages", set_to=True, message=message, details={"files": files})
+        return Confirmation(
+            code=CONFIRMATION_EXISTING_LANGUAGES,
+            field="confirm_existing_languages",
+            set_to=True,
+            message=message,
+            details={"count": len(files), "files": files},
+        )
 
 
 def _tree(request: BatchComposition, context: RequestContext, action: str) -> ScanTreeResponse:

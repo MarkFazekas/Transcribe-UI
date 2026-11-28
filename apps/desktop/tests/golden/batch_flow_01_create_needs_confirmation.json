@@ -5,10 +5,12 @@
     "action": "create_batch",
     "confirmations": [
       {
+        "code": "existing_languages",
         "field": "confirm_existing_languages",
         "set_to": true,
         "message": "1 selected file(s) already have a subtitle in a target language.",
         "details": {
+          "count": 1,
           "files": [
             {
               "relative_path": "Movies/Film.mkv",

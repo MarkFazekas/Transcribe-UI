@@ -141,16 +141,26 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 
 ## Translations
 
-- Babel (`pybabel`, a dev dependency only; the app reads the catalogs with the standard
-  library) with `babel.cfg` in `apps/desktop`: `extract` (keywords `tr`, `ntr:1,2`) into
-  `transcribe_ui/locale/transcribe_ui.pot`, `update` into `en` and `hu`, `compile` into the
-  committed `.mo` files, so the app also runs from source.
-- The desktop target of `scripts/check.py` runs a catalog check: the `.pot` equals a fresh
-  extraction (ignoring `POT-Creation-Date`), each `.po` matches the `.pot`, `hu` has no
-  untranslated and no fuzzy entry, and each committed `.mo` equals a fresh compile.
-- PyInstaller bundles the `.mo` files in both executables (`--collect-data` for
-  `transcribe_ui.locale`); the release smoke test on Linux runs the CLI's `--help` with
-  `LANGUAGE=hu` and checks for a Hungarian line from the app's own help texts.
+- Babel (a dev dependency only; the app reads the catalogs with the standard library) through
+  `uv run scripts/catalogs.py update`: it extracts the texts marked with `tr` and `ntr:1,2`
+  (no default keywords: `_` is the linters' name for unused values) from the files
+  `apps/desktop/babel.cfg` maps into `transcribe_ui/locale/transcribe_ui.pot` (sorted by msgid,
+  file names without line numbers, so moving code changes nothing), merges it into the `en`
+  and `hu` catalogs (new texts empty, removed ones dropped, no fuzzy matching) and compiles the
+  committed `.mo` files, so the app also runs from source. A file whose content would not
+  change apart from its `POT-Creation-Date` is not rewritten. A new or changed text therefore
+  means: run `update`, write the Hungarian text in `hu/LC_MESSAGES/transcribe_ui.po`, run
+  `update` again (it compiles the `.mo`). `.gitattributes` marks `.mo` files binary.
+- The desktop target of `scripts/check.py` runs `scripts/catalogs.py check`: it fails when
+  `update` would change a file (the `.pot` equals a fresh extraction and each `.po` the merge
+  of it, ignoring `POT-Creation-Date`; each `.mo` equals a fresh compile), when a Hungarian
+  text is missing or fuzzy, or when a Hungarian text does not use exactly the `{fields}` of
+  its English text, format specs included (`{cost:.2f}`, `{audio_s:duration}`).
+- PyInstaller (M8) bundles the `.mo` files in both executables (data of the `transcribe_ui`
+  package, `transcribe_ui/locale/**/*.mo`) and, in the GUI executable, Qt's `qtbase_hu.qm`
+  (Qt's translations folder; without it Qt's own buttons stay English); the release smoke test
+  on Linux runs the CLI's `--help` with `LANGUAGE=hu` and checks for a Hungarian line from the
+  app's own help texts.
 
 ## Commits and branches
 

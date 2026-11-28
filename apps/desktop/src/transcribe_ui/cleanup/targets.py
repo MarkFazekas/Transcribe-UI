@@ -24,6 +24,9 @@ from transcribe_ui.cleanup.constants import (
     AUDIO_PHASES,
     CONFIRM_FIELD,
     CONFIRM_NOT_DOWNLOADED_FIELD,
+    CONFIRMATION_CLEANUP_AUDIO,
+    CONFIRMATION_CLEANUP_EVERYTHING,
+    CONFIRMATION_NOT_DOWNLOADED,
     EVERYTHING_PHASES,
     NOT_DOWNLOADED_PHASES,
 )
@@ -99,12 +102,25 @@ def missing_confirmations(request: CleanupCloudRequest, target: CleanupTarget) -
     details: dict[str, JsonValue] = {"batch_id": target.batch_id, "scope": request.scope, "phase": target.phase}
     needed: list[Confirmation] = []
     if not request.confirm:
+        code = CONFIRMATION_CLEANUP_AUDIO if request.scope == "audio" else CONFIRMATION_CLEANUP_EVERYTHING
         message = _message(request)
-        confirm = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
+        confirm = Confirmation(
+            code=code,
+            field=CONFIRM_FIELD,
+            set_to=True,
+            message=message,
+            details=details,
+        )
         needed.append(confirm)
     if request.scope == "everything" and _not_downloaded(target) and not request.confirm_not_downloaded:
         message = "The batch's subtitles may not be downloaded yet; after this, only the backup on the cloud volume keeps them."
-        not_downloaded = Confirmation(field=CONFIRM_NOT_DOWNLOADED_FIELD, set_to=True, message=message, details=details)
+        not_downloaded = Confirmation(
+            code=CONFIRMATION_NOT_DOWNLOADED,
+            field=CONFIRM_NOT_DOWNLOADED_FIELD,
+            set_to=True,
+            message=message,
+            details=details,
+        )
         needed.append(not_downloaded)
     return tuple(needed)
 

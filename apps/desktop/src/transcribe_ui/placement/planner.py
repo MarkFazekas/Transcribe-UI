@@ -8,7 +8,9 @@ with errors must not be carried out.
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import PurePath
+from typing import TYPE_CHECKING
 
+from transcribe_ui.api.errors import Details
 from transcribe_ui.discovery.rules import PathRules
 from transcribe_ui.placement.classes import (
     OutcomeOptions,
@@ -39,17 +41,32 @@ from transcribe_ui.placement.drafts import Draft, Source, closest_levels, resolv
 from transcribe_ui.placement.naming import TargetNames, is_clean_absolute
 from transcribe_ui.placement.probe import PlacementProbe
 
+if TYPE_CHECKING:
+    from pydantic import JsonValue
+
+
+def job_file(job: PlacementJob) -> str:
+    """Return the name of a job's media file (no folders: see `PlanError`)."""
+    return PurePath(job.source_path.replace("\\", "/")).name
+
 
 def job_label(job: PlacementJob) -> str:
-    """Return how messages name a job: its file name and language (no folders: see `PlanError`)."""
-    name = PurePath(job.source_path.replace("\\", "/")).name
-    return f"{name} ({job.language})"
+    """Return how messages name a job: its file name and language."""
+    return f"{job_file(job)} ({job.language})"
 
 
-def job_error(code: PlanErrorCode, message: str, job: PlacementJob) -> PlanError:
-    """Return a plan error about one job."""
+def job_error(code: PlanErrorCode, message: str, job: PlacementJob, details: Details | None = None) -> PlanError:
+    """Return a plan error about one job (details: its file's name and language, then `details`)."""
     text = f"{job_label(job)}: {message}"
-    return PlanError(code=code, message=text, item_id=job.item_id, language=job.language)
+    shown: dict[str, JsonValue] = {"file": job_file(job), "language": job.language}
+    shown.update(details or {})
+    return PlanError(
+        code=code,
+        message=text,
+        item_id=job.item_id,
+        language=job.language,
+        details=shown,
+    )
 
 
 def output_error() -> PlanError:
@@ -96,7 +113,8 @@ def name_errors(target: str | None, job: PlacementJob, names: TargetNames) -> li
     name = names.pure(target).name
     if names.length(name) + TEMP_TAIL_LENGTH > MAX_NAME_LENGTH:
         message = f"the name {name!r} (with its temp file's tail while it is written) is longer than {MAX_NAME_LENGTH}"
-        errors.append(job_error(ERROR_NAME_TOO_LONG, message, job))
+        limits: Details = {"name": name, "max_length": MAX_NAME_LENGTH}
+        errors.append(job_error(ERROR_NAME_TOO_LONG, message, job, limits))
     if names.path_too_long(target):
         errors.append(job_error(ERROR_PATH_TOO_LONG, "the target path is longer than Windows allows", job))
     return errors

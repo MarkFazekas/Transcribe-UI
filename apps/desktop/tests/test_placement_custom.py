@@ -24,6 +24,7 @@ from support.placement import (
     windows_path,
 )
 from transcribe_ui.discovery.rules import PathRules, posix_rules, windows_rules
+from transcribe_ui.placement import constants
 from transcribe_ui.placement.classes import CustomPlacementOptions, PlacementJob, PlacementPlan
 from transcribe_ui.placement.custom import export_custom_plan, import_custom_plan
 
@@ -43,6 +44,9 @@ RESERVED: Final = "reserves for a device"
 UNKNOWN_ITEM = 99
 # A file name stem that makes `<stem>.srt` longer than 255 bytes.
 LONG_STEM_LENGTH = 252
+# Details of an invalid name every error has (the rest says what is wrong).
+JOB_KEYS = frozenset(("file", "language", "name"))
+PROBLEM: Final = "problem"
 # A JSON object of a custom plan document.
 type JsonObject = dict[str, object]
 
@@ -249,3 +253,41 @@ def test_windows_round_trip() -> None:
     plan = _windows_import({})
     assert targets(plan) == [windows_path(path) for path in below(WINDOWS_OUTPUT, "x/movie.hu.srt,y/movie.hu.srt")]
     assert not plan.errors
+
+
+def _name_problems(plan: PlacementPlan) -> list[dict[str, object]]:
+    """Return what the invalid-name errors' details say is wrong (their problem code and values)."""
+    found = (error.details for error in plan.errors if error.code == INVALID_NAME)
+    return [{key: shown for key, shown in details.items() if key not in JOB_KEYS} for details in found]
+
+
+@pytest.mark.parametrize(
+    ("file_name", "problem"),
+    [
+        ("", {PROBLEM: constants.NAME_PROBLEM_NOT_A_NAME}),
+        ("a\x00b.srt", {PROBLEM: constants.NAME_PROBLEM_CHARACTERS, "characters": ["U+0000"]}),
+        (
+            f"{'x' * LONG_STEM_LENGTH}.srt",
+            {PROBLEM: constants.NAME_PROBLEM_TOO_LONG, "max_length": constants.MAX_NAME_LENGTH},
+        ),
+    ],
+    ids=["empty-name", "nul", "name-too-long"],
+)
+def test_invalid_names_carry_their_problem_code(file_name: str, problem: dict[str, object]) -> None:
+    """An invalid name's details give the problem as a code with its values (the frontends translate it)."""
+    assert _name_problems(_import(_edited(0, output_file_name=file_name))) == [problem]
+
+
+@pytest.mark.parametrize(
+    ("fields", "problem"),
+    [
+        ({FILE_NAME: "NUL.srt"}, {PROBLEM: constants.NAME_PROBLEM_RESERVED}),
+        ({FILE_NAME: "movie.srt:hidden"}, {PROBLEM: constants.NAME_PROBLEM_STREAM}),
+        ({FILE_NAME: "what?.srt"}, {PROBLEM: constants.NAME_PROBLEM_CHARACTERS, "characters": ["?"]}),
+        ({FOLDER: "x."}, {PROBLEM: constants.NAME_PROBLEM_TRAILING}),
+    ],
+    ids=["nul", "stream", "question-mark", "trailing-dot"],
+)
+def test_windows_names_carry_their_problem_code(fields: JsonObject, problem: dict[str, object]) -> None:
+    """The Windows name rules give their problem codes too."""
+    assert _name_problems(_windows_import(fields)) == [problem]

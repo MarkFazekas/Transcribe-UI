@@ -141,6 +141,7 @@ def job_view(member: ItemPayload, job: StoredJob) -> JobView:
         status=job.row.status,
         resolved=choice_problem(member, job.kind, payload) is None,
         result_error=payload.result_error,
+        result_error_code=payload.result_error_code,
     )
 
 

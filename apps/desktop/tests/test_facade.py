@@ -33,7 +33,9 @@ def _ask_confirmation(root: Path, request: GetAppInfoRequest, context: RequestCo
     path = str(root.joinpath(*MEDIA_PATH_PARTS))
     context.progress.emit(ProgressEvent(action=request.action, stage="probe", completed=1, total=2, path=path))
     message = "Overwrite the existing subtitle?"
-    confirmation = Confirmation(field="confirmed", set_to=True, message=message, details={"count": 1})
+    confirmation = Confirmation(
+        code="overwrite_targets", field="confirmed", set_to=True, message=message, details={"count": 1}
+    )
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))
 
 

@@ -12,10 +12,13 @@ from functools import partial
 
 from transcribe_ui.api.classes import ErrorResponse, ProgressEvent, Request, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
-from transcribe_ui.gui.constants import ACTIVITY_STATE_TEXTS, ActivityState
+from transcribe_ui.gui.constants import ActivityState
 from transcribe_ui.gui.executor import CallHandle, DoneCallback, ExclusiveChannel, Executor
 from transcribe_ui.gui.feedback import ErrorView, error_view
+from transcribe_ui.gui.texts import activity_state_text
 from transcribe_ui.gui.viewmodel import ViewModel
+from transcribe_ui.i18n.formats import format_number
+from transcribe_ui.i18n.texts import code_text
 
 
 def _ignore(_response: Response) -> None:
@@ -23,10 +26,12 @@ def _ignore(_response: Response) -> None:
 
 
 def progress_text(event: ProgressEvent) -> str:
-    """Return a progress event as "stage completed/total" (no total: "stage completed")."""
+    """Return a progress event as "stage completed/total" (no total: "stage completed"), the stage translated."""
+    stage = code_text("stage", event.stage)
+    done = format_number(event.completed)
     if event.total is None:
-        return f"{event.stage} {event.completed}"
-    return f"{event.stage} {event.completed}/{event.total}"
+        return f"{stage} {done}"
+    return f"{stage} {done}/{format_number(event.total)}"
 
 
 @dataclass
@@ -50,7 +55,7 @@ class ActivityEntry:
             return self.error.message
         if self.state == "running" and self.last_event is not None:
             return progress_text(self.last_event)
-        return ACTIVITY_STATE_TEXTS[self.state]
+        return activity_state_text(self.state)
 
     @property
     def path(self) -> str:

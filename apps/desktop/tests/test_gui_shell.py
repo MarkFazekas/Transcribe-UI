@@ -23,20 +23,17 @@ from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.gui.activity_view import ActivityRow
 from transcribe_ui.gui.closing import QuitNow, flush_log_handlers
 from transcribe_ui.gui.constants import (
-    ACTIVITY_STATE_TEXTS,
-    CLOSE_CLOUD_NOTE,
     LONG_POOL_THREADS,
-    NOT_AVAILABLE_TEXT,
     PAGE_CLOUD,
     PAGE_JOBS,
     PAGE_NEW_JOB,
     PAGE_SETTINGS,
     PAGES,
-    PLACEHOLDER_TEXT,
 )
 from transcribe_ui.gui.dialogs import ErrorDialog
 from transcribe_ui.gui.feedback import confirmation_view, error_view
 from transcribe_ui.gui.shell import MainWindow
+from transcribe_ui.gui.texts import activity_state_text
 from transcribe_ui.state.logs import log_to_file
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -70,7 +67,7 @@ def test_the_shell_shows_four_placeholder_pages(window: MainWindow) -> None:
     for key in (PAGE_NEW_JOB, PAGE_JOBS, PAGE_CLOUD, PAGE_SETTINGS):
         page = window.pages.page(key)
         assert isinstance(page, QLabel)
-        assert page.text() == PLACEHOLDER_TEXT
+        assert page.text() == "This page is not available yet."
 
 
 def test_navigation_signals_open_their_pages(window: MainWindow) -> None:
@@ -88,7 +85,7 @@ def test_unhandled_actions_say_not_available(window: MainWindow) -> None:
     """An action signal without a handler shows "Not available yet"; a connected one reaches its handler."""
     signals = window.context.signals
     signals.retry_jobs.emit(BATCH, ("job",))
-    assert window.statusBar().currentMessage() == NOT_AVAILABLE_TEXT
+    assert window.statusBar().currentMessage() == "Not available yet."
     window.statusBar().clearMessage()
     received: list[tuple[str, str]] = []
     window.connect_handler("clean_up", lambda batch_id, scope: received.append((batch_id, scope)))
@@ -166,7 +163,7 @@ def test_activity_retry_resumes_the_entry(qtbot: QtBot, tmp_path: Path) -> None:
 
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:
     """Confirm calls back the caller, which re-sends the confirmed request."""
-    confirmation = Confirmation(field="confirm", set_to=True, message="Delete?")
+    confirmation = Confirmation(code="test_delete", field="confirm", set_to=True, message="Delete?")
     asked = NeedsConfirmation(action="cleanup_cloud", confirmations=(confirmation,))
     confirmed: list[bool] = []
     dialog = window.show_confirmation(confirmation_view(asked), lambda: confirmed.append(True))
@@ -190,11 +187,11 @@ def test_activity_panel_cancels_and_resumes(window: MainWindow, gated: GatedRunn
     assert entry is not None
     wait_for(qtbot, lambda: entry.state == "running" and _row(window).cancel_button.isVisibleTo(window))
     _row(window).cancel_button.click()
-    wait_for(qtbot, lambda: _status(window) == ACTIVITY_STATE_TEXTS["stopped"])
+    wait_for(qtbot, lambda: _status(window) == activity_state_text("stopped"))
     _row(window).resume_button.click()
     wait_for(qtbot, lambda: gated.started(UPLOAD) == len(("first", "resumed")))
     gated.release()
-    wait_for(qtbot, lambda: _status(window) == ACTIVITY_STATE_TEXTS["finished"])
+    wait_for(qtbot, lambda: _status(window) == activity_state_text("finished"))
     assert gated.requests[0] == gated.requests[1]
 
 
@@ -216,7 +213,7 @@ def test_activity_rows_survive_progress(qtbot: QtBot, tmp_path: Path) -> None:
     wait_for(qtbot, lambda: _progress_count(window) > first + 1)
     assert _row(window).cancel_button is cancel_button
     cancel_button.click()
-    wait_for(qtbot, lambda: _status(window) == ACTIVITY_STATE_TEXTS["stopped"])
+    wait_for(qtbot, lambda: _status(window) == activity_state_text("stopped"))
     assert _row(window).cancel_button is cancel_button
 
 
@@ -263,7 +260,7 @@ def test_close_during_a_run_adds_the_cloud_note(qtbot: QtBot, tmp_path: Path) ->
     question = window.closing.question
     assert question is not None
     texts = [label.text() for label in question.findChildren(QLabel)]
-    assert CLOSE_CLOUD_NOTE in texts
+    assert any(text.startswith("The cloud machine keeps working without the app") for text in texts)
     question.reject()
     assert window.isVisible()
     active[0] = False

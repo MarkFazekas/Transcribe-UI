@@ -83,7 +83,7 @@ def api_failure(error: RunpodApiError) -> DomainError:
         )
         return DomainError(ERROR_RUNPOD_KEY_SCOPE, message, {"scope": error.scope})
     message = f"Runpod could not be reached or answered unexpectedly ({error.message}). Try again later."
-    return DomainError(ERROR_CLOUD_UNREACHABLE, message)
+    return DomainError(ERROR_CLOUD_UNREACHABLE, message, {"cause": error.message})
 
 
 def setup_credentials(store: CredentialStore) -> tuple[SecretStr, dict[str, SecretStr]]:

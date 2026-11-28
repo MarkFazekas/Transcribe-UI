@@ -21,11 +21,12 @@ from transcribe_ui.state.constants import SETTINGS_STALE_TEMP_S, SETTINGS_TEMP_P
 from transcribe_ui.state.settings import default_settings
 
 GET_SETTINGS = '{"action": "get_settings"}'
+HUNGARIAN = "hu"
 
 
 def _updated_settings() -> dict[str, object]:
     return {
-        "enabled_languages": ["en", "de", "hu"],
+        "enabled_languages": ["en", "de", HUNGARIAN],
         "video_extensions": ["mkv", "mp4"],
         "audio_extensions": ["flac", "mp3"],
         "include_hidden": True,
@@ -37,6 +38,7 @@ def _updated_settings() -> dict[str, object]:
             "folder_count": 2,
             "overwrite": True,
         },
+        "language": HUNGARIAN,
     }
 
 
@@ -69,8 +71,8 @@ def test_settings_round_trip_matches_on_both_legs(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("name", "settings"),
     [
-        ("unknown_language", _defaults_with(enabled_languages=["hu", "xx"])),
-        ("duplicate_language", _defaults_with(enabled_languages=["hu", "en", "hu"])),
+        ("unknown_language", _defaults_with(enabled_languages=[HUNGARIAN, "xx"])),
+        ("duplicate_language", _defaults_with(enabled_languages=[HUNGARIAN, "en", HUNGARIAN])),
         ("no_language", _defaults_with(enabled_languages=[])),
         ("bad_extension", _defaults_with(video_extensions=[".MKV"])),
         ("extension_in_both_classes", _defaults_with(video_extensions=["mka"], audio_extensions=["mka"])),
@@ -79,7 +81,7 @@ def test_settings_round_trip_matches_on_both_legs(tmp_path: Path) -> None:
         ("relative_tool_path", _defaults_with(ffprobe_path="bin/ffprobe")),
         ("unknown_field", _defaults_with(theme="dark")),
         # A partial document is refused, never completed with defaults (that would reset fields).
-        ("partial", {"enabled_languages": ["hu"]}),
+        ("partial", {"enabled_languages": [HUNGARIAN]}),
     ],
 )
 def test_invalid_settings_are_refused_on_both_legs(tmp_path: Path, name: str, settings: object) -> None:

@@ -5,6 +5,7 @@
     "action": "get_app_info",
     "confirmations": [
       {
+        "code": "overwrite_targets",
         "field": "confirmed",
         "set_to": true,
         "message": "Overwrite the existing subtitle?",

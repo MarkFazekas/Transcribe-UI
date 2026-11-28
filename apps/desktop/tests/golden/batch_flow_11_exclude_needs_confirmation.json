@@ -5,6 +5,7 @@
     "action": "exclude_items",
     "confirmations": [
       {
+        "code": "exclude_items",
         "field": "confirm",
         "set_to": true,
         "message": "1 file(s) will be removed from the batch.",

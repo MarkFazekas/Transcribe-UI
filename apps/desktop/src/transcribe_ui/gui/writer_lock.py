@@ -14,6 +14,7 @@ from typing import Literal
 from transcribe_ui.api.classes import ErrorResponse, Request, Response
 from transcribe_ui.batches.classes import ListBatchesRequest
 from transcribe_ui.gui.executor import Executor
+from transcribe_ui.gui.feedback import error_message
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.state.constants import ERROR_APP_BUSY
 
@@ -28,7 +29,7 @@ class WriterLockGate(ViewModel):
         """Send the probe through this executor."""
         super().__init__(executor)
         self.state: LockState = "unknown"
-        # The message of the `app_busy` error while busy.
+        # The text of the `app_busy` error while busy.
         self.message = ""
         self._probing = False
         self._on_acquired: list[Callable[[], None]] = []
@@ -56,7 +57,7 @@ class WriterLockGate(ViewModel):
     def note(self, _request: Request, response: Response) -> None:
         """Observe every response: `app_busy` from any request means another process holds the lock."""
         if isinstance(response, ErrorResponse) and response.error.code == ERROR_APP_BUSY:
-            self._set("busy", response.error.message)
+            self._set("busy", error_message(response.error))
 
     def _probed(self, request: Request, response: Response) -> None:
         self._probing = False

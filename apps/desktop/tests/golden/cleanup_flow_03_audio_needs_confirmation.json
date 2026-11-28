@@ -5,6 +5,7 @@
     "action": "cleanup_cloud",
     "confirmations": [
       {
+        "code": "cleanup_audio",
         "field": "confirm",
         "set_to": true,
         "message": "The batch's audio will be deleted from the cloud; its subtitles stay, but it can no longer be retried.",

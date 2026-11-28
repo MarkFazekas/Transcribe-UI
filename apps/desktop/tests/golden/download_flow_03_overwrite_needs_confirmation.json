@@ -5,10 +5,12 @@
     "action": "run_download",
     "confirmations": [
       {
+        "code": "overwrite_targets",
         "field": "confirm_overwrite",
         "set_to": true,
         "message": "1 existing subtitle file(s) will be replaced.",
         "details": {
+          "count": 1,
           "targets": [
             "Film.en.srt"
           ]

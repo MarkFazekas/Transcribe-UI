@@ -18,7 +18,12 @@ from support.runs import READY, RunsWorld, batch_state, seed_uploaded
 from support.storage import store_client
 from transcribe_contracts.layout import result_json_key, results_prefix
 from transcribe_ui.batches.payloads import JobPayload
-from transcribe_ui.runs.constants import MISSING_RESULT_ERROR, UNREADABLE_RESULT_ERROR
+from transcribe_ui.runs.constants import (
+    MISSING_RESULT_CODE,
+    MISSING_RESULT_ERROR,
+    UNREADABLE_RESULT_CODE,
+    UNREADABLE_RESULT_ERROR,
+)
 from transcribe_ui.runs.results import check_ready_batches
 from transcribe_ui.state.models import JobRow
 from transcribe_ui.storage.r2 import ObjectInfo, R2ObjectStore
@@ -81,10 +86,12 @@ def _finish(world: RunsWorld, run_id: str) -> None:
     write_done(world.store, FIRST_BATCH_ID, run_id, world.now())
 
 
-def _result_error(world: RunsWorld, item_id: str) -> str | None:
+def _result_error(world: RunsWorld, item_id: str) -> tuple[str | None, str | None]:
+    """Return the stored failure of an item's job: its text and its code."""
     with world.ports.state.session() as session:
         row = session.query(JobRow).filter(JobRow.item_id == item_id).one()
-        return JobPayload.model_validate(row.payload).result_error
+        payload = JobPayload.model_validate(row.payload)
+        return payload.result_error, payload.result_error_code
 
 
 def test_unreadable_result_fails_once_done(world: RunsWorld) -> None:
@@ -102,7 +109,9 @@ def test_unreadable_result_fails_once_done(world: RunsWorld) -> None:
     )
     reasons = (_result_error(world, FILM_ID), _result_error(world, PODCAST_ID))
     # Every job failed: nothing is left to download, so the `downloaded` rule moves the batch on.
-    assert (reasons, batch_state(world)) == (("decoding failed", UNREADABLE_RESULT_ERROR), DOWNLOADED)
+    # The worker's own error has no code; the desktop's has one (the frontends translate it).
+    expected = (("decoding failed", None), (UNREADABLE_RESULT_ERROR, UNREADABLE_RESULT_CODE))
+    assert (reasons, batch_state(world)) == (expected, DOWNLOADED)
 
 
 def test_missing_result_fails_once_done(world: RunsWorld) -> None:
@@ -113,5 +122,5 @@ def test_missing_result_fails_once_done(world: RunsWorld) -> None:
     refresh(world)
     assert (job_statuses(world, FIRST_BATCH_ID), _result_error(world, PODCAST_ID)) == (
         {FILM_ID: "ok", PODCAST_ID: "failed"},
-        MISSING_RESULT_ERROR,
+        (MISSING_RESULT_ERROR, MISSING_RESULT_CODE),
     )

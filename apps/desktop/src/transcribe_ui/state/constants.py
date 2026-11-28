@@ -115,3 +115,7 @@ ERROR_SETTINGS_UNWRITABLE: Final = "settings_unwritable"
 DEFAULT_PLACEMENT_STRATEGY: Final = "next_to_media"
 # Folders closest to the file joined into the name by the flat-with-folders placement (X, §3.5).
 DEFAULT_PLACEMENT_FOLDER_COUNT: Final = 1
+# Language setting of a fresh installation, and of a settings file that cannot be read: the OS decides.
+DEFAULT_LANGUAGE_SETTING: Final = "system"
+# Settings field of the language, read on its own at the frontends' start-up.
+LANGUAGE_FIELD: Final = "language"

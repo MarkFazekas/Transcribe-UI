@@ -37,6 +37,7 @@ from transcribe_ui.placement.classes import (
 )
 from transcribe_ui.placement.constants import (
     CONFIRM_OVERWRITE_FIELD,
+    CONFIRMATION_OVERWRITE,
     DOWNLOAD_STAGE,
     ERROR_DOWNLOAD_WRITE_FAILED,
     ERROR_SUBTITLE_MISSING,
@@ -45,7 +46,7 @@ from transcribe_ui.placement.constants import (
     WRITING_OUTCOMES,
 )
 from transcribe_ui.placement.errors import DownloadPlanInvalidError
-from transcribe_ui.placement.planner import job_label
+from transcribe_ui.placement.planner import job_file, job_label
 from transcribe_ui.placement.recording import Placed, mark_downloaded, record_placement
 from transcribe_ui.placement.sources import DownloadJob, DownloadSource
 from transcribe_ui.placement.writer import check_target, place_file
@@ -107,10 +108,11 @@ def _overwrite_confirmation(action: str, entries: Sequence[PlannedPlacement]) ->
     if not replaced:
         return None
     confirmation = Confirmation(
+        code=CONFIRMATION_OVERWRITE,
         field=CONFIRM_OVERWRITE_FIELD,
         set_to=True,
         message=f"{len(replaced)} existing subtitle file(s) will be replaced.",
-        details={"targets": list(replaced)},
+        details={"count": len(replaced), "targets": list(replaced)},
     )
     return NeedsConfirmation(action=action, confirmations=(confirmation,))
 
@@ -132,6 +134,7 @@ def _failure(job: DownloadJob, entry: PlannedPlacement, error: OSError | None = 
         target_path=entry.target_path,
         code=ERROR_SUBTITLE_MISSING,
         message=f"{label}: the subtitle is not in the cloud any more.",
+        details={"file": job_file(job.job), "language": job.job.language},
     )
     if error is not None:
         message = f"{label}: the subtitle cannot be written; send the request again once the target is writable."

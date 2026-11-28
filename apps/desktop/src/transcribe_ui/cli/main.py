@@ -1,10 +1,11 @@
 """Command-line frontend: `transcribe-ui run <request.json>`, `schema` and `--version` (§3.1).
 
 The response is printed to stdout as JSON in every case and progress events go to stderr as
-NDJSON, both UTF-8 with LF line ends on every OS. Exit codes are in `cli/constants.py`.
+NDJSON, both UTF-8 with LF line ends on every OS. Exit codes are in `cli/constants.py`. The JSON
+is a machine contract and is never translated; the help texts the app gives argparse are shown
+in the language of the `language` setting (argparse's own texts stay English).
 """
 
-import argparse
 import logging
 import sys
 from collections.abc import Sequence
@@ -17,6 +18,7 @@ from transcribe_ui.api.schema import render_schema
 from transcribe_ui.api.wiring import build_backend
 from transcribe_ui.cli.constants import CLI_LOG_FILE_NAME, ERROR_INVALID_ARGUMENTS
 from transcribe_ui.cli.output import failure, respond, write_text
+from transcribe_ui.cli.parser import UsageError, parse_arguments
 from transcribe_ui.cli.run_command import BackendFactory, cancelled_before_reading, run_request
 from transcribe_ui.constants import DISTRIBUTION_NAME
 from transcribe_ui.state.logs import log_to_file, user_log_file
@@ -24,37 +26,11 @@ from transcribe_ui.state.logs import log_to_file, user_log_file
 logger = logging.getLogger(__name__)
 
 
-class UsageError(Exception):
-    """The command line is not valid."""
-
-
-class StrictParser(argparse.ArgumentParser):
-    """Argument parser that raises instead of printing usage and exiting."""
-
-    def error(self, message: str) -> NoReturn:
-        """Raise the problem, so it is answered with an error response.
-
-        Raises:
-            UsageError: Always.
-        """
-        raise UsageError(message)
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Return the command-line parser."""
-    parser = StrictParser(prog=DISTRIBUTION_NAME, description="Run Transcribe-UI requests from JSON files.")
-    parser.add_argument("--version", action="store_true", help="print the app version and exit")
-    commands = parser.add_subparsers(dest="command", metavar="command")
-    run_parser = commands.add_parser("run", help="run the request in a JSON file and print the response as JSON")
-    run_parser.add_argument("request", help="path of the request JSON file")
-    schema_parser = commands.add_parser("schema", help="print the JSON Schema of the requests")
-    schema_parser.add_argument("--response", action="store_true", help="print the JSON Schema of the responses instead")
-    return parser
-
-
 def _dispatch(argv: Sequence[str] | None, make_backend: BackendFactory, out: BinaryIO, err: BinaryIO) -> int:
+    # The backend opens nothing yet; it is built first for the language of the help texts.
+    backend = make_backend()
     try:
-        args = build_parser().parse_args(argv)
+        args = parse_arguments(argv, backend.language_setting())
     except UsageError as error:
         return respond(out, failure(ERROR_INVALID_ARGUMENTS, str(error)))
     if args.version:
@@ -62,7 +38,7 @@ def _dispatch(argv: Sequence[str] | None, make_backend: BackendFactory, out: Bin
     if args.command == "schema":
         return write_text(out, render_schema("response" if args.response else "request"))
     if args.command == "run":
-        return run_request(Path(args.request), make_backend, out, err)
+        return run_request(Path(args.request), backend, out, err)
     return respond(out, failure(ERROR_INVALID_ARGUMENTS, "A command is required (run or schema)."))
 
 

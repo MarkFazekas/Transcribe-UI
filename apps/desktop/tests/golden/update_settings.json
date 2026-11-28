@@ -25,7 +25,8 @@
         "output_folder": "<root>/subtitles",
         "folder_count": 2,
         "overwrite": true
-      }
+      },
+      "language": "hu"
     },
     "languages": [
       {

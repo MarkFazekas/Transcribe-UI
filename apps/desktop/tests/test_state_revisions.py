@@ -1,13 +1,14 @@
-"""The revision `composition_and_run_report` over a database of the initial revision (plan m6 M6.1).
+"""The revisions after the initial one, over a database of the initial revision (plan m6 M6.1, M6.14).
 
-A database written at the initial revision holds batch and run payloads of the old shape; opening
-it upgrades it, adding the new keys as null, and the app reads it: the batch has no composition,
-the run no stored report and no refresh time.
+A database written at the initial revision holds batch, run and job payloads of the old shape;
+opening it upgrades it, adding the new keys, and the app reads it: the batch has no composition,
+the run no stored report and no refresh time (`composition_and_run_report`), and a job that
+failed with the desktop's own texts gets their codes (`result_error_code`).
 """
 
 import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import ExitStack, closing
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -26,7 +27,7 @@ from transcribe_ui.state.database import sqlite_engine
 # The initial revision, which the old database carries.
 INITIAL_REVISION = "5d0c3b1e7a42"
 # The newest revision.
-NEW_REVISION = "b7e2c4a91f03"
+NEW_REVISION = "c41f8e2a6d93"
 BATCH_ID = "batch_20261127_120000"
 RUN_ID = "01JDQ0000000000000000000R1"
 # A fingerprint as stored (a SHA-256 in hex).
@@ -52,6 +53,36 @@ OLD_RUN_PAYLOAD = MappingProxyType(
         "end_reason": "worker_finished",
     },
 )
+# Job payloads as the initial revision's app wrote them, by job id: a worker error, the desktop's
+# two texts, and a job that did not fail.
+OLD_JOB_PAYLOADS = MappingProxyType(
+    {
+        1: {"mode": "normal", "track_index": 0, "stream_index": None, "result_error": "RuntimeError: out of memory"},
+        2: {"mode": "normal", "track_index": 0, "stream_index": None, "result_error": "unreadable result"},
+        3: {"mode": "normal", "track_index": 0, "stream_index": None, "result_error": "missing result"},
+        4: {"mode": "normal", "track_index": 0, "stream_index": None, "result_error": None},
+    },
+)
+# The code each old job gets.
+JOB_CODES = MappingProxyType({1: None, 2: "result_unreadable", 3: "result_missing", 4: None})
+ITEM_ID = "01JDQ0000000000000000000T1"
+# The item the jobs belong to, as the initial revision's app wrote it (an audio file).
+OLD_ITEM_PAYLOAD: Mapping[str, object] = MappingProxyType(
+    {
+        "position": 0,
+        "path": "/media/talk.mp3",
+        "relative_path": "talk.mp3",
+        "name": "talk.mp3",
+        "kind": "audio",
+        "size_bytes": 1000,
+        "mtime_ns": 0,
+        "subtitle_languages": [],
+        "probe": None,
+        "problem": None,
+        "copy_sources": [],
+    },
+)
+LANGUAGES = MappingProxyType({1: "en", 2: "de", 3: "fr", 4: "hu"})
 # Elapsed seconds of the stored run: from the pod's creation to its end.
 RUN_SECONDS = 1800.0
 
@@ -82,6 +113,16 @@ def _old_rows(database_file: Path) -> None:
             "INSERT INTO runs VALUES (?, 'finished', ?, ?, ?, ?)",
             (RUN_ID, f"transcribe-ui-{RUN_ID}", moment, moment, json.dumps(dict(OLD_RUN_PAYLOAD))),
         )
+        connection.execute(
+            "INSERT INTO items (item_id, batch_id, phase, payload) VALUES (?, ?, 'uploaded', ?)",
+            (ITEM_ID, BATCH_ID, json.dumps(dict(OLD_ITEM_PAYLOAD))),
+        )
+        for job_id, payload in OLD_JOB_PAYLOADS.items():
+            connection.execute(
+                "INSERT INTO jobs (job_id, item_id, batch_id, language, kind, status, payload) "
+                "VALUES (?, ?, ?, ?, 'transcribe', 'failed', ?)",
+                (job_id, ITEM_ID, BATCH_ID, LANGUAGES[job_id], json.dumps(payload)),
+            )
 
 
 def _stored(database_file: Path, query: str) -> str:
@@ -130,3 +171,17 @@ def test_upgraded_rows_read_as_before(upgraded: tuple[Backend, Path]) -> None:
     run = runs[0]
     assert (run["worker"], run["refreshed_at"], run["elapsed_s"]) == (None, None, RUN_SECONDS)
     assert run["elapsed_until"] == OLD_RUN_PAYLOAD["ended_at"]
+    jobs = detail["batch"]["items"][0]["jobs"]
+    codes = {job["language"]: job["result_error_code"] for job in jobs}
+    assert codes == {LANGUAGES[job_id]: code for job_id, code in JOB_CODES.items()}
+
+
+def test_old_jobs_get_their_result_error_code(upgraded: tuple[Backend, Path]) -> None:
+    """The desktop's two failure texts get their codes; a worker's error and no error get null."""
+    backend, database_file = upgraded
+    _ok(backend, {"action": "list_batches"})
+    with closing(sqlite3.connect(database_file)) as connection:
+        rows = connection.execute("SELECT job_id, payload FROM jobs ORDER BY job_id").fetchall()
+    stored = {job_id: json.loads(payload) for job_id, payload in rows}
+    expected = {job_id: {**OLD_JOB_PAYLOADS[job_id], "result_error_code": code} for job_id, code in JOB_CODES.items()}
+    assert stored == expected

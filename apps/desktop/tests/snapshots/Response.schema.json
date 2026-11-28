@@ -931,6 +931,10 @@
       "additionalProperties": false,
       "description": "One thing the user has to confirm before the request is carried out.",
       "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
         "details": {
           "additionalProperties": {
             "$ref": "#/$defs/JsonValue"
@@ -951,6 +955,7 @@
         }
       },
       "required": [
+        "code",
         "field",
         "set_to",
         "message",
@@ -1321,6 +1326,13 @@
         "code": {
           "$ref": "#/$defs/DownloadFailureCode"
         },
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
         "item_id": {
           "$ref": "#/$defs/Ulid"
         },
@@ -1360,7 +1372,8 @@
         "target_path",
         "code",
         "message",
-        "reason"
+        "reason",
+        "details"
       ],
       "title": "DownloadFailure",
       "type": "object"
@@ -1868,6 +1881,16 @@
           ],
           "title": "Result Error"
         },
+        "result_error_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResultErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "status": {
           "title": "Status",
           "type": "string"
@@ -1905,7 +1928,8 @@
         "stream_index",
         "status",
         "resolved",
-        "result_error"
+        "result_error",
+        "result_error_code"
       ],
       "title": "JobView",
       "type": "object"
@@ -1952,6 +1976,14 @@
       ],
       "title": "LanguageOption",
       "type": "object"
+    },
+    "LanguageSetting": {
+      "enum": [
+        "system",
+        "en",
+        "hu"
+      ],
+      "type": "string"
     },
     "LaunchOutcome": {
       "enum": [
@@ -2393,6 +2425,13 @@
         "code": {
           "$ref": "#/$defs/PlanErrorCode"
         },
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
         "item_id": {
           "anyOf": [
             {
@@ -2424,7 +2463,8 @@
         "code",
         "message",
         "item_id",
-        "language"
+        "language",
+        "details"
       ],
       "title": "PlanError",
       "type": "object"
@@ -2757,6 +2797,13 @@
       ],
       "title": "ResolveReviewResponse",
       "type": "object"
+    },
+    "ResultErrorCode": {
+      "enum": [
+        "result_unreadable",
+        "result_missing"
+      ],
+      "type": "string"
     },
     "RetryOutcome": {
       "anyOf": [
@@ -3762,16 +3809,15 @@
       "description": "Outcome of trying one service's credentials.",
       "properties": {
         "code": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Code"
+          "title": "Code",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
         },
         "message": {
           "title": "Message",
@@ -3788,7 +3834,8 @@
         "service",
         "outcome",
         "code",
-        "message"
+        "message",
+        "details"
       ],
       "title": "ServiceCheck",
       "type": "object"
@@ -3863,6 +3910,9 @@
           "title": "Include Hidden",
           "type": "boolean"
         },
+        "language": {
+          "$ref": "#/$defs/LanguageSetting"
+        },
         "placement": {
           "$ref": "#/$defs/PlacementDefaults"
         },
@@ -3877,7 +3927,8 @@
         "include_hidden",
         "ffmpeg_path",
         "ffprobe_path",
-        "placement"
+        "placement",
+        "language"
       ],
       "title": "Settings",
       "type": "object"

@@ -112,13 +112,14 @@ def _checked_override(tool: Tool, override: Path) -> Path:
         DomainError: `media_tool_not_found` (source `settings`) otherwise.
     """
     if not override.is_absolute():
-        problem = "is not an absolute path on this computer"
+        code, problem = "not_absolute", "is not an absolute path on this computer"
     elif not override.is_file():
-        problem = "is not a file"
+        code, problem = "not_a_file", "is not a file"
     else:
         return override
     message = f"The {tool} path set in the settings {problem}: {override}"
-    raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, {"tool": tool, "source": "settings"})
+    details = {"tool": tool, "source": "settings", "problem": code, "path": str(override)}
+    raise DomainError(ERROR_MEDIA_TOOL_NOT_FOUND, message, details)
 
 
 def executable_name(tool: Tool) -> str:

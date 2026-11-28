@@ -421,7 +421,7 @@ def test_catalog_price() -> None:
 @pytest.mark.parametrize(
     ("credentials", "failures", "expected"),
     [
-        (FULL_CREDENTIALS, (), ("ok", None, 1)),
+        (FULL_CREDENTIALS, (), ("ok", "runpod_check_passed", 1)),
         (NO_CREDENTIALS, (), ("missing", "credentials_missing", 0)),
         ({"runpod_api_key": "rpa_WRONG"}, (), ("failed", "runpod_key_rejected", 1)),
         (FULL_CREDENTIALS, (Failure(status=FORBIDDEN),), ("failed", "runpod_key_missing_scope", 1)),

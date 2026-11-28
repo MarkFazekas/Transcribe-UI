@@ -125,7 +125,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": false,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             }
           ]
         },
@@ -149,7 +150,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": false,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             },
             {
               "language": "hu",
@@ -159,7 +161,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": false,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             }
           ]
         },
@@ -181,7 +184,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": false,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             },
             {
               "language": "hu",
@@ -191,7 +195,8 @@
               "stream_index": null,
               "status": "pending",
               "resolved": false,
-              "result_error": null
+              "result_error": null,
+              "result_error_code": null
             }
           ]
         }

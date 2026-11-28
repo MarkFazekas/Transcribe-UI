@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, Request, Response
+from transcribe_ui.api.classes import ErrorBody, ErrorResponse, LanguageSetting, Request, Response
 from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import CancelFlag, CancelToken, DiscardProgress, Ports, ProgressSink, RequestContext
@@ -25,6 +25,14 @@ class Backend:
     def log_dir(self) -> Path:
         """Return the folder of the frontends' log files."""
         return self._ports.state.paths.log_dir
+
+    def language_setting(self) -> LanguageSetting:
+        """Return the language setting the frontends start with (`system` when the file cannot be read).
+
+        Read from the settings file without a request: a frontend needs it before it shows its
+        first text (the CLI's `--help` included), and it never fails.
+        """
+        return self._ports.state.settings.language()
 
     def close(self) -> None:
         """Close the database and give the writer lock up (the GUI, when its window closes)."""

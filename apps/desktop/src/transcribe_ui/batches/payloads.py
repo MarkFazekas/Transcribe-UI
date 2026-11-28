@@ -18,6 +18,9 @@ type JobKind = Literal["transcribe", "extract"]
 type CleanupScope = Literal["audio", "everything"]
 # Why an item cannot be resolved until it is probed again (or excluded).
 type ProblemCode = Literal["source_missing", "probe_failed", "source_changing"]
+# Why a transcribe job failed when the desktop decided it (not the worker): its result could not
+# be read, or there was none, once the batch's `_done.json` was there.
+type ResultErrorCode = Literal["result_unreadable", "result_missing"]
 
 
 class RetryJob(FrozenModel):
@@ -126,3 +129,6 @@ class JobPayload(FrozenModel):
     # Why a transcribe job failed: its result's `error`, or `unreadable result` when its result
     # JSON could not be read once the batch's `_done.json` was there (`refresh_status`).
     result_error: str | None = None
+    # The code of a failure the desktop decided (`result_error` is then its English text); None
+    # for the worker's own errors, which are not translated.
+    result_error_code: ResultErrorCode | None = None

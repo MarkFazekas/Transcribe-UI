@@ -11,8 +11,9 @@ chosen output folder; then it gives the same plan as the other strategies.
 
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import PurePath
+from typing import TYPE_CHECKING
 
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from transcribe_ui.discovery.rules import PathRules
 from transcribe_ui.placement.classes import (
@@ -48,6 +49,9 @@ from transcribe_ui.placement.planner import (
     target_outcome,
 )
 from transcribe_ui.placement.probe import PlacementProbe
+
+if TYPE_CHECKING:
+    from transcribe_ui.api.errors import Details
 
 # A job's identity in a custom plan: its item and language.
 type JobKey = tuple[str, str]
@@ -90,14 +94,22 @@ def _schema_problems(error: ValidationError) -> Iterator[str]:
 
 
 def _schema_error(error: ValidationError) -> PlanError:
-    problems = "; ".join(_schema_problems(error))
-    message = f"The custom plan does not match its format: {problems}"
-    return PlanError(code=ERROR_CUSTOM_SCHEMA, message=message)
+    listed = list(_schema_problems(error))
+    message = f"The custom plan does not match its format: {'; '.join(listed)}"
+    shown: list[JsonValue] = []
+    shown.extend(listed)
+    return PlanError(code=ERROR_CUSTOM_SCHEMA, message=message, details={"problems": shown})
 
 
 def _unknown_error(entry: CustomPlanEntry) -> PlanError:
     message = f"plan entry {entry.item_id} ({entry.language}) is not a job of this download"
-    return PlanError(code=ERROR_CUSTOM_UNKNOWN_JOB, message=message, item_id=entry.item_id)
+    return PlanError(
+        code=ERROR_CUSTOM_UNKNOWN_JOB,
+        message=message,
+        item_id=entry.item_id,
+        language=entry.language,
+        details={"item_id": entry.item_id, "language": entry.language},
+    )
 
 
 def _source_unchanged(entry: CustomPlanEntry, job: PlacementJob, names: TargetNames) -> bool:
@@ -133,7 +145,9 @@ def _entry_name_errors(entry: CustomPlanEntry, job: PlacementJob, names: TargetN
     for name in checked:
         problem = names.problem(name)
         if problem is not None:
-            errors.append(job_error(ERROR_CUSTOM_INVALID_NAME, f"the name {name!r} {problem}", job))
+            shown: Details = {"name": name, "problem": problem.code, **problem.details}
+            message = f"the name {name!r} {problem.text}"
+            errors.append(job_error(ERROR_CUSTOM_INVALID_NAME, message, job, shown))
     if not has_subtitle_extension(entry.output_file_name):
         errors.append(job_error(ERROR_CUSTOM_NOT_SRT, "output_file_name does not end with .srt", job))
     return errors

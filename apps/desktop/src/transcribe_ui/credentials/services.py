@@ -2,6 +2,7 @@
 
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.credentials.checks import failed_check
 from transcribe_ui.credentials.classes import (
     CheckCredentialsRequest,
     CheckCredentialsResponse,
@@ -11,7 +12,7 @@ from transcribe_ui.credentials.classes import (
     StoreCredentialsRequest,
     StoreCredentialsResponse,
 )
-from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_MISSING, R2_CHECK_PASSED
+from transcribe_ui.credentials.constants import R2_CHECK_PASSED, R2_CHECK_PASSED_CODE
 from transcribe_ui.runpod.check import check_runpod
 from transcribe_ui.storage.client import CHECK_LIMITS, open_object_store
 
@@ -41,6 +42,5 @@ def _check_r2(context: RequestContext) -> ServiceCheck:
     try:
         open_object_store(ports.credentials, ports.r2_clients, CHECK_LIMITS).check_access()
     except DomainError as error:
-        outcome = "missing" if error.code == ERROR_CREDENTIALS_MISSING else "failed"
-        return ServiceCheck(service="r2", outcome=outcome, code=error.code, message=error.message)
-    return ServiceCheck(service="r2", outcome="ok", message=R2_CHECK_PASSED)
+        return failed_check("r2", error)
+    return ServiceCheck(service="r2", outcome="ok", code=R2_CHECK_PASSED_CODE, message=R2_CHECK_PASSED)

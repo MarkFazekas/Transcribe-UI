@@ -185,7 +185,7 @@ def test_overwrite_needs_confirmation(world: RunsWorld) -> None:
     options = placement(overwrite=True)
     asked = send(leg, request(RUN_DOWNLOAD, placement=options))
     assert asked.status == "needs_confirmation"
-    assert asked.confirmations[0].details == {"targets": ["Film.en.srt"]}
+    assert asked.confirmations[0].details == {"count": 1, "targets": ["Film.en.srt"]}
     assert (recorded(leg), sidecar.read_bytes()) == ([], b"")
     confirmed = ok_document(send(leg, confirmed_document(request(RUN_DOWNLOAD, placement=options), asked)))
     assert (outcomes(confirmed)[FILM_ID], sidecar.read_bytes()) == ("overwrite", SUBTITLE)

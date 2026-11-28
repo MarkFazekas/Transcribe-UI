@@ -118,45 +118,87 @@ docs/human/, docs/ai/     see CLAUDE.md
   rejected identically everywhere. Local settings only shape what the GUI offers.
 - Long operations (upload, download) are resumable commands: re-sending the same request
   continues from persisted state instead of starting over.
-- **Language of the texts** (Q32; to be built in M6.14, `plans/m6.md`):
+- **Language of the texts** (Q32; built in M6.14, code `transcribe_ui/i18n/`):
   - Catalogs: GNU gettext, as Django uses them: `transcribe_ui/locale/{en,hu}/LC_MESSAGES/
-    transcribe_ui.po` and the compiled `.mo` next to them (package data), read with the
-    standard library's `gettext` through `transcribe_ui/i18n/` (no Qt, so the GUI, the CLI
+    transcribe_ui.po`, the compiled `.mo` next to them and the template `transcribe_ui.pot`
+    (package data of the `transcribe_ui` package; `locale` is a plain folder, not a package),
+    read with the standard library's `gettext` (`i18n/catalog.py`; no Qt, so the GUI, the CLI
     and later MCP share one catalog; not Qt's `.ts`/`.qm`). The msgids are the English texts;
-    `en.po` may leave a msgstr empty (the msgid is shown) and exists so wording can change
+    `en.po` leaves every msgstr empty (the msgid is shown) and exists so wording can change
     without a code change. Code marks texts with `tr()` and `ntr()` (plural forms), not `_`,
-    which the linters reserve for unused names.
+    which the linters reserve for unused names. A frontend activates its language once at
+    start-up, before it builds a text, so no text is translated at import time: constants hold
+    no texts, and texts several GUI modules show are functions (`gui/texts.py`). A catalog that
+    cannot be read logs a warning and shows the English texts.
   - Language choice: the setting `language` (§3.8): `system` (default), `en` or `hu`. With
     `system` the OS user interface language decides, read through an injected port
-    (`i18n/system.py`): Windows `GetUserDefaultUILanguage`; macOS the first entry of
-    `defaults read -g AppleLanguages`; Linux and other POSIX the first set variable of
-    `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`, taking the first entry of `LANGUAGE`'s
-    `:`-separated list and cutting the value at `_`, `.` or `@` (`C` and `POSIX` mean English).
-    Hungarian when that language is `hu`, otherwise English. An unreadable or invalid settings
-    file counts as `system` for the language. Each frontend resolves it
-    once at start-up (the CLI too; it has no `--lang` flag, since its JSON is not translated).
-    A change in Settings applies after a restart: the GUI asks "Restart now to change the
-    language?" (Restart now / Later; a restart goes through the close handling of Q30).
+    (`i18n/system.py`, `os_language`): Windows `GetUserDefaultUILanguage` (its LANGID's locale
+    name); macOS the first entry of `/usr/bin/defaults read -g AppleLanguages` (5 s limit);
+    Linux and other POSIX the first set variable of `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`,
+    taking the first entry of `LANGUAGE`'s `:`-separated list. Each value is cut at `_`, `.`,
+    `@` or `-` and lower-cased (`C` and `POSIX` mean English); a read that fails gives no
+    language. Hungarian when that language is `hu`, otherwise English (`i18n/language.py`).
+    The frontends read the setting with `Backend.language_setting()` (no request, never
+    fails: `SettingsStore.language` reads only that field, so a missing, unreadable or invalid
+    file, or an invalid value, counts as `system`, while a broken other field does not change
+    the language). Each frontend resolves it once at start-up: `run_gui` before it builds the
+    window, and it also installs Qt's own translation (`qtbase_hu.qm` from Qt's translations
+    folder) for the texts Qt shows itself (standard buttons such as Cancel, context menus);
+    the CLI before it builds its parser (it builds its backend first, which opens nothing; it
+    has no `--lang` flag, since its JSON is not translated). A change in Settings applies
+    after a restart: the GUI asks "Restart now to change the language?" (Restart now / Later;
+    a restart goes through the close handling of Q30; built with the settings page, M6.3).
     Switching live would need every page to re-render its texts on a signal, which costs
     every GUI part extra work and tests for a rare action.
   - The backend stays language-neutral: responses, codes, `details`, progress stages and the
     stored data do not depend on the language, so the same request gives the same response
-    everywhere (parity unchanged). Every text the backend returns has a stable code and its
-    values in `details`, next to an English `message` (the text of the log, the CLI JSON and an
-    LLM reading it): errors, each confirmation kind (a `code` per `Confirmation`), plan errors
-    (`PlanError`), download failures, placement plan reasons and `check_credentials` results.
+    everywhere (parity unchanged; a test compares the backend's and the CLI's bytes under both
+    languages). Every text the backend returns has a stable code and its values in `details`,
+    next to an English `message` (the text of the log, the CLI JSON and an LLM reading it):
+    - errors: `ErrorBody.code`;
+    - confirmations: `Confirmation.code` (`delete_batch`, `exclude_items`,
+      `existing_languages`, `launch_plan`, `cleanup_audio`, `cleanup_everything`,
+      `cleanup_not_downloaded`, `cleanup_unknown_batch`, `overwrite_targets`,
+      `terminate_pod`, `cancel_queued_pod`);
+    - placement plan errors and download failures: their `code`, with `details` (`file`: the
+      media file's name, `language`, and the values a message adds, such as `name`);
+    - placement plan reasons (`renamed_by`), scan warnings, item problems, progress stages and
+      the cost estimate's `price_source` (`fallback`): their codes;
+    - `check_credentials`: `ServiceCheck.code` on every outcome (`r2_check_passed`,
+      `runpod_check_passed`, else the error's code) and the error's `details`;
+    - the desktop's own job failures: `JobView.result_error_code` (`result_unreadable`,
+      `result_missing`; stored in the job payload, revision `result_error_code`; None for the
+      worker's own errors, which are shown as they are).
   - The frontends translate what they present: every GUI text; each of those backend texts is
-    shown from the catalog entry of its code, formatted with its `details` (each value a
-    message shows is therefore also in `details`), with the English `message` only as the
-    fallback for a code without an entry (a test keeps every code covered). The CLI's JSON (requests, responses,
-    progress NDJSON) is a machine contract and is not translated; its human texts (the texts
-    the app passes to argparse for `--help`, `--progress text`, the `credentials` prompts) are,
-    through `tr()`; argparse's own fixed strings are not. Numbers, dates and durations are
-    formatted by one `i18n` helper per language (Hungarian: decimal comma, `2026. 11. 27.`,
-    24-hour time).
+    shown from the catalog entry of its code (`i18n/texts.py` `code_text(kind, code, details,
+    fallback)`; the entries are in `i18n/error_texts.py` and `i18n/code_texts.py`), formatted
+    with its `details` (each value a message shows is therefore also in `details`), with the
+    English `message` only as the fallback for a code without an entry or an entry its details
+    cannot fill (both logged; a test fills every entry from its code's details and every coded
+    text of the golden files, in both languages). An entry is a template whose `{key}` fields
+    name details, or a function of the details returning the template (plural forms, a
+    sentence only for some values). An error code whose wording depends on one detail has
+    variants `<code>.<value>` (`ERROR_VARIANTS`: the `source` of `media_tool_not_found`, the
+    `operation` of `media_tool_failed` and `media_output_unwritable`, the `reason` of
+    `choice_invalid` and `cloud_setup_interrupted`, the `part` of `cloud_unreachable`, the
+    `keyring` of `credentials_missing`), and so has the plan error `custom_plan_invalid_name`
+    (`PLAN_ERROR_VARIANTS`: its `problem`, a code such as `forbidden_characters` with its
+    values, `characters` or `max_length`). Values are shown as the language writes them: numbers
+    with its separators (`{cost:.2f}`), `{seconds:duration}` as a duration, lists joined with
+    commas, booleans as yes or no. The GUI's texts call the backend's batches "jobs" and its
+    jobs "transcriptions". The CLI's JSON (requests, responses, progress NDJSON) is a machine
+    contract and is not translated; its human texts (the texts the app passes to argparse for
+    `--help`, `cli/parser.py`; later `--progress text` and the `credentials` prompts) are,
+    through `tr()`; argparse's own fixed strings are not, nor the names of the arguments
+    (argparse quotes them in its errors, which become the `invalid_arguments` JSON). The CLI
+    writes `--help` as UTF-8 (a Windows pipe would use the ANSI code page). Numbers, dates and durations are
+    formatted by one helper per language (`i18n/formats.py`; English `1,234.5`, `2026-11-27`;
+    Hungarian `1 234,5` with a no-break space, `2026. 11. 27.`; both 24-hour time; durations
+    `1 h 5 min` / `1 ó 5 p`).
   - Not translated: subtitle content and its language codes, Whisper language names in
-    requests and responses, file and folder names, log records, and the worker's error texts.
-    The desktop's own `result_error` values (`unreadable result`, `missing result`) get codes.
+    requests and responses, file and folder names, log records, the worker's error texts, and
+    the GUI entry's `display_unavailable` answer (written before Qt starts, like the CLI's
+    JSON).
 
 #### GUI
 
@@ -178,7 +220,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   imports `gui/app.py` and runs `run_gui(make_backend)` (tests inject seeded ports) inside
   `log_to_file(transcribe-ui-gui.log)`. `run_gui` routes Qt's messages to the log
   (`qInstallMessageHandler`, logger `transcribe_ui.gui.qt`) and exceptions escaping a slot
-  (`sys.excepthook`) there too, never to stderr. When the event loop ends (normally through the
+  (`sys.excepthook`) there too, never to stderr; then it builds the backend and activates the
+  language of the texts (`gui/language.py`: the `language` setting, the app's catalog and Qt's
+  own translation; §3.1 "Language of the texts") before it builds the window. When the event loop ends (normally through the
   close dialog, or without it, as when the session ends) it hides the window, runs the
   executor's `shutdown`, closes it (answers still on their way are dropped, no callback runs
   any more) and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s, one deadline for
@@ -189,10 +233,11 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   `SyncExecutor`), `viewmodel.py` (the view-model base: an injected `Executor` and change
   listeners), `activity.py` (the activity panel's view-model), `feedback.py` (error and
   confirmation display data), `writer_lock.py` (the lock notice's view-model), `display.py`,
-  `main.py`, `constants.py`; Qt modules `bridge.py` (`QtExecutor`), `signals.py` (the bus and
+  `main.py`, `constants.py`, `texts.py` (texts several modules show: page titles, fix labels,
+  activity states); Qt modules `bridge.py` (`QtExecutor`), `signals.py` (the bus and
   the start-up hooks), `shell.py` (main window, wiring), `pages.py` (navigation, pages, lock
   notice), `closing.py` (Q30), `dialogs.py`, `activity_view.py`, `messages.py`, `context.py`,
-  `app.py`. A test imports the Qt-free modules in a subprocess and checks that PySide6 stays
+  `language.py`, `app.py`. A test imports the Qt-free modules in a subprocess and checks that PySide6 stays
   unloaded; another parses every module outside `gui/` and refuses any import of `PySide6`,
   `shiboken6` or `transcribe_ui.gui` at any nesting level. Areas (`settings/`, `selection/`, `jobs/`, `review/`, `cloud/`, `download/`,
   `cleanup/`) each get `viewmodel.py` and `view.py` in their part.
@@ -253,13 +298,15 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   lock. While another process holds it (`app_busy` from any response), a page that needs the
   database is replaced by a notice with Retry; Settings stays usable. A Retry that gets the
   lock emits `batches_changed(())` and `runs_changed` so pages reload.
-- **Errors and confirmations**: one error dialog for every code (message; collapsed Details with
+- **Errors and confirmations**: one error dialog for every code (the catalog text of the code,
+  the backend's message only for a code without an entry; collapsed Details with
   the code, the details as a key/value table and one table per detail that lists objects, "Open
   log folder"; `internal_error` adds "see the log"). `ERROR_FIXES` adds a button: credentials
   codes → Settings accounts, cloud setup codes → Settings cloud setup, `cleanup_pending` → the
   first batch in `batch_ids`, `app_busy` → Retry (re-sends the failed action, if any, and
   probes the writer lock, so the notice clears too); unknown codes render generically. One
-  confirmation dialog for every `needs_confirmation`; Confirm re-sends the same request with
+  confirmation dialog for every `needs_confirmation` (each confirmation's catalog text);
+  Confirm re-sends the same request with
   each `field` set to its `set_to` (`feedback.confirmed_request`, validated as a `Request`).
 - **Closing** (Q30): with calls pending or a run not final (`GuiContext.run_active`, set by the
   cloud page), the window asks "Stop and close?" (with the cloud-machine note while a run is not
@@ -1579,9 +1626,11 @@ directories, the settings store, the locks and the lazily opened database.
   columns (phase, status, outcome, flags) plus a JSON `payload` column, so most later changes
   touch payload classes, not tables. Timestamps come from the injected clock and are stored as
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
-  Revisions (`state/migrations/versions/`): `initial_schema` (frozen since M5 was built) and
+  Revisions (`state/migrations/versions/`): `initial_schema` (frozen since M5 was built),
   `composition_and_run_report` (M6.1: adds `composition` to batch payloads and `worker`,
-  `stop_error`, `refreshed_at`, `cancel_acknowledged_at` to run payloads as null). Every change
+  `stop_error`, `refreshed_at`, `cancel_acknowledged_at` to run payloads as null) and
+  `result_error_code` (M6.14: adds `result_error_code` to job payloads, the code of the stored
+  `unreadable result` and `missing result`, null otherwise). Every change
   is a new revision, including any change of a stored payload's shape (a field added, removed,
   renamed or retyped, a literal value dropped; the payload models forbid unknown fields, so an
   older app could not read a payload with an added field, and the revision makes it refuse the

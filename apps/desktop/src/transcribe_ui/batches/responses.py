@@ -7,7 +7,7 @@ from pydantic import AwareDatetime, Field, NonNegativeInt
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath, PathFlavor
 from transcribe_ui.batches.classes import ItemLanguages, TargetLanguages
-from transcribe_ui.batches.payloads import CleanupScope, ItemPhase, ItemProblem, JobKind
+from transcribe_ui.batches.payloads import CleanupScope, ItemPhase, ItemProblem, JobKind, ResultErrorCode
 from transcribe_ui.discovery.classes import ScanSpec, ScanWarning, SelectionOperation
 from transcribe_ui.media.classes import AudioTrack, SubtitleStream
 from transcribe_ui.state.models import BatchPhase
@@ -55,6 +55,9 @@ class JobView(FrozenModel):
     # Why a transcribe job failed (`status` `failed`): its result's error, `unreadable result` or
     # `missing result`; None otherwise.
     result_error: str | None
+    # The code of `unreadable result` and `missing result` (the frontends show its catalog text);
+    # None for the worker's own errors (shown as they are) and for jobs that did not fail.
+    result_error_code: ResultErrorCode | None
 
 
 class BatchItem(FrozenModel):

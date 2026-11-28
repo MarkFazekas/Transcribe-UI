@@ -14,7 +14,7 @@ from transcribe_contracts.classes import Manifest
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.cleanup.classes import CleanupCloudRequest, CleanupCloudResponse
-from transcribe_ui.cleanup.constants import CONFIRM_FIELD
+from transcribe_ui.cleanup.constants import CONFIRM_FIELD, CONFIRMATION_UNKNOWN_BATCH
 from transcribe_ui.cleanup.manifests import read_unknown_manifest
 from transcribe_ui.cleanup.stages import Purge, delete_unknown
 from transcribe_ui.runs.cloud import open_cloud
@@ -59,5 +59,11 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
 def _confirmation(request: CleanupCloudRequest, manifest: Manifest) -> NeedsConfirmation:
     message = "This batch is not known on this computer; all its data will be deleted from the cloud."
     details: dict[str, JsonValue] = {"batch_id": manifest.batch_id, "files": len(manifest.items), "known": False}
-    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
+    confirmation = Confirmation(
+        code=CONFIRMATION_UNKNOWN_BATCH,
+        field=CONFIRM_FIELD,
+        set_to=True,
+        message=message,
+        details=details,
+    )
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))

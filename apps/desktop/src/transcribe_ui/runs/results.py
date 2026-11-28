@@ -118,7 +118,7 @@ def _record_result(session: Session, job_id: int, outcome: ResultRead) -> None:
     if row is None or row.status != JOB_PENDING:
         return
     stored = JobPayload.model_validate(row.payload)
-    payload = stored.model_copy(update={"result_error": outcome.error})
+    payload = stored.model_copy(update={"result_error": outcome.error, "result_error_code": outcome.error_code})
     row.status = outcome.status
     row.payload = payload.model_dump(mode="json")
 

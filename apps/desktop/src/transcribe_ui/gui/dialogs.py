@@ -23,8 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from transcribe_ui.gui.constants import DETAIL_KEY_HEADER, DETAIL_VALUE_HEADER, SEE_LOG_TEXT
 from transcribe_ui.gui.feedback import ConfirmationView, Details, ErrorView, Fix
+from transcribe_ui.i18n.catalog import tr
 
 # Carries out the fix of an error (open a page, retry the request).
 type FixHandler = Callable[[Fix], None]
@@ -59,7 +59,8 @@ def read_only_table(columns: tuple[str, ...], rows: Rows, parent: QWidget) -> QT
 def add_details(layout: QVBoxLayout, details: Details, parent: QWidget) -> None:
     """Add the rows of the details (as one key/value table) and each detail table to the layout."""
     if details.rows:
-        layout.addWidget(read_only_table((DETAIL_KEY_HEADER, DETAIL_VALUE_HEADER), details.rows, parent))
+        headers = (tr("Detail"), tr("Value"))
+        layout.addWidget(read_only_table(headers, details.rows, parent))
     for detail_table in details.tables:
         layout.addWidget(QLabel(detail_table.title, parent))
         layout.addWidget(read_only_table(detail_table.columns, detail_table.rows, parent))
@@ -86,12 +87,12 @@ class ErrorDialog(QDialog):
     def __init__(self, view: ErrorView, log_dir: Path, on_fix: FixHandler, parent: QWidget | None = None) -> None:
         """Show `view`; "Open log folder" opens `log_dir`; the fix button calls `on_fix`."""
         super().__init__(parent)
-        self.setWindowTitle("Something went wrong")
+        self.setWindowTitle(tr("Something went wrong"))
         layout = QVBoxLayout(self)
         layout.addWidget(wrapped_label(view.message, self))
         if view.see_log:
-            layout.addWidget(QLabel(SEE_LOG_TEXT, self))
-        self.details_button = QPushButton("Details", self)
+            layout.addWidget(QLabel(tr("See the log for what went wrong."), self))
+        self.details_button = QPushButton(tr("Details"), self)
         self.details_button.setCheckable(True)
         layout.addWidget(self.details_button)
         self.details = self._details(view, log_dir)
@@ -102,9 +103,10 @@ class ErrorDialog(QDialog):
     def _details(self, view: ErrorView, log_dir: Path) -> QWidget:
         section = QWidget(self)
         section_layout = QVBoxLayout(section)
-        section_layout.addWidget(QLabel(f"Code: {view.code}", section))
+        code = tr("Code: {code}").format(code=view.code)
+        section_layout.addWidget(QLabel(code, section))
         add_details(section_layout, view.details, section)
-        log_button = QPushButton("Open log folder", section)
+        log_button = QPushButton(tr("Open log folder"), section)
         log_button.clicked.connect(partial(open_folder, log_dir))
         section_layout.addWidget(log_button)
         section.setVisible(False)
@@ -130,12 +132,12 @@ class ConfirmationDialog(QDialog):
     def __init__(self, view: ConfirmationView, parent: QWidget | None = None) -> None:
         """Show `view`."""
         super().__init__(parent)
-        self.setWindowTitle("Please confirm")
+        self.setWindowTitle(tr("Please confirm"))
         layout = QVBoxLayout(self)
         for confirmation in view.confirmations:
             layout.addWidget(wrapped_label(confirmation.message, self))
             add_details(layout, confirmation.details, self)
-        buttons, confirm_button = accept_buttons(self, "Confirm")
+        buttons, confirm_button = accept_buttons(self, tr("Confirm"))
         self.confirm_button = confirm_button
         layout.addWidget(buttons)
 
@@ -146,12 +148,12 @@ class CloseQuestion(QDialog):
     def __init__(self, question: str, cloud_note: str | None, parent: QWidget | None = None) -> None:
         """Ask `question`; add `cloud_note` when given."""
         super().__init__(parent)
-        self.setWindowTitle("Close Transcribe-UI")
+        self.setWindowTitle(tr("Close Transcribe-UI"))
         layout = QVBoxLayout(self)
         layout.addWidget(wrapped_label(question, self))
         if cloud_note is not None:
             layout.addWidget(wrapped_label(cloud_note, self))
-        buttons, close_button = accept_buttons(self, "Stop and close")
+        buttons, close_button = accept_buttons(self, tr("Stop and close"))
         self.close_button = close_button
         layout.addWidget(buttons)
 
@@ -166,10 +168,10 @@ class FinishingDialog(QDialog):
     def __init__(self, text: str, on_quit_now: Action, parent: QWidget | None = None) -> None:
         """Show `text`; "Quit now" calls `on_quit_now`."""
         super().__init__(parent)
-        self.setWindowTitle("Closing")
+        self.setWindowTitle(tr("Closing"))
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(text, self))
-        self.quit_now_button = QPushButton("Quit now", self)
+        self.quit_now_button = QPushButton(tr("Quit now"), self)
         self.quit_now_button.clicked.connect(on_quit_now)
         layout.addWidget(self.quit_now_button)
 

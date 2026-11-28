@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.batches.classes import DeleteBatchRequest, ExcludeItemsRequest
-from transcribe_ui.batches.constants import CONFIRM_FIELD
+from transcribe_ui.batches.constants import CONFIRM_FIELD, CONFIRMATION_DELETE_BATCH, CONFIRMATION_EXCLUDE_ITEMS
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -18,7 +18,13 @@ def delete_confirmation(request: DeleteBatchRequest, phase: str, item_count: int
     """Return the confirmation of deleting the batch (details: the batch, its phase and item count)."""
     details: dict[str, JsonValue] = {"batch_id": request.batch_id, "phase": phase, "items": item_count}
     message = f"The batch and its {item_count} file(s) will be deleted from this computer's job list."
-    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
+    confirmation = Confirmation(
+        code=CONFIRMATION_DELETE_BATCH,
+        field=CONFIRM_FIELD,
+        set_to=True,
+        message=message,
+        details=details,
+    )
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))
 
 
@@ -33,5 +39,11 @@ def exclude_confirmation(request: ExcludeItemsRequest, phase: str, *, uploaded_a
     message = f"{count} file(s) will be removed from the batch."
     if uploaded_audio:
         message = f"{message} Their audio already uploaded to the cloud is deleted."
-    confirmation = Confirmation(field=CONFIRM_FIELD, set_to=True, message=message, details=details)
+    confirmation = Confirmation(
+        code=CONFIRMATION_EXCLUDE_ITEMS,
+        field=CONFIRM_FIELD,
+        set_to=True,
+        message=message,
+        details=details,
+    )
     return NeedsConfirmation(action=request.action, confirmations=(confirmation,))

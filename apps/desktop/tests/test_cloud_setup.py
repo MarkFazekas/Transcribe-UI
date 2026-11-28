@@ -213,7 +213,8 @@ def test_duplicate_volumes_are_never_deleted(tmp_path: Path) -> None:
     before, setup = run_parity(tmp_path, [STATUS, SETUP], ports=legs)
     assert (_states(before)[GLOBAL_VOLUME_NAME], _response(before)["ready"]) == ("duplicated", False)
     assert _error(setup)["code"] == ERROR_CLOUD_VOLUME_DUPLICATED
-    assert _error(setup)["details"] == {"volume_ids": [f"gsb_{SECOND_ID}", f"gsb_{FIRST_ID}"]}
+    volume_ids = [f"gsb_{SECOND_ID}", f"gsb_{FIRST_ID}"]
+    assert _error(setup)["details"] == {"name": GLOBAL_VOLUME_NAME, "count": 2, "volume_ids": volume_ids}
     api = legs.clouds[-1].api
     assert (len(api.volumes.records), api.count("DELETE", f"{VOLUMES}/gsb_{FIRST_ID}")) == (TWO_OBJECTS, 0)
     with legs.clouds[-1].client() as client, pytest.raises(DomainError, match="Global Volumes"):
@@ -229,7 +230,7 @@ def test_lost_create_is_adopted_by_the_next_run(cloud: Cloud) -> None:
     assert isinstance(response, ErrorResponse)
     assert (response.error.code, response.error.details) == (
         ERROR_CLOUD_SETUP_INTERRUPTED,
-        {"kind": "template", "name": TEMPLATE_NAME},
+        {"kind": "template", "name": TEMPLATE_NAME, "reason": "may_exist"},
     )
     cloud.clock.advance(SETTLE)
     again = cloud.set_up()

@@ -21,10 +21,10 @@ from transcribe_ui.api.classes import (
 from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.cleanup.classes import CleanupCloudRequest
 from transcribe_ui.gui.activity import Activity
-from transcribe_ui.gui.constants import ACTIVITY_STATE_TEXTS, FIX_LABELS
 from transcribe_ui.gui.executor import LatestChannel, SyncExecutor, cancelled_response
 from transcribe_ui.gui.feedback import Fix, confirmation_view, confirmed_request, error_view
 from transcribe_ui.gui.signals import StartupHooks, StartupSlot
+from transcribe_ui.gui.texts import activity_state_text, fix_label
 from transcribe_ui.gui.writer_lock import WriterLockGate
 from transcribe_ui.runs.classes import LaunchWorkerRequest
 
@@ -40,6 +40,7 @@ QT_FREE_MODULES = (
     "transcribe_ui.gui.executor",
     "transcribe_ui.gui.feedback",
     "transcribe_ui.gui.main",
+    "transcribe_ui.gui.texts",
     "transcribe_ui.gui.viewmodel",
     "transcribe_ui.gui.writer_lock",
 )
@@ -66,9 +67,9 @@ def test_view_model_modules_do_not_load_qt() -> None:
 def test_error_view_offers_known_fixes() -> None:
     """Known codes get their fix (with the batch of `cleanup_pending`), others the generic layout."""
     pending = error_view(_error("cleanup_pending", {"batch_ids": ["batch_20261127_120000"]}))
-    assert pending.fix == Fix("open_batch", FIX_LABELS["open_batch"], "batch_20261127_120000")
+    assert pending.fix == Fix("open_batch", fix_label("open_batch"), "batch_20261127_120000")
     missing = error_view(_error("credentials_missing"))
-    assert missing.fix == Fix("accounts", FIX_LABELS["accounts"])
+    assert missing.fix == Fix("accounts", fix_label("accounts"))
     unknown = error_view(_error("a_code_from_the_future", {"why": "new"}))
     assert (unknown.fix, unknown.see_log, unknown.details.rows) == (None, False, (("why", "new"),))
     assert error_view(_error("internal_error")).see_log
@@ -91,8 +92,14 @@ def test_confirming_sets_each_field() -> None:
     asked = NeedsConfirmation(
         action="cleanup_cloud",
         confirmations=(
-            Confirmation(field="confirm", set_to=True, message="Delete?"),
-            Confirmation(field="confirm_not_downloaded", set_to=True, message="Not downloaded.", details={"jobs": 3}),
+            Confirmation(code="test_delete", field="confirm", set_to=True, message="Delete?"),
+            Confirmation(
+                code="test_not_downloaded",
+                field="confirm_not_downloaded",
+                set_to=True,
+                message="Not downloaded.",
+                details={"jobs": 3},
+            ),
         ),
     )
     view = confirmation_view(asked)
@@ -107,7 +114,9 @@ def test_confirming_copies_a_fingerprint() -> None:
     request = LaunchWorkerRequest(action="launch_worker")
     asked = NeedsConfirmation(
         action="launch_worker",
-        confirmations=(Confirmation(field="confirm_fingerprint", set_to=FINGERPRINT, message="Start?"),),
+        confirmations=(
+            Confirmation(code="test_start", field="confirm_fingerprint", set_to=FINGERPRINT, message="Start?"),
+        ),
     )
     confirmed = confirmed_request(request, asked)
     assert isinstance(confirmed, LaunchWorkerRequest)
@@ -140,7 +149,7 @@ def test_activity_resumes_a_stopped_call() -> None:
     activity = Activity(SyncExecutor(runner))
     stopped = activity.start(upload(), "Upload")
     assert stopped is not None
-    assert (stopped.state, stopped.status, stopped.can_resume) == ("stopped", ACTIVITY_STATE_TEXTS["stopped"], True)
+    assert (stopped.state, stopped.status, stopped.can_resume) == ("stopped", activity_state_text("stopped"), True)
     assert activity.resume(stopped)
     assert (stopped.state, len(runner.sent)) == ("finished", 2)
     activity.dismiss(stopped)

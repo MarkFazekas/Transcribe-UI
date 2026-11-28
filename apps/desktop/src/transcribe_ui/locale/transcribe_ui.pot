@@ -1,0 +1,1040 @@
+# Texts of Transcribe-UI to translate, extracted by scripts/catalogs.py.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Transcribe-UI VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-11-28 01:19+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.19.0\n"
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A choice does not fit its file."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"A cloud cleanup was interrupted; repeat the cleanup of these jobs before "
+"starting a cloud machine: {batch_ids}."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A cloud run is active; nothing was changed. Try again once it has ended."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"A duplicate of {name} ({object_id}) is in use and cannot be removed. "
+"Terminate the cloud machines using it, then run the cloud setup again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"A file of the job cannot be read right now (is its drive or network share"
+" connected?); try again once it can."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A file with its own languages is not in the selection."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"A job cannot lose its last file; delete the job or clean it up from the "
+"cloud instead."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A retried file has no audio to copy for one of its transcriptions."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"A retry of this job is still copying its audio; finish or clean up the "
+"retry job first."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "A selected path is not inside the scanned folder."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"All of the job's data will be deleted from the cloud: audio, subtitles "
+"and its description."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "An audio file is uploaded as it is; it takes no track choice."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "An uploaded audio file could not be verified in the cloud; upload again."
+msgstr ""
+
+#: src/transcribe_ui/gui/pages.py
+msgid ""
+"Another Transcribe-UI (a second window or a command-line run) is using "
+"the job database. Settings, accounts and the cloud setup stay usable; "
+"close the other one, then Retry."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Another task is working on the cloud runs; try again to continue."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Another task is working on this job; try again when it has finished."
+msgstr ""
+
+#: src/transcribe_ui/gui/activity_view.py
+msgid "Cancel"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Cancel the queued cloud machine {name} ({status})? Its work stops at "
+"once; finished results stay in the cloud."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Checking files"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Choose the audio track to transcribe."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Choose the subtitle stream to extract."
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Close Transcribe-UI"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Closing"
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Cloud"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+#, python-brace-format
+msgid "Code: {code}"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Confirm"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Creating {name} on Runpod failed after the request was sent, so it may "
+"exist already. Run the cloud setup again in a minute; it takes over what "
+"was created."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Deleting from the cloud"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Detail"
+msgstr ""
+
+#: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
+msgid "Details"
+msgstr ""
+
+#: src/transcribe_ui/gui/activity_view.py
+msgid "Dismiss"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Downloading subtitles"
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Failed"
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Finished"
+msgstr ""
+
+#: src/transcribe_ui/gui/closing.py
+msgid "Finishing the current step..."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Folder names were added to tell apart files of different folders."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Folders this deep are not scanned."
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Jobs"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Links are not followed."
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "New job"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"No display is available for the window. Use the transcribe-ui command "
+"line instead."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "No media file is at or below this path."
+msgstr ""
+
+#: src/transcribe_ui/gui/shell.py
+msgid "Not available yet."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Only transcriptions that failed or found no speech can be retried."
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Open accounts"
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Open cloud setup"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Open log folder"
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Open the job"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Picture-based subtitles cannot be extracted as text; they can only be "
+"transcribed."
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Please confirm"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Quit now"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "R2 accepted the credentials and the bucket can be listed."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"R2 accepted the credentials, but they are not allowed to do this; check "
+"the API token's permissions and bucket."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "R2 cannot be reached; check the network connection and the endpoint URL."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"R2 refused the credentials: the access key ID or the secret access key is"
+" wrong."
+msgstr ""
+
+#: src/transcribe_ui/gui/activity_view.py
+msgid "Resume"
+msgstr ""
+
+#: src/transcribe_ui/gui/pages.py src/transcribe_ui/gui/texts.py
+msgid "Retry"
+msgstr ""
+
+#: src/transcribe_ui/cli/parser.py
+msgid "Run Transcribe-UI requests from JSON files."
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Running"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Runpod accepted the API key and the cloud machines can be listed."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Runpod cannot be reached or answered unexpectedly ({cause}). Try again "
+"later."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Runpod did not create the cloud machine; nothing was started. Check the "
+"Runpod account, then try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Runpod does not know this cloud machine."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Runpod holds {count} Global Volumes named {name}. They may hold result "
+"backups, so the app deletes none of them: delete the ones you do not need"
+" in the Runpod console (Storage page), then run the cloud setup again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Runpod rejected the API key (expired, revoked or mistyped). Enter a valid"
+" key."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Runpod reports that {name} exists but does not list it yet. Run the cloud"
+" setup again in a minute."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Scanning folders"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "See the log for what went wrong."
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Settings"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Some credentials are not set: {missing}. Enter them under Settings, "
+"Accounts."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"Some credentials are not set: {missing}. The keyring cannot be used; set "
+"the environment variables {variables}."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "Some credentials are not valid: {invalid}. Enter them again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Some files of the job have no result yet, so their audio is still needed;"
+" wait for the transcription, or delete everything instead."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Something unexpected went wrong; the details are in the log."
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Something went wrong"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Start a cloud machine for {jobs} transcription ({audio_s:duration} of "
+"audio); estimated cost {cost_low_usd:.2f}-{cost_high_usd:.2f} USD."
+msgid_plural ""
+"Start a cloud machine for {jobs} transcriptions ({audio_s:duration} of "
+"audio); estimated cost {cost_low_usd:.2f}-{cost_high_usd:.2f} USD."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Stop and close"
+msgstr ""
+
+#: src/transcribe_ui/gui/closing.py
+msgid ""
+"Stop and close? The work continues from where it stopped the next time "
+"you start it."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Stopped. The work done so far is saved; continue any time."
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Stopped; continue any time."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Terminate the cloud machine {name} ({status})? Its work stops at once; "
+"finished results stay in the cloud."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The R2 bucket does not exist; check the bucket name and the endpoint URL."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The R2 object to copy does not exist."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The R2 request failed; the details are in the log."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The Runpod API key lacks the permission {scope}. Create a key with the "
+"permissions the app lists."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The Runpod price list does not list the GPU; the estimate uses the usual "
+"price."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The cloud already holds data under this job's ID (another computer's job,"
+" or one of an earlier installation); delete this job and create it again,"
+" which gives it a new ID."
+msgstr ""
+
+#: src/transcribe_ui/gui/closing.py
+msgid ""
+"The cloud machine keeps working without the app: it stops itself when the"
+" work is done or at its time limit, and the app shows its results the "
+"next time it starts."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The cloud machine left no result for the transcription."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The cloud machine may still be running: Runpod does not show it stopped "
+"yet. Try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The cloud run has ended already; there is nothing to stop."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The cloud run {run_id} does not exist."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The cloud setup is incomplete. Run the cloud setup first."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The cloud setup is outdated. Run the cloud setup again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The cloud setup was interrupted at {name}. Run it again in a minute."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The command line is not valid."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The converted audio cannot be written or read back; try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The converted audio cannot be written: {reason}"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "The custom plan does not match its format: {problems}"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The custom plan file cannot be read ({reason})."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The custom plan file cannot be written ({reason})."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The file changed while it was checked; review the job again once it is "
+"complete."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The file could not be checked."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no audio track to transcribe."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no audio track with this number."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no subtitle stream with this number."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file has no transcription in this language."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The file is gone or cannot be read; restore it, or remove it from the job."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file is not in review any more; its choices cannot change."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file is too large for an R2 upload."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The file was not checked successfully yet; review the job first."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The file's upload has started; its choices cannot change unless it is "
+"removed from the job."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The folder to scan cannot be read."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The folder to scan does not exist."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The folder to scan must be an absolute path."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job and its {items} file will be deleted from this computer's job "
+"list."
+msgid_plural ""
+"The job and its {items} files will be deleted from this computer's job "
+"list."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job database cannot be opened; the details are in the log."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job database is busy with another task; try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The job database was written by a newer version of Transcribe-UI; update "
+"the app."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The job has moved on in the meantime; nothing was changed. Reload it and "
+"try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job has no such file."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job has nothing to transcribe in the cloud."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The job {batch_id} does not exist."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"file) will be deleted from the cloud."
+msgid_plural ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"files) will be deleted from the cloud."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The job's audio was deleted from the cloud, so it cannot be retried; "
+"create a new job instead."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job's audio will be deleted from the cloud; its subtitles stay, but "
+"it can no longer be retried."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job's subtitles may not be downloaded yet; after this, only the "
+"backup on the cloud volume keeps them."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The job's upload is not complete yet; finish the upload first."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The keyring refused to store the credentials ({reason}). Unlock it and "
+"try again, or use the environment variables."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The media file's extension was added to tell apart files of the same "
+"folder."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The name is not valid Unicode; rename it to include it."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The output folder is not an absolute path."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The path to scan is not a folder."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The placement plan has errors; fix them and try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The plan changed since it was confirmed (the work, the time limit or the "
+"test mode)."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "The plan lists {item_id} ({language}), which is not part of this download."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "The request file cannot be read: {reason}."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The request is not valid."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The result of the transcription cannot be read."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The review is not complete: resolve or remove every file first."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "The scanned folder is not an absolute path or contains '..'."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The selection contains no media file."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The settings cannot be saved; the details are in the log."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"The settings file cannot be read or is not valid; save the settings to "
+"replace it."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "The track or stream number must not be negative."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The {tool} path set in the settings is not an absolute path of a file on "
+"this computer: {path}"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "There is nothing to transcribe, so no cloud machine was started."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "This could not be read."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"This file's audio cannot be uploaded (it is empty, or its extension "
+"cannot be used); remove it from the job."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"This is not one of the app's cloud machines; manage it in the Runpod "
+"console."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "This is not possible at the job's current step."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"This job's description in the cloud cannot be read (another app version, "
+"or damaged), so nothing was deleted."
+msgstr ""
+
+#: src/transcribe_ui/gui/pages.py
+msgid "This page is not available yet."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"This system has no keyring to store credentials in. Set the environment "
+"variables {variables} instead."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Transcribe-UI is already running in another window or process; close it "
+"and try again."
+msgstr ""
+
+#: src/transcribe_ui/gui/pages.py
+msgid "Transcribe-UI is busy in another window"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Uploading"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid "Uploading files"
+msgstr ""
+
+#: src/transcribe_ui/gui/dialogs.py
+msgid "Value"
+msgstr ""
+
+#: src/transcribe_ui/gui/texts.py
+msgid "Waiting to start"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Whether Runpod created this run's cloud machine is not known yet, so it "
+"cannot be stopped; check the cloud machines in a minute and try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid ""
+"Whether a cloud run is active cannot be checked, so nothing was started "
+"or published; try again later."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "ffmpeg could not convert the audio track."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "ffmpeg could not extract the subtitle stream as SRT."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "ffprobe could not read the file."
+msgstr ""
+
+#: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
+msgid "no"
+msgstr ""
+
+#: src/transcribe_ui/cli/parser.py
+msgid "path of the request JSON file"
+msgstr ""
+
+#: src/transcribe_ui/cli/parser.py
+msgid "print the JSON Schema of the requests"
+msgstr ""
+
+#: src/transcribe_ui/cli/parser.py
+msgid "print the JSON Schema of the responses instead"
+msgstr ""
+
+#: src/transcribe_ui/cli/parser.py
+msgid "print the app version and exit"
+msgstr ""
+
+#: src/transcribe_ui/cli/parser.py
+msgid "run the request in a JSON file and print the response as JSON"
+msgstr ""
+
+#: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
+msgid "yes"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{count} existing subtitle file will be replaced."
+msgid_plural "{count} existing subtitle files will be replaced."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{count} selected file already has a subtitle in a target language."
+msgid_plural "{count} selected files already have a subtitle in a target language."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}) is listed more than once in the plan."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}) is missing from the plan."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): another subtitle has the same target."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): output_file_name does not end with .srt."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): source_path or original_folder was changed in the "
+"plan."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the file is not inside the scanned folder."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the file's path is not absolute or contains '..'."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the name {name} cannot be used on the target."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} contains ':' (Windows reads it as an"
+" alternate data stream)."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} contains characters a name cannot "
+"hold: {characters}"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the name {name} ends with a dot or a space."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} is too long (the limit is "
+"{max_length})."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the plan gives no file or folder name ({name})."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the subtitle cannot be written; try again once the "
+"target is writable."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the subtitle is not in the cloud any more."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the subtitle name {name} is too long for the target "
+"(with the tail of its temporary file, at most {max_length} characters)."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target cannot be checked (no permission)."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target exists and is not a file."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target is outside the output folder."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the target path is longer than Windows allows."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): {name} is a name Windows reserves for a device."
+msgstr ""
+
+#: src/transcribe_ui/i18n/formats.py
+#, python-brace-format
+msgid "{hours} h {minutes} min"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{items} file will be removed from the job."
+msgid_plural "{items} files will be removed from the job."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{items} file will be removed from the job. Its audio already uploaded to "
+"the cloud is deleted."
+msgid_plural ""
+"{items} files will be removed from the job. Their audio already uploaded "
+"to the cloud is deleted."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/formats.py
+#, python-brace-format
+msgid "{minutes} min {seconds} s"
+msgstr ""
+
+#: src/transcribe_ui/i18n/formats.py
+#, python-brace-format
+msgid "{seconds} s"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} could not be started: {reason}"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} did not finish within {timeout_s:duration} and was stopped."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} failed on the file."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "{tool} was not found: set its path in the settings or put it on the PATH."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{unknown_batches} of the jobs was uploaded from another computer."
+msgid_plural "{unknown_batches} of the jobs were uploaded from another computer."
+msgstr[0] ""
+msgstr[1] ""
+
