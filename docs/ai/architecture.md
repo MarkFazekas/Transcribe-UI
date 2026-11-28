@@ -280,9 +280,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   §8) and no `on_window` of its own, `run_gui` hands `gui/smoke.py` the window: it logs every
   answer, waits until the last start-up step proceeded and nothing is in flight, closes the
   window through the normal close handling (the set-up wizard closes with it) and makes the
-  exit code 1 when an answer was an error, start-up did not finish within 120 s, or the
-  language is Hungarian and Qt's own translation did not load (`StartLanguages.qt_translated`);
-  else 0. Without the variable nothing changes. However the window is deleted, its executor closes with it
+  exit code 1 when an answer was an error, a record at ERROR or above reached the app's
+  loggers while it watched (an exception escaping a slot, a critical message of Qt),
+  start-up did not finish within 120 s, or the language is Hungarian and Qt's own translation
+  did not load (`StartLanguages.qt_translated`); else 0. Without the variable nothing changes. However the window is deleted, its executor closes with it
   (`build_shell` connects the window's `destroyed`), so an answer still on its way never
   reaches the window's deleted views. A view deleted while its window lives must call the
   function its view-model's `subscribe` returned (none is today: pages and the set-up wizard
@@ -2925,7 +2926,12 @@ Few unit tests; mostly regression and flow tests:
   runner that leaves `libstdc++` and `libgcc_s` to the host are in `apps/desktop/packaging/`)
   and stamps the version `<base>+<YYYYMMDD>.<short sha>` (commit date in UTC) into
   `transcribe_ui/version.txt`, which `app_version()` prefers to the metadata version (from
-  source there is none). The build runs in an environment without dev tools, with the app
+  source there is none). A pull request run builds GitHub's temporary merge commit
+  (`refs/pull/<n>/merge`), so the hash and date in a pull request artifact's version name that
+  commit, which is not in the branch's history. Only uv's own CPython builds
+  (`UV_PYTHON_PREFERENCE=only-managed`), never a Python found on the runner; on macOS the build
+  fails when a bundled binary needs a newer macOS than 14 (`scripts/build_desktop_macos.py`,
+  `otool -l` on every binary PyInstaller bundled). The build runs in an environment without dev tools, with the app
   installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
   own OS on fresh per-user state, with every check under a timeout that kills the process
   tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic
