@@ -182,7 +182,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     the CLI before it builds its parser (it builds its backend first, which opens nothing; it
     has no `--lang` flag, since its JSON is not translated). A change in Settings applies
     after a restart: the GUI asks "Restart now to change the language?" (Restart now / Later;
-    a restart goes through the close handling of Q30; built with the settings page, M6.3).
+    a restart goes through the close handling of Q30; built with the settings page, M6.3, see
+    "GUI" below).
     Switching live would need every page to re-render its texts on a signal, which costs
     every GUI part extra work and tests for a rare action.
   - The backend stays language-neutral: responses, codes, `details`, progress stages and the
@@ -390,6 +391,64 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   them with the process), flushes and closes the root log handlers and ends the process with
   `os._exit(0)` (`sys.exit` would wait for pool threads; every step is idempotent). The window
   closes once every call has delivered its answer.
+- **Settings** (M6.3, `gui/settings/`; needs no database, so it stays usable under the
+  writer-lock notice). Qt-free: `viewmodel.py` (preferences), `accounts.py`, `cloud_setup.py`,
+  `about.py`, `startup.py` (first start), `draft.py`, `problems.py`, `status.py`, `models.py`,
+  `hooks.py`, `restart.py`, `texts.py`, `account_texts.py`; Qt: `view.py` (the page: tabs
+  Preferences, Accounts, Cloud setup, About; `open_settings(section)` selects one), its section
+  views, `wizard.py`, `notice_view.py`, `install.py` (`install_settings(window)`, one line in
+  `build_shell`).
+  - Preferences: one form over the whole `Settings` (languages with on/off and a word timing
+    mark, the stored order kept and a newly enabled language added last; video and audio
+    extensions typed on one line, split at spaces, commas and semicolons, sent as typed;
+    hidden entries; ffmpeg/ffprobe and the output folder as text fields with Browse (native
+    dialogs, the OS's separators; empty or blank means none); the placement defaults, all
+    fields always editable; the language: System language, English, Magyar, the last two in
+    their own language). Save sends `update_settings` with the whole document; Undo changes
+    restores the stored settings. The form's document is validated as the backend validates
+    a request document (`api.schema.parse_request`), so a refused one gets exactly the
+    `invalid_request` the backend and the CLI give for it, without a round trip; each refused
+    field shows a translated hint under it (the problem's English text is not shown), a
+    problem of no field (the extension overlap) shows above Save, and editing a field clears
+    its hint. A refused save (local or from the backend) never changes what was typed; a
+    backend error other than `invalid_request` opens the error dialog. A failed load shows its
+    error with Retry and Restore defaults (`update_settings` with `state.settings.
+    default_settings()`). A save emits `settings_changed`.
+  - Language restart (Q32): after a save whose language resolves (`system`: the OS language)
+    to another language than the one shown, "Restart now to change the language?" (Restart
+    now / Later). Restart now sets `GuiContext.restart` and closes the window through the
+    close handling (Q30); keeping the window open there withdraws it
+    (`CloseGuard.when_kept_open`), "Quit now" quits without a restart. `run_gui` starts the GUI
+    again only after the backend is closed, so the new process can take the writer lock: the
+    one-file build runs itself again (with `PYINSTALLER_RESET_ENVIRONMENT=1`, so it unpacks
+    its own files), from source the interpreter runs `transcribe_ui.gui.main.run`; a start
+    that fails is logged.
+  - Accounts: a masked field per credential (the endpoint and bucket too, §3.6), empty with a
+    placeholder; where each is set (keyring, environment variable, not set) from
+    `credentials_status`; the keyring's state when it is not usable; the note that the Runpod
+    key is optional (§3.9). Save sends `store_credentials` with only the fields typed into,
+    validated like the preferences (a refused value keeps what was typed and shows a hint);
+    after a store the fields are emptied and the status is read again. Typed values stay in
+    the view-model as `SecretStr` until then; display data name credentials and sources, never
+    values. Test sends `check_credentials` and shows one line per service (the catalog text of
+    its code).
+  - Cloud setup: Check (`cloud_setup_status`: a row per object with its state, outdated
+    fields named), Set up / Update (`setup_cloud` in the activity panel under the key
+    `setup_cloud`, then a new check; the summary of what was created, updated or left), the
+    error of a check or setup in the page with Details. Without a Runpod key the page is
+    unavailable and says that another computer with the key starts the transcription.
+  - About: the app and data format versions (`get_app_info`; the window title gets the app's
+    version) and the log folder with "Open log folder".
+  - Start-up steps: `get_settings` and `get_app_info` (slot settings), `credentials_status`
+    (slot credentials), and with a Runpod key `cloud_setup_status` (slot reconcile, after the
+    database steps). The set-up wizard (a dialog over the Accounts and Cloud setup sections:
+    new widgets on the same view-models) opens once per session: at accounts while an R2
+    credential is missing, else at the cloud setup when an object is missing or outdated
+    (`duplicated` alone is left to the page). It can be closed ("Set up later"); without a
+    Runpod key accounts is its last step. A notice above the pages stays while the cause
+    lasts: R2 incomplete (with the Runpod note; Open accounts), the cloud setup missing or
+    outdated (Open cloud setup), or a failed cloud check (its text; Retry), each with Hide (for
+    the session).
 
 ### 3.2 Discovery and selection
 

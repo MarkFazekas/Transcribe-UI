@@ -26,8 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.5 (jobs list, job page, step header, `stage` and `labels`) on `feat/m6.5-jobs`: built,
-  pushed and in review.
+- M6.3 (settings, accounts, cloud setup, first-start wizard) on `feat/m6.3-settings`, rebased
+  onto `main` and checked locally; waiting for its PR and review.
 
 ## Waiting on humans
 
