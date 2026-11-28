@@ -1,0 +1,143 @@
+name: release-desktop
+
+# Builds the two desktop executables (the GUI with Qt, the CLI without) with PyInstaller on each
+# of the four platforms and smoke-tests both on their own OS (docs/ai/plans/m8.md). Every leg
+# uploads only its two executables, as they are (no archive). Nothing is published yet: the
+# release job comes with M8.5, the bundled ffmpeg with M8.2.
+on:
+  pull_request:
+    paths: &paths
+      - apps/desktop/**
+      # A test-only change builds nothing new; the tests that run against the built tools follow.
+      - "!apps/desktop/tests/**"
+      - apps/desktop/tests/test_media_ffmpeg.py
+      - apps/desktop/tests/test_batches_ffprobe.py
+      - apps/desktop/tests/support/media.py
+      - apps/desktop/tests/conftest.py
+      - packages/contracts/**
+      - uv.lock
+      - pyproject.toml
+      - .python-version
+      - scripts/build_desktop.py
+      - scripts/build_ffmpeg.py
+      - scripts/smoke_desktop_*.py
+      - scripts/release_desktop.py
+      - .github/workflows/release-desktop.yml
+  push:
+    branches: [main]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  # Superseded PR runs are cancelled; a run on main is not (a newer push may still replace one
+  # that is only queued, so builds finish in commit order).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The Linux build container: AlmaLinux 9, glibc 2.34 (PySide6's Linux wheel needs 2.34), so
+  # the executables run on every Linux with glibc 2.34 or later.
+  MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_34_x86_64@sha256:180e8e234512306be41bb00db574c7df1ceb8af937b10c430b5e2fda402f7da7
+  # The oldest Ubuntu LTS the Linux build supports (`linux-floor`).
+  FLOOR_IMAGE: ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-2025
+            suffix: .exe
+          - platform: macos-arm64
+            runner: macos-15
+            suffix: ""
+          - platform: macos-x64
+            runner: macos-15-intel
+            suffix: ""
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            suffix: ""
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+    env:
+      CLI: dist/transcribe-ui-${{ matrix.platform }}-cli${{ matrix.suffix }}
+      GUI: dist/transcribe-ui-${{ matrix.platform }}-gui${{ matrix.suffix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          enable-cache: true
+      - id: stamp
+        name: Stamped version (base version, commit date in UTC, short hash)
+        run: uv run --no-project scripts/build_desktop.py stamp | tee -a "$GITHUB_OUTPUT"
+      - name: Build environment (no dev tools; the app installed non-editable)
+        # On Linux this environment only runs the smoke test; the build has its own in the container.
+        run: uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging
+      - name: Build both executables
+        if: runner.os != 'Linux'
+        env:
+          VERSION: ${{ steps.stamp.outputs.version }}
+        run: uv run --no-sync python scripts/build_desktop.py build --version "$VERSION"
+      - name: Build both executables in the manylinux container
+        if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.stamp.outputs.version }}
+        # As the runner's user, so every file it writes stays the runner's (the uv cache too).
+        # PyInstaller needs ldd, objdump and objcopy, which the image has.
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --env HOME=/tmp/home \
+            --env UV_CACHE_DIR=/uv-cache \
+            --env UV_PROJECT_ENVIRONMENT=/tmp/build-venv \
+            --env VERSION \
+            --env MANYLINUX_IMAGE \
+            --volume "$(readlink -f "$(command -v uv)"):/usr/local/bin/uv:ro" \
+            --volume "$(uv cache dir):/uv-cache" \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --workdir /work \
+            "$MANYLINUX_IMAGE" \
+            bash -euo pipefail -c '
+              for tool in ldd objdump objcopy; do
+                command -v "$tool" >/dev/null || { echo "::error::$tool is missing in $MANYLINUX_IMAGE"; exit 1; }
+              done
+              uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging
+              uv run --no-sync python scripts/build_desktop.py build --version "$VERSION"
+            '
+      - name: System libraries and Xvfb for the smoke test (Linux)
+        if: runner.os == 'Linux'
+        # The libraries the executables need from the system (the release notes list them).
+        run: |
+          sudo apt-get update -qq
+          grep -v '^#' apps/desktop/packaging/linux-packages.txt \
+            | xargs sudo apt-get install -y -qq --no-install-recommends xvfb xauth
+      - name: Smoke test
+        env:
+          VERSION: ${{ steps.stamp.outputs.version }}
+        run: |
+          floor=()
+          if [ "$RUNNER_OS" = Linux ]; then floor=(--floor-image "$FLOOR_IMAGE"); fi
+          uv run --no-sync python scripts/smoke_desktop_build.py "$CLI" "$GUI" --version "$VERSION" "${floor[@]}"
+      - name: Upload the CLI executable
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.CLI }}
+          archive: false
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload the GUI executable
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.GUI }}
+          archive: false
+          retention-days: 7
+          if-no-files-found: error
