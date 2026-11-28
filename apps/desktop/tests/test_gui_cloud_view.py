@@ -133,19 +133,24 @@ def test_a_straggler_at_start_up(qtbot: QtBot, world: CloudWorld, window: MainWi
     wait_for(qtbot, lambda: not window.busy())
 
 
-def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None:
-    """The dialog plans, lists another computer's job with "Delete from cloud" (emitting its signal), and starts."""
+def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
+    """Delete from cloud on another computer's job emits `delete_unknown_batch` (after the click returns)."""
     deleted: list[str] = []
     window.context.signals.delete_unknown_batch.connect(deleted.append)
+    dialog = _page(window).start_dialog
+    assert dialog.isVisible()
+    dialog.plan.delete_buttons[FOREIGN_BATCH_ID].click()
+    wait_for(qtbot, lambda: deleted == [FOREIGN_BATCH_ID])
+
+
+def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None:
+    """The dialog plans, lists another computer's job with "Delete from cloud" (emitting its signal), and starts."""
     window.context.hooks.run()
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
     wait_for(qtbot, dialog.start_button.isEnabled)
-    assert dialog.isVisible()
-    dialog.plan.delete_buttons[FOREIGN_BATCH_ID].click()
-    # Emitted after the click returns (its handler may rebuild the table and the button).
-    wait_for(qtbot, lambda: deleted == [FOREIGN_BATCH_ID])
+    _delete_the_unknown_job(qtbot, window)
     dialog.start_button.click()
     wait_for(qtbot, lambda: not dialog.isVisible() and page.history.runs.run_active())
     panel = page.run_panel
