@@ -247,6 +247,11 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   (`--icon apps/desktop/packaging/icon/transcribe-ui.ico`); the macOS `.app` takes
   `transcribe-ui.icns` (`build_desktop.py` `MACOS_ICON`); the bare macOS and Linux one-file
   binaries carry none. PyInstaller writes its spec into the work folder (`build/desktop/`).
+- The GUI leaves out Qt Network (`--exclude-module PySide6.QtNetwork`): the app makes no
+  connection through Qt, and its TLS plugins' OpenSSL backend made PyInstaller bundle
+  whatever libssl the build machine had (on Windows Git for Windows' copy from `PATH`).
+  `gui-bundle` fails on Qt Network's bindings or a TLS plugin (Qt's own Network library may stay:
+  the VNC and TUIO platform plugins link it).
 - Third-party notices (`build_desktop_notices.py`, `build_desktop_facts.py`,
   `build_desktop_licences.py`, `build_desktop_packages.py`): `build_desktop.py` writes a
   configuration (`<work>/notices.json`) and names it in `TRANSCRIBE_UI_NOTICES_CONFIG`;

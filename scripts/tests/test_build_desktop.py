@@ -115,7 +115,7 @@ def test_gui_arguments_per_platform() -> None:
     windows = pyinstaller_arguments("gui", "windows-x64", _paths())
     macos = pyinstaller_arguments("gui", "macos-arm64", _paths())
     assert windows[-7:] == [
-        "PySide6.QtTest",
+        "PySide6.QtNetwork",
         "--windowed",
         "--version-file",
         "/out/work/cli/version-resource.txt",
@@ -123,7 +123,14 @@ def test_gui_arguments_per_platform() -> None:
         str(WINDOWS_ICON),
         str(PACKAGING_DIR / "entry_gui.py"),
     ]
-    assert macos[-4:] == ["--exclude-module", "PySide6.QtTest", "--console", str(PACKAGING_DIR / "entry_gui.py")]
+    assert macos[-6:] == [
+        "--exclude-module",
+        "PySide6.QtTest",
+        "--exclude-module",
+        "PySide6.QtNetwork",
+        "--console",
+        str(PACKAGING_DIR / "entry_gui.py"),
+    ]
     assert not {"--version-file", "--icon"} & set(macos)
     assert WINDOWS_ICON.is_file()
     assert "/out/ffmpeg/ffprobe.exe:." in windows

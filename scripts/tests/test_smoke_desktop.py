@@ -101,11 +101,15 @@ def test_probe_wav_and_its_item(tmp_path: Path) -> None:
 
 
 def test_gui_needs_qt_texts_and_platform_plugins() -> None:
-    """The Linux GUI passes with Qt's Hungarian texts, the offscreen, xcb and Wayland plugins and the window icon."""
-    assert not gui_problems(COMMON | LINUX_GUI, REVISIONS, "linux")
-    lacking = COMMON | {"PySide6/Qt/plugins/platforms/libqoffscreen.so", GUI_DATA[0]}
+    """The Linux GUI passes with Qt's Hungarian texts, the offscreen, xcb and Wayland plugins, the icon and no Qt Network."""
+    assert not gui_problems(COMMON | LINUX_GUI | {"PySide6/Qt/lib/libQt6Network.so.6"}, REVISIONS, "linux")
+    network = {"PySide6.QtNetwork", "PySide6/QtNetwork.abi3.so", "PySide6/Qt/plugins/tls/libqopensslbackend.so"}
+    lacking = COMMON | {"PySide6/Qt/plugins/platforms/libqoffscreen.so", GUI_DATA[0]} | network
     assert gui_problems(lacking, REVISIONS, "linux") == [
         f"missing {GUI_DATA[1]}",
+        "bundles PySide6.QtNetwork",
+        "bundles PySide6/Qt/plugins/tls/libqopensslbackend.so",
+        "bundles PySide6/QtNetwork.abi3.so",
         "missing qtbase_hu.qm",
         "missing the platform plugin qxcb",
         "missing the platform plugin qwayland",

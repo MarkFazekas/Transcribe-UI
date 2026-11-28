@@ -65,6 +65,10 @@ QT_NAMES = re.compile(
     r"|transcribe_ui[./]gui([./].*)?",
     re.IGNORECASE,
 )
+# Qt Network's bindings and the TLS plugins, which the GUI leaves out (their OpenSSL backend would
+# bundle whatever libssl the build machine has); Qt's own Network library may stay, as other Qt
+# plugins (VNC, TUIO) link it.
+QT_NETWORK = re.compile(r"PySide6\.QtNetwork|PySide6/QtNetwork\..+|(.*/)?plugins/tls/.*")
 # Folder of the Qt platform plugins.
 PLATFORMS_FOLDER = "platforms"
 # Platform plugins the GUI needs: offscreen everywhere and the native ones, by `sys.platform`.
@@ -140,9 +144,11 @@ def cli_problems(entries: frozenset[str], revisions: Revisions, platform: str) -
 
 
 def gui_problems(entries: frozenset[str], revisions: Revisions, platform: str) -> list[str]:
-    """Return what the GUI executable lacks: Qt's Hungarian texts, the platform plugins and the window icon too."""
+    """Return what the GUI executable lacks (Qt's Hungarian texts, the platform plugins, the window icon) or must not have (Qt Network)."""
     problems = common_problems(entries, revisions, platform)
     problems.extend(f"missing {name}" for name in GUI_DATA if name not in entries)
+    network = (entry for entry in sorted(entries) if QT_NETWORK.fullmatch(entry))
+    problems.extend(f"bundles {entry}" for entry in network)
     if not any(PurePosixPath(entry).name == QT_HUNGARIAN for entry in entries):
         problems.append(f"missing {QT_HUNGARIAN}")
     present = platform_plugins(entries)

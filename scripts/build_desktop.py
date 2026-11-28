@@ -91,8 +91,10 @@ CLI_FILE_DESCRIPTION = "Transcribe-UI command line"
 GUI_FILE_DESCRIPTION = "Transcribe-UI"
 # Python modules the CLI never contains (it must never import Qt or the GUI).
 CLI_EXCLUDED_MODULES = ("PySide6", "shiboken6", "transcribe_ui.gui")
-# Qt modules the GUI does not use but a hook could pull in.
-GUI_EXCLUDED_MODULES = ("PySide6.QtTest",)
+# Qt modules the GUI does not use but a hook could pull in. Qt Network brings the TLS plugins,
+# whose OpenSSL backend loads libssl from wherever the build machine has one (on Windows a
+# tool folder on PATH); the app makes no network connection through Qt (boto3 uses Python's ssl).
+GUI_EXCLUDED_MODULES = ("PySide6.QtTest", "PySide6.QtNetwork")
 # The media tools both executables bundle at the archive's root.
 MEDIA_TOOLS = ("ffmpeg", "ffprobe")
 # Bytes in a megabyte, for the build's report.
@@ -380,6 +382,9 @@ def _macos_floor_problems(variant: Variant, paths: BuildPaths, executable: Path)
 def _build(variants: Sequence[Variant], version: str, folders: BuildPaths) -> int:
     # The interpreter decides what is bundled (its libpython, its minimum OS): name it in the log.
     sys.stdout.write(f"Build interpreter: {sys.executable}, Python {sys.version}\n")
+    # The third-party notices judge the libraries inside libpython by these (build_desktop_licences.py).
+    builtin_modules = " ".join(sorted(sys.builtin_module_names))
+    sys.stdout.write(f"Built-in modules: {builtin_modules}\n")
     for variant in variants:
         paths = replace(folders, work=folders.work / variant)
         try:
