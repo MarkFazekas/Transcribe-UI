@@ -10,7 +10,6 @@ from transcribe_ui.credentials.classes import (
     KeyringState,
 )
 from transcribe_ui.gui.settings.constants import NoticeKind
-from transcribe_ui.gui.settings.texts import settings_hint
 from transcribe_ui.i18n.catalog import ntr, tr
 from transcribe_ui.i18n.credential_texts import credential_labels, credential_rules
 from transcribe_ui.runpod.classes import CloudObjectKind, CloudObjectStatus, SetupCloudResponse
@@ -25,7 +24,7 @@ def credential_label(name: str) -> str:
 def credential_hint(field: str) -> str:
     """Return how to fix a credential the request's validator refused (the CLI's rule texts)."""
     rules: dict[str, str] = dict(credential_rules().items())
-    return rules.get(field, settings_hint(field))
+    return rules.get(field, tr("This value is not valid."))
 
 
 def credential_source(credential: CredentialStatus) -> str:

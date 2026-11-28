@@ -25,7 +25,7 @@ from support.gated import UPLOAD, GatedRunner, upload, wait_for
 from support.golden import GOLDEN_DIR
 from support.gui import window_over
 from support.gui_parity import run_gui_one
-from support.gui_settings import Deferred
+from support.gui_settings import Deferred, Recorded
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.cli.constants import EXIT_OK
 from transcribe_ui.credentials.classes import CredentialsStatusResponse
@@ -350,3 +350,15 @@ def test_a_store_after_set_up_later_changes_nothing(qtbot: QtBot, backend: Backe
     deferred.answer()
     deferred.answer()
     assert (wizard.isVisible(), deferred.actions(), accounts.shown.typed) == (False, [], frozenset(("r2_bucket",)))
+
+
+def test_a_form_problem_shows_in_the_message_line(qtbot: QtBot, backend: Backend) -> None:
+    """A problem of no field is said in the accounts' message line, next to "Fix the marked fields"."""
+    accounts = AccountsViewModel(Recorded(backend), AreaHooks())
+    view = AccountsView(accounts)
+    qtbot.addWidget(view)
+    accounts.shown.errors = {"": "This value is not valid."}
+    accounts.shown.message = "Fix the marked fields, then save again."
+    accounts.changed()
+    shown = view.controls.message_label.text()
+    assert shown == "Fix the marked fields, then save again. This value is not valid."

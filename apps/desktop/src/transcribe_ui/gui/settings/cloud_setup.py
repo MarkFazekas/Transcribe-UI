@@ -112,17 +112,18 @@ class CloudSetupViewModel(ViewModel):
 
     def _checked(self, response: Response) -> None:
         self.checking = False
-        if isinstance(response, CloudSetupStatusResponse):
-            self.status = response
-            self.error = None
-        elif isinstance(response, ErrorResponse):
-            self.error = error_view(response)
         if self._recheck:
+            # Sent before the setup ended: its answer is dropped, never shown; the recheck answers.
             self._recheck = False
             summary = self.message
             self.check()
             self.message = summary
             return
+        if isinstance(response, CloudSetupStatusResponse):
+            self.status = response
+            self.error = None
+        elif isinstance(response, ErrorResponse):
+            self.error = error_view(response)
         self.changed()
         waiting = self._waiting
         self._waiting = []

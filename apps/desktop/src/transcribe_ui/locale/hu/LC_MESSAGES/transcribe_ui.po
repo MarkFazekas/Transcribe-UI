@@ -1549,6 +1549,7 @@ msgstr ""
 "Helyette állítsa be a környezeti változókat, majd indítsa újra az "
 "alkalmazást."
 
+#: src/transcribe_ui/gui/settings/account_texts.py
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "This value is not valid."
 msgstr "Ez az érték nem érvényes."

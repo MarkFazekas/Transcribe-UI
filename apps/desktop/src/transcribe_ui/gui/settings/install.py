@@ -1,6 +1,6 @@
 """Wires the settings area into the main window: the page, the notice, the wizard, start-up steps, restart.
 
-`gui/shell.py` calls `install_settings(window)` once. The start-up steps: `get_settings` and
+`gui/areas.py` calls `install_settings(window)` once. The start-up steps: `get_settings` and
 `get_app_info` (the window title's version) in the settings slot, `credentials_status` in the
 credentials slot (the wizard at accounts while R2 is incomplete), and with a Runpod key
 `cloud_setup_status` in the reconcile slot (the wizard at the cloud setup when it is needed).

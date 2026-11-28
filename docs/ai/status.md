@@ -51,5 +51,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
 3. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
-4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5, on its branch) and the cleanup repeated
+4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5, merged) and the cleanup repeated
    (M6.10); `reconcile_cloud` at start-up and `refresh_status` while a run is active (M6.6).

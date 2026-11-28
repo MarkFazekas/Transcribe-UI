@@ -441,7 +441,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     fields named), Set up / Update (`setup_cloud` in the activity panel under the key
     `setup_cloud`, then a new check; the summary of what was created, updated or left, until
     the next check), the error of a check or setup in the page with Details. A check asked
-    for while one runs waits for it. Without a Runpod key the page is
+    for while one runs waits for it; a setup that ends while a check runs gets a check of its
+    own (the earlier one's answer is dropped, never shown), and the callers wait for that one. Without a Runpod key the page is
     unavailable and says that another computer with the key starts the transcription.
   - About: the app and data format versions (`get_app_info`; the window title gets the app's
     version) and the log folder with "Open log folder".

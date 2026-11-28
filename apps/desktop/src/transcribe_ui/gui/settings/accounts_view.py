@@ -13,7 +13,7 @@ from transcribe_ui.credentials.constants import CREDENTIAL_ORDER, R2_CREDENTIALS
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.settings.account_texts import credential_label, keyring_note, runpod_optional_note
 from transcribe_ui.gui.settings.accounts import AccountRow, AccountsState, AccountsViewModel, CheckRow
-from transcribe_ui.gui.settings.constants import OPTIONAL_CREDENTIAL
+from transcribe_ui.gui.settings.constants import FORM_FIELD, OPTIONAL_CREDENTIAL
 from transcribe_ui.gui.settings.widgets import error_line, show_text
 from transcribe_ui.i18n.catalog import tr
 
@@ -79,6 +79,12 @@ def _buttons(controls: AccountControls) -> QHBoxLayout:
     return row
 
 
+def _message_text(shown: AccountsState) -> str:
+    """Return the message line; a problem of no field is said here, since no field is marked."""
+    form_problem = shown.errors.get(FORM_FIELD, "")
+    return f"{shown.message} {form_problem}".strip()
+
+
 def _check_line(check: CheckRow) -> str:
     return f"{check.service}: {check.outcome_label}. {check.text}"
 
@@ -141,7 +147,7 @@ class AccountsView(QWidget):
         show_text(controls.load_label, shown.load_error)
         for row in shown.rows():
             _paint_field(self.fields[row.name], row, saving=shown.saving)
-        controls.message_label.setText(shown.message)
+        controls.message_label.setText(_message_text(shown))
         controls.save_button.setEnabled(shown.can_save)
         controls.test_button.setEnabled(not shown.checking)
         show_text(controls.checks_label, _checks_text(shown))

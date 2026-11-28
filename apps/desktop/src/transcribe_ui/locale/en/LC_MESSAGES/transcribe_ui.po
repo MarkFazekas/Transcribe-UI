@@ -1397,6 +1397,7 @@ msgid ""
 "environment variables instead, then restart the app."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "This value is not valid."
 msgstr ""

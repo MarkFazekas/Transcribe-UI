@@ -29,7 +29,7 @@ from support.fakes import seeded_ports
 from support.golden import GOLDEN_DIR
 from support.gui_settings import Deferred, Heard, Recorded, Scripted
 from transcribe_ui.api.backend import Backend
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse
+from transcribe_ui.api.classes import ErrorBody, ErrorResponse, Response
 from transcribe_ui.credentials.classes import StoreCredentialsRequest
 from transcribe_ui.credentials.store import CredentialStore
 from transcribe_ui.gui.activity import Activity
@@ -38,6 +38,7 @@ from transcribe_ui.gui.settings.account_texts import credential_hint
 from transcribe_ui.gui.settings.accounts import AccountsViewModel
 from transcribe_ui.gui.settings.cloud_setup import CloudSetupViewModel
 from transcribe_ui.gui.settings.startup import FirstStart
+from transcribe_ui.runpod.classes import CloudSetupStatusRequest
 
 pytestmark = pytest.mark.usefixtures("no_credential_logs")
 
@@ -276,20 +277,29 @@ def test_a_running_check_is_not_sent_twice(backend: Backend) -> None:
 
 
 def test_a_setup_gets_a_check_of_its_own(backend: Backend) -> None:
-    """A setup that ends while an older check runs gets a check of its own; callers wait for that one."""
+    """A setup ending while an older check runs gets a check of its own; the older answer is never shown."""
     assert backend.execute_json(store_request()).status == "ok"
-    deferred = Deferred(backend)
+    # The older check answers as before the setup: every object missing.
+    before = backend.execute(CloudSetupStatusRequest(action="cloud_setup_status"))
+    answers: dict[str, Response] = {STATUS: before}
+    deferred = Deferred(Scripted(backend, answers))
     area = _area(backend, deferred)
     area.accounts.load()
     deferred.answer()
+    shown: list[tuple[bool, str | None]] = []
+    area.cloud.subscribe(lambda: shown.append((area.cloud.setup_needed, area.first_start.notice)))
     area.cloud.check(partial(area.proceeded.append, "check"))
     area.cloud.set_up()
     assert deferred.answer("setup_cloud") == "setup_cloud"
     assert (deferred.answer(), deferred.actions(), area.proceeded) == (STATUS, [STATUS], [])
+    answers.clear()
     deferred.answer()
+    states = {row.state for row in area.cloud.rows()}
     summary = "Cloud setup done: 6 created, 0 updated, 0 unchanged."
-    assert (area.proceeded, area.cloud.message, {row.state for row in area.cloud.rows()}) == (
-        ["check"],
-        summary,
-        {"Ready"},
-    )
+    assert (area.proceeded, area.cloud.message, states) == (["check"], summary, {"Ready"})
+    assert (True, "cloud_setup") not in shown
+
+
+def test_a_problem_of_no_field_is_named() -> None:
+    """A refused value whose problem has no field shows the generic hint, not another page's text."""
+    assert credential_hint("") == "This value is not valid."

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 03:06+0100\n"
+"POT-Creation-Date: 2026-11-28 03:19+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1395,6 +1395,7 @@ msgid ""
 "environment variables instead, then restart the app."
 msgstr ""
 
+#: src/transcribe_ui/gui/settings/account_texts.py
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "This value is not valid."
 msgstr ""
