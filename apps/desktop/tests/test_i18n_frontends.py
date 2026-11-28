@@ -22,6 +22,7 @@ from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, LanguageSetting
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.api.schema import response_adapter
+from transcribe_ui.cli.console import Console
 from transcribe_ui.cli.main import main
 from transcribe_ui.gui.app import run_gui
 from transcribe_ui.gui.dialogs import ErrorDialog
@@ -58,7 +59,7 @@ def hungarian(tmp_path: Path) -> Iterator[Ports]:
 
 def _help(ports: Ports, argv: list[str], capsys: pytest.CaptureFixture[str]) -> str:
     with pytest.raises(SystemExit) as exited:
-        main(argv, make_backend=partial(Backend, ports), stdout=io.BytesIO())
+        main(argv, make_backend=partial(Backend, ports), console=Console(stdout=io.BytesIO()))
     assert exited.value.code == 0
     # argparse wraps the help to the terminal's width.
     return " ".join(capsys.readouterr().out.split())
@@ -80,7 +81,7 @@ def test_help_is_utf8_on_a_narrow_console(hungarian: Ports, monkeypatch: pytest.
     console = io.TextIOWrapper(written, encoding="cp1252", errors="strict")
     monkeypatch.setattr(sys, "stdout", console)
     with pytest.raises(SystemExit) as exited:
-        main(["--help"], make_backend=partial(Backend, hungarian), stdout=io.BytesIO())
+        main(["--help"], make_backend=partial(Backend, hungarian), console=Console(stdout=io.BytesIO()))
     console.flush()
     assert (exited.value.code, console.errors) == (0, "strict")
     shown = " ".join(written.getvalue().decode("utf-8").split())
@@ -96,7 +97,11 @@ def test_help_follows_the_os_language(tmp_path: Path, capsys: pytest.CaptureFixt
 
 def _cli_output(ports: Ports, request_file: Path) -> bytes:
     stdout = io.BytesIO()
-    main(["run", str(request_file)], make_backend=partial(Backend, ports), stdout=stdout, stderr=io.BytesIO())
+    main(
+        ["run", str(request_file)],
+        make_backend=partial(Backend, ports),
+        console=Console(stdout=stdout, stderr=io.BytesIO()),
+    )
     return stdout.getvalue()
 
 
@@ -114,7 +119,10 @@ def test_cli_json_is_the_same_in_both_languages(tmp_path: Path, request_json: st
     assert english == hungarian.replace(b'"language": "hu"', b'"language": "en"')
 
 
-@pytest.mark.parametrize("argv", [["run"], ["foo"], ["run", "a.json", "extra"]])
+@pytest.mark.parametrize(
+    "argv",
+    [["run"], ["foo"], ["run", "a.json", "extra"], ["run", "--progress", "xml", "-"], ["credentials", "extra"]],
+)
 def test_cli_usage_errors_are_language_neutral(tmp_path: Path, argv: list[str]) -> None:
     """A command line argparse refuses gives the same `invalid_arguments` JSON in both languages."""
     outputs = []
@@ -122,7 +130,7 @@ def test_cli_usage_errors_are_language_neutral(tmp_path: Path, argv: list[str]) 
         ports = _ports(tmp_path / language, language)
         stdout = io.BytesIO()
         with closing(ports.state):
-            main(argv, make_backend=partial(Backend, ports), stdout=stdout)
+            main(argv, make_backend=partial(Backend, ports), console=Console(stdout=stdout))
         outputs.append(stdout.getvalue())
     assert outputs[0] == outputs[1]
     assert b"invalid_arguments" in outputs[0]

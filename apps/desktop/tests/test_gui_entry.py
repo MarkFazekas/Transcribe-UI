@@ -48,15 +48,16 @@ CLI_WITHOUT_QT = """
 import importlib, io, sys, tempfile
 from pathlib import Path
 import transcribe_ui.cli.main as cli
+from transcribe_ui.cli.console import Console
 import transcribe_ui.api.routes as routes
 for route in routes.default_routes().values():
     importlib.import_module(route.run.__module__)
-assert cli.main(["schema"], stdout=io.BytesIO()) == 0
-assert cli.main(["--version"], stdout=io.BytesIO()) == 0
+assert cli.main(["schema"], console=Console(stdout=io.BytesIO())) == 0
+assert cli.main(["--version"], console=Console(stdout=io.BytesIO())) == 0
 with tempfile.TemporaryDirectory() as folder:
     request = Path(folder) / "request.json"
     request.write_text('{"action": "get_app_info"}', encoding="utf-8")
-    assert cli.main(["run", str(request)], stdout=io.BytesIO(), stderr=io.BytesIO()) == 0
+    assert cli.main(["run", str(request)], console=Console(stdout=io.BytesIO(), stderr=io.BytesIO())) == 0
 loaded = [name for name in sys.modules if name.startswith(("PySide6", "shiboken6", "transcribe_ui.gui"))]
 assert not loaded, loaded
 """

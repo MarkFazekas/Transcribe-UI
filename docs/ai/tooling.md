@@ -73,8 +73,8 @@ retry waits are recorded, not slept.
 
 Desktop tests import their helpers as `support.*` from `apps/desktop/tests/support/` (pytest
 `pythonpath` in the root `pyproject.toml`; `support` is first-party for isort). The desktop CLI
-runs as `uv run transcribe-ui ...` (`schema`, `run <request.json>`, `--version`) after
-`uv sync --all-packages`.
+runs as `uv run transcribe-ui ...` (`schema`, `run <request.json | ->`, `credentials`,
+`--version`) after `uv sync --all-packages`.
 
 The GUI runs from source as `uv run transcribe-ui-gui` (a `[project.gui-scripts]` entry) after
 `uv sync --all-packages`. Its log is `transcribe-ui-gui.log` in the user log

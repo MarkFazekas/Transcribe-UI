@@ -92,7 +92,8 @@ docs/human/, docs/ai/     see CLAUDE.md
 - Frontends only build requests and render responses/progress events:
   - **CLI** (argparse): `transcribe-ui run request.json` validates the file into `Request`,
     prints the `Response` as indented JSON; progress events go to stderr as NDJSON; both UTF-8
-    with `\n` line ends on every OS. Nothing else reaches stderr (log records and warnings go to
+    with `\n` line ends on every OS. Nothing else reaches stderr (apart from the guidance of
+    `credentials`, below; log records and warnings go to
     the log file, §3.8), and stdout gets a JSON response whatever fails: an
     unexpected exception outside the backend gives `internal_error` (exit 1), a Ctrl+C before a
     request was read gives `cancelled` (exit 130). The one exception is `--help`/`-h`: argparse's
@@ -105,6 +106,40 @@ docs/human/, docs/ai/     see CLAUDE.md
     M6.1), 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
     `Request` (`--response`: of `Response`) so requests can be written by hand or by an LLM;
     `--version` prints the app version.
+  - **CLI ergonomics** (M6.7; no new semantics, `run` stays the way to every request):
+    - `transcribe-ui run -` reads the request from stdin up to its end, with the same rules as
+      a file (UTF-8, BOM stripped, UTF-16 refused) and the same response and exit code, so a
+      script or an LLM can pipe it (a file named `-` is given as `./-`). Windows PowerShell
+      5.1 pipes text to a native program in `$OutputEncoding`, ASCII by default, which turns
+      every non-ASCII character (an accented path) into `?` before the app sees it; there,
+      run `$OutputEncoding = [System.Text.UTF8Encoding]::new($false)` first, or use the file
+      form, which is recommended on 5.1. PowerShell 7 pipes UTF-8.
+    - `run --progress text` writes one readable line per progress event to stderr instead of
+      NDJSON: `<stage> <completed>[/<total>][: <path>]` in the language of the texts (stage
+      from the catalog, numbers in the language's format; a path's characters that are not
+      printable, such as a line break or a terminal escape, shown escaped as Python writes
+      them). The default stays `ndjson`.
+    - `transcribe-ui credentials` asks for each credential in turn (R2 endpoint URL, bucket,
+      access key ID, secret access key, Runpod API key), so no value sits in a file or in the
+      shell history: the endpoint and the bucket with echo (read from stdin, the label on
+      stderr), the keys and the secret without (`getpass`); Enter alone skips a field (the
+      stored value stays). Each answer is checked at once by the request's own validation
+      (a one-field `store_credentials` document); a refused one shows the field's rule (never
+      the value) and is asked again, so a typo does not lose the answers after it. Guidance
+      goes to stderr, nothing to stdout but the response. The answers form the
+      `store_credentials` request a file would hold, so the response and exit code equal
+      `run` with that file; nothing given answers `invalid_request` like an empty request.
+      Refused with `invalid_arguments` (exit 2) when stdin is not a terminal (getpass would
+      then read the pipe, with echo): use a request file there. Ctrl+C, or the end of input
+      (Ctrl+D; Ctrl+Z on Windows, where `getpass` returns it as a character) while asking
+      stores nothing (`cancelled`, 130). The prompt is an injected port (`cli/prompt.py`),
+      scripted in tests.
+    - Confirming: a request that needs a confirmation exits 3 with a `needs_confirmation`
+      response listing each `field` and its `set_to`; add those fields with those values to
+      the request file (or the piped document) and run it again. For example
+      `{"action": "delete_batch", "batch_id": "...", "confirm": true}`; a plan confirmation
+      sets `confirm_fingerprint` to the fingerprint the response gave. Nothing changed
+      before the second run.
   - **GUI** (PySide6, `transcribe_ui/gui/`): view-models translate widget state into the same
     request models; see "GUI" below.
   - **MCP (later)**: one FastMCP tool per request type; the tool signature is the request
@@ -187,11 +222,12 @@ docs/human/, docs/ai/     see CLAUDE.md
     with its separators (`{cost:.2f}`), `{seconds:duration}` as a duration, lists joined with
     commas, booleans as yes or no. The GUI's texts call the backend's batches "jobs" and its
     jobs "transcriptions". The CLI's JSON (requests, responses, progress NDJSON) is a machine
-    contract and is not translated; its human texts (the texts the app passes to argparse for
-    `--help`, `cli/parser.py`; later `--progress text` and the `credentials` prompts) are,
-    through `tr()`; argparse's own fixed strings are not, nor the names of the arguments
-    (argparse quotes them in its errors, which become the `invalid_arguments` JSON). The CLI
-    writes `--help` as UTF-8 (a Windows pipe would use the ANSI code page). Numbers, dates and durations are
+    contract and is not translated; its human texts (the help texts the app passes to argparse
+    for `--help`, `cli/parser.py`; the `--progress text` lines and the `credentials` prompts)
+    are, through `tr()`; argparse's own fixed strings are not, nor the names of the arguments
+    and their choices (argparse quotes them in its errors, which become the `invalid_arguments`
+    JSON). The CLI writes `--help` as UTF-8 (a Windows pipe would use the ANSI code page).
+    Numbers, dates and durations are
     formatted by one helper per language (`i18n/formats.py`; English `1,234.5`, `2026-11-27`;
     Hungarian `1 234,5` with a no-break space, `2026. 11. 27.`; both 24-hour time; durations
     `1 h 5 min` / `1 ó 5 p`).
