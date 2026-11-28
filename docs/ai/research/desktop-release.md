@@ -159,7 +159,12 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 - [V] `ffmpeg -buildconf` prints the configure line one argument per line on stderr after a
   `configuration:` heading, followed by `Exiting with exit code 0`; an argument after one that
   ends in `pkg-config` stays on the same line (`fftools/opt_common.c` keeps
-  `--pkg-config=pkg-config --extra-ldflags=-static` together). `ffmpeg -L` prints the licence on
+  `--pkg-config=pkg-config --extra-ldflags=-static` together). Configure records each argument
+  with the part after its first `=` shell-quoted when it holds a character other than letters,
+  digits and `_/.+-` (`sh_quote` in `configure`), so the macOS legs print
+  `--extra-cflags='-mmacosx-version-min=14.0'` (seen in run 46160789188 of PR #56);
+  `build_ffmpeg_checks.buildconf_arguments` reads each line with `shlex`, which removes the
+  quotes and splits the joined `pkg-config` line. `ffmpeg -L` prints the licence on
   stdout; without `--enable-gpl`, `--enable-nonfree` and `--enable-version3` it is "GNU Lesser
   General Public License ... either version 2.1 of the License, or (at your option) any later
   version" (same file).

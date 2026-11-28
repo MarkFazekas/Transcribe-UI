@@ -11,6 +11,7 @@ problems it found (empty: none):
 """
 
 import re
+import shlex
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -68,8 +69,6 @@ WINDOWS_API_SET = "api-ms-win-"
 DLL_NAME = "DLL Name:"
 # How every configure argument starts.
 ARGUMENT_PREFIX = "--"
-# The space before another argument on one line of `-buildconf`.
-ARGUMENT_BREAK = re.compile(r" (?=--)")
 # The line `-buildconf` prints before the configure arguments.
 CONFIGURATION_HEADING = "configuration:"
 # The licence `-L` prints for an LGPL 2.1 or later build (whitespace normalised).
@@ -203,16 +202,28 @@ def dependency_problems(program: str, system: str, libraries: Iterable[str]) -> 
 def buildconf_arguments(output: str) -> list[str]:
     """Return the configure arguments `-hide_banner -buildconf` printed (one per line after its heading).
 
-    ffmpeg prints the argument after one that ends in `pkg-config` on the same line (meant for
-    `--pkg-config="pkg-config --static"`); no argument here holds a space, so such a line is split
-    again. ffmpeg ends its output with an `Exiting with exit code 0` line, which is no argument.
+    Configure records each argument shell-quoted after its first `=` when the value holds a
+    character other than letters, digits and `_/.+-` (`--extra-cflags='-mmacosx-version-min=14.0'`),
+    and ffmpeg prints the argument after one that ends in `pkg-config` on the same line (meant for
+    `--pkg-config="pkg-config --static"`). So each line is read with shell rules (`shlex`): the
+    quotes go, and a line holding two arguments gives both. A line shell rules cannot read is kept
+    as it is, so the comparison reports it. ffmpeg ends its output with an `Exiting with exit
+    code 0` line, which is no argument.
     """
     lines = [line.strip() for line in output.splitlines()]
     if CONFIGURATION_HEADING not in lines:
         return []
     start = lines.index(CONFIGURATION_HEADING) + 1
     shown = [line for line in lines[start:] if line.startswith(ARGUMENT_PREFIX)]
-    return [argument for line in shown for argument in ARGUMENT_BREAK.split(line)]
+    return [argument for line in shown for argument in _shell_words(line)]
+
+
+def _shell_words(line: str) -> list[str]:
+    """Return the words of a line by shell rules, or the line itself when they cannot read it."""
+    try:
+        return shlex.split(line)
+    except ValueError:
+        return [line]
 
 
 def buildconf_problems(program: str, arguments: Sequence[str], expected: Sequence[str]) -> list[str]:

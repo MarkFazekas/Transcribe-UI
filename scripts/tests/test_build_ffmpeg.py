@@ -304,6 +304,21 @@ def test_buildconf_is_compared_as_a_whole() -> None:
     assert not buildconf_arguments("ffmpeg version 9.1")
 
 
+def test_buildconf_unquotes_the_macos_flags() -> None:
+    """Configure quotes a value holding `=`; read with shell rules it equals the configure line."""
+    shown = (
+        "configuration:\n    --enable-pthreads\n    --extra-cflags='-mmacosx-version-min=14.0'\n"
+        "    --extra-ldflags='-mmacosx-version-min=14.0'\n"
+    )
+    arguments = buildconf_arguments(shown)
+    assert arguments == ["--enable-pthreads", *configure_arguments("macos-arm64")[-2:]]
+
+
+def test_buildconf_keeps_an_unreadable_line() -> None:
+    """A line with an unclosed quote is kept as printed, so the comparison fails on it."""
+    assert buildconf_arguments("configuration:\n    --extra-cflags='-O2\n") == ["--extra-cflags='-O2"]
+
+
 def test_buildconf_splits_after_pkg_config() -> None:
     """The program prints the argument after `--pkg-config=pkg-config` on its line; it is read as two."""
     shown = "configuration:\n    --enable-cross-compile\n    --pkg-config=pkg-config --extra-ldflags=-static\n"

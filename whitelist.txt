@@ -308,6 +308,7 @@ setnchannels
 setsampwidth
 sha
 shiboken6
+shlex
 showwithoutactivating
 side6
 sig
