@@ -30,9 +30,11 @@ def log_crash(error: Exception) -> None:
 
 def report_crash(error: Exception) -> None:
     """Print `error` to stderr when there is one, then log it to the GUI log if that still works."""
+    # Each is a last resort on its own: a closed or broken stderr must not keep the crash out of the
+    # log, and a log that cannot be written must not hide what stderr already has.
     if sys.stderr is not None:
-        traceback.print_exception(error)
-    # Last resort: stderr (when there is one) already has the error.
+        with suppress(Exception):
+            traceback.print_exception(error)
     with suppress(Exception):
         log_crash(error)
 
