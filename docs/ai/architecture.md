@@ -2964,9 +2964,10 @@ Few unit tests; mostly regression and flow tests:
   (§3.4): an `ffmpeg` job (one leg per platform; Windows cross-compiled with mingw-w64 on
   Ubuntu, Linux in the same manylinux container) builds them with `scripts/build_ffmpeg.py`
   only when the cache has no entry for the key `ffmpeg-<version>-<platform>-<hash of the build
-  scripts>`, checks the build tree's configure result (GPL, nonfree and every external library
-  but zlib off, zlib, the platform's thread library and both programs on) and that both
-  programs load only the OS's own libraries (`ldd`, `otool -L`, `objdump -p`), and saves them;
+  scripts and pinned inputs>`, checks the build tree's configure result (GPL, nonfree and every
+  external library but zlib off, zlib, the platform's thread library and both programs on) and
+  that both programs load only the OS's own libraries (`ldd`, `otool -L`, `objdump -p`), and
+  saves them;
   each build leg restores its entry (a miss fails the leg), checks `-buildconf` against the
   platform's configure line and `-L` (LGPL 2.1 or later), runs the desktop tests that use the
   real ffmpeg (with a zlib-compressed Matroska subtitle) with the built programs first on
