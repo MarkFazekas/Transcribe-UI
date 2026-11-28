@@ -29,6 +29,8 @@ EXECUTABLE = "Contents/MacOS/Transcribe-UI"
 RUN_PROCESS = "smoke_desktop_image.run_process"
 # Apple's disk image tool.
 HDIUTIL_PATH = "/usr/bin/hdiutil"
+# What `hdiutil` is asked in a run whose image is attached, found wrong and detached.
+ATTACH_THEN_DETACH = ("attach", "detach")
 # A mount point of the command tests.
 MOUNT_POINT = Path("/t/volume")
 
@@ -177,7 +179,7 @@ def test_a_wrong_image_is_detached_too(monkeypatch: pytest.MonkeyPatch, tmp_path
     monkeypatch.setattr(Path, "is_mount", _mounted_only(hdiutil))
     with pytest.raises(ImageError, match=r"the image lacks Transcribe-UI\.app"), ExitStack() as stack:
         gui_executable(tmp_path / "gui.dmg", stack)
-    assert [command[1] for command in hdiutil.commands] == ["attach", "detach"]
+    assert tuple(command[1] for command in hdiutil.commands) == ATTACH_THEN_DETACH
     failing = _Hdiutil(with_app=False, attach_code=1)
     monkeypatch.setattr(RUN_PROCESS, failing)
     with pytest.raises(ImageError, match="could not attach"), ExitStack() as stack:
@@ -253,3 +255,24 @@ def test_main_fails_when_the_image_cannot_be_attached(
     assert main([str(cli), str(image), "--version", "0.1.0+20261128.abc1234"]) == 1
     assert [command[1] for command in hdiutil.commands] == ["attach"]
     assert "could not attach" in capsys.readouterr().err
+
+
+class _BrokenPlistHdiutil(_Hdiutil):
+    """Attaches an image whose app has an `Info.plist` that is broken XML."""
+
+    def __call__(self, argv: Command, env: Environment, timeout_s: float, stdin: bytes = b"") -> RunResult:
+        ran = super().__call__(argv, env, timeout_s, stdin)
+        if self.mounted is not None and len(self.commands) == 1:
+            plist = self.mounted / "Transcribe-UI.app" / "Contents" / "Info.plist"
+            plist.write_bytes(b"<?xml version='1.0'?><plist><dict><key>CFBundleExecutable")
+        return ran
+
+
+def test_a_broken_info_plist_is_an_image_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """An app whose `Info.plist` is broken XML fails as a wrong image (not a traceback), and is detached."""
+    hdiutil = _BrokenPlistHdiutil(with_app=True)
+    monkeypatch.setattr(RUN_PROCESS, hdiutil)
+    monkeypatch.setattr(Path, "is_mount", _mounted_only(hdiutil))
+    with pytest.raises(ImageError, match=r"gui\.dmg"), ExitStack() as stack:
+        gui_executable(tmp_path / "gui.dmg", stack)
+    assert tuple(command[1] for command in hdiutil.commands) == ATTACH_THEN_DETACH

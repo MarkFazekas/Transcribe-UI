@@ -1,7 +1,12 @@
-"""The macOS floor of a desktop build: nothing bundled may need a newer macOS than the release supports.
+"""The macOS floor of a desktop build: nothing we build may raise the macOS the app needs above Qt's.
+
+The floor (14.0, what the PySide6 wheels declare) is a regression guard: it keeps our own build
+(the bootloader, libpython, ffmpeg) from needlessly raising the macOS version below which the app
+cannot work. It is not a support claim; CI starts the GUI on macOS 15 only, and older versions
+may work but are untested (the architect's answer on the floor).
 
 Used by `scripts/build_desktop.py` after a macOS build (docs/ai/plans/m8.md §1 "Platforms and
-runners": macOS 14 or later). PyInstaller's package table of contents (`PKG-00.toc` in its work
+runners"). PyInstaller's package table of contents (`PKG-00.toc` in its work
 folder) names every binary and extension it bundled, with its original source; the executable
 itself (PyInstaller's bootloader, which `EXE` adds separately) is read from `dist/`. Two rules:
 
@@ -41,7 +46,9 @@ from build_desktop_wheels import MacosVersion, Owners, Wheel, installed_wheels, 
 # Reads the minimum macOS of each architecture of a binary.
 type MinimumReader = Callable[[Path], list[MacosVersion]]
 
-# The oldest macOS the release supports (the PySide6 6.12 wheel needs 14).
+# The macOS our own binaries must not need more than: the version the PySide6 6.12 wheels declare
+# (their 14.0 platform tag). A regression guard against needlessly raising the macOS the app needs, not a
+# support claim (only macOS 15 is tested).
 MACOS_FLOOR: MacosVersion = (14, 0)
 # Table-of-contents types of the bundled Mach-O files.
 BINARY_TYPES = frozenset(("BINARY", "EXTENSION"))

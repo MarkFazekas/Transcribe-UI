@@ -77,12 +77,14 @@ def test_only_the_macos_gui_is_an_app() -> None:
 
 
 def test_info_plist_values() -> None:
-    """The identifier, the base version, the commit date as up to three integers, the floor and high resolution."""
+    """The identifier, the base version, the commit date as up to three integers and high resolution.
+
+    No minimum macOS: macOS enforces the main executable's own, nothing stricter is claimed.
+    """
     assert info_plist(BASE, STAMPED) == {
         "CFBundleIdentifier": "io.github.markfazekas.transcribe-ui",
         "CFBundleShortVersionString": BASE,
         "CFBundleVersion": "2026.11.5",
-        "LSMinimumSystemVersion": "14.0",
         "NSHighResolutionCapable": True,
     }
 
@@ -134,11 +136,11 @@ def test_prepare_app_writes_the_plist_file(tmp_path: Path) -> None:
 def test_plist_problems_name_each_differing_entry(tmp_path: Path) -> None:
     """An entry PyInstaller did not write, or wrote differently, is a problem; extra entries are not."""
     expected = info_plist(BASE, STAMPED)
-    kept = {key: wanted for key, wanted in expected.items() if key != "LSMinimumSystemVersion"}
+    kept = {key: wanted for key, wanted in expected.items() if key != "NSHighResolutionCapable"}
     app = _app(tmp_path, {**kept, "CFBundleVersion": "0.0.0", "CFBundleExecutable": "Transcribe-UI"})
     assert plist_problems(app, expected) == [
         "Info.plist: CFBundleVersion is '0.0.0', expected '2026.11.5'",
-        "Info.plist: LSMinimumSystemVersion is None, expected '14.0'",
+        "Info.plist: NSHighResolutionCapable is None, expected True",
     ]
     assert not plist_problems(_app(tmp_path / "good", {**expected, "CFBundleName": "Transcribe-UI"}), expected)
 

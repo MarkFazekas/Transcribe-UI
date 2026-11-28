@@ -31,7 +31,13 @@ MAGIC_BYTES = 4
 
 
 def read_info_plist(app: Path) -> dict[str, object]:
-    """Return the app's `Info.plist`."""
+    """Return the app's `Info.plist`.
+
+    Raises:
+        OSError: It cannot be read.
+        ValueError: It is no plist (`plistlib.InvalidFileException`).
+        xml.parsers.expat.ExpatError: It is broken XML.
+    """
     with (app / "Contents" / "Info.plist").open("rb") as stream:
         entries: dict[str, object] = plistlib.load(stream)
     return entries
@@ -41,7 +47,9 @@ def app_executable(app: Path) -> Path:
     """Return the app's main executable (`CFBundleExecutable` in `Contents/MacOS`).
 
     Raises:
-        ValueError: The `Info.plist` names no executable.
+        OSError: The `Info.plist` cannot be read.
+        ValueError: It is no plist, or it names no executable.
+        xml.parsers.expat.ExpatError: It is broken XML.
     """
     name = read_info_plist(app).get("CFBundleExecutable")
     if not isinstance(name, str) or not name:

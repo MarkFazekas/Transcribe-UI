@@ -29,7 +29,7 @@ from types import MappingProxyType
 from xml.parsers.expat import ExpatError
 
 from build_desktop_bundle import read_info_plist
-from build_desktop_macos import MACOS_FLOOR, FloorReport, check_app, check_bundle
+from build_desktop_macos import FloorReport, check_app, check_bundle
 
 # Entries of the app's `Info.plist` that the build sets.
 type PlistEntries = Mapping[str, str | bool]
@@ -130,6 +130,12 @@ def bundle_versions(base: str, version: str) -> tuple[str, str]:
 def info_plist(base: str, version: str) -> dict[str, str | bool]:
     """Return the `Info.plist` entries the build sets (PyInstaller adds the bundle's name, executable and icon).
 
+    No `LSMinimumSystemVersion` (architect: do not restrict older macOS needlessly): macOS then
+    enforces the main executable's own `minos`, the one limit that is real. The entry is fixed
+    before PyInstaller writes that executable, so an exact value would have to come from
+    PyInstaller's internals (its bootloader's private path, or a hook inside `BUNDLE`), and a
+    copied value could drift from the executable it describes.
+
     Raises:
         ValueError: The version is not a stamped one of `base`, or `base` has no release segment.
     """
@@ -138,7 +144,6 @@ def info_plist(base: str, version: str) -> dict[str, str | bool]:
         "CFBundleIdentifier": BUNDLE_IDENTIFIER,
         "CFBundleShortVersionString": short,
         "CFBundleVersion": dated,
-        "LSMinimumSystemVersion": ".".join(map(str, MACOS_FLOOR)),
         "NSHighResolutionCapable": True,
     }
 
