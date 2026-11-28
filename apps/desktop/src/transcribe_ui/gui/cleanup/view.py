@@ -6,11 +6,13 @@ nothing. It opens over the dialog the user works in (the start dialog for anothe
 job), else over the window, and is deleted once closed.
 """
 
+import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QPushButton, QVBoxLayout, QWidget
 
+from transcribe_ui.gui.cleanup.constants import EMPHASIS_STYLE
 from transcribe_ui.gui.cleanup.display import CleanupQuestion
 from transcribe_ui.gui.constants import STATUS_MESSAGE_MS
 from transcribe_ui.gui.dialogs import wrapped_label
@@ -18,9 +20,6 @@ from transcribe_ui.gui.feedback import ErrorView
 
 if TYPE_CHECKING:
     from transcribe_ui.gui.shell import MainWindow
-
-# Style of the heading and of a warning line.
-EMPHASIS_STYLE = "font-weight: bold;"
 
 
 class CleanupDialog(QDialog):
@@ -60,32 +59,41 @@ class CleanupDialog(QDialog):
 
 
 class CleanupWindowOutlet:
-    """The handlers' outlet in the window: its bus, the cleanup question, its error dialog and its status bar."""
+    """The handlers' outlet in the window: its bus, the cleanup question, its error dialog and its status bar.
+
+    It holds the window weakly, so the handlers never keep a closed window (and its context)
+    alive; once the window is gone it does nothing.
+    """
 
     def __init__(self, window: "MainWindow") -> None:
         """Emit on `window`'s bus and open dialogs over it."""
-        self._window = window
-        # The question shown last (tests reach its buttons); deleted once closed.
-        self.dialog: CleanupDialog | None = None
+        self._window = weakref.ref(window)
 
     def emit(self, signal_name: str, *arguments: object) -> None:
         """Emit the bus signal `signal_name` with `arguments`."""
-        getattr(self._window.context.signals, signal_name).emit(*arguments)
+        window = self._window()
+        if window is not None:
+            getattr(window.context.signals, signal_name).emit(*arguments)
 
     def ask(self, question: CleanupQuestion, on_confirm: Callable[[], None]) -> None:
         """Open the cleanup question over the dialog in use (the start dialog), else over the window."""
-        parent = QApplication.activeModalWidget() or self._window
-        dialog = CleanupDialog(question, parent)
+        window = self._window()
+        if window is None:
+            return
+        dialog = CleanupDialog(question, QApplication.activeModalWidget() or window)
         # Deleted once closed (after the click that closed it has returned).
         dialog.finished.connect(dialog.deleteLater)
         dialog.accepted.connect(on_confirm)
-        self.dialog = dialog
         dialog.ask()
 
     def show_error(self, view: ErrorView, retry: Callable[[], object] | None) -> None:
         """Open the window's error dialog over the dialog in use (the start dialog), else over the window."""
-        self._window.show_error(view, retry, QApplication.activeModalWidget())
+        window = self._window()
+        if window is not None:
+            window.show_error(view, retry, QApplication.activeModalWidget())
 
     def notify(self, text: str) -> None:
         """Show a short note in the window's status bar."""
-        self._window.statusBar().showMessage(text, STATUS_MESSAGE_MS)
+        window = self._window()
+        if window is not None:
+            window.statusBar().showMessage(text, STATUS_MESSAGE_MS)

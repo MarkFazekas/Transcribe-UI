@@ -69,6 +69,19 @@ ACTION_SIGNALS = (
     "clean_up",
     "delete_unknown_batch",
 )
+# The signals that take the user to another page, job or step, by name; an answer that arrives
+# after one must not pull the user back (the cleanup handlers count them). A new navigation signal goes here.
+NAVIGATION_SIGNALS = (
+    "open_job",
+    "open_jobs",
+    "open_new_job",
+    "open_cloud",
+    "open_cloud_machines",
+    "open_settings",
+    "edit_selection",
+    "open_review",
+    "open_download",
+)
 
 
 class StartupSlot(IntEnum):

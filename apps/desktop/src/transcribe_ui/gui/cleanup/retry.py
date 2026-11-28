@@ -17,7 +17,7 @@ from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.batches.payloads import RetryJob
 from transcribe_ui.cleanup.classes import CreateRetryBatchRequest, CreateRetryBatchResponse
 from transcribe_ui.gui.cleanup.constants import OPEN_JOB_SIGNAL
-from transcribe_ui.gui.cleanup.display import retry_ready_text, retry_title
+from transcribe_ui.gui.cleanup.display import retry_created_text, retry_title
 from transcribe_ui.gui.cleanup.panel import JobSteps
 from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 
@@ -68,4 +68,4 @@ class RetryModel:
         if generation == self._steps.generation:
             outlet.emit(OPEN_JOB_SIGNAL, retry_id)
         else:
-            outlet.notify(retry_ready_text(retry_id))
+            outlet.notify(retry_created_text(retry_id))

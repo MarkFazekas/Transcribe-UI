@@ -11,7 +11,12 @@ from dataclasses import dataclass, replace
 from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation
 from transcribe_ui.batches.payloads import CleanupScope
 from transcribe_ui.cleanup.constants import ERROR_RETRY_COPYING
-from transcribe_ui.gui.cleanup.constants import RETRY_BATCH_KEY, WARNING_CONFIRMATIONS
+from transcribe_ui.gui.cleanup.constants import (
+    CONFIRMATION_KINDS,
+    RETRY_BATCH_KEY,
+    WARNING_CONFIRMATIONS,
+    CleanupKind,
+)
 from transcribe_ui.gui.feedback import ErrorView, Fix, confirmation_view, error_view
 from transcribe_ui.i18n.catalog import tr
 
@@ -43,6 +48,8 @@ class CleanupQuestion:
     heading: str
     lines: tuple[QuestionLine, ...]
     accept_label: str
+    # What the confirmations say is deleted (the panel's title once confirmed).
+    kind: CleanupKind
 
 
 def retry_title(batch_id: str) -> str:
@@ -50,48 +57,70 @@ def retry_title(batch_id: str) -> str:
     return tr("Retry of job {batch_id}: copying the audio").format(batch_id=batch_id)
 
 
-def cleanup_title(target: CleanupTarget) -> str:
-    """Return the activity panel's title of a cleanup."""
-    if target.known and target.scope == "audio":
+def target_kind(target: CleanupTarget) -> CleanupKind:
+    """Return what the signal asked to delete."""
+    return target.scope if target.known else "unknown"
+
+
+def asked_kind(target: CleanupTarget, response: NeedsConfirmation) -> CleanupKind:
+    """Return what the backend's confirmations say is deleted (what the signal asked for, without such a code)."""
+    codes = {confirmation.code for confirmation in response.confirmations}
+    for code, kind in CONFIRMATION_KINDS.items():
+        if code in codes:
+            return kind
+    return target_kind(target)
+
+
+def cleanup_title(batch_id: str, kind: CleanupKind | None) -> str:
+    """Return the activity panel's title of a cleanup (`kind` None: the question's request, which deletes nothing)."""
+    if kind is None:
+        text = tr("Checking the cleanup of job {batch_id}")
+    elif kind == "audio":
         text = tr("Deleting the audio of job {batch_id} from the cloud")
-    elif target.known:
+    elif kind == "everything":
         text = tr("Deleting everything of job {batch_id} from the cloud")
     else:
         text = tr("Deleting another computer's job {batch_id} from the cloud")
-    return text.format(batch_id=target.batch_id)
+    return text.format(batch_id=batch_id)
 
 
-def _heading(target: CleanupTarget) -> str:
-    if target.known and target.scope == "audio":
+def _heading(batch_id: str, kind: CleanupKind) -> str:
+    if kind == "audio":
         text = tr("Delete the audio of job {batch_id} from the cloud?")
-    elif target.known:
+    elif kind == "everything":
         text = tr("Delete everything of job {batch_id} from the cloud?")
     else:
         text = tr("Delete another computer's job {batch_id} from the cloud?")
-    return text.format(batch_id=target.batch_id)
+    return text.format(batch_id=batch_id)
 
 
-def _accept_label(target: CleanupTarget) -> str:
-    if target.known and target.scope == "audio":
+def _accept_label(kind: CleanupKind) -> str:
+    if kind == "audio":
         return tr("Delete audio")
-    if target.known:
+    if kind == "everything":
         return tr("Delete everything")
     return tr("Delete from the cloud")
 
 
 def cleanup_question(target: CleanupTarget, response: NeedsConfirmation) -> CleanupQuestion:
-    """Return the confirmation dialog of a cleanup: its heading, the backend's confirmations, then that it is final."""
+    """Return the confirmation dialog of a cleanup: its heading, the backend's confirmations, then that it is final.
+
+    The heading and the accept button follow the backend's confirmation codes (what the signal
+    asked for only without such a code).
+    """
     shown = confirmation_view(response).confirmations
     lines = [
         QuestionLine(confirmation.message, warning=asked.code in WARNING_CONFIRMATIONS)
         for confirmation, asked in zip(shown, response.confirmations, strict=True)
     ]
     lines.append(QuestionLine(tr("This cannot be undone."), warning=False))
+    kind = asked_kind(target, response)
     return CleanupQuestion(
         title=tr("Delete from the cloud"),
-        heading=_heading(target),
+        heading=_heading(target.batch_id, kind),
         lines=tuple(lines),
-        accept_label=_accept_label(target),
+        accept_label=_accept_label(kind),
+        kind=kind,
     )
 
 
@@ -106,7 +135,7 @@ def explained_error(response: ErrorResponse) -> ErrorView:
 
 def busy_text(batch_id: str) -> str:
     """Return the note shown when a job's retry or cleanup is asked for while another one of it runs."""
-    return tr("A cloud step of job {batch_id} is still running; it is shown below the pages.").format(
+    return tr("A cloud step of job {batch_id} is still running in the activity panel below.").format(
         batch_id=batch_id,
     )
 
@@ -118,6 +147,6 @@ def not_asked_text(batch_id: str) -> str:
     )
 
 
-def retry_ready_text(batch_id: str) -> str:
-    """Return the note shown when a retry job is ready after the user went elsewhere."""
-    return tr("The retry job {batch_id} is ready; it is on the Jobs page.").format(batch_id=batch_id)
+def retry_created_text(batch_id: str) -> str:
+    """Return the note shown when a retry job was created after the user went elsewhere."""
+    return tr("The retry job {batch_id} was created; it is on the Jobs page.").format(batch_id=batch_id)

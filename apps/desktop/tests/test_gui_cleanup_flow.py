@@ -33,7 +33,7 @@ from support.launch import FOREIGN_BATCH_ID
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse
 from transcribe_ui.batches.payloads import RetryJob
-from transcribe_ui.gui.cleanup.display import busy_text, not_asked_text, retry_ready_text
+from transcribe_ui.gui.cleanup.display import busy_text, not_asked_text, retry_created_text
 from transcribe_ui.gui.cloud.area import build_models
 from transcribe_ui.gui.cloud.start import StartModel
 from transcribe_ui.gui.executor import SyncExecutor
@@ -74,7 +74,7 @@ def test_a_late_retry_opens_nothing(world: CloudWorld) -> None:
     area.handlers.steps.navigated()
     manual.answer(RETRY)
     retry_id = retry_id_of(area, FIRST_BATCH_ID)
-    assert (area.outlet.signals("open_job"), area.outlet.notes) == ([], [retry_ready_text(retry_id)])
+    assert (area.outlet.signals("open_job"), area.outlet.notes) == ([], [retry_created_text(retry_id)])
 
 
 def test_late_answers_ask_nothing(world: CloudWorld) -> None:
@@ -90,6 +90,20 @@ def test_late_answers_ask_nothing(world: CloudWorld) -> None:
     area.handlers.steps.navigated()
     manual.answer(CLEANUP, _error("run_active"))
     assert (len(area.outlet.errors), area.outlet.notes, len(area.activity.entries)) == (0, [note, note], 0)
+
+
+def test_the_question_is_checked_first(world: CloudWorld) -> None:
+    """The unconfirmed request is titled as a check, the confirmed one by what the backend's question deletes."""
+    area, manual = _manual(world)
+    area.handlers.cleanup.clean_up(FOREIGN_BATCH_ID, EVERYTHING)
+    assert only(area.activity.entries).title == f"Checking the cleanup of job {FOREIGN_BATCH_ID}"
+    manual.answer(CLEANUP)
+    question = only(area.outlet.asked)
+    assert (question.kind, question.accept_label) == ("unknown", "Delete from the cloud")
+    deleting = f"Deleting another computer's job {FOREIGN_BATCH_ID} from the cloud"
+    assert only(area.activity.entries).title == deleting
+    manual.answer(CLEANUP)
+    assert (area.outlet.signals("plan_invalidated"), area.outlet.signals(CHANGED_SIGNAL)) == ([()], [])
 
 
 def test_one_cloud_step_per_job(world: CloudWorld) -> None:

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 from pytestqt.qtbot import QtBot
 
 from support.batches import FIRST_BATCH_ID
@@ -23,6 +23,7 @@ from support.gated import wait_for
 from support.gui import window_over
 from support.launch import FOREIGN_BATCH_ID
 from transcribe_ui.batches.payloads import RetryJob
+from transcribe_ui.gui.cleanup.display import not_asked_text
 from transcribe_ui.gui.cleanup.view import CleanupDialog
 from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.cloud.view import CloudPage
@@ -55,6 +56,23 @@ def _question(qtbot: QtBot) -> CleanupDialog:
     return dialog
 
 
+def _jobs(window: MainWindow) -> JobsPage:
+    jobs = window.pages.page(PAGE_JOBS)
+    assert isinstance(jobs, JobsPage)
+    return jobs
+
+
+def _all_jobs(jobs: JobsPage) -> QPushButton:
+    """Return the job page's "All jobs" button (it switches the Jobs page without a bus signal)."""
+    return next(button for button in jobs.page_view.findChildren(QPushButton) if button.text() == "All jobs")
+
+
+def _cloud(window: MainWindow) -> CloudPage:
+    page = window.pages.page(PAGE_CLOUD)
+    assert isinstance(page, CloudPage)
+    return page
+
+
 def _finished(window: MainWindow) -> bool:
     entries = window.context.activity.entries
     return not window.busy() and bool(entries) and entries[-1].state == "finished"
@@ -83,8 +101,7 @@ def test_retry_opens_the_retry_job(qtbot: QtBot, window: MainWindow) -> None:
     signals = window.context.signals
     signals.open_job.emit(FIRST_BATCH_ID)
     signals.retry_jobs.emit(FIRST_BATCH_ID, (RetryJob(item_id=FILM_ID, language="en"),))
-    jobs = window.pages.page(PAGE_JOBS)
-    assert isinstance(jobs, JobsPage)
+    jobs = _jobs(window)
     model = jobs.page_view.model
     wait_for(qtbot, lambda: _finished(window) and model.batch_id not in {None, FIRST_BATCH_ID})
     wait_for(qtbot, lambda: model.detail is not None and model.detail.summary.batch_id == model.batch_id)
@@ -94,8 +111,7 @@ def test_retry_opens_the_retry_job(qtbot: QtBot, window: MainWindow) -> None:
 def test_delete_from_the_start_dialog_plans_again(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
     """Delete from cloud asks over the start dialog; once deleted, the dialog's plan drops the job."""
     window.context.hooks.run()
-    page = window.pages.page(PAGE_CLOUD)
-    assert isinstance(page, CloudPage)
+    page = _cloud(window)
     page.run_panel.buttons.start_button.click()
     start = page.start_dialog
     wait_for(qtbot, lambda: FOREIGN_BATCH_ID in start.plan.delete_buttons)
@@ -106,3 +122,47 @@ def test_delete_from_the_start_dialog_plans_again(qtbot: QtBot, world: CloudWorl
     wait_for(qtbot, lambda: _finished(window) and start.model.phase == "ready")
     wait_for(qtbot, lambda: FOREIGN_BATCH_ID not in start.plan.delete_buttons)
     assert not keys_under(world.store, FOREIGN_BATCH_ID)
+
+
+def test_all_jobs_after_a_cleanup_asks_nothing(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
+    """All jobs before the cleanup's question arrives: no question opens, a note says nothing was deleted."""
+    signals = window.context.signals
+    signals.open_job.emit(FIRST_BATCH_ID)
+    kept = keys_under(world.store)
+    signals.clean_up.emit(FIRST_BATCH_ID, "everything")
+    _all_jobs(_jobs(window)).click()
+    wait_for(qtbot, lambda: not window.busy())
+    assert (QApplication.activeModalWidget(), window.statusBar().currentMessage()) == (
+        None,
+        not_asked_text(FIRST_BATCH_ID),
+    )
+    assert keys_under(world.store) == kept
+
+
+def test_all_jobs_after_a_retry_stays_on_the_list(qtbot: QtBot, window: MainWindow) -> None:
+    """All jobs before the retry answers: the list stays shown, a note says where the retry job is."""
+    signals = window.context.signals
+    signals.open_job.emit(FIRST_BATCH_ID)
+    signals.retry_jobs.emit(FIRST_BATCH_ID, (RetryJob(item_id=FILM_ID, language="en"),))
+    jobs = _jobs(window)
+    _all_jobs(jobs).click()
+    wait_for(qtbot, lambda: _finished(window))
+    assert (jobs.currentWidget(), jobs.page_view.model.batch_id) == (jobs.list_view, None)
+    assert window.statusBar().currentMessage().startswith("The retry job ")
+
+
+def test_closing_the_start_dialog_drops_the_question(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
+    """The start dialog closed before the question of another computer's job arrives: it does not open."""
+    window.context.hooks.run()
+    page = _cloud(window)
+    page.run_panel.buttons.start_button.click()
+    start = page.start_dialog
+    wait_for(qtbot, lambda: FOREIGN_BATCH_ID in start.plan.delete_buttons)
+    window.context.signals.delete_unknown_batch.emit(FOREIGN_BATCH_ID)
+    start.reject()
+    wait_for(qtbot, lambda: not window.busy())
+    assert (QApplication.activeModalWidget(), window.statusBar().currentMessage()) == (
+        None,
+        not_asked_text(FOREIGN_BATCH_ID),
+    )
+    assert keys_under(world.store, FOREIGN_BATCH_ID)

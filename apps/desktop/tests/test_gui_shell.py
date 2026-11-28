@@ -86,19 +86,6 @@ def test_navigation_signals_open_their_pages(window: MainWindow) -> None:
     assert window.pages.current_page() == PAGE_CLOUD
 
 
-def test_unhandled_actions_say_not_available(window: MainWindow) -> None:
-    """An action signal without a handler shows "Not available yet"; a connected one reaches its handler."""
-    signals = window.context.signals
-    signals.open_review.emit(BATCH)
-    assert window.statusBar().currentMessage() == "Not available yet."
-    window.statusBar().clearMessage()
-    received: list[str] = []
-    window.connect_handler("open_review", received.append)
-    signals.open_review.emit(BATCH)
-    assert received == [BATCH]
-    assert not window.statusBar().currentMessage()
-
-
 def test_the_error_dialog_fix_opens_the_named_batch(window: MainWindow) -> None:
     """`cleanup_pending`'s fix opens the job page of the batch named in the details."""
     opened: list[str] = []

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 08:00+0100\n"
+"POT-Creation-Date: 2026-11-28 08:22+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -46,8 +46,8 @@ msgstr ""
 #: src/transcribe_ui/gui/cleanup/display.py
 #, python-brace-format
 msgid ""
-"A cloud step of job {batch_id} is still running; it is shown below the "
-"pages."
+"A cloud step of job {batch_id} is still running in the activity panel "
+"below."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -227,6 +227,11 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Checking files"
+msgstr ""
+
+#: src/transcribe_ui/gui/cleanup/display.py
+#, python-brace-format
+msgid "Checking the cleanup of job {batch_id}"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py
@@ -2041,7 +2046,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cleanup/display.py
 #, python-brace-format
-msgid "The retry job {batch_id} is ready; it is on the Jobs page."
+msgid "The retry job {batch_id} was created; it is on the Jobs page."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
