@@ -7,14 +7,15 @@ Usage, from the repository root, in the build environment (PyInstaller lists the
 
 The checks run in order on fresh per-user state (a temporary folder for the app's data,
 settings, cache and logs, so none of the machine's own is read or changed) and with `PATH`
-stripped of every folder holding ffmpeg or ffprobe; `cli-probe` gets only the OS's own folders
-on `PATH` (without one holding ffmpeg or ffprobe), so it passes only with the bundled ffprobe.
-The exception is the OS keyring: `credentials_status` reads the real Windows Credential Manager
-or macOS Keychain (read only; nothing is stored), which has no override. Each prints one line;
-a summary (sizes, the CLI's cold start) follows and is appended to the job summary
-(`GITHUB_STEP_SUMMARY`). A failing check prints the process output and the app's log files.
-Every process has a timeout, after which it is killed with everything it started. `linux-floor` runs only on Linux and needs `--floor-image`; `--skip` leaves a check out
-(for a local run without Docker or Xvfb; CI skips nothing). Exit code 1 if any check failed.
+stripped of every folder holding ffmpeg or ffprobe. The exception is the OS keyring:
+`credentials_status` reads the real Windows Credential Manager or macOS Keychain (read only;
+nothing is stored), which has no override. `cli-probe` gets only the OS's own folders on `PATH`
+(without one holding ffmpeg or ffprobe), so it passes only with the bundled ffprobe. Each check
+prints one line; a summary (sizes, the CLI's cold start) follows and is appended to the job
+summary (`GITHUB_STEP_SUMMARY`). A failing check prints the process output and the app's log
+files. Every process has a timeout, after which it is killed with everything it started.
+`linux-floor` runs only on Linux and needs `--floor-image`; `--skip` leaves a check out (for a
+local run without Docker or Xvfb; CI skips nothing). Exit code 1 if any check failed.
 """
 
 import argparse

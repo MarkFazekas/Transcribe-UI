@@ -2,8 +2,9 @@
 
 In an ubuntu:22.04 container (the oldest Ubuntu LTS the build supports) with only the libraries
 of `apps/desktop/packaging/linux-packages.txt` installed, the CLI's version, database and probe
-checks and the GUI's offscreen start pass (the probe's WAV in a folder mounted from the host). The executables are mounted read-only; the container is
-removed afterwards whatever happened, which also ends a run that timed out inside it.
+checks and the GUI's offscreen start pass (the probe's WAV in a folder mounted from the host).
+The executables are mounted read-only; the container is removed afterwards whatever happened,
+which also ends a run that timed out inside it.
 """
 
 import os
