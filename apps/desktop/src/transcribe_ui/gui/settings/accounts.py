@@ -34,6 +34,8 @@ from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.i18n.texts import code_text
 
+# Values typed into credential fields, by credential name.
+type Typed = Mapping[str, SecretStr]
 # Called once a start-up step's request answered.
 type Proceed = Callable[[], None]
 
@@ -61,6 +63,16 @@ class CheckRow:
     outcome: CheckOutcome
     outcome_label: str
     text: str
+
+
+def _not_sent(typed: Typed, sent: Typed) -> dict[str, SecretStr]:
+    """Return the typed values that differ from what was sent (typed while the store was in flight)."""
+    return dict(filter(partial(_unsent, sent), typed.items()))
+
+
+def _unsent(sent: Typed, typed: tuple[str, SecretStr]) -> bool:
+    name, secret = typed
+    return sent.get(name) != secret
 
 
 def store_request(typed: Mapping[str, SecretStr]) -> Request | ErrorResponse:
@@ -141,8 +153,11 @@ class AccountsViewModel(ViewModel):
         self.shown.message = ""
         self.changed()
 
-    def save(self) -> None:
-        """Store the typed values (`store_credentials`, only those); a refused save keeps them."""
+    def save(self, on_stored: Proceed | None = None) -> None:
+        """Store the typed values (`store_credentials`, only those); a refused save keeps them.
+
+        `on_stored` is called once a successful store's new status is read (the wizard moves on).
+        """
         if not self.shown.can_save:
             return
         request = store_request(self._typed)
@@ -155,7 +170,8 @@ class AccountsViewModel(ViewModel):
         self.shown.saving = True
         self.shown.message = tr("Saving...")
         self.changed()
-        self.executor.submit(request, self._stored)
+        sent = dict(self._typed)
+        self.executor.submit(request, partial(self._stored, sent, on_stored))
 
     def test(self) -> None:
         """Try the credentials against R2 and Runpod (`check_credentials`; up to about half a minute)."""
@@ -165,6 +181,13 @@ class AccountsViewModel(ViewModel):
         self.shown.checks = ()
         self.changed()
         self.executor.submit(CheckCredentialsRequest(action="check_credentials"), self._checked)
+
+    def discard_typed(self) -> None:
+        """Forget what was typed and not stored (its fields are emptied: no value outlives its field)."""
+        self._typed = {}
+        self.shown.typed = frozenset()
+        self.shown.errors = {}
+        self.changed()
 
     def _loaded(self, proceed: Proceed | None, response: Response) -> None:
         if isinstance(response, CredentialsStatusResponse):
@@ -176,15 +199,16 @@ class AccountsViewModel(ViewModel):
         if proceed is not None:
             proceed()
 
-    def _stored(self, response: Response) -> None:
+    def _stored(self, sent: Typed, on_stored: Proceed | None, response: Response) -> None:
         self.shown.saving = False
         self.shown.message = ""
         if isinstance(response, StoreCredentialsResponse):
-            self._typed = {}
-            self.shown.typed = frozenset()
+            # Only what was sent is stored now; a value typed meanwhile stays typed.
+            self._typed = _not_sent(self._typed, sent)
+            self.shown.typed = frozenset(self._typed)
             self.shown.errors = {}
             self.shown.message = tr("Saved.")
-            self.load()
+            self.load(on_stored)
         self.changed()
         if isinstance(response, ErrorResponse):
             self._hooks.on_error(error_view(response))

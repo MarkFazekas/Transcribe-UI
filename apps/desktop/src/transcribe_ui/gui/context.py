@@ -11,6 +11,7 @@ from transcribe_ui.gui.closing import QuitNow
 from transcribe_ui.gui.settings.restart import RestartRequest
 from transcribe_ui.gui.signals import GuiSignals, StartupHooks
 from transcribe_ui.gui.writer_lock import WriterLockGate
+from transcribe_ui.i18n.constants import DEFAULT_LANGUAGE, Language
 
 
 def _never_active() -> bool:
@@ -33,9 +34,15 @@ class GuiContext:
     run_active: Callable[[], bool] = _never_active
     # Whether the GUI starts again once the window closed (after a language change).
     restart: RestartRequest = field(default_factory=RestartRequest)
+    # The language the `system` setting shows, from the OS language read once at start-up.
+    system_language: Language = DEFAULT_LANGUAGE
 
 
-def build_context(backend: Backend, quit_now: QuitNow | None = None) -> GuiContext:
+def build_context(
+    backend: Backend,
+    quit_now: QuitNow | None = None,
+    system_language: Language = DEFAULT_LANGUAGE,
+) -> GuiContext:
     """Return the executor, the bus and the shared view-models of a window over `backend`."""
     executor = QtExecutor(backend)
     return GuiContext(
@@ -46,4 +53,5 @@ def build_context(backend: Backend, quit_now: QuitNow | None = None) -> GuiConte
         lock=WriterLockGate(executor),
         log_dir=backend.log_dir,
         quit_now=QuitNow() if quit_now is None else quit_now,
+        system_language=system_language,
     )

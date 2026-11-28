@@ -13,16 +13,19 @@ from dataclasses import dataclass
 
 from transcribe_ui.api.classes import LanguageSetting
 from transcribe_ui.gui.settings.constants import PYINSTALLER_RESET_VARIABLE, RELAUNCH_SOURCE
-from transcribe_ui.i18n import system
 from transcribe_ui.i18n.catalog import active_language
-from transcribe_ui.i18n.language import resolve_language
+from transcribe_ui.i18n.constants import Language
 
 logger = logging.getLogger(__name__)
 
 
-def changes_language(setting: LanguageSetting) -> bool:
-    """Return whether `setting` shows the texts in another language than the running GUI (a restart applies it)."""
-    return resolve_language(setting, system.os_language) != active_language()
+def changes_language(setting: LanguageSetting, system_language: Language) -> bool:
+    """Return whether `setting` shows the texts in another language than the running GUI (a restart applies it).
+
+    `system_language` is what `system` means: the OS language read once at start-up.
+    """
+    target = system_language if setting == "system" else setting
+    return target != active_language()
 
 
 def relaunch_command() -> list[str]:

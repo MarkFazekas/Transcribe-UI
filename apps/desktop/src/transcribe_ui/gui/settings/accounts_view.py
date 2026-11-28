@@ -89,10 +89,12 @@ def _checks_text(shown: AccountsState) -> str:
     return "\n".join(map(_check_line, shown.checks))
 
 
-def _paint_field(field: CredentialField, row: AccountRow) -> None:
+def _paint_field(field: CredentialField, row: AccountRow, *, saving: bool) -> None:
     if not row.typed and field.edit.text():
         # Stored: what was typed is not kept in the field.
         field.edit.clear()
+    # Nothing is typed while a store is in flight.
+    field.edit.setEnabled(not saving)
     field.edit.setPlaceholderText(row.placeholder)
     show_text(field.source, row.source)
     show_text(field.error, row.error)
@@ -110,7 +112,7 @@ class AccountsView(QWidget):
         self._lay_out()
         for name, field in self.fields.items():
             field.edit.textEdited.connect(partial(model.type_value, name))
-        self.controls.save_button.clicked.connect(model.save)
+        self.controls.save_button.clicked.connect(self._save)
         self.controls.test_button.clicked.connect(model.test)
         model.subscribe(self._repaint)
         self._repaint()
@@ -127,6 +129,10 @@ class AccountsView(QWidget):
         layout.addWidget(controls.checks_label)
         layout.addStretch()
 
+    def _save(self) -> None:
+        # Not connected to `save` itself: `clicked` would pass its flag as `on_stored`.
+        self._model.save()
+
     def _repaint(self) -> None:
         shown = self._model.shown
         controls = self.controls
@@ -134,7 +140,7 @@ class AccountsView(QWidget):
         show_text(controls.keyring_label, keyring)
         show_text(controls.load_label, shown.load_error)
         for row in shown.rows():
-            _paint_field(self.fields[row.name], row)
+            _paint_field(self.fields[row.name], row, saving=shown.saving)
         controls.message_label.setText(shown.message)
         controls.save_button.setEnabled(shown.can_save)
         controls.test_button.setEnabled(not shown.checking)

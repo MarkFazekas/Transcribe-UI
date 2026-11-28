@@ -7,7 +7,6 @@ one the page says that another computer starts the transcription (R2-only role, 
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
@@ -53,6 +52,8 @@ class CloudSetupViewModel(ViewModel):
         self.error: ErrorView | None = None
         self.message = ""
         self.checking = False
+        # `proceed` of the callers waiting for the check in flight.
+        self._waiting: list[Proceed] = []
         accounts.subscribe(self.changed)
         activity.subscribe(self.changed)
 
@@ -83,11 +84,19 @@ class CloudSetupViewModel(ViewModel):
         )
 
     def check(self, proceed: Proceed | None = None) -> None:
-        """Compare the Runpod objects with what the app needs (`cloud_setup_status`); `proceed` when answered."""
+        """Compare the Runpod objects with what the app needs (`cloud_setup_status`); `proceed` when answered.
+
+        While a check runs, no second one is sent: `proceed` waits for the running one.
+        """
+        if proceed is not None:
+            self._waiting.append(proceed)
+        if self.checking:
+            return
         self.checking = True
+        self.message = ""
         self.changed()
         request = CloudSetupStatusRequest(action="cloud_setup_status")
-        self.executor.submit(request, partial(self._checked, proceed))
+        self.executor.submit(request, self._checked)
 
     def set_up(self) -> None:
         """Create or update the objects (`setup_cloud`, in the activity panel); then check again."""
@@ -99,7 +108,7 @@ class CloudSetupViewModel(ViewModel):
         request = SetupCloudRequest(action="setup_cloud")
         self._activity.start(request, tr("Cloud setup"), self._set_up_done, SETUP_CLOUD_KEY)
 
-    def _checked(self, proceed: Proceed | None, response: Response) -> None:
+    def _checked(self, response: Response) -> None:
         self.checking = False
         if isinstance(response, CloudSetupStatusResponse):
             self.status = response
@@ -107,13 +116,17 @@ class CloudSetupViewModel(ViewModel):
         elif isinstance(response, ErrorResponse):
             self.error = error_view(response)
         self.changed()
-        if proceed is not None:
+        waiting = self._waiting
+        self._waiting = []
+        for proceed in waiting:
             proceed()
 
     def _set_up_done(self, response: Response) -> None:
         if isinstance(response, SetupCloudResponse):
-            self.message = account_texts.setup_summary(response)
             self.check()
+            # After the check's own reset: the summary stays until the next check.
+            self.message = account_texts.setup_summary(response)
+            self.changed()
             return
         if isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)

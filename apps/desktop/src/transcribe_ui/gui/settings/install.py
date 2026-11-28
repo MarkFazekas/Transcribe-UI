@@ -15,7 +15,7 @@ from transcribe_ui.gui.constants import PAGE_SETTINGS, SECTION_ACCOUNTS, SECTION
 from transcribe_ui.gui.settings.about import window_title
 from transcribe_ui.gui.settings.constants import NoticeKind, WizardStep
 from transcribe_ui.gui.settings.hooks import AreaHooks
-from transcribe_ui.gui.settings.models import SettingsModels, build_models
+from transcribe_ui.gui.settings.models import ModelPorts, SettingsModels, build_models
 from transcribe_ui.gui.settings.notice_view import NoticeAction, NoticeBar, RestartQuestion
 from transcribe_ui.gui.settings.view import SettingsPage
 from transcribe_ui.gui.settings.wizard import SetupWizard
@@ -34,8 +34,8 @@ class SettingsArea:
         self._window = window
         context = window.context
         hooks = AreaHooks(window.show_error, context.signals.settings_changed.emit, self.ask_restart)
-        ports = (context.executor, context.activity, context.log_dir)
-        self.models = build_models(*ports, hooks, self.open_wizard)
+        ports = ModelPorts(context.executor, context.activity, context.log_dir, context.system_language)
+        self.models = build_models(ports, hooks, self.open_wizard)
         self.page = SettingsPage(self.models, window.show_error, window)
         window.pages.add_page(PAGE_SETTINGS, page_title(PAGE_SETTINGS), self.page, needs_database=False)
         self.notice = self._notice()

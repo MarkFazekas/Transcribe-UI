@@ -1,7 +1,7 @@
 """Smoke tests of the settings area's widgets: the wizard, the pages, the notice and the restart (plan m6 M6.3)."""
 
 from collections.abc import Iterator
-from contextlib import closing
+from contextlib import ExitStack, closing
 from functools import partial
 from pathlib import Path
 
@@ -19,8 +19,10 @@ from support.gui import window_over
 from support.gui_parity import run_gui_one
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.cli.constants import EXIT_OK
-from transcribe_ui.gui.app import run_gui
+from transcribe_ui.credentials.classes import CredentialsStatusResponse
+from transcribe_ui.gui.app import application, run_gui
 from transcribe_ui.gui.constants import PAGE_SETTINGS
+from transcribe_ui.gui.language import StartLanguages, use_language
 from transcribe_ui.gui.settings.accounts_view import AccountsView
 from transcribe_ui.gui.settings.notice_view import NoticeBar, RestartQuestion
 from transcribe_ui.gui.settings.texts import settings_hint
@@ -58,6 +60,11 @@ def _settings(window: MainWindow) -> SettingsPage:
     page = window.pages.page(PAGE_SETTINGS)
     assert isinstance(page, SettingsPage)
     return page
+
+
+def accounts_status(window: MainWindow) -> CredentialsStatusResponse | None:
+    """Return the accounts' last read status."""
+    return _settings(window).models.accounts.shown.status
 
 
 def _wizard(window: MainWindow) -> SetupWizard:
@@ -110,6 +117,40 @@ def test_the_wizard_stores_the_accounts(qtbot: QtBot, tmp_path: Path, backend: B
     assert (finish, wizard.isVisible(), window.windowTitle().startswith("Transcribe-UI ")) == ("Finish", False, True)
 
 
+@pytest.mark.usefixtures("no_credential_logs")
+def test_finish_stores_what_was_typed(qtbot: QtBot, tmp_path: Path, backend: Backend) -> None:
+    """Finish stores the typed values first and closes once they are stored."""
+    window = _started(qtbot, backend, tmp_path)
+    wizard = _wizard(window)
+    view = wizard.pages.widget(0)
+    assert isinstance(view, AccountsView)
+    _type_r2(view)
+    wizard.next_button.click()
+    wait_for(qtbot, lambda: not wizard.isVisible())
+    status = accounts_status(window)
+    assert status is not None
+    assert {credential.source for credential in status.credentials if credential.name != "runpod_api_key"} == {
+        "keyring",
+    }
+    _drained(qtbot, window)
+
+
+def test_a_refused_value_keeps_the_wizard_open(qtbot: QtBot, tmp_path: Path, backend: Backend) -> None:
+    """A refused value keeps the wizard on accounts with its hint; closing it forgets what was typed."""
+    window = _started(qtbot, backend, tmp_path)
+    wizard = _wizard(window)
+    view = wizard.pages.widget(0)
+    assert isinstance(view, AccountsView)
+    QTest.keyClicks(view.fields["r2_bucket"].edit, "Not_A_Bucket")
+    wizard.next_button.click()
+    assert (wizard.isVisible(), view.fields["r2_bucket"].error.isVisibleTo(view)) == (True, True)
+    wizard.reject()
+    accounts = _settings(window).accounts
+    fields = {field.edit.text() for field in accounts.fields.values()}
+    assert (fields, accounts.controls.save_button.isEnabled()) == ({""}, False)
+    _drained(qtbot, window)
+
+
 def test_the_preferences_show_field_errors(qtbot: QtBot, tmp_path: Path, backend: Backend) -> None:
     """A refused field shows how to fix it and keeps the text; fixing the text hides the error."""
     window = _started(qtbot, backend, tmp_path)
@@ -131,8 +172,9 @@ def test_the_preferences_show_field_errors(qtbot: QtBot, tmp_path: Path, backend
 def test_the_preferences_save(qtbot: QtBot, tmp_path: Path, backend: Backend) -> None:
     """A ticked language and an edited field are saved; the window hears `settings_changed`."""
     window = _started(qtbot, backend, tmp_path)
-    view = _settings(window).preferences
-    model = _settings(window).models.preferences
+    page = _settings(window)
+    view = page.preferences
+    model = page.models.preferences
     table = view.fields.languages
     german = table.table.item(table.row_of("de"), 0)
     assert german is not None
@@ -239,3 +281,17 @@ def test_run_gui_restarts_after_closing(qtbot: QtBot, tmp_path: Path) -> None:
         relaunch=partial(events.append, "relaunched"),
     )
     assert (code, events) == (0, ["closed", "relaunched"])
+
+
+def _hungarian_os(reads: list[str]) -> str:
+    reads.append("read")
+    return "hu"
+
+
+def test_the_os_language_is_read_once(qtbot: QtBot) -> None:
+    """Start-up reads the OS language once and keeps what `system` shows (never read again later)."""
+    assert qtbot is not None
+    reads: list[str] = []
+    with ExitStack() as stack:
+        languages = use_language("en", application(), stack, partial(_hungarian_os, reads))
+    assert (languages, reads) == (StartLanguages(shown="en", system="hu"), ["read"])

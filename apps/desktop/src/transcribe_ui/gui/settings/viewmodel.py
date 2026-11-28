@@ -16,9 +16,11 @@ from transcribe_ui.api.classes import (
     GetSettingsRequest,
     GetSettingsResponse,
     LanguageOption,
+    LanguageSetting,
     Request,
+    ResetSettingsRequest,
+    ResetSettingsResponse,
     Response,
-    UpdateSettingsRequest,
     UpdateSettingsResponse,
 )
 from transcribe_ui.gui.executor import Executor
@@ -29,7 +31,7 @@ from transcribe_ui.gui.settings.hooks import AreaHooks
 from transcribe_ui.gui.settings.restart import changes_language
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.i18n.catalog import tr
-from transcribe_ui.state.settings import default_settings
+from transcribe_ui.i18n.constants import DEFAULT_LANGUAGE, Language
 
 # Called once a start-up step's request answered.
 type Proceed = Callable[[], None]
@@ -67,10 +69,13 @@ def ready_state(saved: SettingsDraft, languages: tuple[LanguageOption, ...], mes
 class PreferencesViewModel(ViewModel):
     """The editable settings (languages, file types, ffmpeg, placement defaults, language of the texts)."""
 
-    def __init__(self, executor: Executor, hooks: AreaHooks) -> None:
-        """Send through `executor`; report saves, language changes and errors through `hooks`."""
+    def __init__(self, executor: Executor, hooks: AreaHooks, system_language: Language = DEFAULT_LANGUAGE) -> None:
+        """Send through `executor`; report through `hooks`; `system_language`: what `system` shows."""
         super().__init__(executor)
         self._hooks = hooks
+        self._system_language = system_language
+        # The stored language when the save in flight was sent (None: nothing was loaded).
+        self._language_before: LanguageSetting | None = None
         self.shown = PreferencesState()
 
     def load(self, proceed: Proceed | None = None) -> None:
@@ -111,9 +116,11 @@ class PreferencesViewModel(ViewModel):
 
     def restore_defaults(self) -> None:
         """Replace stored settings that cannot be read with the defaults (offered after a failed load)."""
-        self._send(UpdateSettingsRequest(action="update_settings", settings=default_settings()))
+        self._send(ResetSettingsRequest(action="reset_settings"))
 
     def _send(self, request: Request) -> None:
+        saved = self.shown.saved
+        self._language_before = None if saved is None else saved.language
         self.shown.saving = True
         self.shown.message = tr("Saving...")
         self.changed()
@@ -130,12 +137,14 @@ class PreferencesViewModel(ViewModel):
             proceed()
 
     def _saved(self, response: Response) -> None:
-        if isinstance(response, UpdateSettingsResponse):
+        if isinstance(response, UpdateSettingsResponse | ResetSettingsResponse):
+            language = response.settings.language
             saved = draft_of(response.settings)
             self.shown = ready_state(saved, response.languages, tr("Saved."))
             self.changed()
             self._hooks.on_saved()
-            if changes_language(response.settings.language):
+            # Asked once per change: a later save that keeps the language (after Later) does not ask again.
+            if language != self._language_before and changes_language(language, self._system_language):
                 self._hooks.on_language_changed()
         elif isinstance(response, ErrorResponse):
             self._refused(response)

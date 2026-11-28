@@ -5,6 +5,7 @@ the parity runner's backend and CLI legs, so a GUI-built request is a valid CLI 
 same response.
 """
 
+import importlib
 import json
 import subprocess
 import sys
@@ -21,14 +22,15 @@ from support.golden import assert_golden
 from support.gui_settings import Heard, Recorded, Scripted, request_golden
 from support.parity import run_one
 from transcribe_ui.api.backend import Backend
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, UpdateSettingsRequest
+from transcribe_ui.api.classes import ErrorBody, ErrorResponse, ResetSettingsRequest, UpdateSettingsRequest
 from transcribe_ui.cli.constants import EXIT_INVALID_REQUEST, EXIT_OK
-from transcribe_ui.gui.settings.constants import FORM_FIELD
+from transcribe_ui.gui.settings.constants import FORM_FIELD, PYINSTALLER_RESET_VARIABLE, RELAUNCH_SOURCE
 from transcribe_ui.gui.settings.draft import SettingsDraft, settings_document, update_request
-from transcribe_ui.gui.settings.restart import changes_language
+from transcribe_ui.gui.settings.restart import changes_language, relaunch_gui
 from transcribe_ui.gui.settings.texts import settings_hint
 from transcribe_ui.gui.settings.viewmodel import PreferencesViewModel
 from transcribe_ui.i18n.catalog import activate
+from transcribe_ui.i18n.constants import DEFAULT_LANGUAGE as ENGLISH
 from transcribe_ui.i18n.constants import HUNGARIAN
 from transcribe_ui.state.settings import default_settings
 
@@ -83,7 +85,7 @@ def _draft(model: PreferencesViewModel) -> SettingsDraft:
 
 def _edited(draft: SettingsDraft, root: Path) -> SettingsDraft:
     """The scripted form state of the update golden: every field changed."""
-    languages = draft.with_language("en", enabled=False).with_language("de", enabled=True)
+    languages = draft.with_language(ENGLISH, enabled=False).with_language("de", enabled=True)
     return replace(
         languages,
         video_extensions="mkv mp4, webm",
@@ -159,10 +161,11 @@ def test_refused_fields_keep_the_edits(backend: Backend) -> None:
 def test_refused_form_gets_the_backend_response(tmp_path: Path, backend: Backend) -> None:
     """The form's own `invalid_request` is exactly the backend's and the CLI's response to its document."""
     model, _executor = _loaded(backend, Heard())
-    model.edit(replace(_draft(model), video_extensions="mkv mp4", audio_extensions="mp3 mp4"))
-    document = json.dumps(settings_document(_draft(model)), indent=2)
+    overlap = replace(_draft(model), video_extensions="mkv mp4", audio_extensions="mp3 mp4")
+    model.edit(overlap)
+    document = json.dumps(settings_document(overlap), indent=2)
     assert_golden("gui_settings_refused_overlap.json", f"{document}\n")
-    response = update_request(_draft(model))
+    response = update_request(overlap)
     assert isinstance(response, ErrorResponse)
     exchange = run_one(tmp_path, document)
     assert exchange.exit_code == EXIT_INVALID_REQUEST
@@ -192,7 +195,7 @@ def test_backend_refusal_keeps_the_edits(backend: Backend) -> None:
 
 
 def test_unreadable_settings_can_be_restored(tmp_path: Path, gui_root: Path, backend: Backend) -> None:
-    """A failed load leaves nothing to edit; Restore defaults saves the defaults and loads the form."""
+    """A failed load leaves nothing to edit; Restore defaults sends `reset_settings` and loads the form."""
     unreadable = ErrorResponse(
         action="get_settings",
         error=ErrorBody(code="settings_invalid", message="The settings file is not valid."),
@@ -201,17 +204,40 @@ def test_unreadable_settings_can_be_restored(tmp_path: Path, gui_root: Path, bac
     assert (model.shown.state, model.shown.draft) == ("failed", None)
     assert model.shown.load_error.startswith("The settings file cannot be read")
     model.restore_defaults()
-    golden = request_golden(_sent_update(executor), gui_root)
+    request = executor.sent[-1]
+    assert isinstance(request, ResetSettingsRequest)
+    golden = request_golden(request, gui_root)
     assert_golden("gui_settings_restore_defaults.json", golden)
     assert run_one(tmp_path, golden).exit_code == EXIT_OK
-    assert model.shown.state == "ready"
+    assert (model.shown.state, model.shown.message) == ("ready", "Saved.")
+
+
+def test_the_restart_is_asked_once_per_change(backend: Backend) -> None:
+    """After Later, a save that keeps the language does not ask again; changing back to the shown one does not ask."""
+    heard = Heard()
+    model, _executor = _loaded(backend, heard)
+    loaded = _draft(model)
+    model.edit(replace(loaded, language=HUNGARIAN))
+    model.save()
+    model.edit(replace(loaded, language=HUNGARIAN, include_hidden=True))
+    model.save()
+    assert (heard.saves, heard.language_changes) == (2, 1)
+    model.edit(replace(loaded, language=ENGLISH))
+    model.save()
+    assert (heard.saves, heard.language_changes) == (3, 1)
 
 
 def test_restart_only_when_the_language_changes() -> None:
-    """`system` follows the OS language (none here: English), so only Hungarian changes English texts."""
-    assert (changes_language(HUNGARIAN), changes_language("en"), changes_language("system")) == (True, False, False)
+    """`system` shows the language read from the OS at start-up; only another language than the shown one asks."""
+    english = (
+        changes_language(HUNGARIAN, ENGLISH),
+        changes_language(ENGLISH, ENGLISH),
+        changes_language("system", ENGLISH),
+    )
+    assert english == (True, False, False)
+    assert (changes_language("system", HUNGARIAN), changes_language(HUNGARIAN, HUNGARIAN)) == (True, True)
     activate(HUNGARIAN)
-    assert (changes_language("system"), changes_language(HUNGARIAN)) == (True, False)
+    assert (changes_language("system", ENGLISH), changes_language("system", HUNGARIAN)) == (True, False)
 
 
 def test_the_view_models_do_not_load_qt() -> None:
@@ -225,3 +251,50 @@ def test_the_view_models_do_not_load_qt() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+class _Started:
+    """A stand-in for `subprocess.Popen` that records what it was asked to start."""
+
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+        self.environments: list[dict[str, str]] = []
+
+    def __call__(self, command: list[str], *, env: dict[str, str], start_new_session: bool) -> None:
+        assert start_new_session
+        self.commands.append(command)
+        self.environments.append(env)
+
+
+def test_relaunch_from_source_runs_the_gui_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """From source the interpreter runs the GUI entry's `run`; no PyInstaller variable is set."""
+    started = _Started()
+    monkeypatch.setattr(subprocess, "Popen", started)
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    monkeypatch.delenv(PYINSTALLER_RESET_VARIABLE, raising=False)
+    relaunch_gui()
+    assert started.commands == [[sys.executable, "-c", RELAUNCH_SOURCE]]
+    assert PYINSTALLER_RESET_VARIABLE not in started.environments[0]
+    # The code the interpreter runs names a real entry.
+    assert callable(importlib.import_module("transcribe_ui.gui.main").run)
+
+
+def test_relaunch_of_a_build_runs_itself(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A one-file build starts itself again and unpacks its own files (`PYINSTALLER_RESET_ENVIRONMENT`)."""
+    started = _Started()
+    monkeypatch.setattr(subprocess, "Popen", started)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    relaunch_gui()
+    assert started.commands == [[sys.executable]]
+    assert started.environments[0][PYINSTALLER_RESET_VARIABLE] == "1"
+
+
+def _cannot_start(*_arguments: object, **_options: object) -> None:
+    raise FileNotFoundError(sys.executable)
+
+
+def test_a_failed_relaunch_is_logged(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    """A start that fails is logged; nothing is raised (the user starts the GUI by hand)."""
+    monkeypatch.setattr(subprocess, "Popen", _cannot_start)
+    relaunch_gui()
+    assert "The GUI could not be started again" in caplog.text

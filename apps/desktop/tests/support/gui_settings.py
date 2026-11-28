@@ -11,6 +11,7 @@ from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.gui.executor import (
     CallHandle,
     DoneCallback,
+    DoneHandle,
     ProgressCallback,
     RequestRunner,
     StartedCallback,
@@ -84,3 +85,33 @@ class Heard:
 
     def _language_changed(self) -> None:
         self.language_changes += 1
+
+
+@dataclass
+class Deferred:
+    """An executor that holds every request until `answer` runs it, so a test can act while it is in flight."""
+
+    runner: RequestRunner
+    held: list[tuple[Request, DoneCallback]] = field(default_factory=list)
+
+    def submit(
+        self,
+        request: Request,
+        on_done: DoneCallback,
+        on_progress: ProgressCallback | None = None,
+        on_started: StartedCallback | None = None,
+    ) -> CallHandle:
+        """Hold the request; progress and the start are not reported (the settings area uses neither)."""
+        assert (on_progress, on_started) == (None, None)
+        self.held.append((request, on_done))
+        return DoneHandle()
+
+    def answer(self) -> str:
+        """Run the oldest held request and deliver its response; return its action."""
+        request, on_done = self.held.pop(0)
+        on_done(self.runner.execute(request, None, None))
+        return request.action
+
+    def actions(self) -> list[str]:
+        """Return the actions held, oldest first."""
+        return [request.action for request, _on_done in self.held]

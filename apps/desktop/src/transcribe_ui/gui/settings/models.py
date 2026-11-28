@@ -11,6 +11,20 @@ from transcribe_ui.gui.settings.cloud_setup import CloudSetupViewModel
 from transcribe_ui.gui.settings.hooks import AreaHooks
 from transcribe_ui.gui.settings.startup import FirstStart, OpenWizard
 from transcribe_ui.gui.settings.viewmodel import PreferencesViewModel
+from transcribe_ui.i18n.constants import Language
+
+
+@dataclass(frozen=True)
+class ModelPorts:
+    """What the area's view-models are built over."""
+
+    executor: Executor
+    # Runs `setup_cloud` (a long request with Cancel and Resume).
+    activity: Activity
+    # Folder of the GUI log (About).
+    log_dir: Path
+    # The language `system` shows (the OS language read once at start-up).
+    system_language: Language
 
 
 @dataclass(frozen=True)
@@ -24,20 +38,15 @@ class SettingsModels:
     first_start: FirstStart
 
 
-def build_models(
-    executor: Executor,
-    activity: Activity,
-    log_dir: Path,
-    hooks: AreaHooks,
-    open_wizard: OpenWizard,
-) -> SettingsModels:
-    """Return the area's view-models over `executor` (`setup_cloud` runs in `activity`)."""
+def build_models(ports: ModelPorts, hooks: AreaHooks, open_wizard: OpenWizard) -> SettingsModels:
+    """Return the area's view-models over `ports`."""
+    executor = ports.executor
     accounts = AccountsViewModel(executor, hooks)
-    cloud = CloudSetupViewModel(executor, activity, accounts)
+    cloud = CloudSetupViewModel(executor, ports.activity, accounts)
     return SettingsModels(
-        preferences=PreferencesViewModel(executor, hooks),
+        preferences=PreferencesViewModel(executor, hooks, ports.system_language),
         accounts=accounts,
         cloud=cloud,
-        about=AboutViewModel(executor, log_dir),
+        about=AboutViewModel(executor, ports.log_dir),
         first_start=FirstStart(accounts, cloud, open_wizard),
     )

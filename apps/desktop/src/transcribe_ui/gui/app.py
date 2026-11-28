@@ -18,7 +18,7 @@ from transcribe_ui.constants import DISTRIBUTION_NAME
 from transcribe_ui.gui.closing import QuitNow
 from transcribe_ui.gui.constants import SHUTDOWN_WAIT_MS
 from transcribe_ui.gui.context import build_context
-from transcribe_ui.gui.language import use_language
+from transcribe_ui.gui.language import StartLanguages, use_language
 from transcribe_ui.gui.messages import exceptions_to_log, qt_messages_to_log
 from transcribe_ui.gui.shell import MainWindow, build_shell
 
@@ -46,9 +46,14 @@ def application() -> QApplication:
     return QApplication([DISTRIBUTION_NAME])
 
 
-def _run_window(backend: Backend, quit_now: QuitNow | None, on_window: WindowHook | None) -> WindowRun:
+def _run_window(
+    backend: Backend,
+    quit_now: QuitNow | None,
+    on_window: WindowHook | None,
+    languages: StartLanguages,
+) -> WindowRun:
     app = application()
-    context = build_context(backend, quit_now)
+    context = build_context(backend, quit_now, languages.system)
     window = build_shell(context)
     window.show()
     QTimer.singleShot(0, context.hooks.run)
@@ -87,8 +92,8 @@ def run_gui(
     in tests).
     """
     with qt_messages_to_log(), exceptions_to_log(), closing(make_backend()) as backend, ExitStack() as stack:
-        use_language(backend.language_setting(), application(), stack, os_language)
-        code, after_close = _run_window(backend, quit_now, on_window)
+        languages = use_language(backend.language_setting(), application(), stack, os_language)
+        code, after_close = _run_window(backend, quit_now, on_window, languages)
     if after_close is not None:
         logger.info("Starting the GUI again to change the language")
         (after_close if relaunch is None else relaunch)()

@@ -10,7 +10,7 @@ from transcribe_ui.gui.settings.accounts import AccountsViewModel
 from transcribe_ui.gui.settings.accounts_view import AccountsView
 from transcribe_ui.gui.settings.cloud_setup import CloudSetupViewModel
 from transcribe_ui.gui.settings.cloud_view import CloudSetupView, ShowError
-from transcribe_ui.gui.settings.constants import WizardStep
+from transcribe_ui.gui.settings.constants import OPTIONAL_CREDENTIAL, WizardStep
 from transcribe_ui.i18n.catalog import tr
 
 
@@ -35,15 +35,18 @@ class SetupWizard(QDialog):
     ) -> None:
         """Show the sections of `accounts` and `cloud`."""
         super().__init__(parent)
+        self._accounts = accounts
         self._cloud = cloud
         self.setWindowTitle(tr("Set up Transcribe-UI"))
         self.step_label = QLabel(self)
         self.pages = _pages(accounts, cloud, show_error, self)
         self.back_button = QPushButton(tr("Back"), self)
         self.next_button = QPushButton(self)
-        self.back_button.clicked.connect(self._back)
-        self.next_button.clicked.connect(self._next)
         self._lay_out()
+        # Values typed elsewhere and not stored would make Save look enabled over empty fields; so
+        # would values typed here once the wizard is closed.
+        accounts.discard_typed()
+        self.finished.connect(accounts.discard_typed)
         accounts.subscribe(self._repaint)
         self._repaint()
 
@@ -60,11 +63,13 @@ class SetupWizard(QDialog):
     def _lay_out(self) -> None:
         later_button = QPushButton(tr("Set up later"), self)
         later_button.clicked.connect(self.reject)
+        self.back_button.clicked.connect(self._back)
+        self.next_button.clicked.connect(self._next)
         row = QHBoxLayout()
         row.addWidget(later_button)
         row.addStretch()
-        row.addWidget(self.back_button)
-        row.addWidget(self.next_button)
+        for button in (self.back_button, self.next_button):
+            row.addWidget(button)
         layout = QVBoxLayout(self)
         layout.addWidget(self.step_label)
         layout.addWidget(self.pages, 1)
@@ -74,6 +79,13 @@ class SetupWizard(QDialog):
         self.show_step("accounts")
 
     def _next(self) -> None:
+        """On accounts, store what was typed first: move on once stored, stay with the hints when refused."""
+        if self.pages.currentIndex() == 0 and self._accounts.shown.can_save:
+            self._accounts.save(self._advance)
+        else:
+            self._advance()
+
+    def _advance(self) -> None:
         if self.pages.currentIndex() == 0 and self._cloud.key_set:
             self.show_step("cloud_setup")
         else:
@@ -86,5 +98,6 @@ class SetupWizard(QDialog):
         else:
             self.step_label.setText(tr("Step 1 of 2: accounts"))
         self.back_button.setVisible(on_cloud)
-        last = on_cloud or not self._cloud.key_set
+        typed_key = OPTIONAL_CREDENTIAL in self._accounts.shown.typed
+        last = on_cloud or not (self._cloud.key_set or typed_key)
         self.next_button.setText(tr("Finish") if last else tr("Next"))

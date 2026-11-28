@@ -27,7 +27,7 @@ from support.credentials import (
 )
 from support.fakes import seeded_ports
 from support.golden import GOLDEN_DIR
-from support.gui_settings import Heard, Recorded, Scripted
+from support.gui_settings import Deferred, Heard, Recorded, Scripted
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse
 from transcribe_ui.credentials.classes import StoreCredentialsRequest
@@ -65,7 +65,7 @@ def backend(tmp_path: Path) -> Iterator[Backend]:
 class Area:
     """The accounts, cloud setup and first start view-models over one executor, and what they report."""
 
-    executor: Recorded
+    executor: Recorded | Deferred
     heard: Heard
     accounts: AccountsViewModel
     cloud: CloudSetupViewModel
@@ -89,14 +89,20 @@ class Area:
         return [row.name for row in self.accounts.shown.rows() if row.typed]
 
 
-def _area(runner: Backend | Scripted) -> Area:
-    executor = Recorded(runner)
+def _area(runner: Backend | Scripted, executor: Recorded | Deferred | None = None) -> Area:
+    executor = Recorded(runner) if executor is None else executor
     heard = Heard()
     accounts = AccountsViewModel(executor, heard.hooks())
     cloud = CloudSetupViewModel(executor, Activity(executor), accounts)
     wizard: list[str] = []
     first_start = FirstStart(accounts, cloud, wizard.append)
     return Area(executor, heard, accounts, cloud, first_start, wizard)
+
+
+def _stores(area: Area) -> list[StoreCredentialsRequest]:
+    executor = area.executor
+    assert isinstance(executor, Recorded)
+    return [request for request in executor.sent if isinstance(request, StoreCredentialsRequest)]
 
 
 def _assert_nothing_shown(area: Area) -> None:
@@ -116,8 +122,7 @@ def test_typed_credentials_are_stored_not_shown(backend: Backend) -> None:
     assert area.typed() == [BUCKET, RUNPOD_KEY]
     _assert_nothing_shown(area)
     area.accounts.save()
-    stored = [request for request in area.executor.sent if isinstance(request, StoreCredentialsRequest)]
-    assert [request.to_store() for request in stored] == [{BUCKET: TEST_BUCKET, RUNPOD_KEY: TEST_RUNPOD_KEY}]
+    assert [request.to_store() for request in _stores(area)] == [{BUCKET: TEST_BUCKET, RUNPOD_KEY: TEST_RUNPOD_KEY}]
     stored_now = {row.name for row in area.accounts.shown.rows() if row.source == "Stored in the keyring"}
     assert stored_now == {BUCKET, RUNPOD_KEY}
     assert (area.accounts.shown.message, area.typed(), area.heard.errors) == ("Saved.", [], [])
@@ -236,3 +241,34 @@ def test_no_settings_golden_holds_a_credential() -> None:
     goldens = sorted(GOLDEN_DIR.glob("gui_settings_*.json"))
     found = [golden.name for golden in goldens for secret in NEVER_SHOWN if secret in golden.read_text("utf-8")]
     assert (bool(goldens), found) == (True, [])
+
+
+def test_a_value_typed_during_a_store_stays_typed(backend: Backend) -> None:
+    """A store drops only what it sent: a field typed into while it was in flight keeps its value."""
+    deferred = Deferred(backend)
+    area = _area(backend, deferred)
+    area.accounts.load()
+    assert deferred.answer() == "credentials_status"
+    area.accounts.type_value(BUCKET, TEST_BUCKET)
+    area.accounts.save()
+    area.accounts.type_value(RUNPOD_KEY, TEST_RUNPOD_KEY)
+    assert (deferred.answer(), deferred.answer()) == ("store_credentials", "credentials_status")
+    assert (area.typed(), area.accounts.shown.can_save) == ([RUNPOD_KEY], True)
+    area.accounts.discard_typed()
+    assert (area.typed(), area.accounts.shown.can_save) == ([], False)
+    _assert_nothing_shown(area)
+
+
+def test_a_running_check_is_not_sent_twice(backend: Backend) -> None:
+    """A second check while one runs waits for it; a new check clears the last setup summary."""
+    assert backend.execute_json(store_request()).status == "ok"
+    deferred = Deferred(backend)
+    area = _area(backend, deferred)
+    area.accounts.load()
+    deferred.answer()
+    area.cloud.message = "Cloud setup done: 6 created, 0 updated, 0 unchanged."
+    area.first_start.cloud_step(partial(area.proceeded.append, "cloud"))
+    area.cloud.check(partial(area.proceeded.append, "retry"))
+    assert (deferred.actions(), area.cloud.message) == (["cloud_setup_status"], "")
+    deferred.answer()
+    assert (area.proceeded, area.wizard) == (["cloud", "retry"], ["cloud_setup"])
