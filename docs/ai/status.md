@@ -26,9 +26,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.11 (GUI end-to-end flow: `tests/test_gui_end_to_end.py`, compared with the CLI flow) on
-  `feat/m6.11-gui-e2e`: built, in review. No product code changed.
-- M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress.
+- M6.13 (several installations on one bucket, backend and GUI: the run lease, the R2-only
+  role, the known rule, adoption of another computer's job, Q35, the revision `shared_bucket`,
+  the new labels) on `feat/m6.13-shared-bucket`: built, in review. Its worker reads the run
+  lease (contracts 1.1): no Runpod run of this build before the new `schema-1` worker image
+  is pushed (`release-worker.yml` pushes it on `main`; an older image ignores the lease).
 
 ## Waiting on humans
 
@@ -43,11 +45,10 @@ the status change on the current branch. On a merge conflict in this file, re-de
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
 2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Merged: M6.1, M6.2, M6.14
    (#40), M6.12 (#41), M6.7 (#42), M6.5, M6.3 (#45), M6.4 (#46), M6.6 (#47), M6.9 (#48,
-   ebae048), M6.10 (a022e03), M6.8 (#50, 6ad5b0f). In flight: M6.11 (built, in review) and
-   M6.13 (several installations on one bucket, Q28, with its GUI). M6 becomes built only when
-   both are merged: the later of the two marks M6 **(built)** in architecture §10. The M4
-   Runpod trial run is deferred until everything else works (architect); nothing waits on it,
-   and it still needs the architect present and their go.
+   ebae048), M6.10 (a022e03), M6.8 (#50, 6ad5b0f), M6.11 (#52). In flight: M6.13 (in
+   review); its merge marks M6 **(built)** in architecture §10. The M4 Runpod trial run is
+   deferred until everything else works (architect); nothing waits on it, and it still needs
+   the architect present and their go.
 3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is in
    progress on `feat/m8.1-desktop-build`, and M8 does not wait for M7.
 4. From now on every database schema change, including any change of a stored payload's
