@@ -182,3 +182,11 @@ SMOKE_TEST_FAILED_EXIT_CODE: Final = 1
 QT_TRANSLATION_PREFIX: Final = "qtbase_"
 # Exit code of "Quit now".
 QUIT_NOW_EXIT_CODE: Final = 0
+# Package holding the window icon PNGs (package data, also in the one-file bundle).
+ICON_PACKAGE: Final = "transcribe_ui.gui"
+# Folder of the window icon PNGs inside that package.
+ICON_FOLDER: Final = "icons"
+# File name of an icon PNG; `{size}` is its width and height in pixels.
+ICON_FILE_PATTERN: Final = "transcribe-ui-{size}.png"
+# The pixel sizes of the bundled icon PNGs.
+ICON_SIZES: Final = (16, 24, 32, 48, 64, 128, 256)
