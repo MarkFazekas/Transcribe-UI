@@ -41,7 +41,7 @@ from transcribe_ui.runs.results import check_ready_batches
 from transcribe_ui.runs.settling import Listed
 
 
-def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> RefreshStatusResponse:
+def refresh_status(request: RefreshStatusRequest, context: RequestContext) -> RefreshStatusResponse:
     """Follow the open runs (with a Runpod key), record the `ready` batches' results, collect run objects.
 
     Raises:
@@ -56,7 +56,7 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         client = stack.enter_context(open_runpod(context)) if runpod_key_set(context) else None
         open_ids = [run.run_id for run in open_runs(state)]
         refreshed, listed = _follow_runs(context, client, store)
-        checked = check_ready_batches(context, store.get())
+        checked = check_ready_batches(context, store.get(), recheck_removed=request.recheck_removed)
         remember_leases(state, store.get(), context.ports.clock.now())
         record_progress(context, refreshed, store.get())
         if client is not None:

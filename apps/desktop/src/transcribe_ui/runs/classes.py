@@ -182,6 +182,9 @@ class RefreshStatusRequest(FrozenModel):
     """
 
     action: Literal["refresh_status"]
+    # Also look again for the `ready` batches marked removed from the cloud (the GUI sets it at
+    # start-up and on Refresh now): one whose manifest or `_done.json` is there again is followed again.
+    recheck_removed: bool = False
 
 
 class ListRunsRequest(FrozenModel):

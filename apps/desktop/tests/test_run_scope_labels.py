@@ -7,12 +7,15 @@ in the history.
 """
 
 from support.batches import FIRST_BATCH_ID, SECOND_BATCH_ID
+from support.buckets import create_bucket
 from support.cleanup import confirmed
 from support.cleanup import send as send_document
+from support.credentials import TEST_BUCKET, store_request
 from support.launch import launch, ok_as, pods_of, send, set_up_cloud
 from support.launch_seed import seed_audio_batch
 from support.monitor import end_pod, write_status
-from support.runs import RunsWorld, seed_ready
+from support.runs import JSON_TYPE, RunsWorld, seed_ready
+from transcribe_contracts.layout import manifest_key
 from transcribe_ui.batches.responses import BatchSummary, ListBatchesResponse
 from transcribe_ui.runs.responses import RefreshStatusResponse
 
@@ -20,6 +23,9 @@ from transcribe_ui.runs.responses import RefreshStatusResponse
 SECOND_ITEM = "01JDZZZZZZZZZZZZZZZZZZZZ31"
 # The label of a batch outside the current run.
 WAITS = "waits_for_current_run"
+# A bucket name nobody created (a typo), and another bucket of the same account.
+MISSING_BUCKET = "no-such-bucket"
+OTHER_BUCKET = "another-bucket"
 
 
 def _summaries(world: RunsWorld) -> dict[str, BatchSummary]:
@@ -76,6 +82,56 @@ def test_batch_removed_by_another_computer(runs_world: RunsWorld, r2_only_world:
         ("removed_from_cloud",),
         ("hide_batch",),
     )
-    assert _refresh(runs_world).batches == ()
+    assert not _refresh(runs_world).batches
     assert send(runs_world, "set_batch_hidden", batch_id=FIRST_BATCH_ID, hidden=True).status == "ok"
     assert _summaries(runs_world)[FIRST_BATCH_ID].hidden
+
+
+def _use_bucket(world: RunsWorld, bucket: str) -> None:
+    """Store another bucket name (a mistyped one, or another bucket of the account)."""
+    assert world.leg.backend.execute_json(store_request(r2_bucket=bucket)).status == "ok"
+
+
+def _labels(world: RunsWorld) -> tuple[str, ...]:
+    return _summaries(world)[FIRST_BATCH_ID].labels
+
+
+def test_a_missing_bucket_marks_nothing(runs_world: RunsWorld) -> None:
+    """A mistyped bucket name: the refresh fails (a HEAD there finds nothing), and no batch is marked removed."""
+    seed_ready(runs_world)
+    _use_bucket(runs_world, MISSING_BUCKET)
+    failed = send(runs_world, "refresh_status")
+    _use_bucket(runs_world, TEST_BUCKET)
+    assert (failed.status, _labels(runs_world), _refresh(runs_world).awaiting_results) == ("error", (), True)
+
+
+def test_switching_back_to_the_bucket_restores(runs_world: RunsWorld) -> None:
+    """Another existing bucket marks the batch removed; back on the right one, a refresh with the recheck follows it again."""
+    seed_ready(runs_world)
+    create_bucket(OTHER_BUCKET)
+    _use_bucket(runs_world, OTHER_BUCKET)
+    _refresh(runs_world)
+    marked = _labels(runs_world)
+    _use_bucket(runs_world, TEST_BUCKET)
+    still = None if _refresh(runs_world).batches else _labels(runs_world)
+    restored = ok_as(send(runs_world, "refresh_status", recheck_removed=True), RefreshStatusResponse)
+    assert (marked, still, _labels(runs_world), restored.awaiting_results) == (
+        ("removed_from_cloud",),
+        ("removed_from_cloud",),
+        (),
+        True,
+    )
+
+
+def test_a_republished_manifest_is_followed_again(runs_world: RunsWorld) -> None:
+    """Its manifest withdrawn (marked removed), then published again: the recheck follows the batch again."""
+    seed_ready(runs_world)
+    key = manifest_key(FIRST_BATCH_ID)
+    body = runs_world.store.read(key)
+    assert body is not None
+    runs_world.store.delete(key)
+    _refresh(runs_world)
+    marked = _labels(runs_world)
+    runs_world.store.write(key, body, JSON_TYPE)
+    send(runs_world, "refresh_status", recheck_removed=True)
+    assert (marked, _labels(runs_world)) == (("removed_from_cloud",), ())

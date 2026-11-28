@@ -2013,7 +2013,8 @@ database):
   the worker's report. Ids follow the reaper's rule `[A-Za-z0-9_-]{1,64}`.
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
   `worker.py`, `results.py`, `ready_batches.py`, `result_reads.py`, `collect.py`,
-  `lease_release.py`, `leases.py`, `progress.py`; request `refresh_status`, no fields; runs lock
+  `lease_release.py`, `leases.py`, `progress.py`; request `refresh_status`, field
+  `recheck_removed` (default false; §3.9 "A batch removed from the cloud"); runs lock
   for the whole request, no transaction across a Runpod or R2 call). The GUI sends it
   periodically while a run is active, or while `awaiting_results` says so, and once at
   start-up, with or without the Runpod key. The Runpod client is opened only when a key is set
@@ -2422,7 +2423,15 @@ Q28, Q35, A21 and A22.
   another computer"). Its stage is `done`; its actions allow only hiding (`hide_batch`,
   accepted by `set_batch_hidden`) and placing extracted subtitles (the downloads plan only its
   extract jobs, as for `cleaned`); `cleanup_cloud` refuses it (`batch_removed_from_cloud`). It
-  no longer counts for `awaiting_results`, is no longer checked, and its history stays.
+  no longer counts for `awaiting_results`, is no longer checked by the poll, and its history
+  stays. A HEAD in a bucket that does not exist also finds nothing, so before the first mark of
+  a refresh the bucket is listed once (`check_access`): a missing bucket (a mistyped name) is
+  the refresh's R2 error, never a removal. The mark can be undone: `refresh_status` with
+  `recheck_removed` (the GUI sets it at start-up and on "Refresh now") first HEADs the marked
+  batches again, and one whose manifest or `_done.json` is back is followed again. So another
+  existing bucket of the account still marks every `ready` batch removed, but switching back
+  and refreshing restores them; the same covers a batch whose uploader withdrew and published
+  its manifest again while this computer refreshed.
 - **Download of another installation's job.**
   - `list_cloud_batches` (`batches/cloud_jobs.py`; R2 only): every manifest in R2 that reads,
     with its id, `known`, file count, job count, audio length (each file's first audio object),

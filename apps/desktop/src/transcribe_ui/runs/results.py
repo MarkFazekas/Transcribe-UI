@@ -12,7 +12,11 @@ the job is `failed` with the reason `unreadable result`, and a job with no resul
 `failed` with `missing result` (the worker never comes back to a done batch), so a retry can
 take them. A batch with neither `_done.json` nor its manifest in R2 was removed from the cloud by
 another computer (this database's own cleanup moves a batch on first): it is marked
-`removed_from_cloud`, no longer checked, and its history stays (architecture §3.9). A batch that moves to `transcribed` moves on to `downloaded` when every job already
+`removed_from_cloud`, no longer checked, and its history stays (architecture §3.9). A HEAD of a
+missing bucket also finds nothing, so before the first mark of a refresh the bucket is listed
+(`check_access`): a missing bucket (a mistyped name) is the refresh's error, never a removal. With
+`recheck_removed` the marked batches are looked for first, and one that is back is followed again
+(`runs/ready_batches.py`). A batch that moves to `transcribed` moves on to `downloaded` when every job already
 has a placement outcome (`placement/recording.py`: downloaded in full while it was `ready`); the
 rule is also applied to every `transcribed` batch (a download killed after its last outcome). Each
 batch's lock is only tried (lock order runs → batch); a busy batch is checked at the next refresh. R2
@@ -31,7 +35,13 @@ from transcribe_ui.batches.constants import JOB_PENDING
 from transcribe_ui.batches.payloads import JobPayload
 from transcribe_ui.placement.recording import mark_transcribed, settle_transcribed
 from transcribe_ui.runs.constants import READY_PHASE, TRANSCRIBE_KIND
-from transcribe_ui.runs.ready_batches import awaiting_results, followed_batches, mark_removed
+from transcribe_ui.runs.ready_batches import (
+    awaiting_results,
+    follow_again,
+    followed_batches,
+    mark_removed,
+    removed_batches,
+)
 from transcribe_ui.runs.responses import BatchResults
 from transcribe_ui.runs.result_reads import (
     MISSING_RESULT,
@@ -55,13 +65,41 @@ class ReadyCheck:
     awaiting: bool = False
 
 
-def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyCheck:
+class _Bucket:
+    """The bucket of one refresh, listed once before the first batch is marked removed."""
+
+    def __init__(self, store: ObjectStore) -> None:
+        self.store = store
+        self._proven = False
+
+    def holds(self, batch_id: str) -> bool:
+        """Return whether R2 holds the batch's `_done.json` or manifest.
+
+        Raises:
+            StorageError: R2 could not be read, or the bucket does not exist.
+        """
+        store = self.store
+        for key in (done_key(batch_id), manifest_key(batch_id)):
+            if store.head(key) is not None:
+                return True
+        if not self._proven:
+            store.check_access()
+            self._proven = True
+        return False
+
+
+def check_ready_batches(context: RequestContext, store: ObjectStore, *, recheck_removed: bool = False) -> ReadyCheck:
     """Record the job results of every `ready` batch and move those with `_done.json` to `transcribed`.
 
+    `recheck_removed`: first follow again the batches marked removed that are back in the cloud.
+
     Raises:
-        StorageError: R2 could not be read (what came before is recorded).
+        StorageError: R2 could not be read, or the bucket does not exist (what came before is recorded).
     """
     state = context.ports.state
+    bucket = _Bucket(store)
+    if recheck_removed:
+        _recheck_removed(context, bucket)
     query = select(BatchRow.batch_id).where(*followed_batches())
     with state.session() as session:
         ready = list(session.scalars(query.order_by(BatchRow.batch_id)))
@@ -70,22 +108,30 @@ def check_ready_batches(context: RequestContext, store: ObjectStore) -> ReadyChe
     for batch_id in ready:
         with state.locks.try_batch(batch_id) as taken:
             if taken:
-                checked.append(_check_batch(context, store, batch_id))
+                checked.append(_check_batch(context, bucket, batch_id))
             else:
                 busy.append(batch_id)
     settle_transcribed(context)
     return ReadyCheck(tuple(checked), tuple(busy), awaiting=awaiting_results(state))
 
 
-def _check_batch(context: RequestContext, store: ObjectStore, batch_id: str) -> BatchResults:
+def _recheck_removed(context: RequestContext, bucket: _Bucket) -> None:
+    """Follow again the batches marked removed whose manifest or `_done.json` is back (a busy one waits for the next)."""
+    for batch_id in removed_batches(context.ports.state):
+        with context.ports.state.locks.try_batch(batch_id) as taken:
+            if taken and bucket.holds(batch_id):
+                follow_again(context, batch_id)
+
+
+def _check_batch(context: RequestContext, bucket: _Bucket, batch_id: str) -> BatchResults:
     """Check one `ready` batch whose lock this thread holds."""
     state = context.ports.state
-    done = store.head(done_key(batch_id)) is not None
-    if not done and store.head(manifest_key(batch_id)) is None:
+    done = bucket.store.head(done_key(batch_id)) is not None
+    if not done and not bucket.holds(batch_id):
         return _removed(context, batch_id)
     with state.session() as session:
         pending = _pending_jobs(session, batch_id)
-    found = read_results(store, batch_id, pending)
+    found = read_results(bucket.store, batch_id, pending)
     outcomes = _outcomes(found, pending, done=done)
     with state.session() as session:
         for job_id, outcome in outcomes.items():

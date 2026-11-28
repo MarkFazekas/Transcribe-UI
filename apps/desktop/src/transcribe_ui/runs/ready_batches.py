@@ -1,8 +1,11 @@
 """The `ready` batches `refresh_status` follows: whose results are still awaited (architecture §3.9 "Results poll").
 
 A `ready` batch is followed until its `_done.json` moves it on, or until another computer removed
-it from the cloud (`removed_from_cloud`: neither its manifest nor `_done.json` is left); such a
-batch keeps its history and is no longer checked.
+it from the cloud (`removed_from_cloud`: neither its manifest nor `_done.json` is left, in a bucket
+proven to exist); such a batch keeps its history and is no longer checked by the poll. The mark
+can be undone: a refresh with `recheck_removed` (start-up, Refresh now) looks for the marked
+batches again, and one whose manifest or `_done.json` is back (the bucket was switched back, or
+its uploader withdrew and published it again) is followed again.
 """
 
 from sqlalchemy import ColumnElement, select
@@ -31,3 +34,18 @@ def mark_removed(context: RequestContext, batch_id: str) -> None:
     with context.ports.state.session() as session:
         now = context.ports.clock.now()
         touch_batch(session, batch_id, (READY_PHASE,), now=now, also_set={"removed_from_cloud": True})
+
+
+def removed_batches(state: LocalState) -> list[str]:
+    """Return the `ready` batches marked removed from the cloud."""
+    marked = (BatchRow.phase == READY_PHASE, BatchRow.removed_from_cloud.is_(True))
+    query = select(BatchRow.batch_id).where(*marked)
+    with state.session() as session:
+        return list(session.scalars(query.order_by(BatchRow.batch_id)))
+
+
+def follow_again(context: RequestContext, batch_id: str) -> None:
+    """Follow a batch marked removed again: it is back in the cloud (the caller holds its lock)."""
+    with context.ports.state.session() as session:
+        now = context.ports.clock.now()
+        touch_batch(session, batch_id, (READY_PHASE,), now=now, also_set={"removed_from_cloud": False})

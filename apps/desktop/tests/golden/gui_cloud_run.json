@@ -18,28 +18,32 @@
     "limit": 20
   },
   {
-    "action": "refresh_status"
+    "action": "refresh_status",
+    "recheck_removed": false
   },
   {
     "action": "list_runs",
     "limit": 20
   },
   {
-    "action": "refresh_status"
+    "action": "refresh_status",
+    "recheck_removed": false
   },
   {
     "action": "list_runs",
     "limit": 20
   },
   {
-    "action": "refresh_status"
+    "action": "refresh_status",
+    "recheck_removed": false
   },
   {
     "action": "list_runs",
     "limit": 20
   },
   {
-    "action": "refresh_status"
+    "action": "refresh_status",
+    "recheck_removed": false
   },
   {
     "action": "list_runs",

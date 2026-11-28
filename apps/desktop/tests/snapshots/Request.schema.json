@@ -951,6 +951,11 @@
           "const": "refresh_status",
           "title": "Action",
           "type": "string"
+        },
+        "recheck_removed": {
+          "default": false,
+          "title": "Recheck Removed",
+          "type": "boolean"
         }
       },
       "required": [
