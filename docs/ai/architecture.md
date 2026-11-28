@@ -1592,17 +1592,48 @@ database):
   refreshed has no elapsed time until it ends.
 
   Progress fields (`RunProgress`, backend logic, so every frontend shows the same values;
-  `runs/progress.py`, the factors in `runs/constants.py`):
-  - `progress_fraction` (0 to 1): the weighted audio duration of the run's finished jobs over
-    that of all its jobs, `careful` jobs weighted as in the launch estimate; failed and
-    no-speech jobs count as done.
-  - `remaining_estimate_s`: the processing time per second of audio of the files done in this
-    run (weighted the same way), applied to the weighted audio duration of the pending jobs;
-    until the first file is done, the launch estimate's runtime factors. Null when unknown.
-  - `estimated_finish_at`: the refresh time plus `remaining_estimate_s` (UTC), null when the
-    estimate is. All three come from the stored refresh data only and never extrapolate against
-    now, so `list_runs` (which reads the stored values) agrees with `refresh_status`. The clock
-    is the injected one, so the parity goldens are stable.
+  `runs/remaining.py` computes them, `runs/followed_jobs.py` reads the jobs, the factors are the
+  launch estimate's in `runs/constants.py`). `refresh_status` computes them for every run it
+  followed once the `ready` batches' results are recorded, and stores them in the run payload;
+  `RunProgress` (`runs/progress.py`) shows the stored values, so `list_runs` agrees with the last
+  refresh. Each refresh first clears the stored remaining time and finish with its new
+  `refreshed_at`, so a refresh that fails before the computation leaves them unknown, not stale.
+  - Followed audio: the launch keeps `weighted_known_duration_s`, the weighted pending audio
+    (`careful` jobs counted twice, as in the estimate) of the covered batches this database
+    knows. At each refresh the pending part is the weighted audio of those batches' transcribe
+    jobs still `pending` here (durations of the verified audio objects, as in the manifest),
+    capped at the total; every other job (ok, no speech, failed) counts as done.
+  - Each recorded result keeps its run and the worker's times on it in the job payload
+    (`result_run_id`, `result_started_at`, `result_finished_at`, from the result JSON).
+  - `progress_fraction` (0 to 1, 4 decimals): done over total.
+  - `remaining_estimate_s` (whole seconds): the pending work less the time already spent on the
+    file in progress, never below 0, so it counts down between refreshes and the finish stays
+    put:
+    - pending work: once the run has written an `ok` or `no_speech` result, the worker's pace
+      (the summed `finished_at - started_at` of those results per weighted second of their
+      audio; failed results do not set the pace) times the pending weighted audio. Before that,
+      the launch estimate's runtime factors without the margin (per pending job and pass:
+      audio × 0.2 + 60 s), plus the covered batches of another computer (`unknown_runtime_s`,
+      the same factors over their launch-scope jobs, kept at the launch);
+    - time on the file in progress, on the worker's clock (only differences of the worker's own
+      times count, so clock skew does not): the report's `updated_at` minus the latest
+      `finished_at` of the run's results (results of other runs are not used), else minus
+      `transcribing_since` (the `updated_at` of the first report that showed `transcribing`
+      with a current job, kept in the run payload: the worker reports `transcribing` before
+      its model loads and names its first job once loaded);
+    - until then (no result of the run and no such report), what is left of the 20 min
+      start-up allowance since the first `RUNNING` sighting is added instead;
+    - 0 once the worker reported its end (`stopping`).
+    - Null while no machine runs the run (`launching`, `waiting`), for an unreadable worker
+      report, for a run without followed audio (none known, or launched before the field was
+      kept), and once the run is final (`update_run` clears it, with `estimated_finish_at`,
+      whenever a run becomes final, so a cancel or a stop clears it too; `progress_fraction`
+      is kept).
+    - Another computer's covered batches count only until the pace is measured; after that
+      they are not followed (their jobs are not in this database; follow-up in M6.13).
+  - `estimated_finish_at`: the refresh time (`refreshed_at`) plus `remaining_estimate_s` (UTC),
+    null when the estimate is. All three are as of the refresh and never extrapolate against
+    now; the clock is the injected one, so the parity goldens are stable.
   - The GUI polls `refresh_status` every 300 s while a run is not final, or while
     `awaiting_results` (§3.9, from M6.13) says so (the user can refresh by hand) and counts down to `estimated_finish_at` every second in between; a countdown
     that reaches 0 before the run is final shows "finishing" and never goes negative; each
@@ -1628,9 +1659,13 @@ directories, the settings store, the locks and the lazily opened database.
   UTC. Constraint names follow a fixed naming convention (batch migrations find them by name).
   Revisions (`state/migrations/versions/`): `initial_schema` (frozen since M5 was built),
   `composition_and_run_report` (M6.1: adds `composition` to batch payloads and `worker`,
-  `stop_error`, `refreshed_at`, `cancel_acknowledged_at` to run payloads as null) and
+  `stop_error`, `refreshed_at`, `cancel_acknowledged_at` to run payloads as null),
   `result_error_code` (M6.14: adds `result_error_code` to job payloads, the code of the stored
-  `unreadable result` and `missing result`, null otherwise). Every change
+  `unreadable result` and `missing result`, null otherwise) and
+  `run_progress` (M6.12: adds `weighted_known_duration_s`, `unknown_runtime_s`,
+  `transcribing_since`, `progress_fraction`, `remaining_estimate_s`, `estimated_finish_at` to run
+  payloads and `result_run_id`, `result_started_at`, `result_finished_at` to job payloads as
+  null). Every change
   is a new revision, including any change of a stored payload's shape (a field added, removed,
   renamed or retyped, a literal value dropped; the payload models forbid unknown fields, so an
   older app could not read a payload with an added field, and the revision makes it refuse the

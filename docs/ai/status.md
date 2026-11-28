@@ -28,6 +28,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 - M6.14 (language of the texts) on `feat/m6.14-i18n`: built and checked locally; waiting for
   its PR and review.
+- M6.12 (remaining-time estimate, backend) on `feat/m6.12-remaining-time`: built and checked
+  locally; waiting for its PR and review.
 
 ## Waiting on humans
 
