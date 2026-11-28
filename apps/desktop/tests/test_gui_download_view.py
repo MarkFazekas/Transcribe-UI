@@ -6,7 +6,6 @@ panel, the overwrite question is the backend's confirmation, and a custom plan g
 file dialogs (answered by a fake).
 """
 
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -71,15 +70,9 @@ def world(runs_world: RunsWorld) -> RunsWorld:
 
 
 @pytest.fixture
-def window(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> Iterator[MainWindow]:
-    """Return the window over the seeded backend.
-
-    pytest-qt closes the window before the fixtures' teardown, so each test waits for its answers
-    itself (`_settle`); answers still on their way after that are dropped here.
-    """
-    created = window_over(qtbot, world.leg.backend, tmp_path)
-    yield created
-    created.context.executor.close()
+def window(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> MainWindow:
+    """Return the window over the seeded backend (answers after it is deleted are dropped by the shell)."""
+    return window_over(qtbot, world.leg.backend, tmp_path)
 
 
 @pytest.fixture
@@ -105,11 +98,6 @@ def _open(qtbot: QtBot, window: MainWindow) -> DownloadDialog:
     return dialog
 
 
-def _settle(qtbot: QtBot, window: MainWindow) -> None:
-    """Wait for every answer, before pytest-qt deletes the window (ahead of the fixtures' teardown)."""
-    wait_for(qtbot, lambda: not window.busy())
-
-
 def _outcomes(dialog: DownloadDialog) -> list[str]:
     table = dialog.plan_panel.table
     cells = (table.item(row, OUTCOME_COLUMN) for row in range(table.rowCount()))
@@ -133,7 +121,6 @@ def test_open_download_shows_the_plan(qtbot: QtBot, window: MainWindow) -> None:
     assert _open(qtbot, window) is dialog
     wait_for(qtbot, lambda: dialog.model.loaded is not before and not dialog.model.loaded.loading)
     assert _outcomes(dialog)[0] == "Skipped: the file already exists"
-    _settle(qtbot, window)
 
 
 def test_enter_in_the_output_folder_only_ends_typing(
@@ -156,7 +143,6 @@ def test_enter_in_the_output_folder_only_ends_typing(
     # No button becomes the default of the dialog, whichever has the focus when it shows.
     buttons = dialog.findChildren(QPushButton)
     assert not any(button.autoDefault() for button in buttons)
-    _settle(qtbot, window)
 
 
 def test_mirror_downloads_in_the_activity_panel(
@@ -175,7 +161,6 @@ def test_mirror_downloads_in_the_activity_panel(
     wait_for(qtbot, lambda: dialog.run_panel.outcome.text().startswith("Last download: 2 written"))
     assert (out / "Movies" / "Film.en.srt").read_bytes() == SUBTITLE
     assert [row.entry.status for row in window.activity_panel.rows] == ["Finished"]
-    _settle(qtbot, window)
 
 
 def test_overwrite_asks_over_the_dialog(qtbot: QtBot, window: MainWindow, world: RunsWorld) -> None:
@@ -191,7 +176,6 @@ def test_overwrite_asks_over_the_dialog(qtbot: QtBot, window: MainWindow, world:
     assert isinstance(question, ConfirmationDialog)
     question.confirm_button.click()
     wait_for(qtbot, lambda: sidecar.read_bytes() == SUBTITLE)
-    _settle(qtbot, window)
 
 
 def _choose_mirror(qtbot: QtBot, dialog: DownloadDialog) -> None:
@@ -230,7 +214,6 @@ def test_a_custom_plan_through_the_file_dialogs(
     wait_for(qtbot, lambda: dialog.plan_panel.table.rowCount() == JOBS and dialog.download_button.isEnabled())
     dialog.download_button.click()
     wait_for(qtbot, (custom / "Movies" / "Film.en.srt").exists)
-    _settle(qtbot, window)
 
 
 def test_failures_show_the_closed_dialog_again(
@@ -247,7 +230,6 @@ def test_failures_show_the_closed_dialog_again(
     dialog.download_button.click()
     dialog.reject()
     wait_for(qtbot, lambda: dialog.isVisible() and dialog.run_panel.failures.rowCount() == 1)
-    _settle(qtbot, window)
 
 
 def test_count_steps_plan_once_after_the_delay(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> None:
@@ -262,7 +244,5 @@ def test_count_steps_plan_once_after_the_delay(qtbot: QtBot, world: RunsWorld, t
     dialog.options.folder_names.count.stepUp()
     dialog.options.folder_names.count.stepUp()
     wait_for(qtbot, lambda: not dialog.model.loaded.loading)
-    _settle(qtbot, window)
     plans = [request for request in runner.requests[sent:] if isinstance(request, PlanDownloadRequest)]
     assert [plan.placement.folder_count for plan in plans] == [3]
-    window.context.executor.close()
