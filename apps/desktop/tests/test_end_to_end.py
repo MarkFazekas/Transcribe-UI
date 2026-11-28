@@ -12,62 +12,26 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from support.batches import EPISODE, FILM, FIRST_BATCH_ID, PODCAST, batch_request, item_ids
+from support.batches import EPISODE, FIRST_BATCH_ID, PODCAST, batch_request
 from support.cleanup import AUDIO, EVERYTHING, cleanup_document, confirmed
 from support.credentials import moto_bucket
+from support.end_to_end import (
+    EN,
+    PLAN_STEP,
+    STEPS,
+    WORKER_CHANGES,
+    LegChange,
+    change_legs,
+    golden_name,
+    retry_id,
+    step_ids,
+)
 from support.golden import assert_golden
 from support.launch import LAUNCH, PLAN, document
 from support.launch_legs import LaunchLegs
 from support.monitor import REFRESH
 from support.parity import Exchange, Template, run_parity
 from support.upload import REVIEWED, UPLOAD, build_upload_tree
-from support.worker_sim import SimulatedJob, finished, launched_run_id, transcribing
-from transcribe_contracts.classes import JobRef
-
-# Index of the `create_batch` exchange (its response lists the items) and of the launch.
-CREATE_STEP = 0
-PLAN_STEP = 4
-LAUNCH_STEP = 5
-# Target languages of the batch.
-EN = "en"
-HU = "hu"
-# The golden file names of the steps, in order.
-STEPS = (
-    "create",
-    "start_review",
-    "review",
-    "upload",
-    "plan",
-    "launch",
-    "refresh_started",
-    "refresh_transcribing",
-    "refresh_finished",
-    "download",
-    "retry",
-    "plan_retry",
-    "cleanup_audio_asks",
-    "cleanup_audio",
-    "cleanup_everything",
-    "cleanup_retry_asks",
-    "cleanup_retry",
-    "list",
-)
-
-
-def _ids(exchanges: list[Exchange]) -> dict[str, str]:
-    return item_ids(exchanges[CREATE_STEP])
-
-
-def _outcomes(exchanges: list[Exchange]) -> tuple[SimulatedJob, ...]:
-    """The worker's outcome per transcribe job: the episode fails in English, the podcast has no English speech."""
-    ids = _ids(exchanges)
-    english = (
-        SimulatedJob(ids[EPISODE], EN, "failed"),
-        SimulatedJob(ids[PODCAST], EN, "no_speech"),
-        SimulatedJob(ids[FILM], EN, "ok"),
-    )
-    hungarian = tuple(SimulatedJob(ids[name], HU, "ok") for name in (EPISODE, PODCAST, FILM))
-    return english + hungarian
 
 
 def _launch(exchanges: list[Exchange]) -> str:
@@ -75,47 +39,27 @@ def _launch(exchanges: list[Exchange]) -> str:
     return document(LAUNCH, confirm_fingerprint=fingerprint)
 
 
-# Changes both legs' clouds and buckets before a request, from the exchanges so far.
-type LegsChange = Callable[[LaunchLegs, list[Exchange]], None]
+def _changed(legs: LaunchLegs, change: LegChange, template: Template, exchanges: list[Exchange]) -> str:
+    """Let the simulated worker change both legs, then build the step's request."""
+    change_legs(legs, change, exchanges)
+    return template if isinstance(template, str) else template(exchanges)
 
 
-def _after(legs: LaunchLegs, change: LegsChange, request: str) -> Template:
-    return partial(_changed, legs, change, request)
-
-
-def _changed(legs: LaunchLegs, change: LegsChange, request: str, exchanges: list[Exchange]) -> str:
-    change(legs, exchanges)
-    return request
-
-
-def _transcribing(legs: LaunchLegs, exchanges: list[Exchange]) -> None:
-    run_id = launched_run_id(exchanges[LAUNCH_STEP])
-    current = JobRef(batch_id=FIRST_BATCH_ID, item_id=_ids(exchanges)[EPISODE], language=EN)
-    for cloud, store in zip(legs.clouds, legs.stores, strict=True):
-        transcribing(cloud, store, run_id, current)
-
-
-def _finished(legs: LaunchLegs, exchanges: list[Exchange]) -> None:
-    run_id = launched_run_id(exchanges[LAUNCH_STEP])
-    for cloud, store in zip(legs.clouds, legs.stores, strict=True):
-        finished(cloud, store, run_id, FIRST_BATCH_ID, _outcomes(exchanges))
+def _with_worker(legs: LaunchLegs, name: str, template: Template) -> Template:
+    """Return the step's template, after the worker's change when the step has one (`WORKER_CHANGES`)."""
+    change = WORKER_CHANGES.get(name)
+    return template if change is None else partial(_changed, legs, change, template)
 
 
 def _retry(exchanges: list[Exchange]) -> str:
-    ids = _ids(exchanges)
+    ids = step_ids(exchanges)
     jobs = [{"item_id": ids[EPISODE], "language": EN}, {"item_id": ids[PODCAST], "language": EN}]
     return json.dumps({"action": "create_retry_batch", "batch_id": FIRST_BATCH_ID, "jobs": jobs})
 
 
-def _retry_id(exchanges: list[Exchange]) -> str:
-    batch_id = json.loads(exchanges[STEPS.index("retry")].response)["batch"]["batch_id"]
-    assert isinstance(batch_id, str)
-    return batch_id
-
-
 def _on_retry(build: Callable[[str, str], str], scope: str) -> Template:
     """Return a template of a cleanup request on the retry batch (its id comes from the retry's response)."""
-    return lambda exchanges: build(scope, _retry_id(exchanges))
+    return lambda exchanges: build(scope, retry_id(exchanges))
 
 
 def _download() -> str:
@@ -123,27 +67,37 @@ def _download() -> str:
     return batch_request("run_download", placement=placement)
 
 
+def _step_templates() -> dict[str, Template]:
+    """Return each step's template, by the step's name."""
+    create, start_review, review = REVIEWED
+    return {
+        "create": create,
+        "start_review": start_review,
+        "review": review,
+        "upload": UPLOAD,
+        "plan": document(PLAN),
+        "launch": _launch,
+        "refresh_started": document(REFRESH),
+        "refresh_transcribing": document(REFRESH),
+        "refresh_finished": document(REFRESH),
+        "download": _download(),
+        "retry": _retry,
+        "plan_retry": document(PLAN),
+        "cleanup_audio_asks": cleanup_document(AUDIO),
+        "cleanup_audio": confirmed(AUDIO),
+        "cleanup_everything": cleanup_document(EVERYTHING, confirm=True),
+        "cleanup_retry_asks": _on_retry(cleanup_document, EVERYTHING),
+        "cleanup_retry": _on_retry(confirmed, EVERYTHING),
+        "list": json.dumps({"action": "list_batches"}),
+    }
+
+
 def test_end_to_end_flow(tmp_path: Path) -> None:
     """From the scanned tree to placed subtitles, a careful retry and a clean cloud, the same on both legs."""
     legs = LaunchLegs()
-    templates: list[Template] = [
-        *REVIEWED,
-        UPLOAD,
-        document(PLAN),
-        _launch,
-        document(REFRESH),
-        _after(legs, _transcribing, document(REFRESH)),
-        _after(legs, _finished, document(REFRESH)),
-        _download(),
-        _retry,
-        document(PLAN),
-        cleanup_document(AUDIO),
-        confirmed(AUDIO),
-        cleanup_document(EVERYTHING, confirm=True),
-        _on_retry(cleanup_document, EVERYTHING),
-        _on_retry(confirmed, EVERYTHING),
-        json.dumps({"action": "list_batches"}),
-    ]
+    by_step = _step_templates()
+    assert tuple(by_step) == STEPS
+    templates = [_with_worker(legs, name, by_step[name]) for name in STEPS]
     with moto_bucket():
         exchanges = run_parity(tmp_path, templates, prepare=build_upload_tree, ports=legs)
     documents = [json.loads(exchange.response) for exchange in exchanges]
@@ -151,6 +105,7 @@ def test_end_to_end_flow(tmp_path: Path) -> None:
     assert [found for found in documents if found["status"] == "error"] == []
     assert asked == {STEPS.index("cleanup_audio_asks"), STEPS.index("cleanup_retry_asks")}
     phases = {batch["batch_id"]: batch["phase"] for batch in documents[-1]["batches"]}
-    assert phases == {FIRST_BATCH_ID: "cleaned", _retry_id(exchanges): "cleaned"}
-    for index, (name, exchange) in enumerate(zip(STEPS, exchanges, strict=True), start=1):
-        assert_golden(f"end_to_end_{index:02d}_{name}.json", exchange.golden())
+    assert phases == {FIRST_BATCH_ID: "cleaned", retry_id(exchanges): "cleaned"}
+    assert len(exchanges) == len(STEPS)
+    for index, exchange in enumerate(exchanges):
+        assert_golden(golden_name(index), exchange.golden())

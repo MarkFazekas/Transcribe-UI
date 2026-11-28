@@ -35,7 +35,7 @@ from transcribe_ui.gui.selection.choices import LanguageChoice
 from transcribe_ui.gui.selection.filters import FilterInput
 from transcribe_ui.gui.selection.models import SelectionTreeModel
 from transcribe_ui.gui.selection.view import NewJobPage
-from transcribe_ui.gui.selection.widgets import FileLanguages
+from transcribe_ui.gui.selection.widgets import FileLanguages, LanguageChecks
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.upload.classes import RunUploadRequest
 
@@ -325,6 +325,18 @@ def test_same_as_the_job_returns_with_a_language(qtbot: QtBot) -> None:
     panel.same.setChecked(False)
     _show(panel, None)
     assert (panel.same.isChecked(), panel.checks.ticked(), panel.checks.isEnabled()) == (True, ENGLISH_ONLY, False)
+
+
+def test_the_job_languages_follow_the_offered_order(qtbot: QtBot) -> None:
+    """The job's languages come in the order offered (the settings' order), whatever order they were ticked in."""
+    received: list[tuple[str, ...]] = []
+    holder = QWidget()
+    qtbot.addWidget(holder)
+    checks = LanguageChecks(received.append, holder)
+    checks.show_languages(OFFERED, ())
+    checks.boxes[HUNGARIAN].click()
+    checks.boxes[ENGLISH].click()
+    assert received == [(HUNGARIAN,), (ENGLISH, HUNGARIAN)]
 
 
 def test_the_last_own_language_can_go(qtbot: QtBot) -> None:

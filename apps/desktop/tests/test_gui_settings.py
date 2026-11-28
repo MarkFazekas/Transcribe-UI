@@ -125,6 +125,14 @@ def test_save_sends_the_whole_form(tmp_path: Path, gui_root: Path, backend: Back
     assert (heard.saves, heard.language_changes, heard.errors) == (1, 1, [])
 
 
+def test_a_language_ticked_again_goes_last(backend: Backend) -> None:
+    """Unticking Hungarian and ticking it again puts it after English: the order the user ticked them in."""
+    model, executor = _loaded(backend, Heard())
+    model.edit(_draft(model).with_language(HUNGARIAN, enabled=False).with_language(HUNGARIAN, enabled=True))
+    model.save()
+    assert _sent_update(executor).settings.enabled_languages == (ENGLISH, HUNGARIAN)
+
+
 def test_cleared_paths_are_sent_as_none(tmp_path: Path, gui_root: Path, backend: Backend) -> None:
     """Emptied path fields mean the bundled tools and no output folder; the language stays: no restart."""
     tools = {"ffmpeg_path": str(gui_root / "ffmpeg"), "ffprobe_path": str(gui_root / "ffprobe")}
