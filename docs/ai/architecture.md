@@ -584,8 +584,8 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     originals are on another computer, so `next_to_media` is refused); only then does it plan.
     Every later opening loads `get_batch` (the stage) and the plan. A settings answer that
     arrives after the user changed a choice pre-fills nothing; a `batches_changed` for the job
-    before the pre-fill is remembered, and the pre-fill then loads `get_batch` again with its
-    plan. Each change of a choice sends the plan again on a `latest` channel:
+    before the pre-fill is remembered (so is a reopening then, since a hidden dialog hears no
+    change), and the pre-fill then loads `get_batch` again with its plan. Each change of a choice sends the plan again on a `latest` channel:
     `plan_download` for a strategy, the `check_only` import for a custom plan (on the `short`
     pool: the bridge picks a pool by request, `pool_for`); folder count steps and level ticks
     wait `PLAN_DELAY_MS` (250 ms) for the next one. A plan of choices changed since is

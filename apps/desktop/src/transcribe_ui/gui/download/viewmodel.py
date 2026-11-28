@@ -68,8 +68,10 @@ class DownloadModel(ViewModel):
         state = self._state
         if state.settings_asked:
             if state.filled:
-                # Else the pending pre-fill loads the plan.
                 self.reload()
+            else:
+                # The pending pre-fill loads the plan, and the job again: it may have changed while hidden.
+                state.changed_meanwhile = True
             return
         state.settings_asked = True
         settings = GetSettingsRequest(action="get_settings")

@@ -104,6 +104,15 @@ def test_a_change_before_the_pre_fill_reloads(world: RunsWorld) -> None:
     assert [request.action for request in executor.sent[2:]] == [GET_BATCH, PLAN]
 
 
+def test_a_reopen_before_the_pre_fill_reloads(world: RunsWorld) -> None:
+    """Reopened before the pre-fill (a change while hidden is not heard): the pre-fill loads the batch again."""
+    model, executor = held_model(world.leg)
+    model.on_open()
+    model.on_open()
+    executor.release()
+    assert [request.action for request in executor.sent[2:]] == [GET_BATCH, PLAN]
+
+
 def test_a_large_folder_count_is_clamped() -> None:
     """A settings count past what the dialog offers is shown as its largest count (it keeps every folder anyway)."""
     defaults = PlacementDefaults(
