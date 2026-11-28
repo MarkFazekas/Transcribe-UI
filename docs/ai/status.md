@@ -28,7 +28,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 - M6.6 (Cloud page: start dialog, run follow with the poll, Stop/Cancel with the backend's
   `cancel_worker` confirmation, cloud machines, run history, status bar line) on
-  `feat/m6.6-cloud`: built, in review (not pushed yet).
+  `feat/m6.6-cloud`: built, in review (PR open).
 
 ## Waiting on humans
 

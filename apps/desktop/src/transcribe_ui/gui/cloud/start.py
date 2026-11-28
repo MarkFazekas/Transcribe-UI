@@ -38,9 +38,20 @@ type Launched = Callable[[LaunchWorkerResponse], None]
 class StartModel(ViewModel):
     """The start dialog: the plan, the wait for a machine, test mode, and Start."""
 
-    def __init__(self, executor: Executor, outlet: CloudOutlet, launched: Launched) -> None:
-        """Send through `executor`; errors after a close go to `outlet`; a started run goes to `launched`."""
+    def __init__(
+        self,
+        executor: Executor,
+        outlet: CloudOutlet,
+        launched: Launched,
+        run_active: Callable[[], bool],
+    ) -> None:
+        """Send through `executor`; errors after a close go to `outlet`; a started run goes to `launched`.
+
+        `run_active` tells whether a listed run is not final: Start waits until it is (the
+        backend would refuse it with `run_active`).
+        """
         super().__init__(executor)
+        self.run_active = run_active
         self._plans = LatestChannel(executor)
         self._launch = ExclusiveChannel(executor)
         self._outlet = outlet
@@ -59,10 +70,10 @@ class StartModel(ViewModel):
 
     @property
     def can_start(self) -> bool:
-        """Return whether Start applies: a plan with work is shown and no Start is in flight."""
+        """Return whether Start applies: a plan with work is shown, no Start is in flight, no run is active."""
         view = self.form.view
         shown = self.phase == "ready" and view is not None and not view.empty
-        return shown and not self._launch.busy(LAUNCH_KEY)
+        return shown and not self._launch.busy(LAUNCH_KEY) and not self.run_active()
 
     def show_dialog(self) -> None:
         """Open the dialog fresh (no test mode, the default wait) and plan."""

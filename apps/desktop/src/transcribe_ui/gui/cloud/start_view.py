@@ -262,7 +262,11 @@ class StartDialog(QDialog):
             self._close_button.setFocus()
 
     def _show_phase(self) -> None:
-        texts = (_phase_text(self.model.phase), self.model.notice)
+        model = self.model
+        running = ""
+        if model.phase == "ready" and model.run_active():
+            running = tr("A transcription is running: Start waits until it ends or is stopped on the Cloud page.")
+        texts = (_phase_text(model.phase), model.notice, running)
         shown = [text for text in texts if text]
         self._phase.setText(" ".join(shown))
         self._phase.setVisible(bool(shown))

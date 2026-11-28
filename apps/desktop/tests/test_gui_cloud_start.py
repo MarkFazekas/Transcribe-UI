@@ -92,6 +92,8 @@ def test_a_reopened_dialog_waits_for_the_earlier_start(world: CloudWorld) -> Non
     note = "The cloud machine of your earlier Start is starting; the Cloud page shows it."
     assert (start.phase, start.notice, area.timers.poll.active) == ("planning", note, True)
     assert len(manual.pending(PLAN)) == 1, "the plan shown before that run is planned again"
+    manual.answer_all()
+    assert (start.phase, start.can_start) == ("ready", False), "Start waits while that run is active"
 
 
 def test_retry_after_a_failed_plan_plans_again(world: CloudWorld) -> None:

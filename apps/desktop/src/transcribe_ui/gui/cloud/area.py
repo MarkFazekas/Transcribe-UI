@@ -28,5 +28,7 @@ def build_models(executor: Executor, outlet: CloudOutlet, timers: TimerFactory) 
     poll = CloudPoll(executor, outlet, runs, timers)
     actions = RunActions(executor, outlet, runs, poll)
     machines = MachinesModel(executor, outlet, runs.announce)
-    start = StartModel(executor, outlet, actions.launched)
+    start = StartModel(executor, outlet, actions.launched, runs.run_active)
+    # Start follows whether a run is active.
+    runs.subscribe(start.changed)
     return CloudModels(runs, poll, actions, machines, start)

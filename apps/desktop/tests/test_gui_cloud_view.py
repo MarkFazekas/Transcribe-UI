@@ -11,7 +11,9 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QLabel
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QLabel, QPushButton
 from pytestqt.qtbot import QtBot
 
 from support.cloud import CloudWorld, cloud_world
@@ -42,9 +44,12 @@ class HeldUploads:
         """Answer every other request from `backend`."""
         self._backend = backend
         self._release = threading.Event()
+        # Actions in the order their calls reached `execute` (appended from pool threads).
+        self.actions: list[str] = []
 
     def execute(self, request: Request, progress: ProgressSink | None, cancel: CancelToken | None) -> Response:
         """Hold an upload until `release` (or its cancel flag); run anything else."""
+        self.actions.append(request.action)
         if request.action != "run_upload":
             return self._backend.execute(request, progress, cancel)
         while not self._release.wait(POLL_S):
@@ -80,8 +85,8 @@ def window(qtbot: QtBot, held: HeldUploads, tmp_path: Path) -> Iterator[MainWind
     """Return the window over the world (a test runs the start-up steps); drained afterwards."""
     created = window_over(qtbot, held, tmp_path)
     yield created
-    # pytest-qt has deleted the window by now, which closed the executor (late answers are
-    # dropped); the held uploads and the calls still running finish here.
+    # pytest-qt closed the window and schedules its deletion; once deleted, the executor is
+    # closed and late answers are dropped. The held uploads and the calls still running finish here.
     held.release()
     _settled(qtbot, created)
 
@@ -199,12 +204,23 @@ def test_stop_is_answered_while_the_long_pool_is_busy(qtbot: QtBot, window: Main
     queued.cancel()
 
 
-def test_a_reopened_dialog_does_not_start_on_enter(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
-    """Closed while starting on a plan that changed, the dialog reopens with the new plan; Start is not the default."""
+def test_a_reopened_dialog_does_not_start_on_enter(
+    qtbot: QtBot,
+    world: CloudWorld,
+    held: HeldUploads,
+    window: MainWindow,
+) -> None:
+    """Closed while starting on a plan that changed, the dialog reopens with the new plan; Enter closes it."""
     dialog = _planned_dialog(qtbot, window)
     write_foreign(world.store, LATE_BATCH_ID)
     dialog.start_button.click()
     dialog.reject()
     wait_for(qtbot, lambda: dialog.isVisible() and dialog.model.reopened and dialog.start_button.isEnabled())
-    assert (dialog.start_button.isDefault(), dialog.changed_notice.isHidden()) == (False, False)
-    dialog.reject()
+    focused = dialog.focusWidget()
+    assert isinstance(focused, QPushButton)
+    shown = (dialog.start_button.isDefault(), dialog.changed_notice.isHidden(), focused.text())
+    assert shown == (False, False, "Close")
+    launches = held.actions.count("launch_worker")
+    QTest.keyClick(dialog, Qt.Key.Key_Return)
+    _settled(qtbot, window)
+    assert (dialog.isHidden(), held.actions.count("launch_worker")) == (True, launches)

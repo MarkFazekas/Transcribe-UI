@@ -507,14 +507,17 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     (`cleanup_pending` with "Open the job", `run_active`, cloud errors) show in the dialog with
     their fix and Retry, which sends the failed request again (the plan or the launch); a fix
     that opens a page closes the dialog first. Start is disabled while the plan has nothing to
-    transcribe and while a Start is in flight. The dialog may be closed while the machine
-    starts: the launch's answer still reaches the run list (and starts the poll); a changed
-    plan answered then reopens the dialog with that plan (nothing started, and the user meant
-    to start; there Start is not the default button and Close has the focus, so a stray Enter
-    starts nothing), an error opens the error dialog; a reopened dialog that is closed again
-    is reopened the same way. A reopened dialog shows a note while an
-    earlier opening's Start is in flight, and when it answers (started: "the Cloud page shows
-    it"; a changed plan: it plans again); that answer never closes it. "Delete from cloud"
+    transcribe, while a Start is in flight, and while a listed run is not final (with a hint;
+    `plan_launch` has no run check, and the backend would refuse the launch with
+    `run_active`). The dialog may be closed while the machine starts: the launch's answer
+    still reaches the run list (and starts the poll); a changed plan answered then reopens the
+    dialog by itself with that plan (the model's `reopened`; nothing started, and the user
+    meant to start; there Start is not the default button and Close has the focus, so a stray
+    Enter closes the dialog and starts nothing), an error opens the error dialog; a dialog
+    closed again after that is reopened the same way. A dialog the user opened again shows a
+    note while an earlier opening's Start is in flight, and when it answers (started: "the
+    Cloud page shows it", and it plans again; a changed plan: it plans again); that answer
+    never closes it. "Delete from cloud"
     emits its signal after the click returns, and the table is rebuilt only when a row
     changed.
   - Cloud machines (`machines.py`): `reconcile_cloud` at start-up and on Check; each entry's
