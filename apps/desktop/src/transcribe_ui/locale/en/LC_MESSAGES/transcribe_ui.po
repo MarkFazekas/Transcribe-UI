@@ -290,7 +290,10 @@ msgid "Runpod accepted the API key and the cloud machines can be listed."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
-msgid "Runpod cannot be reached or answered unexpectedly. Try again later."
+#, python-brace-format
+msgid ""
+"Runpod cannot be reached or answered unexpectedly ({cause}). Try again "
+"later."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -806,10 +809,6 @@ msgid ""
 "or published; try again later."
 msgstr ""
 
-#: src/transcribe_ui/cli/parser.py
-msgid "command"
-msgstr ""
-
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffmpeg could not convert the audio track."
 msgstr ""
@@ -840,10 +839,6 @@ msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
 msgid "print the app version and exit"
-msgstr ""
-
-#: src/transcribe_ui/cli/parser.py
-msgid "request"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
@@ -913,6 +908,37 @@ msgstr ""
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
+"{file} ({language}): the name {name} contains ':' (Windows reads it as an"
+" alternate data stream)."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} contains characters a name cannot "
+"hold: {characters}"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the name {name} ends with a dot or a space."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} is longer than {max_length} "
+"characters."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the plan gives no file or folder name ({name})."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
 "{file} ({language}): the subtitle cannot be written; try again once the "
 "target is writable."
 msgstr ""
@@ -947,6 +973,11 @@ msgstr ""
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid "{file} ({language}): the target path is longer than Windows allows."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): {name} is a name Windows reserves for a device."
 msgstr ""
 
 #: src/transcribe_ui/i18n/formats.py

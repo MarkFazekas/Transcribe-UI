@@ -328,8 +328,13 @@ msgid "Runpod accepted the API key and the cloud machines can be listed."
 msgstr "A Runpod elfogadta az API-kulcsot, és a felhőgépek listázhatók."
 
 #: src/transcribe_ui/i18n/error_texts.py
-msgid "Runpod cannot be reached or answered unexpectedly. Try again later."
-msgstr "A Runpod nem érhető el, vagy váratlan választ adott. Próbálja újra később."
+#, python-brace-format
+msgid ""
+"Runpod cannot be reached or answered unexpectedly ({cause}). Try again "
+"later."
+msgstr ""
+"A Runpod nem érhető el, vagy váratlan választ adott ({cause}). Próbálja "
+"újra később."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -929,10 +934,6 @@ msgstr ""
 "Nem ellenőrizhető, hogy folyamatban van-e felhős futás, ezért semmi sem "
 "indult el, és semmi sem lett közzétéve; próbálja újra később."
 
-#: src/transcribe_ui/cli/parser.py
-msgid "command"
-msgstr "parancs"
-
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffmpeg could not convert the audio track."
 msgstr "Az ffmpeg nem tudta átalakítani a hangsávot."
@@ -964,10 +965,6 @@ msgstr "helyette a válaszok JSON-sémájának kiírása"
 #: src/transcribe_ui/cli/parser.py
 msgid "print the app version and exit"
 msgstr "az alkalmazás verziójának kiírása, majd kilépés"
-
-#: src/transcribe_ui/cli/parser.py
-msgid "request"
-msgstr "kérés"
 
 #: src/transcribe_ui/cli/parser.py
 msgid "run the request in a JSON file and print the response as JSON"
@@ -1040,6 +1037,41 @@ msgstr "{file} ({language}): ez a név nem használható a célhelyen: {name}"
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
+"{file} ({language}): the name {name} contains ':' (Windows reads it as an"
+" alternate data stream)."
+msgstr ""
+"{file} ({language}): ebben a névben ':' szerepel (a Windows alternatív "
+"adatfolyamként értelmezi): {name}"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} contains characters a name cannot "
+"hold: {characters}"
+msgstr ""
+"{file} ({language}): ez a név olyan karaktereket tartalmaz, amelyek "
+"névben nem szerepelhetnek: {name} ({characters})"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the name {name} ends with a dot or a space."
+msgstr "{file} ({language}): ez a név pontra vagy szóközre végződik: {name}"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"{file} ({language}): the name {name} is longer than {max_length} "
+"characters."
+msgstr "{file} ({language}): ez a név hosszabb {max_length} karakternél: {name}"
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): the plan gives no file or folder name ({name})."
+msgstr "{file} ({language}): a terv nem ad meg fájl- vagy mappanevet ({name})."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
 "{file} ({language}): the subtitle cannot be written; try again once the "
 "target is writable."
 msgstr ""
@@ -1082,6 +1114,13 @@ msgid "{file} ({language}): the target path is longer than Windows allows."
 msgstr ""
 "{file} ({language}): a célhely útvonala hosszabb, mint amit a Windows "
 "megenged."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid "{file} ({language}): {name} is a name Windows reserves for a device."
+msgstr ""
+"{file} ({language}): ezt a nevet a Windows egy eszköznek tartja fenn: "
+"{name}"
 
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
@@ -1128,7 +1167,9 @@ msgstr "{tool} nem indítható el: {reason}"
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "{tool} did not finish within {timeout_s:duration} and was stopped."
-msgstr "{tool} nem végzett {timeout_s:duration} alatt, ezért leállt."
+msgstr ""
+"{tool} nem végzett {timeout_s:duration} alatt, ezért az alkalmazás "
+"leállította."
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format

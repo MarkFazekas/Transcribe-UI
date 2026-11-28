@@ -9,7 +9,7 @@ A file whose content would not change apart from its creation date is not rewrit
 
 `check` (run by the desktop target of `scripts/check.py`) fails when any of that would change a
 file, when a Hungarian text is missing or fuzzy, or when a Hungarian text does not use exactly
-the `{fields}` of its English text. Exit code 1 on a failed check.
+the `{fields}` of its English text, format specs included. Exit code 1 on a failed check.
 """
 
 import argparse
@@ -46,8 +46,8 @@ KEYWORDS = MappingProxyType({"tr": None, "ntr": (1, 2)})
 SECTION_SEPARATOR = ":"
 # Header line that changes at every extraction; files are compared without it.
 CREATION_DATE = re.compile(rb"^\"POT-Creation-Date: [^\"]*\"\n", re.MULTILINE)
-# A `{field}` of a text (with an optional format spec).
-FIELD = re.compile(r"\{(\w+)[^{}]*\}")
+# A `{field}` of a text, with its format spec (`{cost:.2f}`, `{audio_s:duration}`) compared too.
+FIELD = re.compile(r"\{\w+[^{}]*\}")
 # What `check` reports for a file `update` would change.
 NOT_CURRENT = "not current (run `uv run scripts/catalogs.py update`)"
 
