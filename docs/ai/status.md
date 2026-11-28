@@ -26,8 +26,9 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.4 (New job: tree, filters, selection, languages, create and edit) on
-  `feat/m6.4-new-job`: built, in review.
+- M6.6 (Cloud page: start dialog, run follow with the poll, Stop/Cancel with the backend's
+  `cancel_worker` confirmation, cloud machines, run history, status bar line) on
+  `feat/m6.6-cloud`: built, not pushed.
 
 ## Waiting on humans
 

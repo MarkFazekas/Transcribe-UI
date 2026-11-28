@@ -74,6 +74,9 @@ type TextKind = Literal[
     "item_phase",
     "job_status",
     "job_kind",
+    "run_stage",
+    "run_end_reason",
+    "worker_state",
 ]
 # Error codes whose wording depends on one detail, and that detail's key (entries `<code>.<value>`).
 ERROR_VARIANTS: Final[Mapping[str, str]] = MappingProxyType(

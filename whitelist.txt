@@ -253,6 +253,7 @@ removesuffix
 repo
 resizable
 rereview
+resizable
 restype
 retryable
 rfile

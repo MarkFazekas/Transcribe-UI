@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.pages, 1)
         layout.addWidget(self.activity_panel)
         self.setCentralWidget(central)
-        self.closing = CloseGuard(self, context.executor, context.quit_now, context.run_active)
+        self.closing = CloseGuard(self, context.executor, context.quit_now, self._run_active)
         self.dialog: ErrorDialog | ConfirmationDialog | None = None
         self._handled: set[str] = set()
         add_placeholders(self.pages, self)
@@ -84,6 +84,10 @@ class MainWindow(QMainWindow):
             event.accept()
         else:
             event.ignore()
+
+    def _run_active(self) -> bool:
+        # Read when asked: the cloud page sets `run_active` after the window was built.
+        return self.context.run_active()
 
     def _unhandled(self, signal_name: str, *_arguments: object) -> None:
         if signal_name not in self._handled:

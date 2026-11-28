@@ -1,0 +1,27 @@
+[
+  {
+    "action": "plan_launch",
+    "test_mode": false
+  },
+  {
+    "action": "launch_worker",
+    "wait_s": 3600,
+    "test_mode": false,
+    "confirm_fingerprint": "a5e21202d7f76d1b60fd04e15da36911f1616e9cea94bec113958c26d173b9b1"
+  },
+  {
+    "action": "cancel_worker",
+    "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+    "confirm": false
+  },
+  {
+    "action": "cancel_worker",
+    "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+    "confirm": false
+  },
+  {
+    "action": "cancel_worker",
+    "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+    "confirm": true
+  }
+]

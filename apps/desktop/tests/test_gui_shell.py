@@ -22,6 +22,7 @@ from transcribe_ui.api.classes import Confirmation, ErrorBody, ErrorResponse, Ne
 from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.gui.activity_view import ActivityRow
 from transcribe_ui.gui.closing import QuitNow, flush_log_handlers
+from transcribe_ui.gui.cloud.view import CloudPage
 from transcribe_ui.gui.constants import (
     LONG_POOL_THREADS,
     PAGE_CLOUD,
@@ -65,16 +66,13 @@ def _error(code: str, details: dict[str, object] | None = None) -> ErrorResponse
     return ErrorResponse(action="plan_launch", error=ErrorBody(code=code, message="It failed.", details=details or {}))
 
 
-def test_the_shell_shows_four_placeholder_pages(window: MainWindow) -> None:
-    """New job, Jobs, Cloud and Settings exist; the ones not built yet are placeholders."""
+def test_the_shell_shows_the_four_pages(window: MainWindow) -> None:
+    """New job, Jobs, Cloud and Settings are each their area's page (no placeholder is left)."""
     assert window.pages.navigation.count() == len(PAGES)
     assert window.pages.current_page() == PAGE_NEW_JOB
-    built = (type(window.pages.page(PAGE_JOBS)), type(window.pages.page(PAGE_SETTINGS)))
-    assert (*built, type(window.pages.page(PAGE_NEW_JOB))) == (JobsPage, SettingsPage, NewJobPage)
-    for key in (PAGE_CLOUD,):
-        page = window.pages.page(key)
-        assert isinstance(page, QLabel)
-        assert page.text() == "This page is not available yet."
+    pages = (PAGE_JOBS, PAGE_SETTINGS, PAGE_NEW_JOB, PAGE_CLOUD)
+    built = tuple(type(window.pages.page(key)) for key in pages)
+    assert built == (JobsPage, SettingsPage, NewJobPage, CloudPage)
 
 
 def test_navigation_signals_open_their_pages(window: MainWindow) -> None:
@@ -167,9 +165,10 @@ def test_activity_retry_resumes_the_entry(qtbot: QtBot, tmp_path: Path) -> None:
     dialog.fix_button.click()
     wait_for(qtbot, lambda: entry.state == "finished")
     # The re-send (long pool) and the lock probe (short pool) run side by side, in any order; the
-    # jobs list reloads once the probe got the lock.
-    wait_for(qtbot, lambda: len(runner.sent) == PROBE_AND_RELOAD + 2)
-    assert sorted(request.action for request in runner.sent) == sorted([UPLOAD, UPLOAD, "list_batches", "list_batches"])
+    # jobs list and the run list reload once the probe got the lock.
+    wait_for(qtbot, lambda: len(runner.sent) == PROBE_AND_RELOAD + 3)
+    sent = sorted(request.action for request in runner.sent)
+    assert sent == sorted([UPLOAD, UPLOAD, "list_batches", "list_batches", "list_runs"])
 
 
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:

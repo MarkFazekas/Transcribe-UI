@@ -8,6 +8,7 @@ available yet".
 
 from typing import TYPE_CHECKING
 
+from transcribe_ui.gui.cloud.install import install_cloud
 from transcribe_ui.gui.jobs.install import install_jobs
 from transcribe_ui.gui.selection.install import install_selection
 from transcribe_ui.gui.settings.install import install_settings
@@ -21,3 +22,4 @@ def install_areas(window: "MainWindow") -> None:
     install_jobs(window)
     install_settings(window)
     install_selection(window)
+    install_cloud(window)
