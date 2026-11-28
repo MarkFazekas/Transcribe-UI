@@ -66,8 +66,9 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   (`scripts/build_desktop_macos.py`).
 - [V] dyld loads a dylib whose `minos` is newer than the running macOS: on the `macos-15` images
   (arm64, image `macos-15-arm64` 20261123, and x64) the executables with shiboken6 and
-  PySide6_Essentials binaries of `minos 26.0` pass `cli-version`, `gui-offscreen` and
-  `gui-native` (PR #53, run 46153311250; every leg built with uv's CPython 3.13.18). Only a
+  PySide6_Essentials binaries of `minos 26.0` pass `gui-offscreen` and `gui-native` (the GUI
+  executable; the CLI bundles no Qt) (PR #53, run 46153311250; every leg built with uv's
+  CPython 3.13.18). Only a
   main executable's `minos` is enforced at start [I].
 - [I] Whether those binaries' symbols newer than macOS 14.0 resolve on macOS 14 is unproven: no
   hosted macOS 14 runner exists; the manual acceptance (A24) on a macOS 14 machine would show it.
