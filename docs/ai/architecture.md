@@ -467,10 +467,12 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     and cost as of the last check (never extrapolated), the deadline, the last check's time,
     the outcome, the worker's error and a deadline stop's `stop_error`; a kept worker log opens
     with the system's viewer.
-  - The poll (`poll.py`): while the list holds a run that is not final, or right after a
-    launch, `refresh_status` every `REFRESH_INTERVAL_S` (300 s) on the `poll` pool and a
+  - The poll (`poll.py`): while the list holds a run that is not final, right after a
+    launch, or while the last check said that results are awaited (`awaiting_results`),
+    `refresh_status` every `REFRESH_INTERVAL_S` (300 s) on the `poll` pool and a
     single-flight channel; a tick is skipped while one is queued or running ("Waiting to check
-    the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs.
+    the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs and
+    no results are awaited.
     "Refresh now" checks at once and restarts the interval. A check's `runs_busy`,
     `state_busy` or `cloud_unreachable` shows as "Last updated <time>; retrying at the next
     check", another error in the page's banner with its fix and as a status bar link, never as
@@ -500,8 +502,9 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     afterwards; both send `cancel_worker`, whose backend confirmation the generic dialog shows
     without its details table (`confirmation_view(..., with_details=False)`; the question
     names what it stops; the same for the machines' stops and the adoption); Stop runs on the
-    `short` pool, so a full `long` pool never delays it. Every answer of a stop except a declined question and `cancelled` reloads the run list, a failed one
-    too (it may have changed the run before it failed). Start transcription is disabled while
+    `short` pool, so a full `long` pool never delays it. Every answer of a stop except a
+    declined question and `cancelled` reloads the run list, a failed one too (it may have
+    changed the run before it failed). Start transcription is disabled while
     the shown run is not final. Closing the window never stops a run: the shell reads
     `GuiContext.run_active` (the run list's) when asked, so the close question adds its cloud
     note.

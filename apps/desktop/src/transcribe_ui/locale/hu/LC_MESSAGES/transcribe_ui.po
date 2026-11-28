@@ -2060,8 +2060,8 @@ msgid ""
 "this computer, so it was not added."
 msgstr ""
 "A(z) {batch_id} felhőbeli feladat olyan fájlútvonalat tartalmaz, amely "
-"ezen a számítógépen nem használható biztonságosan, ezért nem került "
-"hozzáadásra."
+"ezen a számítógépen nem használható biztonságosan, ezért nem lett "
+"hozzáadva."
 
 #: src/transcribe_ui/gui/cloud/display.py
 #, python-brace-format
@@ -2395,12 +2395,12 @@ msgid_plural ""
 "job; it may still need to download the subtitles."
 msgstr[0] ""
 "Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
-"({files} fájl) törlődik a felhőből. Ezt a feladatot egy másik számítógép "
-"töltötte fel; lehet, hogy annak még le kell töltenie a feliratokat."
+"({files} fájl) törlődik a felhőből. Egy másik számítógép töltötte fel; "
+"lehet, hogy annak még le kell töltenie a feliratokat."
 msgstr[1] ""
 "Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
-"({files} fájl) törlődik a felhőből. Ezt a feladatot egy másik számítógép "
-"töltötte fel; lehet, hogy annak még le kell töltenie a feliratokat."
+"({files} fájl) törlődik a felhőből. Egy másik számítógép töltötte fel; "
+"lehet, hogy annak még le kell töltenie a feliratokat."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
