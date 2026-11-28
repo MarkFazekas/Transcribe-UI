@@ -52,8 +52,12 @@ def _confirmed_launch(exchanges: list[Exchange]) -> str:
     return document(LAUNCH, wait_s=TWO_HOURS_S, confirm_fingerprint=fingerprint)
 
 
-def _cancel_launched(exchanges: list[Exchange]) -> str:
+def _cancel_asked(exchanges: list[Exchange]) -> str:
     return document(CANCEL, run_id=_field(exchanges[2], "run", "run_id"))
+
+
+def _cancel_launched(exchanges: list[Exchange]) -> str:
+    return document(CANCEL, run_id=_field(exchanges[2], "run", "run_id"), confirm=True)
 
 
 def _check(names: list[str], exchanges: list[Exchange]) -> None:
@@ -62,12 +66,13 @@ def _check(names: list[str], exchanges: list[Exchange]) -> None:
 
 
 def test_launch_flow(tmp_path: Path) -> None:
-    """Plan, unconfirmed launch, confirmed launch, reconcile, cancel, reconcile."""
+    """Plan, unconfirmed launch, confirmed launch, reconcile, cancel asked then confirmed, reconcile."""
     templates: list[Template] = [
         document(PLAN),
         document(LAUNCH),
         _confirmed_launch,
         document(RECONCILE),
+        _cancel_asked,
         _cancel_launched,
         document(RECONCILE),
     ]
@@ -75,8 +80,8 @@ def test_launch_flow(tmp_path: Path) -> None:
     with moto_bucket():
         exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=legs)
     statuses = [json.loads(exchange.response)["status"] for exchange in exchanges]
-    assert statuses == [OK, ASKED, OK, OK, OK, OK]
-    names = ["plan", "unconfirmed", "launched", "reconciled", "cancelled", "reconciled_after"]
+    assert statuses == [OK, ASKED, OK, OK, ASKED, OK, OK]
+    names = ["plan", "unconfirmed", "launched", "reconciled", "cancel_asked", "cancelled", "reconciled_after"]
     _check([f"launch_flow_{index:02d}_{name}" for index, name in enumerate(names, start=1)], exchanges)
 
 

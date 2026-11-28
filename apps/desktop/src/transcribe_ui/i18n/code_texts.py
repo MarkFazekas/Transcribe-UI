@@ -80,6 +80,18 @@ def _overwrite_targets(details: Details) -> str:
     )
 
 
+def _cancel_worker(details: Details) -> str:
+    if details.get("stage") in {"launching", "waiting"}:
+        return tr(
+            "Stop waiting for a cloud machine? Nothing has been transcribed yet; the files wait for the next start "
+            "of transcription.",
+        )
+    return tr(
+        "Stop the cloud machine now? Subtitles already finished are kept; the files not done yet wait for the "
+        "next start of transcription.",
+    )
+
+
 def confirmation_texts() -> CodeTable:
     """Return the entries of every confirmation code."""
     return {
@@ -103,6 +115,7 @@ def confirmation_texts() -> CodeTable:
             "Terminate the cloud machine {name} ({status})? Its work stops at once; finished results stay in "
             "the cloud.",
         ),
+        "cancel_worker": _cancel_worker,
         "cancel_queued_pod": tr(
             "Cancel the queued cloud machine {name} ({status})? Its work stops at once; finished results stay "
             "in the cloud.",

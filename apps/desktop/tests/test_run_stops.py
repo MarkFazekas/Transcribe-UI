@@ -104,7 +104,7 @@ def test_cancel_worker_finds_the_deployed_pod_by_name(world: RunsWorld, monkeypa
     """The queued pod deploys during the cancel and is then gone: its pod, listed under the run's name, is stopped."""
     run_id, _queued_id = queued_run(world)
     forget_queued_on_cancel(world, monkeypatch)
-    cancelled = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    cancelled = ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     assert cancelled.terminated_pod_id is not None
     assert (cancelled.run.status, pods_of(world)) == (CANCELLED, [])
     _status, payload = run_row(world, run_id)
@@ -132,7 +132,7 @@ def test_cancel_after_finish_is_finished(world: RunsWorld) -> None:
     """A worker that reported `finished` before the cancel did its work: the run ends finished, not cancelled."""
     run = launch_run(world)
     write_status(world.store, run.run_id, "finished", world.now(), done_jobs=2)
-    stopped = ok_as(send(world, CANCEL, run_id=run.run_id), CancelWorkerResponse)
+    stopped = ok_as(send(world, CANCEL, run_id=run.run_id, confirm=True), CancelWorkerResponse)
     assert (stopped.run.status, _listed(world).end_reason) == ("finished", "worker_finished")
 
 
@@ -145,7 +145,7 @@ def test_cancel_clears_the_stop_error(world: RunsWorld) -> None:
     assert refreshed_run(world, run_id).stop_error == ERROR_STOP_UNVERIFIED
     world.cloud.settings.terminate_effective = True
     world.cloud.clock.advance(timedelta(minutes=1))
-    ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     listed = _listed(world)
     assert (listed.stage, listed.end_reason, listed.ended_at, listed.stop_error) == (
         CANCELLED,
@@ -172,10 +172,10 @@ def test_vanished_queued_pod_with_unlisted_pod(world: RunsWorld, monkeypatch: py
     run_id, _queued_id = queued_run(world)
     _unlisted_from_now(world)
     forget_queued_on_cancel(world, monkeypatch)
-    refused = send(world, CANCEL, run_id=run_id)
+    refused = send(world, CANCEL, run_id=run_id, confirm=True)
     assert (error_code(refused), run_row(world, run_id)[0]) == (ERROR_STOP_UNVERIFIED, "queued")
     world.cloud.clock.advance(LIST_LAG)
-    cancelled = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    cancelled = ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     assert (cancelled.run.status, cancelled.terminated_pod_id is not None, pods_of(world)) == (CANCELLED, True, [])
 
 

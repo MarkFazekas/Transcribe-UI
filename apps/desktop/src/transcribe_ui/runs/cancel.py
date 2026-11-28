@@ -7,12 +7,19 @@ ends only once that is verified (`runs/stopped.py`: `cancelled`, or as its worke
 had finished or failed, the report read before the stop); until then it stays as it was (a pod
 learned on the way is recorded and the run follows it as `running`), so `refresh_status` keeps
 following it. Under the runs lock.
+
+Without `confirm` the request only reads the database (no lock, no Runpod call): a run that is
+not final answers `needs_confirmation` with its stage (Q34: finished subtitles are kept, the
+files not done yet wait for the next start), an ended one is refused as below, and nothing is
+changed.
 """
 
 from datetime import datetime
 
+from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.runpod.pods import PodsApi
+from transcribe_ui.runs.cancel_asking import cancel_asked
 from transcribe_ui.runs.classes import CancelWorkerRequest
 from transcribe_ui.runs.cloud import open_runpod
 from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
@@ -25,8 +32,11 @@ from transcribe_ui.runs.stopped import last_report, stopped_end
 from transcribe_ui.state.store import LocalState
 
 
-def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> CancelWorkerResponse:
-    """Stop the run's queued pod or pod and end the run once that is verified.
+def cancel_worker(
+    request: CancelWorkerRequest,
+    context: RequestContext,
+) -> CancelWorkerResponse | NeedsConfirmation:
+    """Stop the run's queued pod or pod and end the run once that is verified (asked first without `confirm`).
 
     The run becomes `cancelled`, unless its worker had reported `finished` or `failed` (its report
     read best effort from R2 before the stop): then it ends as the worker reported.
@@ -40,6 +50,8 @@ def cancel_worker(request: CancelWorkerRequest, context: RequestContext) -> Canc
     """
     ports = context.ports
     state = ports.state
+    if not request.confirm:
+        return cancel_asked(state, request)
     with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
         run = read_run(state, request.run_id)
         if run.status == "launching":

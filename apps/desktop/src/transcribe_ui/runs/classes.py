@@ -197,10 +197,14 @@ class ListRunsRequest(FrozenModel):
 
 
 class CancelWorkerRequest(FrozenModel):
-    """Stop a run: cancel its queued pod (terminating a pod it deployed meanwhile) or terminate its pod."""
+    """Stop a run: cancel its queued pod (terminating a pod it deployed meanwhile) or terminate its pod.
+
+    Without `confirm`, the answer is `needs_confirmation` (the run and its stage), and nothing is changed.
+    """
 
     action: Literal["cancel_worker"]
     run_id: Ulid
+    confirm: bool = False
 
 
 class ReconcileCloudRequest(FrozenModel):

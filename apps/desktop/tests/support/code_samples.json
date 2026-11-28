@@ -204,6 +204,11 @@
       "name": "transcribe-ui-01JDQ0000000000000000000R1",
       "status": "PENDING",
       "run_id": "01JDQ0000000000000000000R1"
+    },
+    "cancel_worker": {
+      "run_id": "01JDQ0000000000000000000R1",
+      "stage": "transcribing",
+      "run_status": "running"
     }
   },
   "plan_error": {

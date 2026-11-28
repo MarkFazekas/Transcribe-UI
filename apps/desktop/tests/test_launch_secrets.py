@@ -23,7 +23,7 @@ def test_no_secret_in_responses_or_logs(runs_world: RunsWorld) -> None:
     texts.append(send(runs_world, LAUNCH, confirm_fingerprint=fingerprint).model_dump_json())
     pods.records.clear()
     run_id = launch_run(runs_world).run_id
-    texts.append(send(runs_world, CANCEL, run_id=run_id).model_dump_json())
+    texts.append(send(runs_world, CANCEL, run_id=run_id, confirm=True).model_dump_json())
     texts.append(send(runs_world, RECONCILE).model_dump_json())
     leaked = [secret for secret in NEVER_SHOWN for text in texts if secret in text]
     assert leaked == []

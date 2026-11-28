@@ -21,6 +21,7 @@ from support.launch import (
 )
 from support.runpod_api import Failure, Record
 from support.runs import OUTAGE, RunsWorld, seed_uploaded, set_run_status
+from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE, QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import (
     DEPLOY_SETTLE_S,
@@ -56,7 +57,7 @@ def _launch(world: RunsWorld, *, capacity: bool) -> str:
 
 
 def _cancel(world: RunsWorld, run_id: str) -> CancelWorkerResponse:
-    return ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    return ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
 
 
 def _deploy_at_next_request(world: RunsWorld) -> None:
@@ -108,7 +109,7 @@ def test_unseen_pod_missing_after_deploy_not_gone(ready: RunsWorld) -> None:
     run_id = _launch(ready, capacity=False)
     _deploy_at_next_request(ready)
     _hide_pods(ready)
-    refused = send(ready, CANCEL, run_id=run_id)
+    refused = send(ready, CANCEL, run_id=run_id, confirm=True)
     status, payload = run_row(ready, run_id)
     assert (error_code(refused), status, payload.pod_id is not None, payload.pod_seen) == (
         ERROR_STOP_UNVERIFIED,
@@ -125,7 +126,7 @@ def test_cancelled_only_after_verified_termination(ready: RunsWorld) -> None:
     run_id = _launch(ready, capacity=False)
     _deploy_at_next_request(ready)
     ready.cloud.settings.terminate_effective = False
-    refused = send(ready, CANCEL, run_id=run_id)
+    refused = send(ready, CANCEL, run_id=run_id, confirm=True)
     status, payload = run_row(ready, run_id)
     assert (error_code(refused), status, [(payload.pod_id, "RUNNING")]) == (
         ERROR_STOP_UNVERIFIED,
@@ -149,7 +150,7 @@ def test_failed_termination_read_keeps_the_run(ready: RunsWorld) -> None:
     """A follow-up read that fails leaves the run `running` (not cancelled)."""
     run_id = _launch(ready, capacity=True)
     ready.cloud.api.fail("GET", f"{POD_PATH}{pods_of(ready)[0][0]}", *OUTAGE)
-    assert (error_code(send(ready, CANCEL, run_id=run_id)), run_row(ready, run_id)[0]) == (
+    assert (error_code(send(ready, CANCEL, run_id=run_id, confirm=True)), run_row(ready, run_id)[0]) == (
         ERROR_CLOUD_UNREACHABLE,
         "running",
     )
@@ -158,16 +159,59 @@ def test_failed_termination_read_keeps_the_run(ready: RunsWorld) -> None:
 def test_cancel_refusals(ready: RunsWorld) -> None:
     """Unknown and finished runs are refused."""
     run_id = _launch(ready, capacity=True)
-    assert error_code(send(ready, CANCEL, run_id=UNKNOWN_RUN)) == ERROR_RUN_NOT_FOUND
+    assert error_code(send(ready, CANCEL, run_id=UNKNOWN_RUN, confirm=True)) == ERROR_RUN_NOT_FOUND
     set_run_status(ready, "finished", run_id)
-    assert error_code(send(ready, CANCEL, run_id=run_id)) == ERROR_RUN_NOT_ACTIVE
+    assert error_code(send(ready, CANCEL, run_id=run_id, confirm=True)) == ERROR_RUN_NOT_ACTIVE
 
 
 def test_cancel_of_an_unresolved_launch(ready: RunsWorld) -> None:
     """A `launching` run whose pod is not listed cannot be stopped yet; it stays `launching`."""
     ready.cloud.api.fail(POST, PODS, Failure(status=httpx.codes.SERVICE_UNAVAILABLE))
     run_id = launch_run(ready).run_id
-    assert (error_code(send(ready, CANCEL, run_id=run_id)), run_row(ready, run_id)[0]) == (
+    assert (error_code(send(ready, CANCEL, run_id=run_id, confirm=True)), run_row(ready, run_id)[0]) == (
         ERROR_LAUNCH_UNRESOLVED,
         "launching",
     )
+
+
+def _asked(world: RunsWorld, run_id: str) -> NeedsConfirmation:
+    """Send `cancel_worker` without `confirm`; it must ask."""
+    return ok_as(send(world, CANCEL, run_id=run_id), NeedsConfirmation)
+
+
+def test_cancel_asks_first_and_changes_nothing(ready: RunsWorld) -> None:
+    """Without `confirm` (Q34) the answer names the run and its stage; the run and its queued pod stay as they are.
+
+    Confirmed, a waiting run is cancelled; nothing reaches Runpod before the confirmation.
+    """
+    world = ready
+    run_id = _launch(world, capacity=False)
+    before = (run_row(world, run_id), queued_of(world), len(world.cloud.api.seen()))
+    asked = _asked(world, run_id).confirmations[0]
+    after = (run_row(world, run_id), queued_of(world), len(world.cloud.api.seen()))
+    shown = (asked.code, asked.field, asked.set_to, asked.details)
+    assert shown == ("cancel_worker", "confirm", True, {"run_id": run_id, "stage": "waiting", "run_status": "queued"})
+    assert after == before
+    assert _cancel(world, run_id).run.status == CANCELLED
+
+
+def test_stop_asks_with_the_stage_then_stops(ready: RunsWorld) -> None:
+    """A started run is asked about at its stage and keeps its pod until confirmed; confirmed, it stops."""
+    world = ready
+    run_id = _launch(world, capacity=True)
+    asked = _asked(world, run_id).confirmations[0]
+    assert (asked.details["stage"], run_row(world, run_id)[0], len(pods_of(world))) == ("starting", "running", 1)
+    stopped = _cancel(world, run_id)
+    assert (stopped.run.status, pods_of(world)) == (CANCELLED, [])
+
+
+def test_asking_about_an_ended_run(ready: RunsWorld) -> None:
+    """Unasked, a cancelled run answers as done, another ended run and an unknown run are refused."""
+    world = ready
+    run_id = _launch(world, capacity=True)
+    _cancel(world, run_id)
+    again = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    assert again.run.status == CANCELLED
+    set_run_status(world, "finished", run_id)
+    assert error_code(send(world, CANCEL, run_id=run_id)) == ERROR_RUN_NOT_ACTIVE
+    assert error_code(send(world, CANCEL, run_id=UNKNOWN_RUN)) == ERROR_RUN_NOT_FOUND
