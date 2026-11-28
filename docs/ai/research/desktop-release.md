@@ -11,8 +11,13 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 - [V] 6.13.0 (2025-04-15): "Onefile in combination with macOS's .app bundles will be blocked in
   v7.0"; the changelog calls such bundles "not really single file" and recommends onedir for a
   `.app` (same source).
-- [V] `PYINSTALLER_RESET_ENVIRONMENT` exists since 6.10.0: a process that starts
-  `sys.executable` to outlive itself (a restart) must set it (same source).
+- [V] `PYINSTALLER_RESET_ENVIRONMENT` was introduced in 6.10.0 (2024-08-10; the changelog lists
+  it under Features, Incompatible Changes and Bootloader): a process that starts
+  `sys.executable` to outlive itself (a restart) must set it (same source). The "Common issues
+  and pitfalls" page says "introduced in PyInstaller 6.9"
+  (https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html); the changelog's 6.9.0
+  entry has nothing about it, so 6.10 is taken as right. `tooling.md` and
+  `gui/settings/constants.py` still say 6.9; the M8.1 PR corrects them.
 - [I] A `.png` icon is converted to `.ico`/`.icns` when Pillow is installed in the build
   environment.
 - [I] The Qt hooks collect Qt's own translations (`PySide6/Qt/translations/qtbase_*.qm`) with
@@ -33,10 +38,10 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 
 ## GitHub-hosted runners
 
-- [V] Ubuntu 22.04 images: deprecation began 2026-09-17, fully unsupported 2027-04-17
-  (runner-images release notes, e.g.
-  https://newreleases.io/project/github/actions/runner-images/release/ubuntu22%2F20260804.255);
-  brownouts before removal [I, from secondary sources].
+- [V] Ubuntu 22.04 images (`ubuntu-22.04`, `ubuntu-22.04-arm`): deprecation from 2026-09-17,
+  retirement (fully unsupported) 2027-04-17, brownouts 14:00-24:00 UTC on March 23, March 30,
+  April 6 and April 13 (2027 [I]: the announcement gives no year)
+  (https://github.com/actions/runner-images/issues/14254).
 - [V] `ubuntu-26.04` is generally available; `ubuntu-latest` moves from 24.04 to 26.04 between
   2026-10-19 and 2026-11-19; pin `ubuntu-24.04` to stay
   (https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration).

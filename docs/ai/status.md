@@ -26,8 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.8 (review and upload: `gui/review/`, the `open_review` and `run_upload` handlers, review
-  `suggestions` in the backend) on `feat/m6.8-review-upload`: built, in review.
+- The M8 plan (`docs/ai/plans/m8.md`, questions A23, A24, Q36) on `docs/m8-plan`: written, in
+  review.
 
 ## Waiting on humans
 
@@ -42,14 +42,13 @@ the status change on the current branch. On a merge conflict in this file, re-de
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
 2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Merged: M6.1, M6.2, M6.14
    (#40), M6.12 (#41), M6.7 (#42), M6.5, M6.3 (#45), M6.4 (#46), M6.6 (#47), M6.9 (#48,
-   ebae048), M6.10 (a022e03). In flight: M6.8 (review and upload, in review). Then wave 4
-   M6.11. M6.13 (several installations on one bucket, Q28, with its GUI) after M6.6 and M6.9;
-   the later of
-   M6.11 and M6.13 marks M6 built. The M4 Runpod trial run is deferred until everything else
+   ebae048), M6.10 (a022e03), M6.8 (#50, 6ad5b0f). Next: wave 4 M6.11. M6.13 (several
+   installations on one bucket, Q28, with its GUI) after M6.6 and M6.9; the later of M6.11
+   and M6.13 marks M6 built. The M4 Runpod trial run is deferred until everything else
    works (architect); nothing waits on it, and it still needs the architect present and their
    go.
-3. M8 (desktop release) is planned in `docs/ai/plans/m8.md`; it starts after M6 (M8.1
-   first) and does not wait for M7.
+3. M8 (desktop release) is planned in `docs/ai/plans/m8.md`; M8.1 may start while the last
+   M6 parts are in review (architect), and M8 does not wait for M7.
 4. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
