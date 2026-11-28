@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, Literal
 
+from transcribe_ui.constants import DISTRIBUTION_NAME
 from transcribe_ui.credentials.constants import ERROR_CREDENTIALS_INVALID, ERROR_CREDENTIALS_MISSING
 from transcribe_ui.runpod.constants import ERROR_CLOUD_NOT_SET_UP, ERROR_CLOUD_SETUP_OUTDATED
 from transcribe_ui.runs.constants import ERROR_CLEANUP_PENDING
@@ -29,6 +30,8 @@ CALL_DONE: Final[CallState] = "done"
 # The one key of a single-flight channel (the poll has one tick at a time).
 POLL_KEY: Final = "poll"
 
+# Command line the `QApplication` is created with (its application name).
+QT_APPLICATION_ARGUMENTS: Final = (DISTRIBUTION_NAME,)
 # Log file of the GUI in the user log dir; each frontend has its own, so no two frontends rotate one file.
 GUI_LOG_FILE_NAME: Final = "transcribe-ui-gui.log"
 # Module of the GUI's start (`run_gui`), imported by `gui/main.py` only after the display check.
@@ -167,6 +170,14 @@ ERROR_FIXES: Final[Mapping[str, FixKind]] = MappingProxyType(
 )
 # Details key of `cleanup_pending` that lists the batches to clean up.
 CLEANUP_PENDING_BATCHES_KEY: Final = "batch_ids"
+# Environment variable that starts the GUI in its smoke mode: it closes itself once start-up answered (release builds).
+SMOKE_TEST_VARIABLE: Final = "TRANSCRIBE_UI_SMOKE_TEST"
+# Value of the smoke mode's variable that turns the mode on (any other value leaves the GUI as it is).
+SMOKE_TEST_ON: Final = "1"
+# How long the smoke mode waits for the start-up to answer before it fails, in milliseconds.
+SMOKE_TEST_DEADLINE_MS: Final = 120_000
+# Exit code of a smoke run in which a request failed, the start-up did not finish or the texts of Qt itself are missing.
+SMOKE_TEST_FAILED_EXIT_CODE: Final = 1
 # Prefix of the translation files of the texts Qt itself shows (standard buttons, context menus).
 QT_TRANSLATION_PREFIX: Final = "qtbase_"
 # Exit code of "Quit now".
