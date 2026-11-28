@@ -36,7 +36,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## Waiting on humans
 
-- Questions: A24 (architect) and Q36 (product), both for M8; none blocks M6. M5 is built
+- Questions: Q36 (product, the app icon) for M8.3; it does not block M6. The architect runs the
+  M8 manual acceptance on Windows after the first release (A24); M8 is marked built after it. M5 is built
   and M6 is planned.
 
 ## Next

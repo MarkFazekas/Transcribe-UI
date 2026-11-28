@@ -316,6 +316,10 @@ Naming and conflicts:
   executables. The macOS CLI stays a bare binary (it is used from Terminal anyway). Windows and
   Linux are unchanged. The answer is recorded next to the working-agreements rule on uploaded
   files as its exception.
+- macOS minimum version *(architect, 2026-11-28)*: "It might work even below the macOS 14
+  minimum, no? Put a note saying what we tested it on, and do not restrict it needlessly."
+- Manual acceptance of the release builds *(A24, architect)*: "I'll click through it on Windows.
+  The Linux VM is not installed, so it should say it is untested."
 - Local state: SQLite with SQLAlchemy and Alembic.
 - Code layout, Django-like: constants per folder / app / sub-app in a `constants.py`, each with
   a roughly one-line explanation of its purpose, not with an underscore at the top of other

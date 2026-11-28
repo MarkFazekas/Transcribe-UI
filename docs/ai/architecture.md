@@ -2945,7 +2945,10 @@ Few unit tests; mostly regression and flow tests:
   (`refs/pull/<n>/merge`), so the hash and date in a pull request artifact's version name that
   commit, which is not in the branch's history. Only uv's own CPython builds
   (`UV_PYTHON_PREFERENCE=only-managed`), never a Python found on the runner. On macOS the build
-  checks the macOS 14 floor (`scripts/build_desktop_macos.py`): a bundled binary from an
+  checks a floor of macOS 14 (`scripts/build_desktop_macos.py`). It is a regression guard, not
+  a support claim (architect): it keeps our own build (the bootloader, libpython, ffmpeg) from
+  needlessly raising the macOS version below which the app cannot work, which is the 14.0 that
+  Qt's wheels declare. A bundled binary from an
   installed wheel (its resolved source path listed in the wheel's `RECORD`) follows the wheel's
   platform tag (a `macosx` tag above 14.0 fails), since Qt's wheels carry a higher Mach-O
   `minos` than their tag (shiboken6 6.12.0, tagged `macosx_14_0`: 26.0); everything else must
@@ -2954,10 +2957,13 @@ Few unit tests; mostly regression and flow tests:
   the one Mach-O whose `minos` macOS enforces at start; never exempted by PyInstaller's own
   wheel), libpython and its extensions, binaries of wheels without a `macosx` tag, later
   ffmpeg. Each
-  wheel's tags and highest `minos` are printed. No CI run starts the executables on macOS 14:
-  GitHub retired the `macos-14` runner image on 2026-11-02 and no Intel macOS 14 label exists,
-  so the floor of both macOS builds rests on these two rules (and on a real macOS 14 machine in
-  the manual acceptance, A24, if one is at hand); the executables run on macOS 15. The macOS
+  wheel's tags and highest `minos` are printed. What is tested, as the release notes say: CI
+  starts the GUI natively on macOS 15, arm64 and Intel; Qt's wheels declare macOS 14; older
+  versions may work but are untested. No CI run starts the executables on macOS 14 (GitHub
+  retired the `macos-14` runner image on 2026-11-02; no Intel macOS 14 label exists), and the
+  app is not tested on a Mac by hand (A24). Nothing in the app refuses an older macOS by itself:
+  the `.app` sets no `LSMinimumSystemVersion`, so macOS enforces only the main executable's own
+  `minos` (the PyInstaller bootloader's). The macOS
   GUI (A23) is built `--onedir --windowed` as `Transcribe-UI.app`, ad hoc signed by
   PyInstaller (on both architectures; with `PYINSTALLER_STRICT_BUNDLE_CODESIGN_ERROR=1`, so a
   failed signature fails the build instead of a warning, and
@@ -2966,7 +2972,10 @@ Few unit tests; mostly regression and flow tests:
   `CFBundleIdentifier` `io.github.markfazekas.transcribe-ui`, and from the stamped version
   (which must be `<base>+<YYYYMMDD>.<short sha>` with a real date, else the build stops)
   `CFBundleShortVersionString`, the release segment of its public part, and `CFBundleVersion`,
-  the commit date as `YYYY.M.D` (three integers, as Apple asks), `LSMinimumSystemVersion` 14.0 and `NSHighResolutionCapable`;
+  the commit date as `YYYY.M.D` (three integers, as Apple asks), and `NSHighResolutionCapable`
+  (no `LSMinimumSystemVersion`: the entry is fixed before PyInstaller writes the executable, so
+  an exact value would need PyInstaller's internals, and macOS enforces the executable's own
+  `minos` anyway);
   PyInstaller's command line cannot set them, so the build writes them to a plist file that
   `packaging/pyinstaller_main.py` passes to PyInstaller's `BUNDLE` (before it signs the
   bundle), and the build fails if the written `Info.plist` differs. The floor check covers
