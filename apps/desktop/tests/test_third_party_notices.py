@@ -20,7 +20,13 @@ from support.gui_settings import Deferred, Recorded, Scripted
 from support.parity import run_one
 from transcribe_ui.api import info
 from transcribe_ui.api.backend import Backend
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, GetThirdPartyNoticesResponse, Response
+from transcribe_ui.api.classes import (
+    ErrorBody,
+    ErrorResponse,
+    GetAppInfoResponse,
+    GetThirdPartyNoticesResponse,
+    Response,
+)
 from transcribe_ui.api.constants import ERROR_INTERNAL
 from transcribe_ui.api.schema import response_adapter
 from transcribe_ui.cli.constants import EXIT_OK
@@ -107,6 +113,22 @@ def test_a_failed_load_is_retried(backend: Backend, tmp_path: Path) -> None:
     error = about.notices_error
     assert error is not None
     assert (about.notices_state, error.code, about.notices_message()) == ("failed", ERROR_INTERNAL, error.message)
+    answers.clear()
+    about.load_notices()
+    assert (about.notices_state, about.notices_error, recorded.actions()) == ("loaded", None, [ACTION, ACTION])
+
+
+def test_an_unexpected_answer_fails_and_is_retried(backend: Backend, tmp_path: Path) -> None:
+    """An answer of another type is an internal error (not a silent reset); asking again sends a new request."""
+    other = GetAppInfoResponse(app_version="test", contracts_schema_version="test")
+    answers: dict[str, Response] = {ACTION: other}
+    recorded = Recorded(Scripted(backend, answers))
+    about = _about(recorded, tmp_path)
+    about.load_notices()
+    error = about.notices_error
+    assert error is not None
+    assert (about.notices_state, error.code, about.notices_message()) == ("failed", ERROR_INTERNAL, error.message)
+    assert error.message
     answers.clear()
     about.load_notices()
     assert (about.notices_state, about.notices_error, recorded.actions()) == ("loaded", None, [ACTION, ACTION])

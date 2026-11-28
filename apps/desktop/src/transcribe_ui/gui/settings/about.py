@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from transcribe_ui.api.classes import (
+    ErrorBody,
     ErrorResponse,
     GetAppInfoRequest,
     GetAppInfoResponse,
@@ -17,6 +18,7 @@ from transcribe_ui.api.classes import (
     GetThirdPartyNoticesResponse,
     Response,
 )
+from transcribe_ui.api.constants import ERROR_INTERNAL
 from transcribe_ui.gui.constants import WINDOW_TITLE
 from transcribe_ui.gui.executor import Executor
 from transcribe_ui.gui.feedback import ErrorView, error_view
@@ -95,6 +97,9 @@ class AboutViewModel(ViewModel):
             self.notices_state = "failed"
             self.notices_error = error_view(response)
         else:
-            # Never the answer to this request; opening the dialog again asks again.
-            self.notices_state = "not_loaded"
+            # Never the answer to this request: a backend bug, shown as an internal error; opening
+            # the dialog again asks again.
+            self.notices_state = "failed"
+            body = ErrorBody(code=ERROR_INTERNAL, message="Unexpected answer to the notices request.")
+            self.notices_error = error_view(ErrorResponse(action="get_third_party_notices", error=body))
         self.changed()

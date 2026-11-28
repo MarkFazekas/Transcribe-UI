@@ -820,8 +820,9 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     runs on the executor's pool, and every frontend gets the same answer (the CLI serves it
     through `run` like every request; it has no notices command, A20). `notices` is None from
     source, and the dialog then says the licences are included only in release builds. The
-    request is sent when the dialog opens and its answer kept; a failed load shows its error
-    in the dialog and the next opening asks again.
+    request is sent when the dialog opens and its answer kept; a failed load (an error, or an
+    answer of another kind, shown as an internal error) shows its error in the dialog with
+    Details, and the next opening asks again.
   - Start-up steps: `get_settings` and `get_app_info` (slot settings), `credentials_status`
     (slot credentials), and with a Runpod key `cloud_setup_status` (slot reconcile, after the
     database steps). The set-up wizard (a dialog over the Accounts and Cloud setup sections:
