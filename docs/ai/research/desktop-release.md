@@ -102,6 +102,10 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   (https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement).
 - [I] macOS and Windows hosted runners have a logged-in desktop session, so a Qt window can be
   shown with the native platform plugin (`cocoa`, `windows`); Linux needs Xvfb for `xcb`.
+- [V] Measured (PR #57, `release-desktop.yml` on fdb3395, the GUI `.app` with ffmpeg inside, about
+  61-63 MB as a `ULFO` image): one `hdiutil create -srcfolder` took 154.1 s on `macos-15-intel`
+  and 11.6 s on `macos-15` (arm64). So a per-try limit of 300 s left little margin on Intel;
+  `scripts/build_desktop_app.py` allows 600 s per try (three tries).
 
 ## GitHub Actions
 

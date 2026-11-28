@@ -272,7 +272,11 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   it to the GUI log when the app's logging can still be imported, and exits 1: the windowed Windows bootloader would
   otherwise show a modal traceback dialog, and a smoke run would wait for its timeout.
 - The smoke mode of the GUI (architecture §3.1) also fails on any record at ERROR or above in
-  the app's loggers while it watches (an exception escaping a Qt slot, a critical message of Qt).
+  the app's loggers while it watches (an exception escaping a Qt slot, a critical message of Qt),
+  and in a frozen build when the bundled ffmpeg or ffprobe does not answer `-version` from the
+  bundle (`bundled_tool_problems`; no `PATH` fallback). So `gui-offscreen` and `gui-native`
+  also prove that the GUI finds and runs its bundled tools (in the macOS `.app` from
+  `Contents/Frameworks`), which `cli-probe` proves only for the one-file CLI.
 - Linux build tools: PyInstaller runs `ldd`, `objdump` and `objcopy` (the manylinux image has
   them). Libraries the build container lacks (the X11/xcb, Wayland, GL and font stack) are not
   bundled; `linux-packages.txt` lists them for the host.

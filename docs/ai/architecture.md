@@ -282,8 +282,13 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   window through the normal close handling (the set-up wizard closes with it) and makes the
   exit code 1 when an answer was an error, a record at ERROR or above reached the app's
   loggers while it watched (an exception escaping a slot, a critical message of Qt),
-  start-up did not finish within 120 s, or the language is Hungarian and Qt's own translation
-  did not load (`StartLanguages.qt_translated`); else 0. Without the variable nothing changes. However the window is deleted, its executor closes with it
+  start-up did not finish within 120 s, the language is Hungarian and Qt's own translation
+  did not load (`StartLanguages.qt_translated`), or, in a release build (`bundle_dir()` set),
+  the bundled ffmpeg or ffprobe cannot be used: `media/invoke.py` `bundled_tool_problems`
+  resolves each with the app's own `ToolLocator` (the bundle folder, no settings override, no
+  `PATH` fallback) and runs `-version` through `ToolInvoker` and `SubprocessRunner` (30 s);
+  a missing or unstartable tool, a non-zero exit or a path outside the bundle is a failure;
+  else 0. Without the variable nothing changes. However the window is deleted, its executor closes with it
   (`build_shell` connects the window's `destroyed`), so an answer still on its way never
   reaches the window's deleted views. A view deleted while its window lives must call the
   function its view-model's `subscribe` returned (none is today: pages and the set-up wizard
@@ -2985,7 +2990,9 @@ Few unit tests; mostly regression and flow tests:
   environment), `--help` in Hungarian (Linux through `LANGUAGE`, Windows and macOS through
   the `language` setting), each archive's required and forbidden contents (catalogs, Alembic
   files, the stamp; no Qt in the CLI; Qt's Hungarian texts and the offscreen and native
-  platform plugins in the GUI; no host C++ runtime on Linux), the GUI's smoke mode (§3.1)
+  platform plugins in the GUI; no host C++ runtime on Linux), the GUI's smoke mode (§3.1,
+  which in these frozen builds also runs the bundled ffmpeg and ffprobe from the bundle the
+  GUI itself looks in, so every GUI, the macOS `.app` included, proves it finds them)
   offscreen and on the native platform (Linux under Xvfb; on macOS the disk image is
   attached read-only and hidden from Finder, it must hold exactly the app and the
   `Applications` link, the GUI checks run the app's main executable, `gui-bundle` lists the
