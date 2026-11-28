@@ -37,12 +37,17 @@
     },
     "CancelWorkerRequest": {
       "additionalProperties": false,
-      "description": "Stop a run: cancel its queued pod (terminating a pod it deployed meanwhile) or terminate its pod.",
+      "description": "Stop a run: cancel its queued pod (terminating a pod it deployed meanwhile) or terminate its pod.\n\nWithout `confirm`, the answer is `needs_confirmation` (the run and its stage), and nothing is changed.",
       "properties": {
         "action": {
           "const": "cancel_worker",
           "title": "Action",
           "type": "string"
+        },
+        "confirm": {
+          "default": false,
+          "title": "Confirm",
+          "type": "boolean"
         },
         "run_id": {
           "$ref": "#/$defs/Ulid"
