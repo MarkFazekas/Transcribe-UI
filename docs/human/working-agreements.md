@@ -48,6 +48,8 @@ translated to English.
   when coordination, conflicts or merges cost more than parallelism gains.
 - Use Sonnet (or Haiku where adequate) where it does not hurt quality; sub-agents may start
   cheaper sub-agents under the same condition.
+- At most 2-3 developer (code-writing) sub-agents run at the same time; `code-reviewer`
+  sub-agents do not count toward this limit (architect, 2026-11-28).
 - The main session can run at medium effort; code reviews and concurrency or
   failure-handling work stay at high effort.
 - The code review is started by the main session, not by the sub-agent that wrote the code.
@@ -61,6 +63,8 @@ translated to English.
 - Local rebase is fine. Never force push.
 - Never work directly on `main`: branch + PR; a sub-agent reviews each PR before merge.
 - `main` is protected: PR required, signed commits required, status checks must pass.
+- PRs are merged by squash merge only; merge commits and rebase merges are disabled in
+  the repo settings (architect, 2026-11-28).
 - A few minutes after a merge, re-check the CI runs. Waiting for CI must not block other work,
   but the result must be checked.
 - CI is scoped sensibly: release builds only when relevant code (UI app, deployed app) changed;

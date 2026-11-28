@@ -171,6 +171,8 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 - `main` is protected: PR required, signed commits required, no force push, required status
   checks (added once `ci.yml` exists). Work happens on branches; each PR is reviewed by a
   `code-reviewer` sub-agent before merge.
+- PRs are squash-merged only. PR titles stay at most 65 characters so GitHub's " (#N)"
+  suffix keeps the squash title within 72.
 
 ## Claude Code hook
 
