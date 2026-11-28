@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 from pytestqt.qtbot import QtBot
 
-from support.actions import SCENARIOS, scenario_batch_id
+from support.actions import COPYING_RETRY, RETRIED_SOURCE, SCENARIOS, scenario_batch_id
 from support.gated import wait_for
 from support.gui import window_over
 from support.jobs import scenario_ports
@@ -83,6 +83,33 @@ def test_the_start_up_step_fills_the_list(qtbot: QtBot, window: MainWindow) -> N
     assert jobs.currentWidget() is jobs.page_view
     assert window.pages.current_page() == PAGE_JOBS
     assert jobs.page_view.header.title.text().startswith(f"Job {batch_id}")
+
+
+def _selected_text(jobs: JobsPage) -> str | None:
+    table = jobs.list_view.table
+    cells = [cell for cell in table.selectedItems() if cell.column() == 1]
+    return cells[0].text() if cells else None
+
+
+def test_the_selection_follows_its_job_across_reloads(qtbot: QtBot, window: MainWindow) -> None:
+    """A reload that removes a row above keeps the same job selected; once the job is gone, none is."""
+    jobs = _jobs(window)
+    view = jobs.list_view
+    wait_for(qtbot, lambda: view.table.rowCount() == SHOWN)
+    kept = scenario_batch_id(COPYING_RETRY)
+    rows = [row.batch_id for row in view.model.rows]
+    view.table.selectRow(rows.index(kept))
+    above = scenario_batch_id(RETRIED_SOURCE)
+    assert rows.index(above) < rows.index(kept)
+    view.model.press(above, "hide")
+    wait_for(qtbot, lambda: view.table.rowCount() == SHOWN - 1)
+    assert (view.selected(), _selected_text(jobs)) == (kept, kept)
+    gone = scenario_batch_id("downloaded_no_speech")
+    view.table.selectRow([row.batch_id for row in view.model.rows].index(gone))
+    view.button_row.buttons["hide"].click()
+    wait_for(qtbot, lambda: view.table.rowCount() == SHOWN - 2)
+    assert (view.selected(), _selected_text(jobs), view.open_button.isEnabled()) == (None, None, False)
+    assert not view.button_row.buttons
 
 
 def test_an_unhandled_button_is_not_available(qtbot: QtBot, window: MainWindow) -> None:

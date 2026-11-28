@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 02:17+0100\n"
+"POT-Creation-Date: 2026-11-28 02:18+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1058,7 +1058,7 @@ msgid "Uploaded"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
-msgid "Uploaded; waits until the running transcription ends"
+msgid "Uploaded; the transcription starts with the next run"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py src/transcribe_ui/i18n/state_texts.py

@@ -1060,7 +1060,7 @@ msgid "Uploaded"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
-msgid "Uploaded; waits until the running transcription ends"
+msgid "Uploaded; the transcription starts with the next run"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py src/transcribe_ui/i18n/state_texts.py

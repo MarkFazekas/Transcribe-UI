@@ -12,7 +12,6 @@ from datetime import datetime
 
 from transcribe_ui.batches.payloads import RetryJob
 from transcribe_ui.batches.responses import BatchDetail, BatchItem, BatchLabel, BatchStage, BatchSummary, JobView
-from transcribe_ui.cleanup.constants import FLAGGED_STATUSES
 from transcribe_ui.gui.jobs.constants import ACTION_BUTTONS, CELL_SEPARATOR, CLEANUP_BUTTONS, JobButtonKey
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.i18n.formats import format_datetime, format_number
@@ -105,7 +104,7 @@ def _problem_text(member: BatchItem) -> str:
 
 def _retry_job(member: BatchItem, job: JobView, *, retry_open: bool) -> RetryJob | None:
     """Return what a Retry of this job takes, or None when it gets no tick box (not flagged, or no retry allowed)."""
-    if not retry_open or job.status not in FLAGGED_STATUSES:
+    if not retry_open or not job.flagged:
         return None
     return RetryJob(item_id=member.item_id, language=job.language)
 
@@ -120,7 +119,7 @@ def _transcription_row(member: BatchItem, job: JobView, *, retry_open: bool) -> 
         kind=code_text("job_kind", job.kind),
         status=code_text("job_status", job.status),
         reason=reason_text(job),
-        flagged=job.status in FLAGGED_STATUSES,
+        flagged=job.flagged,
         retry=_retry_job(member, job, retry_open=retry_open),
     )
 

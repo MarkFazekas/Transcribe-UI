@@ -346,12 +346,14 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   - The list sends `list_batches` (backend order, newest first; "Show hidden jobs" sets
     `include_hidden`) at start-up (slot `batches`) and on every `batches_changed`; each row
     shows the creation time (local), id, stage, phase, file and transcription counts, languages
-    and labels; Open or a double click emits `open_job`; Hide or Show for the selected job.
+    and labels; Open or a double click emits `open_job`; Hide or Show for the selected job. The
+    selection is kept by batch id across reloads (cleared once the job is no longer listed),
+    and the table is rebuilt only when its rows changed.
   - The job page (`open_job`) sends `get_batch` and reloads on `batches_changed` naming its job
     (or any job); it shows the step header, the phase, counts, languages and labels, and one
     row per transcription: file, language, kind, status, the reason of a failure (the catalog
     text of `result_error_code`, else the worker's own `result_error`), the file's phase and
-    problem, its path. Failed and no-speech transcriptions are bold; while `create_retry_batch`
+    problem, its path. Transcriptions marked `flagged` are bold; while `create_retry_batch`
     is allowed each has a Retry tick box, ticked by default (a reload keeps the user's ticks).
   - Every button comes from `actions` (`ACTION_BUTTONS`, one button per action or group, in
     the actions' order): Edit selection, Continue to review, Delete, Review (`review_batch`,
@@ -693,9 +695,11 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     (`downloaded`, `cleaned`; table `PHASE_STAGES`). `BatchSummary.labels` lists, in this order,
     the notes that apply: `cleanup_pending` (an interrupted cleanup), `upload_unfinished`
     (`uploading`, not held), `manifest_held`, `subtitles_ready` (`ready` or `transcribed` with a
-    job `ok` or `extracted`), `flagged_jobs` (a transcription failed or found no speech),
-    `audio_deleted` (until `cleaned`), `hidden`. Frontends show both from the catalog; a new
-    label is a code in `BatchLabel` and its entry, nothing else.
+    job `ok` or `extracted` that has no recorded placement outcome), `flagged_jobs` (a
+    transcription failed or found no speech), `audio_deleted` (until `cleaned`), `hidden`.
+    Frontends show both from the catalog; a new label is a code in `BatchLabel` and its entry,
+    nothing else. Each `JobView` says whether it is `flagged` (a `transcribe` job `failed` or
+    `no_speech`, which a retry batch can take), so no frontend restates that rule.
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
   own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
   `refresh_status` call `publish_held_manifests`). Replaced from M6.13 by §3.9 "Run scope"

@@ -70,34 +70,39 @@ class JobsListView(QWidget):
         self.banner = ErrorBanner(model.reload, self)
         layout.addWidget(self.banner)
         self.table = row_table(_list_columns(), self)
-        self.table.cellDoubleClicked.connect(self._open_row)
-        self.table.itemSelectionChanged.connect(self._show_buttons)
+        # A double click first selects its row, so it opens the selected job.
+        self.table.cellDoubleClicked.connect(self._open_selected)
+        self.table.itemSelectionChanged.connect(self._selection_changed)
         layout.addWidget(self.table, 1)
         buttons = self._actions(layout)
         self.open_button = buttons[0]
         self.button_row = buttons[1]
+        # The rows the table shows, and the selected job, kept by id across reloads.
+        self._rows: tuple[JobRow, ...] = ()
+        self._selected: str | None = None
         model.subscribe(self.refresh)
         self.refresh()
 
     def refresh(self) -> None:
-        """Show the model's rows (the selected job stays selected) and its error."""
-        selected = self.selected()
+        """Show the model's rows and error; the selected job stays selected (by id) while it is listed."""
         self.banner.show_error(self.model.error)
-        fill_table(self.table, [_list_cells(row) for row in self.model.rows])
-        self.table.resizeColumnsToContents()
-        batch_ids = [row.batch_id for row in self.model.rows]
-        self.table.clearSelection()
-        if selected in batch_ids:
-            self.table.selectRow(batch_ids.index(selected))
+        rows = self.model.rows
+        if rows != self._rows:
+            self._rows = rows
+            batch_ids = [row.batch_id for row in rows]
+            if self._selected not in batch_ids:
+                self._selected = None
+            with QSignalBlocker(self.table):
+                fill_table(self.table, [_list_cells(row) for row in rows])
+                self.table.clearSelection()
+                if self._selected is not None:
+                    self.table.selectRow(batch_ids.index(self._selected))
+            self.table.resizeColumnsToContents()
         self._show_buttons()
 
     def selected(self) -> str | None:
         """Return the selected job's id, or None."""
-        row = self.table.currentRow()
-        rows = self.model.rows
-        if self.table.selectedItems() and 0 <= row < len(rows):
-            return rows[row].batch_id
-        return None
+        return self._selected
 
     def _hidden_box(self) -> QCheckBox:
         box = QCheckBox(tr("Show hidden jobs"), self)
@@ -118,8 +123,12 @@ class JobsListView(QWidget):
     def _toggle_hidden(self, shown: bool) -> None:  # noqa: FBT001 -- a Qt slot gets the state positionally
         self.model.include_hidden(shown=shown)
 
-    def _open_row(self, row: int, _column: int) -> None:
-        self.model.open_job(self.model.rows[row].batch_id)
+    def _selection_changed(self) -> None:
+        row = self.table.currentRow()
+        shown = 0 <= row < len(self._rows)
+        chosen = bool(self.table.selectedItems()) and shown
+        self._selected = self._rows[row].batch_id if chosen else None
+        self._show_buttons()
 
     def _open_selected(self) -> None:
         batch_id = self.selected()
@@ -237,7 +246,7 @@ class JobPageView(QWidget):
         self.steps.show_stage(None if header is None else header.stage)
         self.header.show_job(header, model.batch_id)
         self.banner.show_error(model.error)
-        if model.rows is not self._shown:
+        if model.rows != self._shown:
             self._shown = model.rows
             with QSignalBlocker(self.table):
                 self._fill_rows()
