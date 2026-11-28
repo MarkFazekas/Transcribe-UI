@@ -36,13 +36,14 @@ def finish_withdrawal(context: RequestContext, store: ObjectStore, batch_id: str
     if stored is None:
         return
     pending = PendingWithdrawal.model_validate(stored)
+    # First: another computer's interrupted cleanup must not take a manifest gone midway for its
+    # point of no return and purge the prefix this batch reclaims.
+    store.delete(deleting_key(batch_id))
     body = store.read(manifest_key(batch_id))
     if body is not None and own.owns(body):
         _delete_results(store, batch_id, frozenset(pending.item_ids))
         store.delete(done_key(batch_id))
         store.delete(manifest_key(batch_id))
-    # Another computer's interrupted cleanup marker must not let it purge the prefix this batch reclaims.
-    store.delete(deleting_key(batch_id))
     with state.session() as session:
         now = context.ports.clock.now()
         touch_batch(session, batch_id, UPLOADING_PHASES, now=now, also_set={"pending_withdrawal": None})

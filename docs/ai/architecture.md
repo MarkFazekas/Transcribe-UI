@@ -1402,7 +1402,8 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     to `transcribed`), the results and everything else under `<id>/`, and the marker last. A
     cancel before the manifest delete removes the marker again (best effort), so the batch
     stays as it was. The uploading computer deletes the marker whenever it reclaims its prefix
-    (`finish_withdrawal`, `clear_leftovers`), so a stale marker cannot purge a new upload.
+    (`finish_withdrawal`, before its own deletes, and `clear_leftovers`), so a stale marker
+    cannot purge a withdrawn job or a new upload.
     The cleanup is also recorded locally (table `pending_cleanups`: the batch id and when it
     started; written before the marker, dropped after it; `cleanup/pending.py`), since the
     batch is gone from every listing once its manifest is: `refresh_status` with `recheck`

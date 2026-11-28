@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
+from support.batches import FIRST_BATCH_ID
 from support.buckets import create_bucket
 from support.cleanup import EVERYTHING, cleanup_document, keys_under, patch_store
 from support.cleanup import send as send_document
@@ -22,6 +23,8 @@ from support.interrupt import Crash, TripStore, Tripwire
 from support.launch import FOREIGN_BATCH_ID, foreign_manifest, ok_as, send, write_foreign
 from support.runs import JSON_TYPE, RunsWorld
 from support.upload import upload_world
+from support.withdrawal import exclude_film, fail_deleting, seed_leftover
+from transcribe_contracts.constants import AUDIO_FOLDER
 from transcribe_contracts.layout import audio_key, deleting_key, manifest_key
 from transcribe_ui.api.errors import CancelledError
 from transcribe_ui.api.ports import CancelFlag
@@ -130,3 +133,22 @@ def test_a_cancelled_cleanup_is_dropped_by_the_refresh(world: RunsWorld) -> None
     listed = ok_as(send(world, "list_cloud_batches"), ListCloudBatchesResponse)
     shown = (refreshed.finished_cleanups, _pending(world), [batch.batch_id for batch in listed.batches])
     assert shown == ((), [], [FOREIGN_BATCH_ID])
+
+
+def test_a_withdrawal_drops_the_marker_first(
+    runs_world: RunsWorld, r2_only_world: RunsWorld, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another computer's stalled cleanup (marker, record) cannot purge a job its uploader only withdraws.
+
+    The uploader's withdrawal stops at its first delete (the marker): the manifest stays, so the
+    other computer's refresh only drops its marker and record; the uploader's audio is kept.
+    """
+    ids = seed_leftover(runs_world)
+    runs_world.store.write(deleting_key(FIRST_BATCH_ID), b"{}", JSON_TYPE)
+    record_pending(r2_only_world.ports.state, FIRST_BATCH_ID, r2_only_world.now())
+    fail_deleting(monkeypatch, deleting_key(FIRST_BATCH_ID))
+    assert exclude_film(runs_world, ids).status == "ok", "the withdrawal stays pending"
+    refreshed = ok_as(send(r2_only_world, "refresh_status", recheck=True), RefreshStatusResponse)
+    audio = [key for key in keys_under(runs_world.store, FIRST_BATCH_ID) if f"/{AUDIO_FOLDER}/" in key]
+    shown = (refreshed.finished_cleanups, _pending(r2_only_world), bool(audio))
+    assert (shown, runs_world.store.head(manifest_key(FIRST_BATCH_ID)) is not None) == (((), [], True), True)
