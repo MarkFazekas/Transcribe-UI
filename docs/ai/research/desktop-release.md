@@ -16,8 +16,7 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   `sys.executable` to outlive itself (a restart) must set it (same source). The "Common issues
   and pitfalls" page says "introduced in PyInstaller 6.9"
   (https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html); the changelog's 6.9.0
-  entry has nothing about it, so 6.10 is taken as right. `tooling.md` and
-  `gui/settings/constants.py` still say 6.9; the M8.1 PR corrects them.
+  entry has nothing about it, so 6.10 is taken as right.
 - [I] A `.png` icon is converted to `.ico`/`.icns` when Pillow is installed in the build
   environment.
 - [I] The Qt hooks collect Qt's own translations (`PySide6/Qt/translations/qtbase_*.qm`) with
@@ -75,10 +74,29 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   a post-quantum `.pq.asc`); the download page lists no checksums
   (https://ffmpeg.org/download.html).
 - [I] A build with no `--enable-gpl`/`--enable-nonfree` and `--disable-autodetect` uses only
-  FFmpeg's own components and is LGPL 2.1 or later; `ffmpeg -L` prints the licence. Its native
-  decoders cover the app's codecs (AAC, AC-3, E-AC-3, DTS, MP3, Opus, Vorbis, FLAC, TrueHD, PCM)
-  and its native text subtitle decoders and SRT encoder cover extraction.
+  FFmpeg's own components (plus the libraries enabled explicitly) and is LGPL 2.1 or later;
+  `ffmpeg -L` prints the licence. Its native decoders cover the app's codecs (AAC, AC-3,
+  E-AC-3, DTS, MP3, Opus, Vorbis, FLAC, TrueHD, PCM) and its native text subtitle decoders and
+  SRT encoder cover extraction. Its native Opus
+  encoder (`-c:a opus`) is marked experimental (`-strict experimental`) and accepts 48 kHz
+  input only; `libopus` is an external library.
 - [I] Windows builds are commonly cross-compiled on Linux with mingw-w64
   (`--target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-`); x86 assembly needs `nasm`.
+- [I] A mingw-w64 build links the GCC runtime dynamically by default: with POSIX threads it
+  needs `libwinpthread-1.dll`, and some toolchains `libgcc_s_seh-1.dll`. `-static` in the
+  link flags (FFmpeg: `--extra-ldflags=-static`) links them in; `--enable-w32threads` uses
+  Windows' own threads, so `libwinpthread` is not needed at all.
+- [I] `--disable-autodetect` turns off every automatically detected external library,
+  including zlib and the thread libraries (pthreads, w32threads); they must be enabled
+  explicitly (`--enable-zlib`, `--enable-pthreads` / `--enable-w32threads`). Without threads,
+  configure may drop the `ffmpeg` program, which needs a thread library. To verify against the
+  pinned release's `configure` in M8.2.
+- [I] Matroska tracks can be zlib-compressed (the ContentCompression element); mkvmerge
+  compresses text subtitle tracks with zlib by default, so such files are common. FFmpeg's
+  demuxer decompresses them only when built with zlib; its Matroska muxer does not write
+  compressed tracks, so a test fixture has to come from mkvmerge
+  (`mkvmerge --compression <track>:zlib`).
+- [I] macOS ships `libz` in `/usr/lib` (in the dyld shared cache) on every version; there is
+  no static system copy, so a macOS build links the system's.
 - [I] BtbN's automated builds are rolling: old assets are removed, so a pinned URL does not
   stay valid; there are no macOS builds there.

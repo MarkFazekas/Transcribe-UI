@@ -48,7 +48,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
    works (architect); nothing waits on it, and it still needs the architect present and their
    go.
 3. M8 (desktop release) is planned in `docs/ai/plans/m8.md`; M8.1 may start while the last
-   M6 parts are in review (architect), and M8 does not wait for M7.
+   M6 parts are in review, and M8 does not wait for M7.
 4. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
