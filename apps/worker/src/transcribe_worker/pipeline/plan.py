@@ -1,4 +1,11 @@
-"""Discovery and ordering: which jobs this run does, and in which order (architecture §5.3)."""
+"""Discovery and ordering: which jobs this run does, and in which order (architecture §5.3).
+
+The run processes only the batches its lease (`runs/<run_id>/launch.json`, written by the
+launching desktop) lists (A21, architecture §3.9 "Run scope"): whatever another computer
+publishes later is never processed by it, nor its `_done.json` written or its backups restored.
+Without a readable lease the run processes nothing and fails. A listed batch whose manifest is
+gone (cleaned up between the launch and the start) is skipped.
+"""
 
 import logging
 from dataclasses import dataclass, replace
@@ -6,15 +13,18 @@ from typing import Literal
 
 from transcribe_contracts import layout
 from transcribe_contracts.classes import AudioObject, JobRef, Manifest, ManifestItem, TranscribeJob
-from transcribe_contracts.constants import BATCH_METADATA_PREFIX
 from transcribe_contracts.errors import ContractError
-from transcribe_contracts.reading import read_job_result, read_manifest
+from transcribe_contracts.reading import read_job_result, read_manifest, read_run_lease
 from transcribe_worker.pipeline.backup import Backup
 from transcribe_worker.pipeline.storage import ObjectStore
 
 logger = logging.getLogger(__name__)
 
 type JobSource = Literal["transcribe", "backup"]
+
+
+class RunLeaseError(Exception):
+    """The run's lease is missing or unreadable: the run processes nothing."""
 
 
 @dataclass(frozen=True)
@@ -67,15 +77,19 @@ class RunPlan:
         return counts
 
 
-def plan_run(store: ObjectStore, backup: Backup) -> RunPlan:
-    """List the ready batches that are not done and their jobs without a result in R2.
+def plan_run(store: ObjectStore, backup: Backup, run_id: str) -> RunPlan:
+    """List the lease's batches that are not done and their jobs without a result in R2.
 
-    Unreadable manifests (invalid, or another schema major version) are logged and skipped.
+    Unreadable manifests (invalid, or another schema major version) are logged and skipped, and
+    so are listed batches without a manifest.
+
+    Raises:
+        RunLeaseError: The run's lease is missing or unreadable.
     """
     jobs: list[PlannedJob] = []
     batches: list[str] = []
-    for key in sorted(store.list_keys(BATCH_METADATA_PREFIX)):
-        manifest = _load_pending_manifest(store, key)
+    for batch_id in sorted(_leased_batches(store, run_id)):
+        manifest = _load_pending_manifest(store, batch_id)
         if manifest is None:
             continue
         batches.append(manifest.batch_id)
@@ -86,15 +100,29 @@ def plan_run(store: ObjectStore, backup: Backup) -> RunPlan:
     return RunPlan(jobs=tuple(jobs), batches=tuple(batches))
 
 
-def _load_pending_manifest(store: ObjectStore, key: str) -> Manifest | None:
-    batch_id = layout.batch_id_from_manifest_key(key)
-    if batch_id is None:
-        logger.warning("ignoring %s: not a manifest key", key)
-        return None
+def _leased_batches(store: ObjectStore, run_id: str) -> tuple[str, ...]:
+    """Return the batches the run's lease lists."""
+    key = layout.run_lease_key(run_id)
+    body = store.read(key)
+    if body is None:
+        msg = f"the run has no lease ({key}): nothing to process"
+        raise RunLeaseError(msg)
+    try:
+        lease = read_run_lease(key, body)
+    except ContractError as error:
+        msg = f"the run's lease ({key}) is unreadable: {error}"
+        raise RunLeaseError(msg) from error
+    logger.info("lease: %d batches", len(lease.batch_ids))
+    return lease.batch_ids
+
+
+def _load_pending_manifest(store: ObjectStore, batch_id: str) -> Manifest | None:
+    key = layout.manifest_key(batch_id)
     if store.read(layout.done_key(batch_id)) is not None:
         return None
     body = store.read(key)
     if body is None:
+        logger.warning("skipping batch %s: listed by the lease, but its manifest is gone", batch_id)
         return None
     try:
         return read_manifest(key, body)

@@ -60,10 +60,10 @@ class _Run:
 
 
 def run_worker(config: WorkerConfig, ports: WorkerPorts) -> int:
-    """Process every pending job of every ready batch; return the process exit code.
+    """Process every pending job of the batches the run's lease lists; return the process exit code.
 
-    Failed jobs do not fail the run. EXIT_FAILED means the run could not work (storage
-    unreachable, engine not starting) or left jobs without a result in R2 for the next run. An interruption (KeyboardInterrupt, SystemExit)
+    Failed jobs do not fail the run. EXIT_FAILED means the run could not work (no
+    readable lease, storage unreachable, engine not starting) or left jobs without a result in R2 for the next run. An interruption (KeyboardInterrupt, SystemExit)
     is recorded as a failed run and propagates.
     """
     status = start_status(ports.store, config, ports.now)
@@ -71,7 +71,7 @@ def run_worker(config: WorkerConfig, ports: WorkerPorts) -> int:
     run = _Run(config=config, ports=ports, backup=backup, status=status)
     error: str | None = "the run was interrupted"
     try:
-        _process_plan(run, plan_run(ports.store, backup))
+        _process_plan(run, plan_run(ports.store, backup, config.run_id))
         error = None
     except Exception as failure:
         logger.exception("the run failed")
