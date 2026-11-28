@@ -124,12 +124,24 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 - [V] Pinned in `scripts/build_ffmpeg_pins.py` (2026-11-28): `ffmpeg-9.1.tar.xz`, SHA-256
   `1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433`, its `.asc` a good
   signature by the FFmpeg release signing key `FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676
-  58D8` (key from https://ffmpeg.org/ffmpeg-devel.asc); `zlib-1.4.tar.gz` from
-  `https://zlib.net/fossils/` (the same bytes as `https://zlib.net/zlib-1.4.tar.gz`), SHA-256
-  `02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584` (as zlib.net lists it),
-  its `.asc` a good signature by Mark Adler's key `5ED4 6A67 21D3 6558 7791 E2AA 783F CD8E
-  58BC AFBA` (from keys.openpgp.org). zlib 1.4 (2026-11) still ships `./configure`
-  (`--static`; `CHOST=x86_64-w64-mingw32` for the mingw-w64 cross build) next to CMake.
+  58D8` (key from https://ffmpeg.org/ffmpeg-devel.asc); `zlib-1.4.tar.gz` (1507140 bytes),
+  SHA-256 `02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584` (as zlib.net lists
+  it), its `.asc` a good signature by Mark Adler's key `5ED4 6A67 21D3 6558 7791 E2AA 783F CD8E
+  58BC AFBA` (from keys.openpgp.org). The same bytes come from the GitHub release asset
+  `https://github.com/madler/zlib/releases/download/v1.4/zlib-1.4.tar.gz`, from
+  `https://zlib.net/fossils/` and from `https://zlib.net/` (checked from a home connection).
+  zlib 1.4 (2026-11) still ships `./configure` (`--static`; `CHOST=x86_64-w64-mingw32` for the
+  mingw-w64 cross build) next to CMake.
+- [V] zlib.net serves GitHub-hosted runners something other than the tarball: in run
+  46158956325 (PR #56, 2026-11-28) `https://zlib.net/fossils/zlib-1.4.tar.gz` hashed
+  `2d16dd04…` on one runner and `00b7f82e…` on another, a different body each time (most
+  likely a bot-protection page; the run did not record its content). So the GitHub release
+  asset is the primary URL and zlib.net the fallback; `build_ffmpeg_steps.download` logs
+  curl's HTTP status, content type and size, and a wrong download's size and first bytes.
+- [V] FFmpeg's release tarballs exist only on ffmpeg.org (`/releases/`): the GitHub mirror
+  `FFmpeg/FFmpeg` publishes no release assets, and a tag's generated archive is other bytes
+  than the release tarball (no PGP signature, and the release's generated files differ), so
+  FFmpeg has no fallback URL [I: the tag archive's content was not compared].
 - [V] FFmpeg 9.1's `configure`: `--disable-autodetect` turns off the libraries of
   `EXTERNAL_AUTODETECT_LIBRARY_LIST` (zlib, bzlib, lzma, iconv, SDL2, xlib, libxcb, the Apple
   frameworks, schannel, securetransport, ...) and `HWACCEL_AUTODETECT_LIBRARY_LIST`, but not
