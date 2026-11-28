@@ -2814,6 +2814,42 @@
       ],
       "type": "string"
     },
+    "ResetSettingsResponse": {
+      "additionalProperties": false,
+      "description": "The default settings as stored now, and every Whisper language, sorted by code.",
+      "properties": {
+        "action": {
+          "const": "reset_settings",
+          "default": "reset_settings",
+          "title": "Action",
+          "type": "string"
+        },
+        "languages": {
+          "items": {
+            "$ref": "#/$defs/LanguageOption"
+          },
+          "title": "Languages",
+          "type": "array"
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        },
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "action",
+        "settings",
+        "languages"
+      ],
+      "title": "ResetSettingsResponse",
+      "type": "object"
+    },
     "ResolveReviewResponse": {
       "additionalProperties": false,
       "description": "The review views (unfiltered) after the choices.",
@@ -4292,6 +4328,7 @@
           "preview_selection": "#/$defs/PreviewSelectionResponse",
           "reconcile_cloud": "#/$defs/ReconcileCloudResponse",
           "refresh_status": "#/$defs/RefreshStatusResponse",
+          "reset_settings": "#/$defs/ResetSettingsResponse",
           "resolve_review": "#/$defs/ResolveReviewResponse",
           "review_batch": "#/$defs/ReviewBatchResponse",
           "run_download": "#/$defs/RunDownloadResponse",
@@ -4321,6 +4358,9 @@
         },
         {
           "$ref": "#/$defs/UpdateSettingsResponse"
+        },
+        {
+          "$ref": "#/$defs/ResetSettingsResponse"
         },
         {
           "$ref": "#/$defs/StoreCredentialsResponse"

@@ -1,15 +1,18 @@
-"""The `get_settings` and `update_settings` requests (no database needed)."""
+"""The `get_settings`, `update_settings` and `reset_settings` requests (no database needed)."""
 
 from transcribe_contracts.constants import ALIGNMENT_LANGUAGES, WHISPER_LANGUAGES
 from transcribe_ui.api.classes import (
     GetSettingsRequest,
     GetSettingsResponse,
     LanguageOption,
+    ResetSettingsRequest,
+    ResetSettingsResponse,
     Settings,
     UpdateSettingsRequest,
     UpdateSettingsResponse,
 )
 from transcribe_ui.api.ports import RequestContext
+from transcribe_ui.state.settings import default_settings
 
 
 def language_options(settings: Settings) -> tuple[LanguageOption, ...]:
@@ -34,3 +37,10 @@ def update_settings(request: UpdateSettingsRequest, context: RequestContext) -> 
     """Store the request's settings, replacing the file atomically."""
     context.ports.state.settings.save(request.settings)
     return UpdateSettingsResponse(settings=request.settings, languages=language_options(request.settings))
+
+
+def reset_settings(_request: ResetSettingsRequest, context: RequestContext) -> ResetSettingsResponse:
+    """Store the defaults, replacing the file (also one that cannot be read)."""
+    settings = default_settings()
+    context.ports.state.settings.save(settings)
+    return ResetSettingsResponse(settings=settings, languages=language_options(settings))

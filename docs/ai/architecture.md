@@ -1859,7 +1859,7 @@ directories, the settings store, the locks and the lazily opened database.
   `phase_conflict` (or `batch_not_found`), and the error rolls back the request's whole
   transaction, so a request that lost a race changes nothing. A batch row the session already
   loaded is expired after the change, so it reads the new phase.
-- **Settings** (`get_settings`, `update_settings`; no database): enabled languages (default
+- **Settings** (`get_settings`, `update_settings`, `reset_settings`; no database): enabled languages (default
   `DEFAULT_LANGUAGES`, at least one, validated against `WHISPER_LANGUAGES`, no duplicates),
   video and audio extensions (defaults and rules shared with the scan, §3.2), include hidden
   entries, the ffmpeg/ffprobe path override (absolute in the Windows or the POSIX sense, so the
@@ -1867,8 +1867,10 @@ directories, the settings store, the locks and the lazily opened database.
   placement defaults (strategy, output folder, folder count, overwrite) and the language of the
   texts (`system`, `en`, `hu`; §3.1). `update_settings`
   replaces the whole document: every field is required, so a partial document is refused with
-  `invalid_request` instead of resetting the missing fields. Both responses list every Whisper
-  language with its switch and whether WhisperX has an alignment model for it.
+  `invalid_request` instead of resetting the missing fields. `reset_settings` stores the
+  defaults (also over a file that cannot be read; the GUI's Restore defaults, M6.3). Every
+  response lists every Whisper language with its switch and whether WhisperX has an alignment
+  model for it.
 - **Settings file**: written atomically (temp file in the same folder, fsync, `os.replace`,
   then a best-effort fsync of the folder on POSIX, which only logs a warning when it fails);
   temp files a crashed write left (older than a minute) are removed; the last writer wins. On
