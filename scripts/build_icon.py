@@ -18,8 +18,8 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from build_icon_formats import build_icns, build_ico
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt
+from build_icon_formats import build_icns, build_ico, parse_icns, parse_ico
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize, Qt
 from PySide6.QtGui import QImage, QImageWriter, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
@@ -43,8 +43,6 @@ ICNS_NAME = "transcribe-ui.icns"
 PNG_SIZES = (16, 24, 32, 48, 64, 128, 256)
 # The ICNS elements: type and the pixel size of its PNG (the retina types hold twice the nominal size).
 ICNS_ELEMENTS = (
-    ("icp4", 16),
-    ("icp5", 32),
     ("icp6", 64),
     ("ic07", 128),
     ("ic08", 256),
@@ -55,6 +53,10 @@ ICNS_ELEMENTS = (
     ("ic13", 256),
     ("ic14", 512),
 )
+# The largest difference of a colour channel (of 255) that still counts as the same pixel: the renderer varies slightly.
+PIXEL_TOLERANCE = 2
+# The entries of an ICO or ICNS: what identifies the entry and its PNG bytes.
+Images = Sequence[tuple[object, bytes]]
 # The one-line description of the command.
 DESCRIPTION = "Generate the app icon files from their source image."
 # PNG compression setting of the Qt writer (0 = smallest, deterministic).
@@ -75,10 +77,10 @@ def render_png(svg: Path, size: int) -> bytes:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     renderer.render(painter)
     painter.end()
-    return _encode_png(image)
+    return encode_png(image)
 
 
-def _encode_png(image: QImage) -> bytes:
+def encode_png(image: QImage) -> bytes:
     """Encode the image as PNG; Qt writes no timestamp and no text chunks, so the bytes are stable."""
     encoded = QByteArray()
     buffer = QBuffer(encoded)
@@ -111,12 +113,75 @@ def build_files(svg: Path, gui_dir: Path, packaging_dir: Path) -> Mapping[Path, 
     return files
 
 
+def _channels(png: bytes) -> tuple[QSize, bytes] | None:
+    """Return the size and the channel bytes (non-premultiplied) of the PNG, or None if it cannot be decoded."""
+    image = QImage.fromData(png)
+    if image.isNull():
+        return None
+    converted = image.convertToFormat(QImage.Format.Format_ARGB32)
+    return converted.size(), bytes(converted.bits())
+
+
+def _close(pair: tuple[int, int]) -> bool:
+    return abs(pair[0] - pair[1]) <= PIXEL_TOLERANCE
+
+
+def _same_pixels(committed: bytes, generated: bytes) -> bool:
+    """Whether two PNGs have the same size and pixels, each channel within `PIXEL_TOLERANCE`."""
+    if committed == generated:
+        return True
+    old, new = _channels(committed), _channels(generated)
+    if old is None or new is None:
+        return False
+    (old_size, old_bytes), (new_size, new_bytes) = old, new
+    if old_size != new_size:
+        return False
+    return all(map(_close, zip(old_bytes, new_bytes, strict=True)))
+
+
+def _same_pair(pair: tuple[bytes, bytes]) -> bool:
+    return _same_pixels(*pair)
+
+
+def _entries(images: Images) -> list[object]:
+    return [entry for entry, _ in images]
+
+
+def _pngs(images: Images) -> list[bytes]:
+    return [png for _, png in images]
+
+
+def _same_images(committed: Images, generated: Images) -> bool:
+    """Whether two container contents have the same entries (type, size) and the same pixels."""
+    if _entries(committed) != _entries(generated):
+        return False
+    pairs = zip(_pngs(committed), _pngs(generated), strict=True)
+    return all(map(_same_pair, pairs))
+
+
+def _same_container(path: Path, committed: bytes, blob: bytes) -> bool:
+    parse = parse_ico if path.suffix == ".ico" else parse_icns
+    try:
+        return _same_images(parse(committed), parse(blob))
+    except ValueError:
+        return False
+
+
 def _is_stale(path: Path, blob: bytes) -> bool:
-    return not path.is_file() or path.read_bytes() != blob
+    if not path.is_file():
+        return True
+    committed = path.read_bytes()
+    if path.suffix == ".png":
+        return not _same_pixels(committed, blob)
+    return not _same_container(path, committed, blob)
 
 
 def stale_files(files: Mapping[Path, bytes]) -> list[Path]:
-    """Return the files that are missing or whose bytes differ from the generated ones."""
+    """Return the files that are missing or differ from the generated ones.
+
+    Images are compared by their decoded pixels with a small tolerance per channel (not by bytes,
+    which change with Qt's renderer and PNG encoder); the ICO and ICNS also by their entries.
+    """
     return [path for path, blob in files.items() if _is_stale(path, blob)]
 
 

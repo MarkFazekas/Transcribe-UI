@@ -11,9 +11,11 @@ from build_icon import (
     ICNS_NAME,
     ICO_NAME,
     PACKAGING_ICON_DIR,
+    PIXEL_TOLERANCE,
     PNG_NAME,
     PNG_SIZES,
     SOURCE_SVG,
+    encode_png,
     main,
     render_png,
 )
@@ -36,6 +38,10 @@ LARGEST = 1024
 OPAQUE = 255
 # The sixteenth of the icon's side at which the bubble is solid below its lines, and a text line.
 BUBBLE_ROW, LINE_ROW, GRID = 12, 5, 16
+# The option that makes the generator only check.
+CHECK = ("--check",)
+# Where a damaged container is cut.
+CUT = 20
 # Sizes at which the rendering is checked.
 RENDER_SIZES = (SMALL, LARGE)
 
@@ -63,6 +69,17 @@ def _slice(payload: bytes, start: int, length: int) -> bytes:
 
 def _folders(tmp_path: Path) -> dict[str, Path]:
     return {"svg": SOURCE_SVG, "gui_dir": tmp_path / "gui", "packaging_dir": tmp_path / "packaging"}
+
+
+def _shifted(png: bytes, amount: int) -> bytes:
+    """Return the PNG re-encoded with the red channel of every pixel raised (or lowered) by `amount`."""
+    image = QImage.fromData(png).convertToFormat(QImage.Format.Format_ARGB32)
+    for row in range(image.height()):
+        for column in range(image.width()):
+            colour = image.pixelColor(column, row)
+            colour.setRed(colour.red() + amount if colour.red() + amount <= OPAQUE else colour.red() - amount)
+            image.setPixelColor(column, row, colour)
+    return encode_png(image)
 
 
 def test_png_size_reads_the_header() -> None:
@@ -97,7 +114,7 @@ def test_ico_offsets_follow_each_other() -> None:
 
 def test_icns_elements_parse_back() -> None:
     """The file and every element carry their own length; elements keep type and bytes."""
-    elements = [("icp4", _png(SMALL)), ("ic08", _png(LARGE))]
+    elements = [("icp6", _png(SMALL)), ("ic08", _png(LARGE))]
     icns = build_icns(elements)
     assert icns[:4] == b"icns"
     assert struct.unpack_from(">I", icns, 4)[0] == len(icns)
@@ -131,7 +148,7 @@ def test_render_is_solid_and_cut_at_the_lines(size: int) -> None:
 
 def test_check_passes_on_the_committed_files() -> None:
     """The committed generated files are what the generator renders from the committed SVG."""
-    assert main(["--check"]) == 0
+    assert main(CHECK) == 0
 
 
 def test_check_names_a_changed_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -140,26 +157,51 @@ def test_check_names_a_changed_file(tmp_path: Path, capsys: pytest.CaptureFixtur
     shutil.copytree(GUI_ICON_DIR, folders["gui_dir"])
     shutil.copytree(PACKAGING_ICON_DIR, folders["packaging_dir"])
     changed = folders["gui_dir"] / PNG_NAME.format(size=PNG_SIZES[0])
-    changed.write_bytes(changed.read_bytes()[:-1])
-    assert main(["--check"], **folders) == 1
+    changed.write_bytes(_shifted(changed.read_bytes(), PIXEL_TOLERANCE + 1))
+    assert main(CHECK, **folders) == 1
     err = capsys.readouterr().err
     assert changed.name in err
     assert err.count("stale:") == 1
     assert main([], **folders) == 0
-    assert main(["--check"], **folders) == 0
+    assert main(CHECK, **folders) == 0
 
 
 def test_check_reports_missing_files(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Empty output folders are all stale: every PNG, the ICO and the ICNS."""
-    assert main(["--check"], **_folders(tmp_path)) == 1
+    assert main(CHECK, **_folders(tmp_path)) == 1
     err = capsys.readouterr().err
     assert ICO_NAME in err
     assert ICNS_NAME in err
     assert err.count("stale:") == len(PNG_SIZES) + 2
 
 
-def test_icns_has_the_eleven_types() -> None:
-    """The ICNS holds the PNG types from 16 up to 1024 pixels, each type once."""
+def test_icns_has_the_nine_types() -> None:
+    """The ICNS holds the PNG types from 64 up to 1024 pixels, each type once."""
     kinds = [kind for kind, _ in ICNS_ELEMENTS]
     assert len(kinds) == len(set(kinds)) == len(ICNS_ELEMENTS)
     assert max(size for _, size in ICNS_ELEMENTS) == LARGEST
+
+
+def test_check_tolerates_small_pixel_changes(tmp_path: Path) -> None:
+    """A change within the tolerance is not stale; a larger one is."""
+    folders = _folders(tmp_path)
+    assert main([], **folders) == 0
+    png = folders["gui_dir"] / PNG_NAME.format(size=PNG_SIZES[-1])
+    original = png.read_bytes()
+    png.write_bytes(_shifted(original, PIXEL_TOLERANCE))
+    assert main(CHECK, **folders) == 0
+    png.write_bytes(_shifted(original, PIXEL_TOLERANCE + 1))
+    assert main(CHECK, **folders) == 1
+
+
+def test_check_compares_the_containers(tmp_path: Path) -> None:
+    """An ICO or ICNS that is cut off, or holds another entry list, is stale."""
+    folders = _folders(tmp_path)
+    assert main([], **folders) == 0
+    for name in (ICO_NAME, ICNS_NAME):
+        path = folders["packaging_dir"] / name
+        original = path.read_bytes()
+        path.write_bytes(original[:CUT])
+        assert main(CHECK, **folders) == 1
+        path.write_bytes(original)
+        assert main(CHECK, **folders) == 0

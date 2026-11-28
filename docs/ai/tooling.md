@@ -274,8 +274,10 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
 - The app icon: `apps/desktop/packaging/icon/transcribe-ui.svg` is the source (Q36);
   `uv run scripts/build_icon.py` renders it with Qt (`QSvgRenderer`) into the window icon's PNGs
   (`transcribe_ui/gui/icons/`, GUI package data, which only the GUI bundles) and writes the
-  `.ico` and `.icns` (PNG entries) next to the SVG; `--check` exits 1 naming each committed
-  file that differs from a fresh render. Regenerate and commit them with every SVG change.
+  `.ico` and `.icns` (PNG entries; the `.icns` without the small `icp4`/`icp5` types) next to
+  the SVG; `--check` exits 1 naming each committed file that differs from a fresh render (the
+  images compared by their decoded pixels, at most 2 of 255 per channel apart, so a Qt upgrade
+  that re-encodes the same pixels passes). Regenerate and commit them with every SVG change.
 - `hook-transcribe_ui.py` collects every submodule of `transcribe_ui` (the GUI entry imports
   `gui.app` through `importlib`; the Alembic environment and revisions are analysed for their
   imports), leaving `transcribe_ui.gui` out of the CLI (`TRANSCRIBE_UI_BUNDLE_VARIANT`, set by

@@ -71,3 +71,57 @@ def build_icns(elements: list[tuple[str, bytes]]) -> bytes:
     body = b"".join(parts)
     length = ICNS_HEADER.size + len(body)
     return ICNS_HEADER.pack(ICNS_MAGIC, length) + body
+
+
+def _part(blob: bytes, start: int, length: int) -> bytes:
+    return blob[slice(start, start + length)]
+
+
+def _ico_image(ico: bytes, index: int) -> tuple[object, bytes]:
+    position = ICO_HEADER.size + ICO_ENTRY.size * index
+    *shape, size, offset = ICO_ENTRY.unpack_from(ico, position)
+    return tuple(shape), _part(ico, offset, size)
+
+
+def parse_ico(ico: bytes) -> list[tuple[object, bytes]]:
+    """Return an ICO's images, each as its directory fields (size, depth) and its PNG bytes.
+
+    Raises:
+        ValueError: If the bytes are not an ICO.
+    """
+    try:
+        count = ICO_HEADER.unpack_from(ico, 0)[2]
+        return [_ico_image(ico, index) for index in range(count)]
+    except struct.error as error:
+        raise ValueError(str(error)) from error
+
+
+def _icns_header(icns: bytes, position: int) -> tuple[bytes, int]:
+    try:
+        kind, length = ICNS_HEADER.unpack_from(icns, position)
+    except struct.error as error:
+        raise ValueError(str(error)) from error
+    if length < ICNS_HEADER.size:
+        message = "an ICNS element is shorter than its header"
+        raise ValueError(message)
+    return kind, length
+
+
+def parse_icns(icns: bytes) -> list[tuple[object, bytes]]:
+    """Return an ICNS file's elements, each as its four-character type and its PNG bytes.
+
+    Raises:
+        ValueError: If the bytes are not an ICNS file.
+    """
+    magic, total = _icns_header(icns, 0)
+    if magic != ICNS_MAGIC or total != len(icns):
+        message = "not an ICNS file"
+        raise ValueError(message)
+    elements: list[tuple[object, bytes]] = []
+    position = ICNS_HEADER.size
+    while position < total:
+        kind, length = _icns_header(icns, position)
+        image = _part(icns, position + ICNS_HEADER.size, length - ICNS_HEADER.size)
+        elements.append((kind, image))
+        position += length
+    return elements
