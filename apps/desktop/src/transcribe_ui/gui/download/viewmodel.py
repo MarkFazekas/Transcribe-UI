@@ -128,12 +128,15 @@ class DownloadModel(ViewModel):
     def on_batches_changed(self, batch_ids: object) -> None:
         """Load again when the batch changed elsewhere (an empty tuple: any batch)."""
         state = self._state
-        # Before the pre-fill its own loads are on their way, and it plans once they answered.
-        ignored = state.emitting or not state.filled
-        if not isinstance(batch_ids, tuple) or ignored:
+        if not isinstance(batch_ids, tuple) or state.emitting:
             return
-        if not batch_ids or self.batch_id in batch_ids:
+        if batch_ids and self.batch_id not in batch_ids:
+            return
+        if state.filled:
             self.reload()
+        elif state.settings_asked:
+            # The pre-fill plans once its answers are in; it then loads the batch again too.
+            state.changed_meanwhile = True
 
     def _first_answer(self, response: Response) -> None:
         """Take an answer the first choices wait for; once both are in, pre-fill the choices and plan.
@@ -153,7 +156,7 @@ class DownloadModel(ViewModel):
         state.filled = True
         if not state.edited:
             self.form = first_choices(state.settings, state.first_batch)
-        self.reload(batch=False)
+        self.reload(batch=state.changed_meanwhile)
 
     def _loaded(self, generation: int | None, response: Response) -> None:
         # A plan (`generation` set) of choices changed since is ignored; batch loads always count.
@@ -184,6 +187,8 @@ class _ModelState:
     settings: Response | None = None
     first_batch: Response | None = None
     filled: bool = False
+    # The batch changed elsewhere before the pre-fill: it loads the batch again then.
+    changed_meanwhile: bool = False
     # The user changed a choice (a late settings answer then pre-fills nothing).
     edited: bool = False
     # Number of the latest plan load; an answer of an older one is ignored.

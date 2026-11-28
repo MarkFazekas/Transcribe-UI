@@ -563,14 +563,17 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     state); Download sends `adopt_cloud_batch` (exclusive per job), whose confirmation the
     generic dialog shows without its details table. Once adopted, the jobs reload
     (`batches_changed`), its download dialog opens (`open_download`), the Cloud page checks
-    the cloud (`check_now`) and the list loads again; an error opens the error dialog (Retry
-    re-sends) and also reloads the list.
+    the cloud (`check_now`) and the list loads again; until a list succeeds, the adopted job's
+    row counts as adopting (its Download stays disabled, so a second click cannot hit
+    `batch_exists`). An error opens the error dialog (Retry re-sends) and also reloads the
+    list.
   - The first opening loads `get_settings` and `get_batch` side by side and, once both
     answered, pre-fills the choices from the placement defaults (strategy, output folder,
     folder count, overwrite), with `mirror` for a job labelled `adopted` (its originals are on
     another computer, so `next_to_media` is refused); only then does it plan. Every later
-    opening loads `get_batch` (the stage) and the plan. A settings answer that arrives after the user changed a choice
-    pre-fills nothing. Each change of a choice sends the plan again on a `latest` channel:
+    opening loads `get_batch` (the stage) and the plan. A settings answer that arrives after the
+    user changed a choice pre-fills nothing; a `batches_changed` for the job before the
+    pre-fill is remembered, and the pre-fill then loads `get_batch` again with its plan. Each change of a choice sends the plan again on a `latest` channel:
     `plan_download` for a strategy, the `check_only` import for a custom plan (on the `short`
     pool: the bridge picks a pool by request, `pool_for`); folder count steps and level ticks
     wait `PLAN_DELAY_MS` (250 ms) for the next one. A plan of choices changed since is

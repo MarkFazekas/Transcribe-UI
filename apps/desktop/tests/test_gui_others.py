@@ -155,6 +155,22 @@ def test_only_the_latest_list_is_shown(tmp_path: Path) -> None:
         assert (model.rows, model.loading) == ((expected,), False)
 
 
+def test_an_adopted_row_waits_for_the_next_list(tmp_path: Path) -> None:
+    """The adopted job's row counts as adopting (Download disabled) until the list loaded again drops it."""
+    with cloud_world(tmp_path) as world:
+        manual = ManualExecutor(RecordingRunner(world.backend))
+        model = OtherJobsModel(manual, RecordingOutlet(), lambda: None)
+        model.look()
+        manual.answer(LIST)
+        model.download(FOREIGN_BATCH_ID)
+        manual.answer(ADOPT)
+        manual.answer(ADOPT)
+        listed = [row.batch_id for row in model.rows]
+        assert (listed, model.adopting(FOREIGN_BATCH_ID)) == ([FOREIGN_BATCH_ID], True)
+        manual.answer(LIST)
+        assert (model.rows, model.adopting(FOREIGN_BATCH_ID)) == ((), False)
+
+
 def test_the_states_in_hungarian() -> None:
     """The list's texts come from the catalog."""
     activate("hu")

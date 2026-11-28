@@ -8,8 +8,9 @@ window's confirmation dialog, and Confirm re-sends the request with each `set_to
 job is then one of this computer's jobs: the jobs pages reload (`batches_changed`), its download
 dialog opens (`open_download`; `mirror` is pre-selected there, since next to the media is
 impossible for it), the cloud is checked, so its results are read and the poll follows it, and
-the list loads again. An error opens the error dialog (Retry re-sends) and also loads the list
-again, since the job may have changed in the cloud meanwhile.
+the list loads again; until a list succeeds, the adopted job's row counts as adopting, so its
+Download stays disabled. An error opens the error dialog (Retry re-sends) and also loads the
+list again, since the job may have changed in the cloud meanwhile.
 """
 
 import logging
@@ -80,10 +81,12 @@ class OtherJobsModel(ViewModel):
         self.loading = False
         # The error of the last list (None after one that succeeded).
         self.error: ErrorView | None = None
+        # The jobs adopted since the last list that succeeded (their rows are still shown).
+        self._adopted_ids: set[str] = set()
 
     def adopting(self, batch_id: str) -> bool:
-        """Return whether the Download of a job is in flight."""
-        return self._adoptions.busy(batch_id)
+        """Return whether the Download of a job is in flight, or it was adopted and no list succeeded since."""
+        return self._adoptions.busy(batch_id) or batch_id in self._adopted_ids
 
     def look(self) -> None:
         """List the jobs in the cloud (a list on its way is replaced)."""
@@ -108,6 +111,7 @@ class OtherJobsModel(ViewModel):
             self.rows = tuple(cloud_job_row(batch) for batch in others)
             self.listed = True
             self.error = None
+            self._adopted_ids.clear()
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
         self.changed()
@@ -118,6 +122,8 @@ class OtherJobsModel(ViewModel):
             self._outlet.confirm(_question(response), confirmed)
         elif isinstance(response, AdoptCloudBatchResponse):
             batch_id = response.batch.batch_id
+            # Before the signals: the row stays disabled until the list loaded again shows it gone.
+            self._adopted_ids.add(batch_id)
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, (batch_id,))
             self._outlet.emit(OPEN_DOWNLOAD_SIGNAL, batch_id)
             self._check_cloud()
