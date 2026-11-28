@@ -87,6 +87,10 @@ class Heard:
         self.language_changes += 1
 
 
+def _not_reported(*_callbacks: object) -> None:
+    """Drop the start and progress callbacks of a held call (the settings area's requests send no events)."""
+
+
 @dataclass
 class Deferred:
     """An executor that holds every request until `answer` runs it, so a test can act while it is in flight."""
@@ -101,14 +105,15 @@ class Deferred:
         on_progress: ProgressCallback | None = None,
         on_started: StartedCallback | None = None,
     ) -> CallHandle:
-        """Hold the request; progress and the start are not reported (the settings area uses neither)."""
-        assert (on_progress, on_started) == (None, None)
+        """Hold the request; its start and progress are not reported."""
+        _not_reported(on_progress, on_started)
         self.held.append((request, on_done))
         return DoneHandle()
 
-    def answer(self) -> str:
-        """Run the oldest held request and deliver its response; return its action."""
-        request, on_done = self.held.pop(0)
+    def answer(self, action: str | None = None) -> str:
+        """Run the oldest held request (of `action`, if given) and deliver its response; return its action."""
+        index = 0 if action is None else self.actions().index(action)
+        request, on_done = self.held.pop(index)
         on_done(self.runner.execute(request, None, None))
         return request.action
 

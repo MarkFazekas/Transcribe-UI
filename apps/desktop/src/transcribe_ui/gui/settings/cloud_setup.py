@@ -54,6 +54,8 @@ class CloudSetupViewModel(ViewModel):
         self.checking = False
         # `proceed` of the callers waiting for the check in flight.
         self._waiting: list[Proceed] = []
+        # Whether a check must follow the one in flight (it was sent before a setup ended).
+        self._recheck = False
         accounts.subscribe(self.changed)
         activity.subscribe(self.changed)
 
@@ -115,6 +117,12 @@ class CloudSetupViewModel(ViewModel):
             self.error = None
         elif isinstance(response, ErrorResponse):
             self.error = error_view(response)
+        if self._recheck:
+            self._recheck = False
+            summary = self.message
+            self.check()
+            self.message = summary
+            return
         self.changed()
         waiting = self._waiting
         self._waiting = []
@@ -123,7 +131,11 @@ class CloudSetupViewModel(ViewModel):
 
     def _set_up_done(self, response: Response) -> None:
         if isinstance(response, SetupCloudResponse):
-            self.check()
+            if self.checking:
+                # The check in flight may predate the setup: one more follows it.
+                self._recheck = True
+            else:
+                self.check()
             # After the check's own reset: the summary stays until the next check.
             self.message = account_texts.setup_summary(response)
             self.changed()

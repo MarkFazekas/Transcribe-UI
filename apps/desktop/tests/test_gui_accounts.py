@@ -42,6 +42,7 @@ from transcribe_ui.gui.settings.startup import FirstStart
 pytestmark = pytest.mark.usefixtures("no_credential_logs")
 
 BUCKET = "r2_bucket"
+STATUS = "cloud_setup_status"
 RUNPOD_KEY = "runpod_api_key"
 # The R2 values as the user types them, by credential name.
 R2_TYPED = MappingProxyType(
@@ -140,8 +141,8 @@ def test_refused_credentials_keep_what_was_typed(backend: Backend) -> None:
     assert area.accounts.shown.errors == {BUCKET: credential_hint(BUCKET)}
     assert area.typed() == [BUCKET, "r2_access_key_id"]
     _assert_nothing_shown(area)
-    area.accounts.type_value(BUCKET, TEST_BUCKET)
-    assert not area.accounts.shown.errors
+    area.accounts.discard_typed()
+    assert (area.accounts.shown.errors, area.accounts.shown.message, area.typed()) == ({}, "", [])
 
 
 def test_a_keyring_failure_keeps_what_was_typed(tmp_path: Path) -> None:
@@ -183,7 +184,7 @@ def test_missing_r2_opens_the_wizard(backend: Backend) -> None:
         ["credentials", "cloud"],
         "accounts",
     )
-    assert ("cloud_setup_status" in area.executor.actions(), area.cloud.key_set) == (False, False)
+    assert (STATUS in area.executor.actions(), area.cloud.key_set) == (False, False)
     for name, typed in R2_TYPED.items():
         area.accounts.type_value(name, typed)
     area.accounts.save()
@@ -200,7 +201,7 @@ def test_needed_cloud_setup_opens_the_wizard(backend: Backend) -> None:
     states = {row.state for row in area.cloud.rows()}
     assert (area.wizard, area.first_start.notice, states) == (["cloud_setup"], "cloud_setup", {"Missing"})
     area.cloud.set_up()
-    assert area.executor.actions()[-2:] == ["setup_cloud", "cloud_setup_status"]
+    assert area.executor.actions()[-2:] == ["setup_cloud", STATUS]
     assert (area.cloud.message, {row.state for row in area.cloud.rows()}) == (
         "Cloud setup done: 6 created, 0 updated, 0 unchanged.",
         {"Ready"},
@@ -214,10 +215,10 @@ def test_a_failed_cloud_check_shows_a_notice(backend: Backend) -> None:
     """A cloud error from `cloud_setup_status` shows the notice with Retry, not the wizard; Hide hides it."""
     assert backend.execute_json(store_request()).status == "ok"
     unreachable = ErrorResponse(
-        action="cloud_setup_status",
+        action=STATUS,
         error=ErrorBody(code="cloud_unreachable", message="Runpod cannot be reached.", details={"cause": "timeout"}),
     )
-    area = _area(Scripted(backend, MappingProxyType({"cloud_setup_status": unreachable})))
+    area = _area(Scripted(backend, MappingProxyType({STATUS: unreachable})))
     area.start()
     assert (area.wizard, area.first_start.notice) == ([], "cloud_error")
     error = area.cloud.error
@@ -269,6 +270,26 @@ def test_a_running_check_is_not_sent_twice(backend: Backend) -> None:
     area.cloud.message = "Cloud setup done: 6 created, 0 updated, 0 unchanged."
     area.first_start.cloud_step(partial(area.proceeded.append, "cloud"))
     area.cloud.check(partial(area.proceeded.append, "retry"))
-    assert (deferred.actions(), area.cloud.message) == (["cloud_setup_status"], "")
+    assert (deferred.actions(), area.cloud.message) == ([STATUS], "")
     deferred.answer()
     assert (area.proceeded, area.wizard) == (["cloud", "retry"], ["cloud_setup"])
+
+
+def test_a_setup_gets_a_check_of_its_own(backend: Backend) -> None:
+    """A setup that ends while an older check runs gets a check of its own; callers wait for that one."""
+    assert backend.execute_json(store_request()).status == "ok"
+    deferred = Deferred(backend)
+    area = _area(backend, deferred)
+    area.accounts.load()
+    deferred.answer()
+    area.cloud.check(partial(area.proceeded.append, "check"))
+    area.cloud.set_up()
+    assert deferred.answer("setup_cloud") == "setup_cloud"
+    assert (deferred.answer(), deferred.actions(), area.proceeded) == (STATUS, [STATUS], [])
+    deferred.answer()
+    summary = "Cloud setup done: 6 created, 0 updated, 0 unchanged."
+    assert (area.proceeded, area.cloud.message, {row.state for row in area.cloud.rows()}) == (
+        ["check"],
+        summary,
+        {"Ready"},
+    )

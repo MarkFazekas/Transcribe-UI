@@ -11,19 +11,32 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QLineEdit
 from pytestqt.qtbot import QtBot
 
-from support.credentials import NEVER_SHOWN, TEST_ACCESS_KEY_ID, TEST_BUCKET, TEST_ENDPOINT, TEST_SECRET, store_request
+from support.credentials import (
+    NEVER_SHOWN,
+    TEST_ACCESS_KEY_ID,
+    TEST_BUCKET,
+    TEST_ENDPOINT,
+    TEST_RUNPOD_KEY,
+    TEST_SECRET,
+    store_request,
+)
 from support.fakes import seeded_ports
 from support.gated import UPLOAD, GatedRunner, upload, wait_for
 from support.golden import GOLDEN_DIR
 from support.gui import window_over
 from support.gui_parity import run_gui_one
+from support.gui_settings import Deferred
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.cli.constants import EXIT_OK
 from transcribe_ui.credentials.classes import CredentialsStatusResponse
+from transcribe_ui.gui.activity import Activity
 from transcribe_ui.gui.app import application, run_gui
 from transcribe_ui.gui.constants import PAGE_SETTINGS
 from transcribe_ui.gui.language import StartLanguages, use_language
+from transcribe_ui.gui.settings.accounts import AccountsViewModel
 from transcribe_ui.gui.settings.accounts_view import AccountsView
+from transcribe_ui.gui.settings.cloud_setup import CloudSetupViewModel
+from transcribe_ui.gui.settings.hooks import AreaHooks
 from transcribe_ui.gui.settings.notice_view import NoticeBar, RestartQuestion
 from transcribe_ui.gui.settings.texts import settings_hint
 from transcribe_ui.gui.settings.view import SettingsPage
@@ -295,3 +308,45 @@ def test_the_os_language_is_read_once(qtbot: QtBot) -> None:
     with ExitStack() as stack:
         languages = use_language("en", application(), stack, partial(_hungarian_os, reads))
     assert (languages, reads) == (StartLanguages(shown="en", system="hu"), ["read"])
+
+
+def _wizard_over(qtbot: QtBot, deferred: Deferred) -> tuple[SetupWizard, AccountsViewModel]:
+    """Return a shown wizard over view-models that send through `deferred` (the status already read)."""
+    accounts = AccountsViewModel(deferred, AreaHooks())
+    cloud = CloudSetupViewModel(deferred, Activity(deferred), accounts)
+    accounts.load()
+    deferred.answer()
+    wizard = SetupWizard(accounts, cloud, lambda _view: None)
+    qtbot.addWidget(wizard)
+    wizard.show()
+    view = wizard.pages.widget(0)
+    assert isinstance(view, AccountsView)
+    _type_r2(view)
+    QTest.keyClicks(view.fields["runpod_api_key"].edit, TEST_RUNPOD_KEY)
+    return wizard, accounts
+
+
+@pytest.mark.usefixtures("no_credential_logs")
+def test_next_moves_on_once_per_store(qtbot: QtBot, backend: Backend) -> None:
+    """Next is blocked while the store is in flight; the wizard moves on once, then checks the cloud once."""
+    deferred = Deferred(backend)
+    wizard, _accounts = _wizard_over(qtbot, deferred)
+    wizard.next_button.click()
+    blocked = (wizard.next_button.isEnabled(), wizard.back_button.isEnabled())
+    wizard.next_button.click()
+    assert (blocked, deferred.actions()) == ((False, False), ["store_credentials"])
+    assert (deferred.answer(), deferred.answer()) == ("store_credentials", "credentials_status")
+    assert (wizard.pages.currentIndex(), wizard.isVisible(), deferred.actions()) == (1, True, ["cloud_setup_status"])
+
+
+@pytest.mark.usefixtures("no_credential_logs")
+def test_a_store_after_set_up_later_changes_nothing(qtbot: QtBot, backend: Backend) -> None:
+    """A store answering after "Set up later" neither moves the closed wizard nor forgets newer typing."""
+    deferred = Deferred(backend)
+    wizard, accounts = _wizard_over(qtbot, deferred)
+    wizard.next_button.click()
+    wizard.reject()
+    accounts.type_value("r2_bucket", "typed-in-settings")
+    deferred.answer()
+    deferred.answer()
+    assert (wizard.isVisible(), deferred.actions(), accounts.shown.typed) == (False, [], frozenset(("r2_bucket",)))

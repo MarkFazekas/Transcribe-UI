@@ -37,6 +37,7 @@ class SetupWizard(QDialog):
         super().__init__(parent)
         self._accounts = accounts
         self._cloud = cloud
+        self._closed = False
         self.setWindowTitle(tr("Set up Transcribe-UI"))
         self.step_label = QLabel(self)
         self.pages = _pages(accounts, cloud, show_error, self)
@@ -46,6 +47,7 @@ class SetupWizard(QDialog):
         # Values typed elsewhere and not stored would make Save look enabled over empty fields; so
         # would values typed here once the wizard is closed.
         accounts.discard_typed()
+        self.finished.connect(self._close)
         self.finished.connect(accounts.discard_typed)
         accounts.subscribe(self._repaint)
         self._repaint()
@@ -80,12 +82,18 @@ class SetupWizard(QDialog):
 
     def _next(self) -> None:
         """On accounts, store what was typed first: move on once stored, stay with the hints when refused."""
+        if self._accounts.shown.saving:
+            # Moves on once, when the store in flight answered.
+            return
         if self.pages.currentIndex() == 0 and self._accounts.shown.can_save:
             self._accounts.save(self._advance)
         else:
             self._advance()
 
     def _advance(self) -> None:
+        if self._closed:
+            # A store answered after "Set up later": the wizard stays closed.
+            return
         if self.pages.currentIndex() == 0 and self._cloud.key_set:
             self.show_step("cloud_setup")
         else:
@@ -101,3 +109,9 @@ class SetupWizard(QDialog):
         typed_key = OPTIONAL_CREDENTIAL in self._accounts.shown.typed
         last = on_cloud or not (self._cloud.key_set or typed_key)
         self.next_button.setText(tr("Finish") if last else tr("Next"))
+        saving = self._accounts.shown.saving
+        self.next_button.setEnabled(not saving)
+        self.back_button.setEnabled(not saving)
+
+    def _close(self) -> None:
+        self._closed = True

@@ -187,6 +187,7 @@ class AccountsViewModel(ViewModel):
         self._typed = {}
         self.shown.typed = frozenset()
         self.shown.errors = {}
+        self.shown.message = ""
         self.changed()
 
     def _loaded(self, proceed: Proceed | None, response: Response) -> None:
@@ -200,7 +201,6 @@ class AccountsViewModel(ViewModel):
             proceed()
 
     def _stored(self, sent: Typed, on_stored: Proceed | None, response: Response) -> None:
-        self.shown.saving = False
         self.shown.message = ""
         if isinstance(response, StoreCredentialsResponse):
             # Only what was sent is stored now; a value typed meanwhile stays typed.
@@ -208,10 +208,20 @@ class AccountsViewModel(ViewModel):
             self.shown.typed = frozenset(self._typed)
             self.shown.errors = {}
             self.shown.message = tr("Saved.")
-            self.load(on_stored)
+            # Still saving until the new status is read: the wizard moves on only then, once.
+            self.load(partial(self._reloaded, on_stored))
+            self.changed()
+            return
+        self.shown.saving = False
         self.changed()
         if isinstance(response, ErrorResponse):
             self._hooks.on_error(error_view(response))
+
+    def _reloaded(self, on_stored: Proceed | None) -> None:
+        self.shown.saving = False
+        self.changed()
+        if on_stored is not None:
+            on_stored()
 
     def _checked(self, response: Response) -> None:
         self.shown.checking = False
