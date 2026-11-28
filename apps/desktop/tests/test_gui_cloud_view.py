@@ -176,9 +176,16 @@ def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
     _settled(qtbot, window)
 
 
+def _started(qtbot: QtBot, window: MainWindow) -> None:
+    """Run the start-up steps and wait until they finished (their cloud check holds the runs lock meanwhile)."""
+    done: list[bool] = []
+    window.context.hooks.run(lambda: done.append(True))
+    wait_for(qtbot, lambda: bool(done) and not window.busy())
+
+
 def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None:
     """The dialog plans, lists another computer's job with "Delete from cloud" (emitting its signal), and starts."""
-    window.context.hooks.run()
+    _started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
