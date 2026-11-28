@@ -39,9 +39,13 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 - [V] platformdirs 4.14 honours `WIN_PD_OVERRIDE_<CSIDL name>` (e.g.
   `WIN_PD_OVERRIDE_LOCAL_APPDATA`) on Windows and the XDG variables on macOS (except the log
   folder, under `~/Library/Logs`) (source of 4.14.8).
-- [V] Measured on a local Linux build (WSL Ubuntu, PyInstaller 6.22.3, PySide6 6.12.0, no
-  ffmpeg yet): CLI 62 MB, GUI 113 MB, CLI cold start (`--version`) 1.5 s, the GUI's offscreen
-  smoke run 3 s. The PySide6 6.12 Linux hooks collect the platform plugins `qoffscreen`, `qxcb`,
+- [V] Measured on a local Linux build (WSL Ubuntu, uv's CPython 3.13.13, PyInstaller 6.22.3,
+  PySide6 6.12.0, no ffmpeg yet): CLI 48.6 MB, GUI 102.1 MB, CLI cold start (`--version`)
+  1.4 s, the GUI's offscreen smoke run 3.4 s. python-build-standalone's Linux CPython ships
+  `libpython3.13.so.1.0`, which PyInstaller bundles; the manylinux image's `/opt/python`
+  builds have no shared library and fail ("Python was built without a shared library"), and a
+  runner's Homebrew or tool-cache Python is found first unless uv is limited to its own
+  (`UV_PYTHON_PREFERENCE=only-managed`; first CI run of PR #53). The PySide6 6.12 Linux hooks collect the platform plugins `qoffscreen`, `qxcb`,
   `qwayland` (plus `eglfs`, `linuxfb`, `minimal`, `vnc`, `vkkhrdisplay`) and
   `PySide6/Qt/translations/qtbase_hu.qm`. The Qt libraries link libglib, libfreetype,
   libxkbcommon, libX11, the xcb utility libraries, libwayland and GL/EGL from the system.
