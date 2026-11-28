@@ -31,7 +31,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## Waiting on humans
 
-- Questions: none open (product and architect). M5 is built and M6 is planned.
+- Questions: A23, A24 (architect) and Q36 (product), all for M8; none blocks M6. M5 is built
+  and M6 is planned.
 
 ## Next
 
@@ -47,9 +48,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
    M6.11 and M6.13 marks M6 built. The M4 Runpod trial run is deferred until everything else
    works (architect); nothing waits on it, and it still needs the architect present and their
    go.
-3. From now on every database schema change, including any change of a stored payload's
+3. M8 (desktop release) is planned in `docs/ai/plans/m8.md`; it starts after M6 (M8.1
+   first) and does not wait for M7.
+4. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
-4. M5 follow-ups: the repeat of an interrupted cleanup is built by M6.10 (M6.5 shows
+5. M5 follow-ups: the repeat of an interrupted cleanup is built by M6.10 (M6.5 shows
    `cleanup_pending`, M6.6 links its launch refusal to the job). `reconcile_cloud` at start-up
    and `refresh_status` while a run is active are built in M6.6.

@@ -2908,7 +2908,7 @@ next step are in `docs/ai/status.md`.
 - **M6** (planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
-- **M8**: Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
+- **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
   platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
   the CLI's `--help` with `LANGUAGE=hu` showing an app help text in Hungarian) and bundle the `.mo`
   catalogs (§3.1 "Language of the texts").
