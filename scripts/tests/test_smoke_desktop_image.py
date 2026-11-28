@@ -5,6 +5,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
+from smoke_desktop_build import main
 from smoke_desktop_bundle import REQUIRED_DATA, app_of, gui_problems, list_app, list_bundle
 from smoke_desktop_checks import Smoke
 from smoke_desktop_image import (
@@ -234,3 +235,21 @@ def test_signature_of_the_app_in_the_image(monkeypatch: pytest.MonkeyPatch) -> N
     assert not rejected.passed
     assert "codesign does not accept" in rejected.detail
     assert not check_signature(_smoke(Path("/dist/transcribe-ui-macos-arm64-gui"))).passed
+
+
+def test_main_fails_when_the_image_cannot_be_attached(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An image `hdiutil` cannot attach fails the smoke test with exit 1 before any check runs."""
+    cli = tmp_path / "transcribe-ui-macos-arm64-cli"
+    image = tmp_path / "transcribe-ui-macos-arm64-gui.dmg"
+    cli.write_bytes(b"cli")
+    image.write_bytes(b"image")
+    hdiutil = _Hdiutil(with_app=False, attach_code=1)
+    monkeypatch.setattr(RUN_PROCESS, hdiutil)
+    monkeypatch.setattr(Path, "is_mount", lambda _path: False)
+    assert main([str(cli), str(image), "--version", "0.1.0+20261128.abc1234"]) == 1
+    assert [command[1] for command in hdiutil.commands] == ["attach"]
+    assert "could not attach" in capsys.readouterr().err

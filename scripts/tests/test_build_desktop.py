@@ -1,6 +1,7 @@
 """The pure parts of `scripts/build_desktop.py` (docs/ai/plans/m8.md, M8.1 tests)."""
 
 from datetime import datetime, timedelta, timezone
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -148,8 +149,10 @@ def test_macos_gui_is_a_onedir_app() -> None:
         "/out/work/cli/app",
     ]
     assert arguments[-2:] == ["--windowed", str(PACKAGING_DIR / "entry_gui.py")]
-    assert "--icon" not in arguments
-    assert "--version-file" not in arguments
+    assert not {"--icon", "--version-file"} & set(arguments)
+    # ffmpeg and ffprobe go to the bundle's root, which in the app is `Contents/Frameworks`.
+    pairs = list(pairwise(arguments))
+    assert {("--add-binary", "/out/ffmpeg/ffmpeg:."), ("--add-binary", "/out/ffmpeg/ffprobe:.")} <= set(pairs)
 
 
 def test_macos_cli_stays_one_file() -> None:
@@ -183,3 +186,17 @@ def test_windows_version_resource_describes_the_file() -> None:
     assert "StringStruct('FileDescription', 'Transcribe-UI command line')" in resource
     assert "StringStruct('ProductVersion', '0.1.0+20261128.abc1234')" in resource
     assert "StringStruct('OriginalFilename', 'transcribe-ui-windows-x64-cli.exe')" in resource
+
+
+def test_the_build_output_must_have_its_kind(tmp_path: Path) -> None:
+    """A one-file build must leave a file, the macOS app a folder; anything else fails the build."""
+    paths = BuildPaths(tmp_path / "dist", tmp_path / "work", tmp_path / "ffmpeg")
+    (tmp_path / "dist" / "transcribe-ui-linux-x64-gui").mkdir(parents=True)
+    with pytest.raises(RuntimeError, match="did not write the executable file"):
+        paths.written("transcribe-ui-linux-x64-gui", app=False)
+    (paths.app_dist).mkdir(parents=True)
+    (paths.app_dist / "Transcribe-UI.app").write_bytes(b"not a folder")
+    with pytest.raises(RuntimeError, match="did not write the app folder"):
+        paths.written("ignored", app=True)
+    (tmp_path / "dist" / "transcribe-ui-linux-x64-cli").write_bytes(b"executable")
+    assert paths.written("transcribe-ui-linux-x64-cli", app=False) == tmp_path / "dist" / "transcribe-ui-linux-x64-cli"

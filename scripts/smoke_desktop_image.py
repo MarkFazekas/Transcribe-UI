@@ -14,6 +14,7 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from xml.parsers.expat import ExpatError
 
 from build_desktop_app import APP_BUNDLE, APPLICATIONS_LINK, APPLICATIONS_TARGET, HDIUTIL
 from build_desktop_bundle import app_executable
@@ -154,7 +155,7 @@ def gui_executable(published: Path, stack: ExitStack) -> Path:
         raise ImageError("\n".join(problems))
     try:
         return app_executable(root / APP_BUNDLE)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, ExpatError) as error:
         msg = f"{published}: {error}"
         raise ImageError(msg) from error
 

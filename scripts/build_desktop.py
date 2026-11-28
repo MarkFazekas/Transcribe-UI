@@ -142,9 +142,22 @@ class BuildPaths:
         """Return the generated plist file of the macOS app's `Info.plist` entries."""
         return self.work / "info-plist.plist"
 
-    def built(self, name: str, *, app: bool) -> Path:
-        """Return what PyInstaller writes: the one-file executable `name` in `dist`, or the macOS app."""
-        return self.app_dist / APP_BUNDLE if app else self.dist / name
+    def written(self, name: str, *, app: bool) -> Path:
+        """Return what PyInstaller wrote: the one-file executable `name` in `dist` (a file), or the macOS app (a folder).
+
+        Raises:
+            RuntimeError: It is missing, or not a folder (the app) or a file (an executable).
+        """
+        if app:
+            built = self.app_dist / APP_BUNDLE
+            written, kind = built.is_dir(), "app folder"
+        else:
+            built = self.dist / name
+            written, kind = built.is_file(), "executable file"
+        if not written:
+            msg = f"PyInstaller did not write the {kind} {built}"
+            raise RuntimeError(msg)
+        return built
 
     @property
     def image_staging(self) -> Path:
@@ -353,11 +366,7 @@ def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
     if completed.returncode:
         msg = f"PyInstaller failed for the {variant} executable (exit {completed.returncode})"
         raise RuntimeError(msg)
-    built = paths.built(name, app=is_macos_app(variant, tag))
-    if not built.exists():
-        msg = f"PyInstaller did not write {built}"
-        raise RuntimeError(msg)
-    return built
+    return paths.written(name, app=is_macos_app(variant, tag))
 
 
 def _stamp() -> int:
