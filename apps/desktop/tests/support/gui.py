@@ -27,6 +27,19 @@ def window_over(
     run_active: Callable[[], bool] = _never,
 ) -> MainWindow:
     """Return the shown main window over `runner` (closed by pytest-qt after the test)."""
+    window = untracked_window(runner, log_dir, quit_now, run_active)
+    qtbot.addWidget(window)
+    window.show()
+    return window
+
+
+def untracked_window(
+    runner: RequestRunner,
+    log_dir: Path,
+    quit_now: QuitNow | None = None,
+    run_active: Callable[[], bool] = _never,
+) -> MainWindow:
+    """Return a main window over `runner` that pytest-qt does not close (a test that deletes it itself)."""
     executor = QtExecutor(runner)
     context = GuiContext(
         executor=executor,
@@ -38,7 +51,4 @@ def window_over(
         quit_now=QuitNow() if quit_now is None else quit_now,
         run_active=run_active,
     )
-    window = build_shell(context)
-    qtbot.addWidget(window)
-    window.show()
-    return window
+    return build_shell(context)
