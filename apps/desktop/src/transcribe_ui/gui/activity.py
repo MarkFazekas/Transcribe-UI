@@ -17,21 +17,11 @@ from transcribe_ui.gui.executor import CallHandle, DoneCallback, ExclusiveChanne
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.texts import activity_state_text
 from transcribe_ui.gui.viewmodel import ViewModel
-from transcribe_ui.i18n.formats import format_number
-from transcribe_ui.i18n.texts import code_text
+from transcribe_ui.i18n.texts import progress_text
 
 
 def _ignore(_response: Response) -> None:
     """Default `on_done` of an activity nobody waits for."""
-
-
-def progress_text(event: ProgressEvent) -> str:
-    """Return a progress event as "stage completed/total" (no total: "stage completed"), the stage translated."""
-    stage = code_text("stage", event.stage)
-    done = format_number(event.completed)
-    if event.total is None:
-        return f"{stage} {done}"
-    return f"{stage} {done}/{format_number(event.total)}"
 
 
 @dataclass

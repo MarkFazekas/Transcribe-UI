@@ -7,8 +7,7 @@ from typing import BinaryIO
 from transcribe_ui.api.classes import ProgressEvent
 from transcribe_ui.api.ports import ProgressSink
 from transcribe_ui.cli.constants import LINE_END, TEXT_PROGRESS_PATH_SEPARATOR, ProgressFormat
-from transcribe_ui.i18n.formats import format_number
-from transcribe_ui.i18n.texts import code_text
+from transcribe_ui.i18n.texts import progress_text
 
 # Renders one progress event as the bytes of its line, without the line end.
 type EventLine = Callable[[ProgressEvent], bytes]
@@ -37,16 +36,13 @@ def printable(text: str) -> str:
 def text_line(event: ProgressEvent) -> str:
     """Return the event as "stage completed/total: path" in the active language.
 
-    The stage is its catalog text; without a total only `completed` is shown, without a path no
-    path. The path's characters that are not printable are escaped.
+    The text of the GUI's activity panel (`progress_text`), then the path with its characters
+    that are not printable escaped.
     """
-    stage = code_text("stage", event.stage)
-    shown = f"{stage} {format_number(event.completed)}"
-    if event.total is not None:
-        shown = f"{shown}/{format_number(event.total)}"
-    if event.path is not None:
-        shown = f"{shown}{TEXT_PROGRESS_PATH_SEPARATOR}{printable(event.path)}"
-    return shown
+    shown = progress_text(event)
+    if event.path is None:
+        return shown
+    return f"{shown}{TEXT_PROGRESS_PATH_SEPARATOR}{printable(event.path)}"
 
 
 def _text_bytes(event: ProgressEvent) -> bytes:
