@@ -1,0 +1,235 @@
+[
+  {
+    "scan": {
+      "root": "<root>/media",
+      "video_extensions": [
+        "3gp",
+        "avi",
+        "flv",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpeg",
+        "mpg",
+        "mts",
+        "ogv",
+        "ts",
+        "vob",
+        "webm",
+        "wmv"
+      ],
+      "audio_extensions": [
+        "aac",
+        "ac3",
+        "aif",
+        "aiff",
+        "amr",
+        "ape",
+        "dts",
+        "eac3",
+        "flac",
+        "m4a",
+        "m4b",
+        "mka",
+        "mp2",
+        "mp3",
+        "oga",
+        "ogg",
+        "opus",
+        "wav",
+        "wma",
+        "wv"
+      ],
+      "include_hidden": false
+    },
+    "scan_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+    "operations": [
+      {
+        "operation": "include",
+        "path": "<root>/media/Movies",
+        "filters": {
+          "media_kind": "video",
+          "subtitles": null,
+          "name": null
+        }
+      }
+    ],
+    "languages": [
+      "hu"
+    ],
+    "item_languages": [
+      {
+        "path": "<root>/media/Movies/Film.mkv",
+        "languages": [
+          "en"
+        ]
+      }
+    ],
+    "confirm_existing_languages": true,
+    "action": "create_batch"
+  },
+  {
+    "scan": {
+      "root": "<root>/media",
+      "video_extensions": [
+        "3gp",
+        "avi",
+        "flv",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpeg",
+        "mpg",
+        "mts",
+        "ogv",
+        "ts",
+        "vob",
+        "webm",
+        "wmv"
+      ],
+      "audio_extensions": [
+        "aac",
+        "ac3",
+        "aif",
+        "aiff",
+        "amr",
+        "ape",
+        "dts",
+        "eac3",
+        "flac",
+        "m4a",
+        "m4b",
+        "mka",
+        "mp2",
+        "mp3",
+        "oga",
+        "ogg",
+        "opus",
+        "wav",
+        "wma",
+        "wv"
+      ],
+      "include_hidden": false
+    },
+    "scan_id": "01M8EE0VG012YQDTE814MPCJ9X",
+    "operations": [
+      {
+        "operation": "include",
+        "path": "<root>/media/Movies",
+        "filters": {
+          "media_kind": "video",
+          "subtitles": null,
+          "name": null
+        }
+      },
+      {
+        "operation": "exclude",
+        "path": "<root>/media/Movies/Film.part2.mkv",
+        "filters": {
+          "media_kind": "any",
+          "subtitles": null,
+          "name": null
+        }
+      }
+    ],
+    "languages": [
+      "hu"
+    ],
+    "item_languages": [
+      {
+        "path": "<root>/media/Movies/Film.mkv",
+        "languages": [
+          "en"
+        ]
+      }
+    ],
+    "confirm_existing_languages": false,
+    "action": "edit_batch",
+    "batch_id": "batch_20261127_120000"
+  },
+  {
+    "scan": {
+      "root": "<root>/media",
+      "video_extensions": [
+        "3gp",
+        "avi",
+        "flv",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpeg",
+        "mpg",
+        "mts",
+        "ogv",
+        "ts",
+        "vob",
+        "webm",
+        "wmv"
+      ],
+      "audio_extensions": [
+        "aac",
+        "ac3",
+        "aif",
+        "aiff",
+        "amr",
+        "ape",
+        "dts",
+        "eac3",
+        "flac",
+        "m4a",
+        "m4b",
+        "mka",
+        "mp2",
+        "mp3",
+        "oga",
+        "ogg",
+        "opus",
+        "wav",
+        "wma",
+        "wv"
+      ],
+      "include_hidden": false
+    },
+    "scan_id": "01M8EE0VG012YQDTE814MPCJ9X",
+    "operations": [
+      {
+        "operation": "include",
+        "path": "<root>/media/Movies",
+        "filters": {
+          "media_kind": "video",
+          "subtitles": null,
+          "name": null
+        }
+      },
+      {
+        "operation": "exclude",
+        "path": "<root>/media/Movies/Film.part2.mkv",
+        "filters": {
+          "media_kind": "any",
+          "subtitles": null,
+          "name": null
+        }
+      }
+    ],
+    "languages": [
+      "hu"
+    ],
+    "item_languages": [
+      {
+        "path": "<root>/media/Movies/Film.mkv",
+        "languages": [
+          "en"
+        ]
+      }
+    ],
+    "confirm_existing_languages": true,
+    "action": "edit_batch",
+    "batch_id": "batch_20261127_120000"
+  }
+]

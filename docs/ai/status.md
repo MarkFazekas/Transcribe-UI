@@ -26,8 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.3 (settings, accounts, cloud setup, first-start wizard) on `feat/m6.3-settings`, rebased
-  onto `main` and checked locally; waiting for its PR and review.
+- M6.4 (New job: tree, filters, selection, languages, create and edit) on
+  `feat/m6.4-new-job`: built, in review.
 
 ## Waiting on humans
 
@@ -42,8 +42,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Wave 1: M6.1 (backend
    additions) and M6.2 (GUI foundation) are merged. Wave 2: M6.14 (texts in English and
    Hungarian, Q32; #40), M6.12 (remaining-time estimate, backend; #41), M6.7 (CLI; #42) and
-   M6.5 (jobs list and job page) are merged; M6.4 and M6.6 are in work; M6.3 is built and
-   waiting for its PR. Wave 3 M6.8, M6.9, M6.10; wave 4 M6.11. M6.13 (several installations
+   M6.5 (jobs list and job page) and M6.3 (settings; #45) are merged; M6.4 and M6.6 are in
+   work. Wave 3 M6.8, M6.9, M6.10; wave 4 M6.11. M6.13 (several installations
    on one bucket, Q28, with its GUI) after M6.6 and M6.9;
    the later of M6.11 and M6.13 marks M6 built. The M4 Runpod trial run is deferred until
    everything else works (architect); nothing waits on it, and it still needs the architect

@@ -124,9 +124,10 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
   needs nothing extra.
 - Qt overrides keep Qt's names (`closeEvent`, `run`, `reject`, later `rowCount`, `data`,
   `index`) and carry `@typing.override`, which mypy checks and both ruff's and pep8-naming's
-  N802 honour. WPS110 does not: the part that adds the first item model or view overriding
-  `data`/`index` adds a `.flake8` per-file ignore of WPS110 for `*/gui/*/models.py` and
-  `*/gui/*/view.py` (ruff needs none).
+  N802 honour. WPS110 does not: `.flake8` ignores WPS110 for `*/gui/*/models.py`, the Qt
+  item models (`data`, `index`, `setData`'s `value`; ruff needs none). An override returns
+  `object` rather than `Any` (flake8-annotations' ANN401), and Qt's default parent index is a
+  module constant (`TOP_LEVEL = QModelIndex()`, WPS404).
 - pytest-qt imports QtGui, QtWidgets and QtTest when pytest starts, which needs the system
   libraries Qt loads. `scripts/check.py` therefore runs pytest with `-p no:pytest-qt` for every
   target except `desktop` (the only one CI installs them for); run other members' tests by

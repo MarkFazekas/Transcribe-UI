@@ -296,6 +296,7 @@ sysconfig
 tablename
 tmp
 tokenizer
+tooltip
 tracebacks
 uf
 ui

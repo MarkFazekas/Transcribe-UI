@@ -113,13 +113,13 @@ def test_the_selection_follows_its_job_across_reloads(qtbot: QtBot, window: Main
 
 
 def test_an_unhandled_button_is_not_available(qtbot: QtBot, window: MainWindow) -> None:
-    """Edit selection emits its signal, which no part handles yet: the status bar says so."""
-    jobs = _open(qtbot, window, "composing")
+    """Review emits its signal, which no part handles yet: the status bar says so."""
+    jobs = _open(qtbot, window, "reviewing_open")
     buttons = jobs.page_view.button_row.buttons
-    assert list(buttons) == ["edit_selection", "continue_review", "delete"]
-    with qtbot.waitSignal(window.context.signals.edit_selection) as emitted:
-        buttons["edit_selection"].click()
-    assert emitted.args == [scenario_batch_id("composing")]
+    assert list(buttons) == ["delete", "review"]
+    with qtbot.waitSignal(window.context.signals.open_review) as emitted:
+        buttons["review"].click()
+    assert emitted.args == [scenario_batch_id("reviewing_open")]
     assert window.statusBar().currentMessage() == "Not available yet."
 
 

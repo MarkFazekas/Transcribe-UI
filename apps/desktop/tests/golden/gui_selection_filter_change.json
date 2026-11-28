@@ -1,0 +1,82 @@
+[
+  {
+    "action": "preview_selection",
+    "scan": {
+      "root": "<root>/media",
+      "video_extensions": [
+        "3gp",
+        "avi",
+        "flv",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpeg",
+        "mpg",
+        "mts",
+        "ogv",
+        "ts",
+        "vob",
+        "webm",
+        "wmv"
+      ],
+      "audio_extensions": [
+        "aac",
+        "ac3",
+        "aif",
+        "aiff",
+        "amr",
+        "ape",
+        "dts",
+        "eac3",
+        "flac",
+        "m4a",
+        "m4b",
+        "mka",
+        "mp2",
+        "mp3",
+        "oga",
+        "ogg",
+        "opus",
+        "wav",
+        "wma",
+        "wv"
+      ],
+      "include_hidden": false
+    },
+    "scan_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+    "operations": [
+      {
+        "operation": "include",
+        "path": "<root>/media",
+        "filters": {
+          "media_kind": "audio",
+          "subtitles": null,
+          "name": null
+        }
+      },
+      {
+        "operation": "include",
+        "path": "<root>/media/Movies",
+        "filters": {
+          "media_kind": "any",
+          "subtitles": null,
+          "name": {
+            "match": "starts_with",
+            "text": "film"
+          }
+        }
+      },
+      {
+        "operation": "include",
+        "path": "<root>/media/Series/S01/Show S01E01.mkv",
+        "filters": {
+          "media_kind": "any",
+          "subtitles": null,
+          "name": null
+        }
+      }
+    ]
+  }
+]
