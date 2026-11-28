@@ -17,7 +17,7 @@ import logging
 from sqlalchemy import select
 
 from transcribe_contracts.constants import AUDIO_FOLDER
-from transcribe_contracts.layout import batch_prefix
+from transcribe_contracts.layout import batch_prefix, deleting_key
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.phases import load_batch
 from transcribe_ui.runs.errors import RunActiveError
@@ -39,6 +39,8 @@ def clear_leftovers(context: RequestContext, store: ObjectStore, batch_id: str) 
         StorageError: R2 failed (the next `run_upload` resumes).
     """
     store.abort_uploads(batch_prefix(batch_id))
+    # Another computer's interrupted cleanup marker must not let it purge the prefix this upload reclaims.
+    store.delete(deleting_key(batch_id))
     return sweep_orphans(context, store, batch_id)
 
 

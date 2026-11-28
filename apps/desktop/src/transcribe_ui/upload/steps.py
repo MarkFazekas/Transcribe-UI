@@ -5,7 +5,7 @@ A withdrawal runs under the batch lock and the runs lock, while no live lease li
 
 import logging
 
-from transcribe_contracts.layout import done_key, manifest_key, parse_result_key, results_prefix
+from transcribe_contracts.layout import deleting_key, done_key, manifest_key, parse_result_key, results_prefix
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import UPLOADING_PHASES
 from transcribe_ui.batches.payloads import PendingWithdrawal
@@ -41,6 +41,8 @@ def finish_withdrawal(context: RequestContext, store: ObjectStore, batch_id: str
         _delete_results(store, batch_id, frozenset(pending.item_ids))
         store.delete(done_key(batch_id))
         store.delete(manifest_key(batch_id))
+    # Another computer's interrupted cleanup marker must not let it purge the prefix this batch reclaims.
+    store.delete(deleting_key(batch_id))
     with state.session() as session:
         now = context.ports.clock.now()
         touch_batch(session, batch_id, UPLOADING_PHASES, now=now, also_set={"pending_withdrawal": None})

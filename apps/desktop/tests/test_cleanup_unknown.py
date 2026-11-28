@@ -142,7 +142,8 @@ def test_unknown_cleanup_interrupted_at_every_call(
             if not _unknown_killed_then_resumed(tmp_path, monkeypatch, wire, transcribed=transcribed):
                 break
             fired += 1
-    assert fired >= NEW_JOB_OBJECTS
+    floor = FOREIGN_OBJECTS if transcribed else NEW_JOB_OBJECTS
+    assert fired >= floor
 
 
 def test_a_new_job_is_resumed_after_its_manifest(world: RunsWorld) -> None:

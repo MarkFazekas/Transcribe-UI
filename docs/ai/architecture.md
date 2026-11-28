@@ -1388,8 +1388,11 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     while a live lease lists it. Nothing local remembers this cleanup, so it writes the marker
     `<id>/_deleting.json` first (`layout.deleting_key`; not counted as a deleted object), then
     aborts the open multipart uploads, deletes the manifest (the batch disappears for
-    listings, adoptions and launches), the results and everything else under `<id>/`, and the
-    marker last. A marker without a manifest is the proof that an interrupted cleanup left the
+    listings, adoptions and launches), `_done.json` (so no refresh moves a half-deleted batch
+    to `transcribed`), the results and everything else under `<id>/`, and the marker last. A
+    cancel before the manifest delete removes the marker again (best effort), so the batch
+    stays as it was. The uploading computer deletes the marker whenever it reclaims its prefix
+    (`finish_withdrawal`, `clear_leftovers`), so a stale marker cannot purge a new upload. A marker without a manifest is the proof that an interrupted cleanup left the
     rest, transcribed or not: repeating the request asks `cleanup_unknown_leftover` (details:
     `batch_id`, `known: false`) and deletes what the listing still shows. A prefix with
     neither a manifest nor the marker (perhaps another computer's upload in progress; an

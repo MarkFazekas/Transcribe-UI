@@ -45,7 +45,7 @@ CONFIRMATION_CLEANUP_ELSEWHERE: Final = "cleanup_everything_uploaded_elsewhere"
 # unknown one), is deleted from the cloud (architecture §3.9; the stronger form of `cleanup_unknown_batch`).
 CONFIRMATION_UNKNOWN_ELSEWHERE: Final = "cleanup_unknown_batch_uploaded_elsewhere"
 # Confirmation code: an interrupted cleanup of a batch this computer does not know left data in
-# the cloud (its manifest is gone, its `_done.json` is still there); the rest is deleted.
+# the cloud (its manifest is gone, its marker `_deleting.json` is still there); the rest is deleted.
 CONFIRMATION_UNKNOWN_LEFTOVER: Final = "cleanup_unknown_leftover"
 # Content type of the marker of an unknown batch's cleanup in progress (`layout.deleting_key`).
 DELETING_CONTENT_TYPE: Final = "application/json"
