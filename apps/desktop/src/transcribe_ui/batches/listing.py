@@ -71,7 +71,7 @@ def list_batches(request: ListBatchesRequest, context: RequestContext) -> ListBa
         counts = _item_counts(session, listed)
         jobs = _job_keys(session, listed)
         copying = copying_sources(session)
-        scope = run_scope(session)
+        scope = run_scope(session, context.ports.clock.now())
     summaries = [_summary(row, counts, jobs, (copying, scope)) for row in rows]
     return ListBatchesResponse(batches=tuple(summaries))
 
@@ -93,7 +93,8 @@ def _summary(
 def get_batch(request: GetBatchRequest, context: RequestContext) -> GetBatchResponse:
     """Return one batch with its items and jobs."""
     with context.ports.state.session() as session:
-        detail = load_detail(session, load_batch(session, request.batch_id))
+        now = context.ports.clock.now()
+        detail = load_detail(session, load_batch(session, request.batch_id), now=now)
     return GetBatchResponse(batch=detail)
 
 
@@ -113,5 +114,5 @@ def set_batch_hidden(request: SetBatchHiddenRequest, context: RequestContext) ->
         require_phase(row, allowed)
         touch_batch(session, batch_id, allowed, now=now, also_set={"hidden": request.hidden})
         row = load_batch(session, batch_id)
-        summary = summary_of(session, row, stored_items(session, batch_id))
+        summary = summary_of(session, row, stored_items(session, batch_id), now=now)
     return SetBatchHiddenResponse(batch=summary)

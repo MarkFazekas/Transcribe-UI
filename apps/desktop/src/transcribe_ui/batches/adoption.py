@@ -55,10 +55,12 @@ def adopt_cloud_batch(
         relative = relative_paths(manifest)
         if not request.confirm:
             return _confirmation(request, manifest)
+        now = context.ports.clock.now()
         with state.session() as session:
             require_new(session, batch_id)
-            record_adopted(session, manifest, relative, context.ports.clock.now())
-            summary = summary_of(session, load_batch(session, batch_id), stored_items(session, batch_id))
+            record_adopted(session, manifest, relative, now)
+            members = stored_items(session, batch_id)
+            summary = summary_of(session, load_batch(session, batch_id), members, now=now)
     return AdoptCloudBatchResponse(batch=summary)
 
 

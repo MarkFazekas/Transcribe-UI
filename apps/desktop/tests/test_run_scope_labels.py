@@ -7,6 +7,7 @@ in the history.
 """
 
 from contextlib import closing
+from datetime import timedelta
 
 from support.batches import FIRST_BATCH_ID, SECOND_BATCH_ID
 from support.buckets import create_bucket
@@ -48,6 +49,15 @@ def _refresh(world: RunsWorld) -> RefreshStatusResponse:
 def _second_published(world: RunsWorld) -> None:
     seed_audio_batch(world, SECOND_BATCH_ID, SECOND_ITEM)
     world.step(SECOND_BATCH_ID)
+
+
+def _other_computers_run(runs_world: RunsWorld, r2_only_world: RunsWorld) -> None:
+    """Launch on `runs_world`, publish the second batch on `r2_only_world`, which then refreshes."""
+    seed_ready(runs_world)
+    set_up_cloud(runs_world)
+    launch(runs_world)
+    _second_published(r2_only_world)
+    _refresh(r2_only_world)
 
 
 def test_batch_published_during_a_local_run_waits(runs_world: RunsWorld) -> None:
@@ -143,14 +153,18 @@ def test_a_republished_manifest_is_followed_again(runs_world: RunsWorld) -> None
 
 def test_another_process_sees_the_same_run_scope(runs_world: RunsWorld, r2_only_world: RunsWorld) -> None:
     """The leases the refresh read are stored: a fresh process (a CLI call) gives the same label as the GUI's backend."""
-    seed_ready(runs_world)
-    set_up_cloud(runs_world)
-    launch(runs_world)
-    _second_published(r2_only_world)
-    _refresh(r2_only_world)
+    _other_computers_run(runs_world, r2_only_world)
     state = r2_only_world.ports.state
     state.close()
     fresh = LocalState(state.paths)
     with closing(fresh), fresh.session() as session:
-        scope = run_scope(session)
+        scope = run_scope(session, r2_only_world.now())
     assert (scope.waits(SECOND_BATCH_ID), scope.waits(FIRST_BATCH_ID)) == (True, False)
+
+
+def test_a_stored_lease_past_its_end_does_not_count(runs_world: RunsWorld, r2_only_world: RunsWorld) -> None:
+    """Days later, without a refresh (a CLI call), a stored lease past its end no longer makes the batch wait."""
+    _other_computers_run(runs_world, r2_only_world)
+    during = _waiting(r2_only_world)
+    runs_world.cloud.clock.advance(timedelta(days=3))
+    assert (during, _waiting(r2_only_world)) == ([SECOND_BATCH_ID], [])

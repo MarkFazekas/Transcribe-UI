@@ -71,7 +71,7 @@ def _remove_items(
         excluded = ItemRow.item_id.in_(request.item_ids)
         of_batch = ItemRow.batch_id == batch_id
         session.execute(delete(ItemRow).where(of_batch, excluded))
-        return load_detail(session, load_batch(session, batch_id))
+        return load_detail(session, load_batch(session, batch_id), now=now)
 
 
 def _has_uploaded_audio(request: ExcludeItemsRequest, context: RequestContext) -> bool:

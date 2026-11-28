@@ -67,7 +67,7 @@ def cleanup_known(
         touch_batch(session, target.batch_id, (phase,), now=now)
         _mark(session, target.batch_id, None)
         row = load_batch(session, target.batch_id)
-        summary = summary_of(session, row, stored_items(session, target.batch_id))
+        summary = summary_of(session, row, stored_items(session, target.batch_id), now=now)
     return CleanupCloudResponse(
         batch_id=target.batch_id,
         scope=request.scope,

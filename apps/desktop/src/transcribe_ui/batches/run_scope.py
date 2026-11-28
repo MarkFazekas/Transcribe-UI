@@ -4,11 +4,12 @@ A run processes only the batches its lease lists (A21, architecture §3.9 "Run s
 batch waits for the current run while a live run is known and none lists it. What is known: the
 local runs that are not final (their covered batch ids), and the live leases the last
 `refresh_status` read (`state/leases.py`, stored in the database, so every request and process
-sees the same; leases of runs that are final here since are left out). No list request reads R2
-for it.
+sees the same; leases past their end (`until`, by the injected clock) and leases of runs that are
+final here since are left out). No list request reads R2 for it.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from pydantic import JsonValue
 from sqlalchemy import select
@@ -42,10 +43,10 @@ class RunScope:
         return self.active and self.listed is not None and batch_id not in self.listed
 
 
-def run_scope(session: Session) -> RunScope:
-    """Return the run scope known in this session (the local runs, and the leases of the last refresh)."""
+def run_scope(session: Session, now: datetime) -> RunScope:
+    """Return the run scope known in this session as of `now` (the local runs, the leases of the last refresh)."""
     final, listings = _local_runs(session)
-    for lease in _leases(session, final):
+    for lease in _leases(session, final, now):
         if lease.batch_ids is None:
             return RunScope(active=True, listed=None)
         listings.append(list(lease.batch_ids))
@@ -65,9 +66,10 @@ def _local_runs(session: Session) -> tuple[frozenset[str], list[Listing]]:
     return frozenset(final), listings
 
 
-def _leases(session: Session, final: frozenset[str]) -> list[LiveLease]:
-    """Return the leases the last refresh read, less those of runs that are final here since."""
-    return [lease for lease in known_leases(session) if lease.run_id not in final]
+def _leases(session: Session, final: frozenset[str], now: datetime) -> list[LiveLease]:
+    """Return the leases the last refresh read that count at `now`, less those of runs that are final here since."""
+    counted = [lease for lease in known_leases(session) if lease.until > now]
+    return [lease for lease in counted if lease.run_id not in final]
 
 
 def _covered(payload: JsonValue) -> list[str]:

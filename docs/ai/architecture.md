@@ -2399,7 +2399,8 @@ Q28, Q35, A21 and A22.
     (`batches/run_scope.py`). Known: the local runs that are not final (their covered batch
     ids) and the live leases `refresh_status` step 3 last read, stored in the table
     `known_leases` (`state/leases.py`; replaced as a whole by each refresh, after R2 was read;
-    leases of runs that are final here since are left out), so no list request reads R2 and
+    leases past their `until` by the injected clock, and leases of runs that are final here
+    since, are left out), so no list request reads R2 and
     every frontend and process (a fresh CLI call too) gives the same label. Decision: stored
     rather than derived from local state alone, since only R2 knows other computers' runs. An unreadable lease lists every batch, so it makes no
     batch wait. The label is as of the last refresh; the poll keeps it current while results

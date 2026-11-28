@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from pydantic import ValidationError
+from pydantic import AwareDatetime, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -216,21 +216,21 @@ def _extract_only(jobs: Sequence[JobKey]) -> bool:
     return kinds == {"extract"}
 
 
-def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchSummary:
-    """Return the summary of a batch whose items are read (in the session that read them)."""
+def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem], *, now: AwareDatetime) -> BatchSummary:
+    """Return the summary of a batch whose items are read (in the session that read them), its run scope as of `now`."""
     stored = [job.row for member in members for job in member.jobs]
     placed = placed_job_ids(session, PlacementRow.batch_id == row.batch_id)
     jobs = [JobKey.of_row(job_row, placed) for job_row in stored]
     item_counts = ItemCounts.of_phases([member.phase for member in members])
     copying = row.batch_id in copying_sources(session)
-    return batch_summary(row, item_counts, jobs, copying=copying, scope=run_scope(session))
+    return batch_summary(row, item_counts, jobs, copying=copying, scope=run_scope(session, now))
 
 
-def batch_detail(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchDetail:
-    """Return a batch with its items and jobs."""
+def batch_detail(session: Session, row: BatchRow, members: Sequence[StoredItem], *, now: AwareDatetime) -> BatchDetail:
+    """Return a batch with its items and jobs (its run scope as of `now`)."""
     payload = BatchPayload.model_validate(row.payload)
     return BatchDetail(
-        summary=summary_of(session, row, members),
+        summary=summary_of(session, row, members, now=now),
         scan_root=payload.scan_root,
         path_flavor=payload.path_flavor,
         composition=_selection(row.batch_id, payload.composition),
@@ -249,6 +249,6 @@ def _selection(batch_id: str, stored: StoredComposition | None) -> BatchSelectio
         return None
 
 
-def load_detail(session: Session, row: BatchRow) -> BatchDetail:
-    """Read the batch's items and return the batch with them."""
-    return batch_detail(session, row, stored_items(session, row.batch_id))
+def load_detail(session: Session, row: BatchRow, *, now: AwareDatetime) -> BatchDetail:
+    """Read the batch's items and return the batch with them (its run scope as of `now`)."""
+    return batch_detail(session, row, stored_items(session, row.batch_id), now=now)

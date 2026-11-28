@@ -89,7 +89,8 @@ def _response(context: RequestContext, batch_id: str, report: UploadReport) -> R
     finish = report.finish
     with context.ports.state.session() as session:
         row = load_batch(session, batch_id)
-        summary = summary_of(session, row, stored_items(session, batch_id))
+        now = context.ports.clock.now()
+        summary = summary_of(session, row, stored_items(session, batch_id), now=now)
     return RunUploadResponse(
         batch=summary,
         outcome=finish.outcome,

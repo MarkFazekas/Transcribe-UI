@@ -128,8 +128,10 @@ def _imported(
 
 
 def _summary(context: RequestContext, batch_id: str) -> BatchSummary:
+    now = context.ports.clock.now()
     with context.ports.state.session() as session:
-        return summary_of(session, load_batch(session, batch_id), stored_items(session, batch_id))
+        members = stored_items(session, batch_id)
+        return summary_of(session, load_batch(session, batch_id), members, now=now)
 
 
 def _plan(source: DownloadSource, options: PlacementOptions, rules: PathRules, probe: PlacementProbe) -> PlacementPlan:
