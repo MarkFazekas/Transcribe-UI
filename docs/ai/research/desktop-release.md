@@ -121,29 +121,75 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   `https://ffmpeg.org/releases/ffmpeg-<version>.tar.xz` with a PGP signature (`.asc`; 9.1 also
   a post-quantum `.pq.asc`); the download page lists no checksums
   (https://ffmpeg.org/download.html).
-- [I] A build with no `--enable-gpl`/`--enable-nonfree` and `--disable-autodetect` uses only
-  FFmpeg's own components (plus the libraries enabled explicitly) and is LGPL 2.1 or later;
-  `ffmpeg -L` prints the licence. Its native decoders cover the app's codecs (AAC, AC-3,
-  E-AC-3, DTS, MP3, Opus, Vorbis, FLAC, TrueHD, PCM) and its native text subtitle decoders and
-  SRT encoder cover extraction. Its native Opus
-  encoder (`-c:a opus`) is marked experimental (`-strict experimental`) and accepts 48 kHz
-  input only; `libopus` is an external library.
+- [V] Pinned in `scripts/build_ffmpeg_pins.py` (2026-11-28): `ffmpeg-9.1.tar.xz`, SHA-256
+  `1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433`, its `.asc` a good
+  signature by the FFmpeg release signing key `FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676
+  58D8` (key from https://ffmpeg.org/ffmpeg-devel.asc); `zlib-1.4.tar.gz` (1507140 bytes),
+  SHA-256 `02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584` (as zlib.net lists
+  it), its `.asc` a good signature by Mark Adler's key `5ED4 6A67 21D3 6558 7791 E2AA 783F CD8E
+  58BC AFBA` (from keys.openpgp.org). The same bytes come from the GitHub release asset
+  `https://github.com/madler/zlib/releases/download/v1.4/zlib-1.4.tar.gz`, from
+  `https://zlib.net/fossils/` and from `https://zlib.net/` (checked from a home connection).
+  zlib 1.4 (2026-11) still ships `./configure` (`--static`; `CHOST=x86_64-w64-mingw32` for the
+  mingw-w64 cross build) next to CMake.
+- [V] zlib.net serves GitHub-hosted runners something other than the tarball: in run
+  46158956325 (PR #56, 2026-11-28) `https://zlib.net/fossils/zlib-1.4.tar.gz` hashed
+  `2d16dd04…` on one runner and `00b7f82e…` on another, a different body each time (most
+  likely a bot-protection page; the run did not record its content). So the GitHub release
+  asset is the primary URL and zlib.net the fallback; `build_ffmpeg_steps.download` logs
+  curl's HTTP status, content type and size, and a wrong download's size and first bytes.
+- [V] FFmpeg's release tarballs exist only on ffmpeg.org (`/releases/`): the GitHub mirror
+  `FFmpeg/FFmpeg` publishes no release assets, and a tag's generated archive is other bytes
+  than the release tarball (no PGP signature, and the release's generated files differ), so
+  FFmpeg has no fallback URL [I: the tag archive's content was not compared].
+- [V] FFmpeg 9.1's `configure`: `--disable-autodetect` turns off the libraries of
+  `EXTERNAL_AUTODETECT_LIBRARY_LIST` (zlib, bzlib, lzma, iconv, SDL2, xlib, libxcb, the Apple
+  frameworks, schannel, securetransport, ...) and `HWACCEL_AUTODETECT_LIBRARY_LIST`, but not
+  `THREADS_LIST` (a "TODO" comment there): the thread libraries stay autodetected. It also
+  enables `libc_iconv`, so the C library's iconv is still used unless `--disable-iconv` is
+  given. A library given with `--enable-<lib>` (zlib, pthreads, w32threads) is "requested":
+  configure dies when it is not found, instead of leaving it out. The `ffmpeg` program
+  depends on `threads` (`ffmpeg_deps="avcodec avfilter avformat threads"`), so without a
+  thread library configure drops it silently; `ffprobe` needs none.
+- [V] FFmpeg 9.1's Matroska demuxer decompresses zlib-compressed tracks only when built with
+  zlib (`#if CONFIG_ZLIB` in `libavformat/matroskadec.c`); without it the encoding is
+  "Unsupported encoding type" and the compressed bytes pass through as the payload, so text
+  cues come out garbled. mkvmerge 82.0 writes such a track with `--compression 0:zlib`
+  (`mkvinfo` shows "Content compression"; zlib is the default algorithm, so no algorithm line).
+- [V] `ffmpeg -buildconf` prints the configure line one argument per line on stderr after a
+  `configuration:` heading, followed by `Exiting with exit code 0`; an argument after one that
+  ends in `pkg-config` stays on the same line (`fftools/opt_common.c` keeps
+  `--pkg-config=pkg-config --extra-ldflags=-static` together). Configure records each argument
+  with the part after its first `=` shell-quoted when it holds a character other than letters,
+  digits and `_/.+-` (`sh_quote` in `configure`), so the macOS legs print
+  `--extra-cflags='-mmacosx-version-min=14.0'` (seen in run 46160789188 of PR #56);
+  `build_ffmpeg_checks.buildconf_arguments` reads each line with `shlex`, which removes the
+  quotes and splits the joined `pkg-config` line. `ffmpeg -L` prints the licence on
+  stdout; without `--enable-gpl`, `--enable-nonfree` and `--enable-version3` it is "GNU Lesser
+  General Public License ... either version 2.1 of the License, or (at your option) any later
+  version" (same file).
+- [V] FFmpeg 9.1's native Opus encoder (`-c:a opus`) refuses to run without `-strict
+  experimental` ("Experimental feature"); it takes 48 kHz only, and the ffmpeg program
+  resamples other rates to it by itself (`-ar 48000` makes it explicit). The probed codec name
+  is `opus`, as with libopus. `libopus` is an external library the bundled build lacks.
+- [V] Measured local builds of `scripts/build_ffmpeg.py` (WSL Ubuntu 24.04, 12 threads,
+  2026-11-28): Linux x64 (host gcc 13, nasm 2.16) about 3.5 min for FFmpeg plus 1 s for zlib,
+  `ffmpeg` 29.9 MB and `ffprobe` 29.7 MB (stripped), `ldd`: `linux-vdso`, `libm`, `libc`, the
+  loader; Windows x64 cross build (Ubuntu's mingw-w64 13.2 `-win32` variant, nasm 2.16) about
+  4.6 min plus 2 s, `ffmpeg.exe` 29.3 MB and `ffprobe.exe` 29.1 MB, importing only
+  `bcrypt.dll`, `KERNEL32.dll`, `msvcrt.dll` and `SHELL32.dll`. Run on Windows 11 (build
+  26200, through WSL interop), the Windows programs pass `verify` and extract the cues of the
+  zlib-compressed fixture. CI runners have 3 to 4 cores, so a cache miss costs roughly 10 to 15
+  minutes per platform [I]. The macOS builds were not run locally (no Mac); their CI legs prove
+  them.
+- [V] AlmaLinux 9 (the manylinux_2_34 image) has `nasm` 2.15 in its CRB repository and
+  `pkgconf-pkg-config` in BaseOS (https://repo.almalinux.org/almalinux/9/).
 - [I] Windows builds are commonly cross-compiled on Linux with mingw-w64
   (`--target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-`); x86 assembly needs `nasm`.
-- [I] A mingw-w64 build links the GCC runtime dynamically by default: with POSIX threads it
-  needs `libwinpthread-1.dll`, and some toolchains `libgcc_s_seh-1.dll`. `-static` in the
-  link flags (FFmpeg: `--extra-ldflags=-static`) links them in; `--enable-w32threads` uses
-  Windows' own threads, so `libwinpthread` is not needed at all.
-- [I] `--disable-autodetect` turns off every automatically detected external library,
-  including zlib and the thread libraries (pthreads, w32threads); they must be enabled
-  explicitly (`--enable-zlib`, `--enable-pthreads` / `--enable-w32threads`). Without threads,
-  configure may drop the `ffmpeg` program, which needs a thread library. To verify against the
-  pinned release's `configure` in M8.2.
-- [I] Matroska tracks can be zlib-compressed (the ContentCompression element); files muxed
-  by older mkvmerge versions often have zlib-compressed text subtitle tracks (whether a given
-  version compresses by default is not verified). FFmpeg's demuxer decompresses them only when
-  built with zlib; its Matroska muxer does not write compressed tracks, so a test fixture has
-  to come from mkvmerge (`mkvmerge --compression <track>:zlib`).
+- [V] With `--extra-ldflags=-static` and `--enable-w32threads` the mingw-w64 build needs no
+  mingw runtime DLL (see the measured import list above). [I] Without `-static` a mingw-w64
+  build links the GCC runtime dynamically (`libgcc_s_seh-1.dll`, and `libwinpthread-1.dll`
+  with POSIX threads).
 - [I] macOS ships `libz` in `/usr/lib` (in the dyld shared cache) on every version; there is
   no static system copy, so a macOS build links the system's.
 - [I] BtbN's automated builds are rolling: old assets are removed, so a pinned URL does not

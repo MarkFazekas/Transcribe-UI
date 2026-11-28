@@ -1,0 +1,272 @@
+"""Build the static LGPL ffmpeg and ffprobe the desktop app bundles (docs/ai/plans/m8.md §1 "ffmpeg").
+
+Usage, from the repository root (standard library only; `curl`, `make` and a C toolchain on `PATH`):
+
+    uv run --no-project scripts/build_ffmpeg.py pins --platform <tag>  # key, image, packages for $GITHUB_OUTPUT
+    uv run --no-project scripts/build_ffmpeg.py build [--platform <tag>] [--out DIR] [--work DIR]
+    uv run --no-project scripts/build_ffmpeg.py verify [--platform <tag>] [--first-on-path] DIR
+    uv run --no-project scripts/build_ffmpeg.py configuration           # sources and configure lines (JSON)
+
+`<tag>` is a release platform (`windows-x64`, `macos-arm64`, `macos-x64`, `linux-x64`; default:
+this machine's); `build` refuses a platform this machine cannot build (Windows only on Linux,
+every other platform only on itself). `build` downloads the pinned sources (`build_ffmpeg_pins.py`) and checks their
+SHA-256, builds zlib statically (not on macOS, which uses the system's), configures FFmpeg with
+the platform's line and builds it, checks the build tree's configure result and the libraries
+both programs load (`build_ffmpeg_checks.py`), and writes `ffmpeg`, `ffprobe` (`.exe` on
+Windows), the licences and `ffmpeg-build.json` (sources and configure line) to `--out` (default
+`build/ffmpeg/dist`, which `scripts/build_desktop.py` bundles). Windows is cross-compiled on
+Linux with mingw-w64 (`x86_64-w64-mingw32-gcc`, Windows threads); the x86 builds need `nasm`.
+`verify` runs a build's programs: `-buildconf` must equal the platform's configure line and `-L`
+must report LGPL 2.1 or later; with `--first-on-path`, `PATH` must find both programs in DIR.
+The cache key hashes every `build_ffmpeg*.py` and the pinned inputs the workflow reads through
+`pins` (salt, build image, packages), so any change to the build, its checks or its tools
+rebuilds.
+"""
+
+import argparse
+import hashlib
+import json
+import platform
+import shutil
+import sys
+import time
+from collections.abc import Sequence
+from pathlib import Path
+
+from build_ffmpeg_checks import buildconf_arguments, buildconf_problems, licence_problems
+from build_ffmpeg_fetch import fetch
+from build_ffmpeg_pins import (
+    BUILD_PACKAGES,
+    FFMPEG,
+    MANYLINUX_IMAGE,
+    PLATFORMS,
+    PROGRAMS,
+    WINDOWS,
+    ZLIB,
+    Platform,
+    build_info,
+    configure_arguments,
+    executable,
+    sources,
+    uses_bundled_zlib,
+)
+from build_ffmpeg_steps import (
+    Unpacked,
+    Work,
+    build_ffmpeg,
+    build_zlib,
+    check_build_tree,
+    missing_tools,
+    out_problem,
+    output_of,
+    publish,
+    unpack,
+)
+from build_platform import host_tag, platform_tag
+
+# Folder of the scripts.
+SCRIPTS_DIR = Path(__file__).resolve().parent
+# Root of the repository.
+REPO_ROOT = SCRIPTS_DIR.parent
+# The files whose content decides the build and its checks (every one it imports); the cache key hashes them.
+KEYED_FILES = (*sorted(SCRIPTS_DIR.glob("build_ffmpeg*.py")), SCRIPTS_DIR / "build_platform.py")
+# Characters of the files' hash in the cache key.
+KEY_HASH_LENGTH = 16
+# Default folder of the built programs (the cached folder).
+DEFAULT_OUT = REPO_ROOT / "build" / "ffmpeg" / "dist"
+# Default work folder (downloads, sources, the zlib install, the build tree).
+DEFAULT_WORK = REPO_ROOT / "build" / "ffmpeg" / "work"
+# Bytes in a megabyte, for the report.
+MEGABYTE = 1_000_000
+
+
+def cache_key(target: Platform, files: Sequence[Path] = KEYED_FILES) -> str:
+    """Return the cache key of a platform's build: FFmpeg's version, the platform and a hash of the build files.
+
+    The files include `build_ffmpeg_pins.py`, so the pinned inputs the workflow reads through
+    `pins` (the salt, the build image, the packages it installs) are covered too.
+    """
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.read_bytes())
+    short = digest.hexdigest()[:KEY_HASH_LENGTH]
+    return f"ffmpeg-{FFMPEG.version}-{target}-{short}"
+
+
+def pins_output(target: Platform) -> str:
+    """Return the `$GITHUB_OUTPUT` lines of a platform's build: its cache key, the build image and its packages."""
+    key = cache_key(target)
+    packages = " ".join(BUILD_PACKAGES[target])
+    return f"key={key}\nimage={MANYLINUX_IMAGE}\npackages={packages}\n"
+
+
+def _check_before_build(target: Platform, work: Work) -> None:
+    """Refuse a build whose out folder holds other files or whose tools are missing, before anything runs."""
+    refused = out_problem(work.out)
+    if refused is not None:
+        raise RuntimeError(refused)
+    missing = missing_tools(target)
+    if missing:
+        msg = f"the {target} build needs {', '.join(missing)} on PATH"
+        raise RuntimeError(msg)
+
+
+def build(target: Platform, work: Work) -> dict[str, float]:
+    """Build both programs for the platform into `work.out`; return the seconds of the zlib and FFmpeg builds.
+
+    Raises:
+        RuntimeError: A tool is missing, a step failed, or the build breaks the allow-list.
+    """
+    _check_before_build(target, work)
+    unpacked = {}
+    for source in sources(target):
+        fetched = fetch(source, work.downloads)
+        folder = unpack(fetched.archive, source, work.sources)
+        unpacked[source.name] = Unpacked(folder, fetched.served_from)
+    timings: dict[str, float] = {}
+    started = time.monotonic()
+    if uses_bundled_zlib(target):
+        build_zlib(unpacked[ZLIB.name].folder, target, work.zlib_prefix)
+        timings["zlib"] = time.monotonic() - started
+    started = time.monotonic()
+    build_ffmpeg(unpacked[FFMPEG.name].folder, target, work)
+    timings["ffmpeg"] = time.monotonic() - started
+    problems = check_build_tree(unpacked[FFMPEG.name].folder, target, work)
+    if problems:
+        raise RuntimeError("\n".join(problems))
+    publish(unpacked, target, work.out, work.tree)
+    return timings
+
+
+def _program_problems(path: Path, target: Platform) -> list[str]:
+    """Return how one built program's `-buildconf` and `-L` differ from what the platform's build must show."""
+    try:
+        shown = output_of([str(path), "-hide_banner", "-buildconf"])
+        licence = output_of([str(path), "-hide_banner", "-L"])
+    except RuntimeError as error:
+        return [str(error)]
+    arguments = buildconf_arguments(shown.stdout + shown.stderr)
+    problems = buildconf_problems(path.name, arguments, configure_arguments(target))
+    problems.extend(licence_problems(path.name, licence.stdout))
+    return problems
+
+
+def verify(target: Platform, folder: Path, *, first_on_path: bool) -> list[str]:
+    """Run the built programs: `-buildconf` equals the platform's configure line, `-L` reports LGPL 2.1+."""
+    problems: list[str] = []
+    for program in PROGRAMS:
+        path = folder / executable(program, target)
+        if not path.is_file():
+            problems.append(f"missing {path}")
+            continue
+        problems.extend(_program_problems(path, target))
+        found = shutil.which(program)
+        if first_on_path and (found is None or not path.samefile(found)):
+            problems.append(f"PATH finds {found} for {program}, not {path}")
+    return problems
+
+
+def report(target: Platform, out: Path, timings: dict[str, float]) -> str:
+    """Return the line that states the build: its programs' sizes and the seconds of each step."""
+    parts = [_size(out / executable(program, target)) for program in PROGRAMS]
+    for title, seconds in timings.items():
+        parts.append(f"{title} build {seconds:.0f} s")
+    built = f"Built FFmpeg {FFMPEG.version} for {target} into {out}"
+    return f"{built}: {', '.join(parts)}\n"
+
+
+def _size(path: Path) -> str:
+    megabytes = path.stat().st_size / MEGABYTE
+    return f"{path.name} {megabytes:.1f} MB"
+
+
+def build_host_problem(target: Platform, system: str, machine: str) -> str | None:
+    """Return why a machine (`sys.platform`, `platform.machine()`) cannot build the platform, or None.
+
+    The Windows build is cross-compiled on Linux; every other platform builds on itself.
+    """
+    if target == WINDOWS:
+        return None if system == "linux" else f"the {target} build is cross-compiled on Linux, not {system}"
+    try:
+        tag = platform_tag(system, machine)
+    except ValueError:
+        tag = f"{system} {machine}"
+    return None if tag == target else f"the {target} build runs only on {target}, not {tag}"
+
+
+def host_platform() -> Platform:
+    """Return this machine's release platform.
+
+    Raises:
+        ValueError: It is not one the release builds for.
+    """
+    tag = host_tag()
+    for target in PLATFORMS:
+        if target == tag:
+            return target
+    msg = f"no ffmpeg build for {tag}"
+    raise ValueError(msg)
+
+
+def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse the command line."""
+    parser = argparse.ArgumentParser(description="Build the static LGPL ffmpeg and ffprobe of the desktop app.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("configuration", help="print the sources and configure line of every platform (JSON)")
+    key = commands.add_parser("pins", help="print the cache key, build image and packages of a platform's build")
+    build_command = commands.add_parser("build", help="build both programs")
+    verify_command = commands.add_parser("verify", help="run a build's programs")
+    for command in (key, build_command, verify_command):
+        command.add_argument("--platform", choices=PLATFORMS, help="the release platform (default: this machine's)")
+    build_command.add_argument("--out", type=Path, default=DEFAULT_OUT, help="folder of the programs")
+    build_command.add_argument("--work", type=Path, default=DEFAULT_WORK, help="work folder")
+    verify_command.add_argument("folder", type=Path, help="folder of the programs")
+    verify_command.add_argument("--first-on-path", action="store_true", help="PATH must find both programs there")
+    return parser.parse_args(argv)
+
+
+def _build_command(target: Platform, args: argparse.Namespace) -> int:
+    refused = build_host_problem(target, sys.platform, platform.machine())
+    if refused is not None:
+        sys.stderr.write(f"{refused}\n")
+        return 2
+    work = Work(args.work.resolve(), args.out.resolve())
+    try:
+        timings = build(target, work)
+    except (RuntimeError, OSError) as error:
+        sys.stderr.write(f"{error}\n")
+        return 1
+    sys.stdout.write(report(target, work.out, timings))
+    return 0
+
+
+def _verify_command(target: Platform, args: argparse.Namespace) -> int:
+    folder = args.folder.resolve()
+    problems = verify(target, folder, first_on_path=args.first_on_path)
+    for problem in problems:
+        sys.stderr.write(f"{problem}\n")
+    if problems:
+        return 1
+    sys.stdout.write(f"ffmpeg and ffprobe in {folder} are the LGPL build of {target}\n")
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command; return the exit code."""
+    args = parse_arguments(argv)
+    if args.command == "configuration":
+        every = {target: build_info(target) for target in PLATFORMS}
+        sys.stdout.write(f"{json.dumps(every, indent=2)}\n")
+        return 0
+    target: Platform = args.platform or host_platform()
+    if args.command == "pins":
+        # Bytes, so Windows does not end the lines with a carriage return (they go to `$GITHUB_OUTPUT`).
+        sys.stdout.buffer.write(pins_output(target).encode())
+        return 0
+    if args.command == "build":
+        return _build_command(target, args)
+    return _verify_command(target, args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
