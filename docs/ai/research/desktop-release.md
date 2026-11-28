@@ -91,11 +91,11 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   explicitly (`--enable-zlib`, `--enable-pthreads` / `--enable-w32threads`). Without threads,
   configure may drop the `ffmpeg` program, which needs a thread library. To verify against the
   pinned release's `configure` in M8.2.
-- [I] Matroska tracks can be zlib-compressed (the ContentCompression element); mkvmerge
-  compresses text subtitle tracks with zlib by default, so such files are common. FFmpeg's
-  demuxer decompresses them only when built with zlib; its Matroska muxer does not write
-  compressed tracks, so a test fixture has to come from mkvmerge
-  (`mkvmerge --compression <track>:zlib`).
+- [I] Matroska tracks can be zlib-compressed (the ContentCompression element); files muxed
+  by older mkvmerge versions often have zlib-compressed text subtitle tracks (whether a given
+  version compresses by default is not verified). FFmpeg's demuxer decompresses them only when
+  built with zlib; its Matroska muxer does not write compressed tracks, so a test fixture has
+  to come from mkvmerge (`mkvmerge --compression <track>:zlib`).
 - [I] macOS ships `libz` in `/usr/lib` (in the dyld shared cache) on every version; there is
   no static system copy, so a macOS build links the system's.
 - [I] BtbN's automated builds are rolling: old assets are removed, so a pinned URL does not
