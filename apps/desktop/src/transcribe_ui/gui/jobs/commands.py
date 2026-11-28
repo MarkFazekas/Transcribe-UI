@@ -13,11 +13,18 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, NeedsConfirmation, Request, Response
-from transcribe_ui.api.constants import ERROR_INTERNAL
+from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Request, Response
 from transcribe_ui.batches.classes import DeleteBatchRequest, SetBatchHiddenRequest, StartReviewRequest
+from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor
-from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, confirmation_view, confirmed_request, error_view
+from transcribe_ui.gui.feedback import (
+    ConfirmationView,
+    ErrorView,
+    confirmation_mismatch,
+    confirmation_view,
+    confirmed_request,
+    error_view,
+)
 from transcribe_ui.gui.jobs import constants
 
 logger = logging.getLogger(__name__)
@@ -37,11 +44,6 @@ class JobOutlet(Protocol):
 
     def show_error(self, view: ErrorView, retry: Callable[[], object] | None) -> None:
         """Show an error of an action; `retry` re-sends it (the `app_busy` fix)."""
-
-
-def _internal_error(request: Request) -> ErrorView:
-    body = ErrorBody(code=ERROR_INTERNAL, message="The confirmation does not fit the request.")
-    return error_view(ErrorResponse(action=request.action, error=body))
 
 
 class JobCommands:
@@ -84,18 +86,18 @@ class JobCommands:
             confirmed = confirmed_request(request, asked)
         except ValidationError:
             logger.exception("The confirmation of %s does not fit the request", request.action)
-            self._outlet.show_error(_internal_error(request), None)
+            self._outlet.show_error(confirmation_mismatch(request), None)
             return
         self.send(batch_id, confirmed, on_success)
 
     def _changed(self, batch_id: str, _response: Response) -> None:
-        self._outlet.emit(constants.BATCHES_CHANGED_SIGNAL, (batch_id,))
+        self._outlet.emit(BATCHES_CHANGED_SIGNAL, (batch_id,))
 
     def _deleted(self, batch_id: str, _response: Response) -> None:
         # Back to the list first, so the closed job page does not reload the deleted job.
         self._outlet.emit(constants.OPEN_JOBS_SIGNAL)
-        self._outlet.emit(constants.BATCHES_CHANGED_SIGNAL, (batch_id,))
+        self._outlet.emit(BATCHES_CHANGED_SIGNAL, (batch_id,))
 
     def _review_started(self, batch_id: str, _response: Response) -> None:
-        self._outlet.emit(constants.BATCHES_CHANGED_SIGNAL, (batch_id,))
+        self._outlet.emit(BATCHES_CHANGED_SIGNAL, (batch_id,))
         self._outlet.emit(constants.OPEN_REVIEW_SIGNAL, batch_id)

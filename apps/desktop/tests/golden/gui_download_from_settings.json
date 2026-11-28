@@ -1,0 +1,21 @@
+[
+  {
+    "action": "get_settings"
+  },
+  {
+    "action": "get_batch",
+    "batch_id": "batch_20261127_130000"
+  },
+  {
+    "action": "plan_download",
+    "batch_id": "batch_20261127_130000",
+    "placement": {
+      "overwrite": true,
+      "include_empty": false,
+      "strategy": "flat_with_folders",
+      "output_folder": "<root>/out",
+      "folder_count": 2,
+      "folder_levels": []
+    }
+  }
+]

@@ -14,15 +14,15 @@ from functools import partial
 
 from pydantic import ValidationError
 
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, NeedsConfirmation, Request, Response
-from transcribe_ui.api.constants import ERROR_CANCELLED, ERROR_INTERNAL
+from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Request, Response
+from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor
 from transcribe_ui.gui.feedback import (
     ConfirmationItem,
     ConfirmationView,
     Details,
-    ErrorView,
+    confirmation_mismatch,
     confirmation_view,
     confirmed_request,
     error_view,
@@ -32,12 +32,6 @@ logger = logging.getLogger(__name__)
 
 # Called with the final answer of a request: its success, or its error.
 type Finished = Callable[[Response], None]
-
-
-def internal_error(request: Request) -> ErrorView:
-    """Return the `internal_error` shown when a confirmation does not fit its request (a backend bug)."""
-    body = ErrorBody(code=ERROR_INTERNAL, message="The confirmation does not fit the request.")
-    return error_view(ErrorResponse(action=request.action, error=body))
 
 
 def _question(response: NeedsConfirmation) -> ConfirmationView:
@@ -83,6 +77,6 @@ class CloudCommands:
             confirmed = confirmed_request(request, asked)
         except ValidationError:
             logger.exception("The confirmation of %s does not fit the request", request.action)
-            self._outlet.show_error(internal_error(request), None)
+            self._outlet.show_error(confirmation_mismatch(request), None)
             return
         self.send(key, confirmed, on_finished)

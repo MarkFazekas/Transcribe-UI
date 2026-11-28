@@ -145,6 +145,8 @@ PAGES: Final = (
     (PAGE_CLOUD, True),
     (PAGE_SETTINGS, False),
 )
+# Bus signal that tells the pages that batches changed (a tuple of batch ids; empty: any batch).
+BATCHES_CHANGED_SIGNAL: Final = "batches_changed"
 # How long a status bar message stays, in milliseconds.
 STATUS_MESSAGE_MS: Final = 5000
 

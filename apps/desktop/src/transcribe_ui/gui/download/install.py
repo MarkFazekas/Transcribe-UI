@@ -1,0 +1,139 @@
+"""Puts the download dialog into the window: the handler of `open_download` and the reload on `batches_changed`."""
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import QObject, Qt, QTimer
+
+from transcribe_ui.gui.dialogs import ConfirmationDialog
+from transcribe_ui.gui.download.chooser import FileChooser, QtFileChooser
+from transcribe_ui.gui.download.constants import OPEN_DOWNLOAD_SIGNAL, PLAN_DELAY_MS
+from transcribe_ui.gui.download.view import DownloadDialog
+from transcribe_ui.gui.download.viewmodel import DownloadModel
+from transcribe_ui.gui.feedback import ConfirmationView, ErrorView
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QWidget
+
+    from transcribe_ui.gui.shell import MainWindow
+
+
+class DialogOutlet:
+    """A download dialog's outlet in the window: the bus, and confirmations over the dialog."""
+
+    def __init__(self, window: "MainWindow") -> None:
+        """Emit on `window`'s bus; errors open its error dialog."""
+        self._window = window
+        # The dialog the confirmations open over (set once it is built).
+        self.parent: QWidget | None = None
+        # The confirmation asked last (kept for tests).
+        self.dialog: ConfirmationDialog | None = None
+
+    def emit(self, signal_name: str, *arguments: object) -> None:
+        """Emit the bus signal `signal_name` with `arguments`."""
+        getattr(self._window.context.signals, signal_name).emit(*arguments)
+
+    def confirm(self, view: ConfirmationView, on_confirm: Callable[[], None]) -> None:
+        """Ask over the download dialog (shown again if it was closed); Confirm calls `on_confirm`."""
+        self.show_dialog(activate=True)
+        dialog = ConfirmationDialog(view, self.parent or self._window)
+        # Deleted once answered (one per question).
+        dialog.finished.connect(dialog.deleteLater)
+        dialog.accepted.connect(on_confirm)
+        self.dialog = dialog
+        dialog.open()
+
+    def show_error(self, view: ErrorView, retry: Callable[[], object] | None) -> None:
+        """Open the window's error dialog over the download dialog (its fix buttons open pages, Retry calls `retry`)."""
+        self._window.show_error(view, retry, self.parent)
+
+    def show_dialog(self, *, activate: bool = False) -> None:
+        """Show the download dialog again if it was closed, raised; `activate` also gives it the focus.
+
+        Without `activate` it asks Qt to show it without activating it (`WA_ShowWithoutActivating`);
+        whether a window shown before honours that depends on the platform, so it may still take
+        the focus.
+        """
+        parent = self.parent
+        if parent is None:
+            return
+        parent.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, not activate)
+        parent.show()
+        parent.raise_()
+        parent.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, on=False)
+        if activate:
+            parent.activateWindow()
+
+
+class QtDeferral:
+    """The `Deferral` of the download dialog: a single-shot Qt timer of `PLAN_DELAY_MS`."""
+
+    def __init__(self, parent: QObject) -> None:
+        """Run the timer on the GUI thread, owned by `parent`."""
+        self._timer = QTimer(parent)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(PLAN_DELAY_MS)
+        self._timer.timeout.connect(self._fire)
+        self._callback: Callable[[], None] | None = None
+
+    def call_later(self, callback: Callable[[], None]) -> None:
+        """Call `callback` after the delay (a pending call is replaced and its delay starts again)."""
+        self._callback = callback
+        self._timer.start()
+
+    def cancel(self) -> None:
+        """Drop the pending call, if any."""
+        self._timer.stop()
+        self._callback = None
+
+    def _fire(self) -> None:
+        callback = self._callback
+        self._callback = None
+        if callback is not None:
+            callback()
+
+
+class DownloadArea(QObject):
+    """The download dialogs of the window, one per job, kept so a dialog reopens with the user's choices."""
+
+    def __init__(self, window: "MainWindow", chooser: FileChooser) -> None:
+        """Open dialogs over `window`; their file dialogs come from `chooser`."""
+        super().__init__(window)
+        self._window = window
+        # Asks for folders and files (tests answer it).
+        self.chooser = chooser
+        self.dialogs: dict[str, DownloadDialog] = {}
+
+    def open_download(self, batch_id: str) -> DownloadDialog:
+        """Show the job's download dialog (built on first use) and load its plan."""
+        dialog = self.dialogs.get(batch_id)
+        if dialog is None:
+            dialog = self._build(batch_id)
+            self.dialogs[batch_id] = dialog
+        dialog.model.on_open()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        return dialog
+
+    def on_batches_changed(self, batch_ids: object) -> None:
+        """Reload the open dialogs of the jobs that changed."""
+        for dialog in self.dialogs.values():
+            if dialog.isVisible():
+                dialog.model.on_batches_changed(batch_ids)
+
+    def _build(self, batch_id: str) -> DownloadDialog:
+        context = self._window.context
+        outlet = DialogOutlet(self._window)
+        model = DownloadModel(context.executor, context.activity, outlet, batch_id, QtDeferral(self))
+        dialog = DownloadDialog(model, self.chooser, self._window)
+        outlet.parent = dialog
+        return dialog
+
+
+def install_download(window: "MainWindow", chooser: FileChooser | None = None) -> DownloadArea:
+    """Handle `open_download` with the download dialog and reload open dialogs on `batches_changed`."""
+    area = DownloadArea(window, QtFileChooser() if chooser is None else chooser)
+    window.connect_handler(OPEN_DOWNLOAD_SIGNAL, area.open_download)
+    window.context.signals.batches_changed.connect(area.on_batches_changed)
+    return area

@@ -5,7 +5,6 @@ scan root and the options), so it does not depend on the batch model; `plan_down
 them from a batch.
 """
 
-from pathlib import Path
 from typing import Annotated, Literal, Self
 
 from pydantic import AfterValidator, Field, JsonValue, NonNegativeInt, PositiveInt, model_validator
@@ -14,6 +13,7 @@ from transcribe_contracts.classes import BatchId, LanguageCode, Ulid
 from transcribe_ui.api.base import FrozenModel, LocalPath
 from transcribe_ui.batches.responses import BatchSummary, OkResponse
 from transcribe_ui.placement.constants import CUSTOM_PLAN_VERSION, DEFAULT_FOLDER_COUNT
+from transcribe_ui.placement.validators import check_absolute_file
 
 # How a download places its subtitles (§3.5 strategies 1-4; custom plans are imported instead);
 # also what the placement settings pre-fill a download with (`api.classes.PlacementDefaults`).
@@ -179,17 +179,8 @@ class CustomPlan(FrozenModel):
     entries: tuple[CustomPlanEntry, ...]
 
 
-def _check_absolute(path: str) -> str:
-    # The file is read or written on this computer, so its rule decides (a relative path would
-    # depend on the working folder of the frontend).
-    if not Path(path).is_absolute():
-        msg = "the path must be absolute"
-        raise ValueError(msg)
-    return path
-
-
 # An absolute path of a file on this computer.
-type AbsoluteFile = Annotated[LocalPath, AfterValidator(_check_absolute)]
+type AbsoluteFile = Annotated[LocalPath, AfterValidator(check_absolute_file)]
 
 
 class PlanDownloadRequest(FrozenModel):
@@ -267,12 +258,26 @@ class DownloadOutcome(FrozenModel):
     not_finished: NonNegativeInt
 
 
+class FolderLevel(FrozenModel):
+    """A folder level below the batch's scan root, as `flat_with_folders` counts it in `folder_levels`."""
+
+    # 1 = the first folder below the scan root.
+    level: PositiveInt
+    # Some of the level's folder names, sorted (at most `FOLDER_LEVEL_NAMES`), to tell the levels apart.
+    names: tuple[str, ...]
+    # How many different folder names the level has.
+    folders: PositiveInt
+
+
 class PlanDownloadResponse(OkResponse):
     """The batch and the plan of placing its subtitles; nothing was written."""
 
     action: Literal["plan_download"] = "plan_download"
     batch: BatchSummary
     plan: PlacementPlan
+    # The folder levels the batch's files have below its scan root, whatever the strategy, so a
+    # frontend can offer them as `folder_levels` choices.
+    folder_levels: tuple[FolderLevel, ...]
 
 
 class RunDownloadResponse(OkResponse):

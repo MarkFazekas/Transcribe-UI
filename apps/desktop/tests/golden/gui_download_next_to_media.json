@@ -1,0 +1,50 @@
+[
+  {
+    "action": "get_settings"
+  },
+  {
+    "action": "get_batch",
+    "batch_id": "batch_20261127_130000"
+  },
+  {
+    "action": "plan_download",
+    "batch_id": "batch_20261127_130000",
+    "placement": {
+      "overwrite": false,
+      "include_empty": false,
+      "strategy": "next_to_media",
+      "output_folder": null,
+      "folder_count": 1,
+      "folder_levels": []
+    }
+  },
+  {
+    "action": "run_download",
+    "batch_id": "batch_20261127_130000",
+    "placement": {
+      "overwrite": false,
+      "include_empty": false,
+      "strategy": "next_to_media",
+      "output_folder": null,
+      "folder_count": 1,
+      "folder_levels": []
+    },
+    "confirm_overwrite": false
+  },
+  {
+    "action": "get_batch",
+    "batch_id": "batch_20261127_130000"
+  },
+  {
+    "action": "plan_download",
+    "batch_id": "batch_20261127_130000",
+    "placement": {
+      "overwrite": false,
+      "include_empty": false,
+      "strategy": "next_to_media",
+      "output_folder": null,
+      "folder_count": 1,
+      "folder_levels": []
+    }
+  }
+]

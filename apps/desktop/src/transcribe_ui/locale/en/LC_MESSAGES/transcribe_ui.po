@@ -135,6 +135,10 @@ msgid ""
 "and its description."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Also place empty subtitles (no speech was found)"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "An audio file is uploaded as it is; it takes no track choice."
 msgstr ""
@@ -196,12 +200,17 @@ msgid "Browse..."
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Cancel"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Check"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Check again"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -247,6 +256,10 @@ msgstr ""
 msgid "Choose a folder, then tick the files to transcribe."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/form.py
+msgid "Choose at least one folder level."
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Choose at least one language to transcribe into."
 msgstr ""
@@ -267,8 +280,13 @@ msgstr ""
 msgid "Choose the ffprobe program"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/chooser.py
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Choose the output folder"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/form.py
+msgid "Choose the output folder."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -279,6 +297,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the subtitle stream to extract."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Choose…"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/widgets.py
@@ -360,6 +382,10 @@ msgstr ""
 msgid "Cost so far"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Could not be placed"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Could not be started"
 msgstr ""
@@ -382,6 +408,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Current run"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Custom plan (a JSON file you edit)"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
@@ -413,6 +443,7 @@ msgid "Detail"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
+#: src/transcribe_ui/gui/download/results.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr ""
@@ -429,12 +460,23 @@ msgstr ""
 msgid "Done; the cloud machine is stopping"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/download/view.py src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/i18n/state_texts.py
 msgid "Download"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Download defaults"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/running.py
+#, python-brace-format
+msgid "Download of job {batch_id}"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/view.py
+#, python-brace-format
+msgid "Download subtitles of job {batch_id}"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -484,6 +526,14 @@ msgstr ""
 msgid "Estimated cost: {low} to {high} ({price} per hour)."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Export plan…"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/form.py
+msgid "Export the plan, fill in each output folder and file name, then import it."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Extensions without the dot, separated by spaces."
 msgstr ""
@@ -497,7 +547,8 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
-#: src/transcribe_ui/gui/cloud/run_panel.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
 msgid "File"
 msgstr ""
 
@@ -553,8 +604,16 @@ msgstr ""
 msgid "Fix the marked fields, then save again."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Folder"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Folder names in the file name"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Folder names in the file names:"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -590,6 +649,19 @@ msgstr ""
 msgid "Hide"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Import plan…"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/chooser.py
+msgid "Import the custom plan"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/state.py
+#, python-brace-format
+msgid "Imported plan: {path}"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "In an output folder, mirroring the folders"
 msgstr ""
@@ -600,6 +672,22 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Include hidden and system files and folders"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Into a folder, keeping the folder structure"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Into one folder"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Into one folder, with folder names in the file names"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/chooser.py
+msgid "JSON files (*.json)"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
@@ -626,7 +714,8 @@ msgstr ""
 msgid "Kind"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Language"
@@ -649,6 +738,11 @@ msgstr ""
 msgid "Last check"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "Last download: {parts}."
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/poll.py
 #, python-brace-format
 msgid "Last updated {time}; retrying at the next check."
@@ -664,6 +758,16 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Left over"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "Level {level}: {names}"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "Level {level}: {names} and {more} more"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -708,6 +812,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Next to the media file"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Next to the original files"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/display.py
@@ -758,12 +866,24 @@ msgstr ""
 msgid "Not chosen"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/display.py
+msgid "Not finished yet"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Not set"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Note"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Notes"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/results.py
+msgid "Nothing can be downloaded until these are fixed:"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/display.py
@@ -831,6 +951,10 @@ msgstr ""
 msgid "Output folder"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Output folder:"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "Path"
@@ -844,6 +968,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Place subtitles"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Place the subtitles:"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -942,6 +1070,7 @@ msgstr ""
 msgid "Repeat cleanup"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/panels.py
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Replace existing subtitle files"
 msgstr ""
@@ -967,6 +1096,7 @@ msgid "Restore defaults"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Resume"
 msgstr ""
 
@@ -1085,6 +1215,10 @@ msgstr ""
 msgid "Save selection"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/chooser.py
+msgid "Save the custom plan"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/accounts.py
 #: src/transcribe_ui/gui/settings/viewmodel.py
 msgid "Saved."
@@ -1164,6 +1298,22 @@ msgstr ""
 
 #: src/transcribe_ui/gui/selection/models.py
 msgid "Size"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: no speech was found"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: the file already exists"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: the original folder was not found"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: the transcription failed"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -1349,6 +1499,10 @@ msgstr ""
 msgid "Stored in the keyring"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Subtitle file"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/models.py
 msgid "Subtitles it has"
 msgstr ""
@@ -1441,6 +1595,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "The bundled program"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "The closest folders:"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -1798,6 +1956,13 @@ msgstr ""
 msgid "The plan lists {item_id} ({language}), which is not part of this download."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/state.py
+#, python-brace-format
+msgid ""
+"The plan was saved to {path}. Fill in output_folder and output_file_name,"
+" then import it."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The request file cannot be read: {reason}."
@@ -1860,6 +2025,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "There is nothing to transcribe, so no cloud machine was started."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "These folder levels, counted from the scanned folder:"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
@@ -1987,6 +2156,10 @@ msgstr ""
 msgid "Updated {time}"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/state.py
+msgid "Updating the plan…"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Updating the selection…"
 msgstr ""
@@ -2075,6 +2248,10 @@ msgstr ""
 msgid "Warnings ({count})"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "What happens"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Whether Runpod created this run's cloud machine is not known yet, so it "
@@ -2085,6 +2262,14 @@ msgstr ""
 msgid ""
 "Whether a cloud run is active cannot be checked, so nothing was started "
 "or published; try again later."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Will be placed"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Will replace the existing file"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/languages_view.py
@@ -2225,6 +2410,13 @@ msgstr ""
 msgid "{amount} USD"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} could not be placed"
+msgid_plural "{count} could not be placed"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
 msgid "{count} duplicate removed."
@@ -2246,10 +2438,24 @@ msgid_plural "{count} files selected ({video} video, {audio} audio), {size}."
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} file will be replaced"
+msgid_plural "{count} files will be replaced"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 #, python-brace-format
 msgid "{count} job"
 msgid_plural "{count} jobs"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} not finished yet"
+msgid_plural "{count} not finished yet"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -2260,10 +2466,31 @@ msgid_plural "{count} selected files already have a subtitle in a target languag
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} skipped"
+msgid_plural "{count} skipped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} subtitle will be placed"
+msgid_plural "{count} subtitles will be placed"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 #, python-brace-format
 msgid "{count} transcription"
 msgid_plural "{count} transcriptions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} written"
+msgid_plural "{count} written"
 msgstr[0] ""
 msgstr[1] ""
 

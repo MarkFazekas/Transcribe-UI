@@ -16,14 +16,21 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from transcribe_ui.api.classes import ErrorBody, ErrorResponse, NeedsConfirmation, Request, Response
-from transcribe_ui.api.constants import ERROR_INTERNAL
+from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Response
 from transcribe_ui.batches.classes import CreateBatchRequest, EditBatchRequest, ItemLanguages
 from transcribe_ui.batches.responses import BatchDetail, BatchStage, CreateBatchResponse, EditBatchResponse
 from transcribe_ui.discovery.classes import SelectionOperation
+from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor
-from transcribe_ui.gui.feedback import ConfirmationView, ErrorView, confirmation_view, confirmed_request, error_view
-from transcribe_ui.gui.selection.constants import BATCHES_CHANGED_SIGNAL, OPEN_JOB_SIGNAL, SAVE_KEY
+from transcribe_ui.gui.feedback import (
+    ConfirmationView,
+    ErrorView,
+    confirmation_mismatch,
+    confirmation_view,
+    confirmed_request,
+    error_view,
+)
+from transcribe_ui.gui.selection.constants import OPEN_JOB_SIGNAL, SAVE_KEY
 from transcribe_ui.gui.selection.tree import Scanned
 
 logger = logging.getLogger(__name__)
@@ -79,11 +86,6 @@ def save_request(draft: Draft, editing: EditTarget | None) -> SaveRequest:
     if editing is None:
         return CreateBatchRequest.model_validate({"action": "create_batch", **shared})
     return EditBatchRequest.model_validate({"action": "edit_batch", "batch_id": editing.batch_id, **shared})
-
-
-def _internal_error(request: Request) -> ErrorView:
-    body = ErrorBody(code=ERROR_INTERNAL, message="The confirmation does not fit the request.")
-    return error_view(ErrorResponse(action=request.action, error=body))
 
 
 class SaveCommands:
@@ -156,7 +158,7 @@ class SaveCommands:
             confirmed = confirmed_request(request, asked)
         except ValidationError:
             logger.exception("The confirmation of %s does not fit the request", request.action)
-            self._outlet.show_error(_internal_error(request), None)
+            self._outlet.show_error(confirmation_mismatch(request), None)
             return
         if isinstance(confirmed, CreateBatchRequest | EditBatchRequest):
             self._send(confirmed, generation)

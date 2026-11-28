@@ -69,8 +69,6 @@ OPEN_REVIEW_SIGNAL: Final = "open_review"
 OPEN_JOB_SIGNAL: Final = "open_job"
 # Signal that opens the jobs list.
 OPEN_JOBS_SIGNAL: Final = "open_jobs"
-# Signal that tells the pages that batches changed (a tuple of batch ids; empty: any batch).
-BATCHES_CHANGED_SIGNAL: Final = "batches_changed"
 # Channel key of the jobs list's loads (a new load replaces the previous one).
 LIST_KEY: Final = "jobs_list"
 # Channel key of the job page's loads.

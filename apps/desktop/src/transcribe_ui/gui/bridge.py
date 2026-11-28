@@ -19,7 +19,7 @@ from PySide6.QtCore import QDeadlineTimer, QObject, QRunnable, Qt, QThreadPool, 
 
 from transcribe_ui.api.classes import ErrorBody, ErrorResponse, ProgressEvent, Request, Response
 from transcribe_ui.api.constants import ERROR_INTERNAL, INTERNAL_ERROR_MESSAGE
-from transcribe_ui.gui.constants import ACTION_POOLS, CALL_DONE, DEFAULT_POOL, POOL_THREADS, PoolName
+from transcribe_ui.gui.constants import ACTION_POOLS, CALL_DONE, DEFAULT_POOL, POOL_THREADS, SHORT_POOL, PoolName
 from transcribe_ui.gui.executor import (
     CallHandle,
     DoneCallback,
@@ -28,6 +28,7 @@ from transcribe_ui.gui.executor import (
     RequestRunner,
     StartedCallback,
 )
+from transcribe_ui.placement.classes import ImportCustomPlanRequest
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,13 @@ type ResponseObserver = Callable[[Request, Response], None]
 def pool_of(action: str) -> PoolName:
     """Return the pool a request action runs on."""
     return ACTION_POOLS.get(action, DEFAULT_POOL)
+
+
+def pool_for(request: Request) -> PoolName:
+    """Return the pool a request runs on: its action's, except a custom plan only checked (short, it writes nothing)."""
+    if isinstance(request, ImportCustomPlanRequest) and request.check_only:
+        return SHORT_POOL
+    return pool_of(request.action)
 
 
 class _Relay(QObject):
@@ -211,7 +219,7 @@ class QtExecutor:
         on_started: StartedCallback | None = None,
     ) -> CallHandle:
         """Queue the request on its pool; after `shutdown` it completes as `cancelled` without running."""
-        pool = self._pools[pool_of(request.action)]
+        pool = self._pools[pool_for(request)]
         runnable = _CallRunnable(self._backend, self._relay, pool)
         call = PooledCall(request, runnable.take_off, self._deliver)
         runnable.call = call

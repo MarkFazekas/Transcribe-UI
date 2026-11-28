@@ -1666,6 +1666,36 @@
       "pattern": "^[a-z0-9]{1,16}$",
       "type": "string"
     },
+    "FolderLevel": {
+      "additionalProperties": false,
+      "description": "A folder level below the batch's scan root, as `flat_with_folders` counts it in `folder_levels`.",
+      "properties": {
+        "folders": {
+          "exclusiveMinimum": 0,
+          "title": "Folders",
+          "type": "integer"
+        },
+        "level": {
+          "exclusiveMinimum": 0,
+          "title": "Level",
+          "type": "integer"
+        },
+        "names": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Names",
+          "type": "array"
+        }
+      },
+      "required": [
+        "level",
+        "names",
+        "folders"
+      ],
+      "title": "FolderLevel",
+      "type": "object"
+    },
     "FolderSelection": {
       "additionalProperties": false,
       "description": "Check state of a folder with at least one selected media file below it.",
@@ -2438,6 +2468,13 @@
         "batch": {
           "$ref": "#/$defs/BatchSummary"
         },
+        "folder_levels": {
+          "items": {
+            "$ref": "#/$defs/FolderLevel"
+          },
+          "title": "Folder Levels",
+          "type": "array"
+        },
         "plan": {
           "$ref": "#/$defs/PlacementPlan"
         },
@@ -2452,7 +2489,8 @@
         "status",
         "action",
         "batch",
-        "plan"
+        "plan",
+        "folder_levels"
       ],
       "title": "PlanDownloadResponse",
       "type": "object"

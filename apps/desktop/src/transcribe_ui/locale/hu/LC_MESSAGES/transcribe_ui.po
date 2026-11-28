@@ -159,6 +159,10 @@ msgstr ""
 "A feladat minden adata törlődik a felhőből: a hang, a feliratok és a "
 "feladat leírása."
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Also place empty subtitles (no speech was found)"
+msgstr "Az üres feliratokat is elhelyezi (ahol nem volt beszéd)"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "An audio file is uploaded as it is; it takes no track choice."
 msgstr ""
@@ -228,6 +232,7 @@ msgid "Browse..."
 msgstr "Tallózás..."
 
 #: src/transcribe_ui/gui/activity_view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Cancel"
 msgstr "Megszakítás"
 
@@ -235,6 +240,10 @@ msgstr "Megszakítás"
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Check"
 msgstr "Ellenőrzés"
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Check again"
+msgstr "Újraellenőrzés"
 
 #: src/transcribe_ui/gui/settings/texts.py
 #, python-brace-format
@@ -282,6 +291,10 @@ msgstr "Válassza ki a beolvasandó mappát"
 msgid "Choose a folder, then tick the files to transcribe."
 msgstr "Válasszon mappát, majd jelölje be az átírandó fájlokat."
 
+#: src/transcribe_ui/gui/download/form.py
+msgid "Choose at least one folder level."
+msgstr "Válasszon legalább egy mappaszintet."
+
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Choose at least one language to transcribe into."
 msgstr "Válasszon legalább egy átírási nyelvet."
@@ -302,9 +315,14 @@ msgstr "Válassza ki az ffmpeg programot"
 msgid "Choose the ffprobe program"
 msgstr "Válassza ki az ffprobe programot"
 
+#: src/transcribe_ui/gui/download/chooser.py
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Choose the output folder"
 msgstr "Válassza ki a kimeneti mappát"
+
+#: src/transcribe_ui/gui/download/form.py
+msgid "Choose the output folder."
+msgstr "Válassza ki a kimeneti mappát."
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid ""
@@ -317,6 +335,10 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the subtitle stream to extract."
 msgstr "Válassza ki a kinyerendő feliratsávot."
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Choose…"
+msgstr "Tallózás…"
 
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "Clear filters"
@@ -399,6 +421,10 @@ msgstr "Költség"
 msgid "Cost so far"
 msgstr "Eddigi költség"
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Could not be placed"
+msgstr "Nem sikerült elhelyezni"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Could not be started"
 msgstr "Nem sikerült elindítani"
@@ -425,6 +451,10 @@ msgstr ""
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Current run"
 msgstr "Jelenlegi futás"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Custom plan (a JSON file you edit)"
+msgstr "Egyéni terv (egy Ön által szerkesztett JSON-fájl)"
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete"
@@ -455,6 +485,7 @@ msgid "Detail"
 msgstr "Adat"
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
+#: src/transcribe_ui/gui/download/results.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr "Részletek"
@@ -471,13 +502,24 @@ msgstr "Kész"
 msgid "Done; the cloud machine is stopping"
 msgstr "Kész; a felhőgép leáll"
 
-#: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/download/view.py src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/i18n/state_texts.py
 msgid "Download"
 msgstr "Letöltés"
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Download defaults"
 msgstr "Letöltési alapértékek"
+
+#: src/transcribe_ui/gui/download/running.py
+#, python-brace-format
+msgid "Download of job {batch_id}"
+msgstr "Feladat letöltése: {batch_id}"
+
+#: src/transcribe_ui/gui/download/view.py
+#, python-brace-format
+msgid "Download subtitles of job {batch_id}"
+msgstr "Feladat feliratainak letöltése: {batch_id}"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Downloaded"
@@ -526,6 +568,16 @@ msgstr "Adja meg az értéket"
 msgid "Estimated cost: {low} to {high} ({price} per hour)."
 msgstr "Becsült költség: {low}–{high} (óránként {price})."
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Export plan…"
+msgstr "Terv exportálása…"
+
+#: src/transcribe_ui/gui/download/form.py
+msgid "Export the plan, fill in each output folder and file name, then import it."
+msgstr ""
+"Exportálja a tervet, adja meg benne minden felirat kimeneti mappáját és "
+"fájlnevét, majd importálja."
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Extensions without the dot, separated by spaces."
 msgstr "Kiterjesztések pont nélkül, szóközzel elválasztva."
@@ -539,7 +591,8 @@ msgstr "Kinyerve"
 msgid "Failed"
 msgstr "Sikertelen"
 
-#: src/transcribe_ui/gui/cloud/run_panel.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
 msgid "File"
 msgstr "Fájl"
 
@@ -597,9 +650,17 @@ msgstr "Az aktuális lépés befejezése..."
 msgid "Fix the marked fields, then save again."
 msgstr "Javítsa a megjelölt mezőket, majd mentsen újra."
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Folder"
+msgstr "Mappa"
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Folder names in the file name"
 msgstr "Mappanevek a fájlnévben"
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Folder names in the file names:"
+msgstr "Mappanevek a fájlnevekben:"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folder names were added to tell apart files of different folders."
@@ -636,6 +697,19 @@ msgstr "Elrejtve"
 msgid "Hide"
 msgstr "Elrejtés"
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Import plan…"
+msgstr "Terv importálása…"
+
+#: src/transcribe_ui/gui/download/chooser.py
+msgid "Import the custom plan"
+msgstr "Az egyéni terv importálása"
+
+#: src/transcribe_ui/gui/download/state.py
+#, python-brace-format
+msgid "Imported plan: {path}"
+msgstr "Importált terv: {path}"
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "In an output folder, mirroring the folders"
 msgstr "Kimeneti mappába, a mappaszerkezetet követve"
@@ -647,6 +721,22 @@ msgstr "Ellenőrzés alatt"
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Include hidden and system files and folders"
 msgstr "A rejtett fájlok és mappák, valamint a rendszerfájlok bevonása"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Into a folder, keeping the folder structure"
+msgstr "Egy mappába, a mappaszerkezet megtartásával"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Into one folder"
+msgstr "Egyetlen mappába"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Into one folder, with folder names in the file names"
+msgstr "Egyetlen mappába, mappanevekkel a fájlnevekben"
+
+#: src/transcribe_ui/gui/download/chooser.py
+msgid "JSON files (*.json)"
+msgstr "JSON-fájlok (*.json)"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
@@ -672,7 +762,8 @@ msgstr "Feladatok"
 msgid "Kind"
 msgstr "Típus"
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/settings/form.py
+#: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Language"
@@ -695,6 +786,11 @@ msgstr "{name} nyelvei:"
 msgid "Last check"
 msgstr "Utolsó ellenőrzés"
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "Last download: {parts}."
+msgstr "Legutóbbi letöltés: {parts}."
+
 #: src/transcribe_ui/gui/cloud/poll.py
 #, python-brace-format
 msgid "Last updated {time}; retrying at the next check."
@@ -711,6 +807,16 @@ msgstr "A beépített program használatához hagyja üresen a mezőt."
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Left over"
 msgstr "Megmaradt"
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "Level {level}: {names}"
+msgstr "{level}. szint: {names}"
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "Level {level}: {names} and {more} more"
+msgstr "{level}. szint: {names} és még {more}"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Links are not followed."
@@ -755,6 +861,10 @@ msgstr "Tovább"
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Next to the media file"
 msgstr "A médiafájl mellé"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Next to the original files"
+msgstr "Az eredeti fájlok mellé"
 
 #: src/transcribe_ui/gui/selection/display.py
 msgid "No audio or video files in this folder."
@@ -808,13 +918,25 @@ msgstr "Még nincs ellenőrizve."
 msgid "Not chosen"
 msgstr "Nincs kiválasztva"
 
+#: src/transcribe_ui/gui/download/display.py
+msgid "Not finished yet"
+msgstr "Még nincs kész"
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Not set"
 msgstr "Nincs megadva"
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Note"
+msgstr "Megjegyzés"
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Notes"
 msgstr "Megjegyzések"
+
+#: src/transcribe_ui/gui/download/results.py
+msgid "Nothing can be downloaded until these are fixed:"
+msgstr "Amíg ezek nincsenek kijavítva, semmi sem tölthető le:"
 
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Nothing is selected."
@@ -883,6 +1005,10 @@ msgstr "Elavult ({fields})"
 msgid "Output folder"
 msgstr "Kimeneti mappa"
 
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Output folder:"
+msgstr "Kimeneti mappa:"
+
 #: src/transcribe_ui/gui/jobs/view.py
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "Path"
@@ -897,6 +1023,10 @@ msgstr "A képalapú feliratok nem nyerhetők ki szövegként; csak átírhatók
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Place subtitles"
 msgstr "Feliratok helye"
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "Place the subtitles:"
+msgstr "A feliratok helye:"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Please confirm"
@@ -1000,6 +1130,7 @@ msgstr "Hátralévő idő"
 msgid "Repeat cleanup"
 msgstr "Takarítás megismétlése"
 
+#: src/transcribe_ui/gui/download/panels.py
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Replace existing subtitle files"
 msgstr "A meglévő feliratfájlok felülírása"
@@ -1025,6 +1156,7 @@ msgid "Restore defaults"
 msgstr "Alapértékek visszaállítása"
 
 #: src/transcribe_ui/gui/activity_view.py
+#: src/transcribe_ui/gui/download/results.py
 msgid "Resume"
 msgstr "Folytatás"
 
@@ -1155,6 +1287,10 @@ msgstr "Mentés"
 msgid "Save selection"
 msgstr "Kijelölés mentése"
 
+#: src/transcribe_ui/gui/download/chooser.py
+msgid "Save the custom plan"
+msgstr "Az egyéni terv mentése"
+
 #: src/transcribe_ui/gui/settings/accounts.py
 #: src/transcribe_ui/gui/settings/viewmodel.py
 msgid "Saved."
@@ -1235,6 +1371,22 @@ msgstr "Rejtett feladatok megjelenítése"
 #: src/transcribe_ui/gui/selection/models.py
 msgid "Size"
 msgstr "Méret"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: no speech was found"
+msgstr "Kihagyva: nem volt beszéd"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: the file already exists"
+msgstr "Kihagyva: a fájl már létezik"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: the original folder was not found"
+msgstr "Kihagyva: az eredeti mappa nem található"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Skipped: the transcription failed"
+msgstr "Kihagyva: az átírás sikertelen volt"
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -1442,6 +1594,10 @@ msgstr "Legkésőbb leáll"
 msgid "Stored in the keyring"
 msgstr "A kulcstartóban tárolva"
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "Subtitle file"
+msgstr "Feliratfájl"
+
 #: src/transcribe_ui/gui/selection/models.py
 msgid "Subtitles it has"
 msgstr "Meglévő feliratok"
@@ -1544,6 +1700,10 @@ msgstr ""
 #: src/transcribe_ui/gui/settings/form.py
 msgid "The bundled program"
 msgstr "A beépített program"
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "The closest folders:"
+msgstr "A legközelebbi mappák:"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -1958,6 +2118,15 @@ msgstr ""
 "A tervben szerepel ez: {item_id} ({language}), de nem része ennek a "
 "letöltésnek."
 
+#: src/transcribe_ui/gui/download/state.py
+#, python-brace-format
+msgid ""
+"The plan was saved to {path}. Fill in output_folder and output_file_name,"
+" then import it."
+msgstr ""
+"A terv mentve: {path}. Töltse ki benne az output_folder és az "
+"output_file_name mezőket, majd importálja."
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The request file cannot be read: {reason}."
@@ -2029,6 +2198,10 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "There is nothing to transcribe, so no cloud machine was started."
 msgstr "Nincs mit átírni, ezért nem indult felhőgép."
+
+#: src/transcribe_ui/gui/download/panels.py
+msgid "These folder levels, counted from the scanned folder:"
+msgstr "Ezek a mappaszintek, a beolvasott mappától számolva:"
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "This computer"
@@ -2168,6 +2341,10 @@ msgstr "Frissítés"
 msgid "Updated {time}"
 msgstr "Frissítve: {time}"
 
+#: src/transcribe_ui/gui/download/state.py
+msgid "Updating the plan…"
+msgstr "A terv frissítése…"
+
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Updating the selection…"
 msgstr "A kijelölés frissítése…"
@@ -2258,6 +2435,10 @@ msgstr "Figyelmeztetés"
 msgid "Warnings ({count})"
 msgstr "Figyelmeztetések ({count})"
 
+#: src/transcribe_ui/gui/download/results.py
+msgid "What happens"
+msgstr "Mi történik vele"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Whether Runpod created this run's cloud machine is not known yet, so it "
@@ -2274,6 +2455,14 @@ msgid ""
 msgstr ""
 "Nem ellenőrizhető, hogy folyamatban van-e felhős futás, ezért semmi sem "
 "indult el, és semmi sem lett közzétéve; próbálja újra később."
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Will be placed"
+msgstr "Elhelyezi"
+
+#: src/transcribe_ui/gui/download/display.py
+msgid "Will replace the existing file"
+msgstr "A meglévő fájl lecserélődik"
 
 #: src/transcribe_ui/gui/settings/languages_view.py
 msgid "Word timing"
@@ -2421,6 +2610,13 @@ msgstr "igen"
 msgid "{amount} USD"
 msgstr "{amount} USD"
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} could not be placed"
+msgid_plural "{count} could not be placed"
+msgstr[0] "{count} nem helyezhető el"
+msgstr[1] "{count} nem helyezhető el"
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
 msgid "{count} duplicate removed."
@@ -2442,12 +2638,26 @@ msgid_plural "{count} files selected ({video} video, {audio} audio), {size}."
 msgstr[0] "{count} fájl kijelölve ({video} videó, {audio} hang), {size}."
 msgstr[1] "{count} fájl kijelölve ({video} videó, {audio} hang), {size}."
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} file will be replaced"
+msgid_plural "{count} files will be replaced"
+msgstr[0] "{count} fájl lecserélődik"
+msgstr[1] "{count} fájl lecserélődik"
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 #, python-brace-format
 msgid "{count} job"
 msgid_plural "{count} jobs"
 msgstr[0] "{count} feladat"
 msgstr[1] "{count} feladat"
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} not finished yet"
+msgid_plural "{count} not finished yet"
+msgstr[0] "{count} még nincs kész"
+msgstr[1] "{count} még nincs kész"
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -2456,12 +2666,33 @@ msgid_plural "{count} selected files already have a subtitle in a target languag
 msgstr[0] "{count} kijelölt fájlnak már van felirata valamelyik célnyelven."
 msgstr[1] "{count} kijelölt fájlnak már van felirata valamelyik célnyelven."
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} skipped"
+msgid_plural "{count} skipped"
+msgstr[0] "{count} kihagyva"
+msgstr[1] "{count} kihagyva"
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} subtitle will be placed"
+msgid_plural "{count} subtitles will be placed"
+msgstr[0] "{count} felirat elhelyezése"
+msgstr[1] "{count} felirat elhelyezése"
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 #, python-brace-format
 msgid "{count} transcription"
 msgid_plural "{count} transcriptions"
 msgstr[0] "{count} átírás"
 msgstr[1] "{count} átírás"
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} written"
+msgid_plural "{count} written"
+msgstr[0] "{count} kiírva"
+msgstr[1] "{count} kiírva"
 
 #: src/transcribe_ui/gui/cloud/display.py
 #, python-brace-format
