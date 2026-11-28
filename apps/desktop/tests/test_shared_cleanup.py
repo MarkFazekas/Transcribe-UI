@@ -8,6 +8,8 @@ manifest without `uploaded_by`. The installation id lives in the data dir.
 import json
 from pathlib import Path
 
+import pytest
+
 from support.batches import FIRST_BATCH_ID
 from support.cleanup import cleanup_document, confirmed
 from support.cleanup import send as send_document
@@ -101,3 +103,12 @@ def test_installation_id_is_created_once_and_kept(tmp_path: Path) -> None:
         NEW_ID.replace("7", "8"),
         replaced,
     )
+
+
+def test_an_unreadable_installation_id_is_kept(tmp_path: Path) -> None:
+    """A file that exists but cannot be read is an error; it is never replaced (the id is not lost)."""
+    path = tmp_path / "installation_id"
+    path.mkdir()
+    with pytest.raises(OSError, match="installation_id"):
+        InstallationIdFile(path, lambda: NEW_ID).current()
+    assert path.is_dir()
