@@ -18,7 +18,7 @@ on:
       - uv.lock
       - pyproject.toml
       - .python-version
-      - scripts/build_desktop.py
+      - scripts/build_desktop*.py
       - scripts/build_ffmpeg.py
       - scripts/smoke_desktop_*.py
       - scripts/release_desktop.py
@@ -38,6 +38,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  # Only uv's own CPython (python-build-standalone): never a Python found on the runner (a
+  # Homebrew build for a newer macOS than the floor, the manylinux image's static ones).
+  UV_PYTHON_PREFERENCE: only-managed
   # The Linux build container: AlmaLinux 9, glibc 2.34 (PySide6's Linux wheel needs 2.34), so
   # the executables run on every Linux with glibc 2.34 or later.
   MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_34_x86_64@sha256:180e8e234512306be41bb00db574c7df1ceb8af937b10c430b5e2fda402f7da7
@@ -72,7 +75,9 @@ jobs:
       CLI: dist/transcribe-ui-${{ matrix.platform }}-cli${{ matrix.suffix }}
       GUI: dist/transcribe-ui-${{ matrix.platform }}-gui${{ matrix.suffix }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
         with:
           enable-cache: true
@@ -91,7 +96,8 @@ jobs:
         if: runner.os == 'Linux'
         env:
           VERSION: ${{ steps.stamp.outputs.version }}
-        # As the runner's user, so every file it writes stays the runner's (the uv cache too).
+        # As the runner's user, so every file it writes stays the runner's (the uv cache too); uv's
+        # CPython is downloaded into /tmp/uv-python, which that user can write.
         # PyInstaller needs ldd, objdump and objcopy, which the image has.
         run: |
           docker run --rm \
@@ -101,6 +107,8 @@ jobs:
             --env UV_PROJECT_ENVIRONMENT=/tmp/build-venv \
             --env VERSION \
             --env MANYLINUX_IMAGE \
+            --env UV_PYTHON_PREFERENCE \
+            --env UV_PYTHON_INSTALL_DIR=/tmp/uv-python \
             --volume "$(readlink -f "$(command -v uv)"):/usr/local/bin/uv:ro" \
             --volume "$(uv cache dir):/uv-cache" \
             --volume "$GITHUB_WORKSPACE:/work" \
@@ -128,14 +136,14 @@ jobs:
           if [ "$RUNNER_OS" = Linux ]; then floor=(--floor-image "$FLOOR_IMAGE"); fi
           uv run --no-sync python scripts/smoke_desktop_build.py "$CLI" "$GUI" --version "$VERSION" "${floor[@]}"
       - name: Upload the CLI executable
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           path: ${{ env.CLI }}
           archive: false
           retention-days: 7
           if-no-files-found: error
       - name: Upload the GUI executable
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           path: ${{ env.GUI }}
           archive: false
