@@ -274,15 +274,17 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   and `uv run --no-sync python scripts/smoke_desktop_build.py dist/<cli> dist/<gui> --version <same> --skip linux-floor`
   (`--skip gui-native` without Xvfb).
 
-ffmpeg build notes (`scripts/build_ffmpeg.py`, `build_ffmpeg_pins.py`, `build_ffmpeg_steps.py`,
-`build_ffmpeg_checks.py`, and `build_platform.py`, which `build_desktop.py` shares; standard
-library only, since the Linux build runs them with the manylinux image's bare CPython):
+ffmpeg build notes (`scripts/build_ffmpeg.py`, `build_ffmpeg_pins.py`, `build_ffmpeg_fetch.py`,
+`build_ffmpeg_steps.py`, `build_ffmpeg_checks.py`, and `build_platform.py`, which
+`build_desktop.py` shares; standard library only, since the Linux build runs them with the
+manylinux image's bare CPython):
 
 - `build_ffmpeg_pins.py` holds the pinned FFmpeg and zlib sources (version, URL, SHA-256, the
   signing key's fingerprint, the licence file) and each platform's configure line; the notices
   (M8.3) and the release notes (M8.5) read them from there (`build_info`) or from
   `build_ffmpeg.py configuration` (JSON for all four platforms). A build also writes
-  `ffmpeg-build.json` and the licence texts (`licences/`) next to the programs.
+  `ffmpeg-build.json` (the same description plus each source's `served_from`, the URL it was
+  downloaded from) and the licence texts (`licences/`) next to the programs.
 - A version bump: download the new tarball and its `.asc`, check the signature with the key
   of the pinned fingerprint, and change the version, URLs and SHA-256 together (plus
   `research/desktop-release.md`). The cache key hashes every `scripts/build_ffmpeg*.py` and
@@ -297,10 +299,15 @@ library only, since the Linux build runs them with the manylinux image's bare CP
 - `build` runs only where it can (the Windows build on Linux, every other platform on itself)
   and refuses an `--out` folder that holds files but no `ffmpeg-build.json`, since it replaces
   that folder. It downloads each source from its pinned URLs in order (zlib: the GitHub release
-  asset, then zlib.net, which served GitHub's runners other bytes) with `curl` (three retries
-  each); a download whose SHA-256 differs is deleted and the next URL tried, and only when
+  asset, then zlib.net, which served GitHub's runners other bytes) with `curl`: HTTPS only,
+  also after redirects; at most 30 s to connect and 300 s per attempt, three retries within
+  300 s, and a transfer under 1 KB/s for 60 s given up, so one stalled URL costs at most about
+  ten minutes and the fallback still runs within the job's hour. A download that curl fails,
+  that cannot be read or whose SHA-256 differs is deleted and the next URL tried; only when
   every URL failed does the build fail, naming each URL with the hash, size and first bytes it
-  served (curl also logs each download's HTTP status, content type and size). It builds out of
+  served or why it failed (curl also logs each download's HTTP status, content type and size).
+  A verified tarball already in `build/ffmpeg/work/downloads` is reused, with the URL recorded
+  next to it; one with another SHA-256 is downloaded afresh. It builds out of
   tree in `build/ffmpeg/work`, and points `PKG_CONFIG_LIBDIR` at the static zlib (an empty
   folder on macOS), so no library of the build machine is picked up. It fails on any configure
   result or linked library outside the allow-list; a check program that runs longer than 60 s
