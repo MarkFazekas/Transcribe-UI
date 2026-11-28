@@ -4,17 +4,21 @@ import hashlib
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
 from build_ffmpeg import KEYED_FILES, build_host_problem, cache_key, pins_output
+from build_ffmpeg_fetch import DOWNLOAD_HEAD_BYTES, curl_command, fetch
 from build_ffmpeg_pins import CACHE_SALT, MANYLINUX_IMAGE, Platform, Source
-from build_ffmpeg_steps import BUILD_INFO, DOWNLOAD_HEAD_BYTES, fetch, out_problem, output_of
+from build_ffmpeg_steps import BUILD_INFO, Unpacked, described, out_problem, output_of
 
 # The bytes of the pinned tarball.
 PINNED_BYTES = b"pinned source"
 # What a bot-protection page serves instead.
 HTML_PAGE = b"<!DOCTYPE html><html><body>Checking your browser</body></html>"
+# A download that curl reports done but never writes.
+NOTHING = b"nothing written"
 # The primary URL and the fallback of the demo source.
 PRIMARY = "https://primary.example.invalid/demo-1.0.tar.gz"
 FALLBACK = "https://fallback.example.invalid/demo-1.0.tar.gz"
@@ -39,13 +43,18 @@ class FakeCurl:
     asked: list[str] = field(default_factory=list)
 
     def __call__(self, argv: Sequence[str], *_: object) -> None:
-        """Write what the URL (the last argument) serves where `--output` points, or fail like curl."""
+        """Write what the URL (the last argument) serves where `--output` points, or fail like curl.
+
+        `NOTHING` stands for a curl that exits 0 without writing the file.
+        """
         url = argv[-1]
         self.asked.append(url)
         payload = self.served[url]
         if payload is None:
             msg = "curl failed (exit 22)"
             raise RuntimeError(msg)
+        if payload is NOTHING:
+            return
         target = Path(argv[list(argv).index("--output") + 1])
         target.write_bytes(payload)
 
@@ -53,12 +62,12 @@ class FakeCurl:
 @pytest.fixture(autouse=True)
 def fake_curl(monkeypatch: pytest.MonkeyPatch) -> None:
     """Let `fetch` find a `curl` without one being installed."""
-    monkeypatch.setattr("build_ffmpeg_steps.tool", str)
+    monkeypatch.setattr("build_ffmpeg_fetch.tool", str)
 
 
 def _serve(monkeypatch: pytest.MonkeyPatch, served: dict[str, bytes | None]) -> FakeCurl:
     curl = FakeCurl(served)
-    monkeypatch.setattr("build_ffmpeg_steps.run_step", curl)
+    monkeypatch.setattr("build_ffmpeg_fetch.run_step", curl)
     return curl
 
 
@@ -72,16 +81,19 @@ def _failure(folder: Path) -> str:
 
 
 def test_fetch_takes_the_first_good_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The primary URL serves the tarball: the fallback is never asked."""
+    """The primary URL serves the tarball: the fallback is never asked, and the URL is recorded."""
     curl = _serve(monkeypatch, {PRIMARY: PINNED_BYTES, FALLBACK: None})
-    assert fetch(PINNED, tmp_path).read_bytes() == PINNED_BYTES
+    fetched = fetch(PINNED, tmp_path)
+    assert (fetched.archive.read_bytes(), fetched.served_from) == (PINNED_BYTES, PRIMARY)
     assert curl.asked == [PRIMARY]
 
 
-def test_fetch_falls_back_after_a_wrong_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """An HTML page instead of the tarball is deleted and the next URL tried."""
-    curl = _serve(monkeypatch, {PRIMARY: HTML_PAGE, FALLBACK: PINNED_BYTES})
-    assert fetch(PINNED, tmp_path).read_bytes() == PINNED_BYTES
+@pytest.mark.parametrize("primary", [HTML_PAGE, None, NOTHING])
+def test_fetch_falls_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bytes | None) -> None:
+    """An HTML page, a curl failure or a missing file on the primary: the fallback serves the tarball."""
+    curl = _serve(monkeypatch, {PRIMARY: primary, FALLBACK: PINNED_BYTES})
+    fetched = fetch(PINNED, tmp_path)
+    assert (fetched.archive.read_bytes(), fetched.served_from) == (PINNED_BYTES, FALLBACK)
     assert curl.asked == [PRIMARY, FALLBACK]
 
 
@@ -90,19 +102,36 @@ def test_fetch_fails_only_when_every_url_failed(tmp_path: Path, monkeypatch: pyt
     _serve(monkeypatch, {PRIMARY: HTML_PAGE, FALLBACK: None})
     lines = _failure(tmp_path).splitlines()
     wrong = hashlib.sha256(HTML_PAGE).hexdigest()
-    assert (
-        lines[1] == f"{PRIMARY}: SHA-256 {wrong}, {len(HTML_PAGE)} bytes starting {HTML_PAGE[:DOWNLOAD_HEAD_BYTES]!r}"
-    )
+    head = HTML_PAGE[:DOWNLOAD_HEAD_BYTES]
+    assert lines[1] == f"{PRIMARY}: SHA-256 {wrong}, {len(HTML_PAGE)} bytes starting {head!r}"
     assert lines[2] == f"{FALLBACK}: curl failed (exit 22)"
     assert not (tmp_path / PINNED.archive).exists()
 
 
 def test_fetch_reuses_a_verified_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A tarball already there with the pinned SHA-256 is used without downloading."""
-    (tmp_path / PINNED.archive).write_bytes(PINNED_BYTES)
-    curl = _serve(monkeypatch, {})
-    assert fetch(PINNED, tmp_path) == tmp_path / PINNED.archive
-    assert not curl.asked
+    """A tarball already there with the pinned SHA-256 is used without downloading, with its recorded URL."""
+    curl = _serve(monkeypatch, {PRIMARY: PINNED_BYTES})
+    fetch(PINNED, tmp_path)
+    again = fetch(PINNED, tmp_path)
+    assert (again.archive, again.served_from) == (tmp_path / PINNED.archive, PRIMARY)
+    assert curl.asked == [PRIMARY]
+
+
+def test_fetch_replaces_a_stale_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A tarball already there with another SHA-256 is downloaded afresh."""
+    (tmp_path / PINNED.archive).write_bytes(b"stale")
+    curl = _serve(monkeypatch, {PRIMARY: PINNED_BYTES})
+    assert fetch(PINNED, tmp_path).archive.read_bytes() == PINNED_BYTES
+    assert curl.asked == [PRIMARY]
+
+
+def test_curl_is_bounded_and_https_only() -> None:
+    """Only HTTPS, also after redirects, and every wait (connect, transfer, retries, a stall) has a limit."""
+    command = curl_command("curl", PRIMARY, Path("demo.tar.gz"))
+    pairs = dict(pairwise(command))
+    assert (pairs["--proto"], pairs["--proto-redir"]) == ("=https", "=https")
+    assert all(option in pairs for option in ("--connect-timeout", "--max-time", "--retry-max-time", "--speed-time"))
+    assert command[-1] == PRIMARY
 
 
 def test_out_folder_must_be_an_earlier_build(tmp_path: Path) -> None:
@@ -165,3 +194,17 @@ def test_pins_output_for_the_workflow() -> None:
     lines = pins_output("windows-x64").splitlines()
     assert lines[0].startswith("key=ffmpeg-9.1-windows-x64-")
     assert lines[1:] == [f"image={MANYLINUX_IMAGE}", "packages=gcc-mingw-w64-x86-64-win32 nasm pkg-config"]
+
+
+def test_build_description_names_the_serving_url() -> None:
+    """`ffmpeg-build.json` adds to each source the URL that served it, next to its pinned URLs."""
+    unpacked = {
+        "FFmpeg": Unpacked(Path("ffmpeg"), "https://ffmpeg.example.invalid/f.tar.xz"),
+        "zlib": Unpacked(Path("zlib"), None),
+    }
+    description = described("linux-x64", unpacked)
+    ffmpeg, zlib = description["ffmpeg"], description["zlib"]
+    assert isinstance(ffmpeg, dict)
+    assert isinstance(zlib, dict)
+    assert (ffmpeg["served_from"], zlib["served_from"]) == ("https://ffmpeg.example.invalid/f.tar.xz", None)
+    assert "urls" in zlib

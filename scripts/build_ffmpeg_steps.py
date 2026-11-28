@@ -6,7 +6,6 @@ programs, the licences and the build description to the out folder. Each step ra
 `RuntimeError` (or `OSError`) when it fails. Standard library only.
 """
 
-import hashlib
 import json
 import os
 import shutil
@@ -38,15 +37,6 @@ type Environment = Mapping[str, str]
 
 # Seconds a quick program (`ldd`, `otool`, `objdump`, a built program's `-buildconf`) may take.
 TOOL_TIMEOUT_S = 60
-# Bytes of a wrong download shown in the error (enough to tell an HTML page).
-DOWNLOAD_HEAD_BYTES = 32
-# What curl prints after each download: status, content type and size (curl reads the `\n`;
-# the final URL is left out, since a redirect to a release asset carries a signed query).
-CURL_REPORT = r"HTTP %{http_code}, %{content_type}, %{size_download} bytes\n"
-# Seconds a download may take.
-DOWNLOAD_TIMEOUT_S = 600
-# Bytes read at a time when hashing.
-HASH_CHUNK_BYTES = 1024 * 1024
 # Name of the build description written next to the programs.
 BUILD_INFO = "ffmpeg-build.json"
 # Folder of the licence texts next to the programs.
@@ -151,66 +141,6 @@ def output_of(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
         raise RuntimeError(msg) from error
 
 
-def sha256_of(path: Path) -> str:
-    """Return the SHA-256 of a file in hex."""
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        while chunk := stream.read(HASH_CHUNK_BYTES):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def describe_download(archive: Path) -> str:
-    """Return the size and the first bytes of a download, so a wrong one shows what it was (an HTML page)."""
-    with archive.open("rb") as stream:
-        head = stream.read(DOWNLOAD_HEAD_BYTES)
-    return f"{archive.stat().st_size} bytes starting {head!r}"
-
-
-def download(url: str, archive: Path, sha256: str) -> str | None:
-    """Download `url` to `archive`; return None when it has the SHA-256, else what went wrong.
-
-    A wrong download is deleted. curl prints the HTTP status, the content type and the size
-    of every download to the log.
-    """
-    command = [tool("curl"), "--fail", "--location", "--silent", "--show-error", "--retry", "3"]
-    command += ["--max-time", str(DOWNLOAD_TIMEOUT_S), "--write-out", CURL_REPORT]
-    command += ["--output", str(archive), url]
-    try:
-        run_step(command, archive.parent)
-    except RuntimeError as error:
-        archive.unlink(missing_ok=True)
-        return f"{url}: {error}"
-    found = sha256_of(archive)
-    if found == sha256:
-        return None
-    problem = f"{url}: SHA-256 {found}, {describe_download(archive)}"
-    archive.unlink()
-    return problem
-
-
-def fetch(source: Source, downloads: Path) -> Path:
-    """Return the source tarball: a verified copy already there, or the first URL that serves the pinned SHA-256.
-
-    Raises:
-        RuntimeError: No URL served the pinned tarball (each one is named with what it served).
-    """
-    downloads.mkdir(parents=True, exist_ok=True)
-    archive = downloads / source.archive
-    if archive.is_file() and sha256_of(archive) == source.sha256:
-        return archive
-    problems: list[str] = []
-    for url in source.urls:
-        problem = download(url, archive, source.sha256)
-        if problem is None:
-            return archive
-        sys.stdout.write(f"Not the pinned {source.archive}: {problem}\n")
-        problems.append(problem)
-    listed = "\n".join(problems)
-    msg = f"no source of {source.archive} served the pinned SHA-256 {source.sha256}:\n{listed}"
-    raise RuntimeError(msg)
-
-
 def unpack(archive: Path, source: Source, destination: Path) -> Path:
     """Unpack a verified tarball afresh; return its top folder."""
     folder = destination / source.folder
@@ -303,8 +233,28 @@ def out_problem(out: Path) -> str | None:
     return None
 
 
-def publish(source_dirs: Mapping[str, Path], target: Platform, out: Path, tree: Path) -> None:
+@dataclass(frozen=True)
+class Unpacked:
+    """A source unpacked for the build: its top folder and the URL that served its tarball (None: not recorded)."""
+
+    folder: Path
+    served_from: str | None
+
+
+def described(target: Platform, unpacked: Mapping[str, Unpacked]) -> dict[str, object]:
+    """Return `build_info` of the platform with the URL that served each source (`served_from`)."""
+    description = build_info(target)
+    for source in sources(target):
+        entry = description[source.name.lower()]
+        if isinstance(entry, dict):
+            entry["served_from"] = unpacked[source.name].served_from
+    return description
+
+
+def publish(unpacked: Mapping[str, Unpacked], target: Platform, out: Path, tree: Path) -> None:
     """Copy both programs from the build tree, the licences and the build description into `out`.
+
+    The description is `build_info` plus the URL that served each source tarball.
 
     Raises:
         RuntimeError: `out` holds something other than an earlier build (`out_problem`).
@@ -318,8 +268,8 @@ def publish(source_dirs: Mapping[str, Path], target: Platform, out: Path, tree: 
     for program in PROGRAMS:
         shutil.copy(tree / executable(program, target), out)
     for source in sources(target):
-        licence = source_dirs[source.name] / source.licence
+        licence = unpacked[source.name].folder / source.licence
         copy = licences / f"{source.name}-{source.licence}"
         shutil.copy(licence, copy)
-    description = json.dumps(build_info(target), indent=2)
+    description = json.dumps(described(target, unpacked), indent=2)
     (out / BUILD_INFO).write_text(f"{description}\n", encoding="utf-8")

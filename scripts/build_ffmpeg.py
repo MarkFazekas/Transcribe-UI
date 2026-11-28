@@ -34,6 +34,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from build_ffmpeg_checks import buildconf_arguments, buildconf_problems, licence_problems
+from build_ffmpeg_fetch import fetch
 from build_ffmpeg_pins import (
     BUILD_PACKAGES,
     FFMPEG,
@@ -50,11 +51,11 @@ from build_ffmpeg_pins import (
     uses_bundled_zlib,
 )
 from build_ffmpeg_steps import (
+    Unpacked,
     Work,
     build_ffmpeg,
     build_zlib,
     check_build_tree,
-    fetch,
     missing_tools,
     out_problem,
     output_of,
@@ -117,22 +118,23 @@ def build(target: Platform, work: Work) -> dict[str, float]:
         RuntimeError: A tool is missing, a step failed, or the build breaks the allow-list.
     """
     _check_before_build(target, work)
-    folders = {}
+    unpacked = {}
     for source in sources(target):
-        archive = fetch(source, work.downloads)
-        folders[source.name] = unpack(archive, source, work.sources)
+        fetched = fetch(source, work.downloads)
+        folder = unpack(fetched.archive, source, work.sources)
+        unpacked[source.name] = Unpacked(folder, fetched.served_from)
     timings: dict[str, float] = {}
     started = time.monotonic()
     if uses_bundled_zlib(target):
-        build_zlib(folders[ZLIB.name], target, work.zlib_prefix)
+        build_zlib(unpacked[ZLIB.name].folder, target, work.zlib_prefix)
         timings["zlib"] = time.monotonic() - started
     started = time.monotonic()
-    build_ffmpeg(folders[FFMPEG.name], target, work)
+    build_ffmpeg(unpacked[FFMPEG.name].folder, target, work)
     timings["ffmpeg"] = time.monotonic() - started
-    problems = check_build_tree(folders[FFMPEG.name], target, work)
+    problems = check_build_tree(unpacked[FFMPEG.name].folder, target, work)
     if problems:
         raise RuntimeError("\n".join(problems))
-    publish(folders, target, work.out, work.tree)
+    publish(unpacked, target, work.out, work.tree)
     return timings
 
 
