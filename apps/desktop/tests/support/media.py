@@ -34,6 +34,10 @@ OPUS_RATE_HZ = "48000"
 # `mkvmerge --no-date --disable-track-statistics-tags --language 0:eng --compression 0:zlib
 # -o zlib_subtitles.mkv source.srt`. FFmpeg reads the cues only when built with zlib.
 ZLIB_SUBTITLES = Path(__file__).resolve().parent.parent / "fixtures" / "zlib_subtitles.mkv"
+# The track's encoding in that file, as Matroska elements (ID, size, content): the encoding list
+# (6 bytes) holding one content encoding (3 bytes) holding an empty content compression element,
+# whose algorithm then is the default, 0: zlib.
+ZLIB_ENCODING = bytes((0x6D, 0x80, 0x86, 0x62, 0x40, 0x83, 0x50, 0x34, 0x80))
 
 
 def ffmpeg() -> str:

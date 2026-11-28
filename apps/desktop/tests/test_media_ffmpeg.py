@@ -175,6 +175,7 @@ def test_extract_gives_valid_srt(tmp_path: Path, tools: FfmpegMediaTools, stream
 
 def test_zlib_compressed_subtitles(tools: FfmpegMediaTools) -> None:
     """A Matroska text track compressed with zlib probes and extracts to its cues (ffmpeg built with zlib)."""
+    assert media.ZLIB_ENCODING in media.ZLIB_SUBTITLES.read_bytes()
     probed = _probe(tools, media.ZLIB_SUBTITLES)
 
     srt = tools.extract(media.ZLIB_SUBTITLES, 0, CancelFlag())
