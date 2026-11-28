@@ -36,6 +36,8 @@ from build_ffmpeg_pins import (
 # Environment variables of a step.
 type Environment = Mapping[str, str]
 
+# Seconds a quick program (`ldd`, `otool`, `objdump`, a built program's `-buildconf`) may take.
+TOOL_TIMEOUT_S = 60
 # Seconds a download may take.
 DOWNLOAD_TIMEOUT_S = 600
 # Bytes read at a time when hashing.
@@ -125,8 +127,23 @@ def run_step(argv: Sequence[str], cwd: Path, env: Environment | None = None) -> 
 
 
 def output_of(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    """Run a program and capture its output as text."""
-    return subprocess.run(argv, capture_output=True, encoding="utf-8", errors="replace", check=False)
+    """Run a quick program (a check of a built one) and capture its output as text.
+
+    Raises:
+        RuntimeError: It ran longer than `TOOL_TIMEOUT_S`.
+    """
+    try:
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=TOOL_TIMEOUT_S,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        msg = f"{argv[0]} did not finish within {TOOL_TIMEOUT_S} s"
+        raise RuntimeError(msg) from error
 
 
 def sha256_of(path: Path) -> str:
@@ -236,8 +253,30 @@ def check_build_tree(source_dir: Path, target: Platform, work: Work) -> list[str
     return problems
 
 
+def out_problem(out: Path) -> str | None:
+    """Return why the out folder must not be replaced, or None.
+
+    It is emptied before the programs are copied, so it must be missing, empty or an earlier
+    build's (holding its `ffmpeg-build.json`): a mistyped `--out` never deletes other files.
+    """
+    if not out.exists():
+        return None
+    if not out.is_dir():
+        return f"{out} is not a folder"
+    if any(out.iterdir()) and not (out / BUILD_INFO).is_file():
+        return f"{out} holds files but no {BUILD_INFO}: not an ffmpeg build, so it is not replaced"
+    return None
+
+
 def publish(source_dirs: Mapping[str, Path], target: Platform, out: Path, tree: Path) -> None:
-    """Copy both programs from the build tree, the licences and the build description into `out`."""
+    """Copy both programs from the build tree, the licences and the build description into `out`.
+
+    Raises:
+        RuntimeError: `out` holds something other than an earlier build (`out_problem`).
+    """
+    refused = out_problem(out)
+    if refused is not None:
+        raise RuntimeError(refused)
     shutil.rmtree(out, ignore_errors=True)
     licences = out / LICENCES_FOLDER
     licences.mkdir(parents=True)

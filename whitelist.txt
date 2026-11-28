@@ -40,6 +40,7 @@ codeload
 coeng
 copyfile
 copytree
+crb
 creat
 creationflags
 crockford
@@ -64,6 +65,7 @@ dirs
 divmod
 dll
 dlls
+dnf
 dns
 dotall
 durations
@@ -192,6 +194,7 @@ m7
 macos
 mak
 mako
+manylinux
 matroska
 maxsplit
 metavar
@@ -213,6 +216,7 @@ msvcrt
 multiline
 multitrack
 muxer
+nasm
 nblck
 ngettext
 ngram

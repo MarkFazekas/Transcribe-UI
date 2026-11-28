@@ -35,6 +35,25 @@ MINGW_PREFIX = "x86_64-w64-mingw32-"
 MACOS_MINIMUM = "14.0"
 # What `build_info` says of the zlib of a macOS build.
 SYSTEM_ZLIB = "the system's libz (/usr/lib)"
+# Changed by hand to rebuild every platform's cached build although nothing pinned here changed
+# (for example after a runner image moved to another compiler).
+CACHE_SALT = "1"
+# The manylinux image both Linux builds run in, of ffmpeg and of the app (AlmaLinux 9, glibc 2.34,
+# so the programs run on every Linux with glibc 2.34 or later), pinned by digest.
+MANYLINUX_IMAGE = (
+    "quay.io/pypa/manylinux_2_34_x86_64@sha256:180e8e234512306be41bb00db574c7df1ceb8af937b10c430b5e2fda402f7da7"
+)
+# The packages a platform's ffmpeg build installs first: apt on the Ubuntu runner of the Windows
+# cross build (the mingw-w64 GCC with Windows threads), Homebrew on macOS (nasm only for x86),
+# dnf with the CRB repository in the manylinux image.
+BUILD_PACKAGES: Mapping[Platform, tuple[str, ...]] = MappingProxyType(
+    {
+        "windows-x64": ("gcc-mingw-w64-x86-64-win32", "nasm", "pkg-config"),
+        "macos-arm64": (),
+        "macos-x64": ("nasm",),
+        "linux-x64": ("nasm", "pkgconf-pkg-config"),
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -146,6 +165,12 @@ def configure_arguments(target: Platform) -> list[str]:
 def sources(target: Platform) -> list[Source]:
     """Return the sources a platform's build is made from."""
     return [FFMPEG, ZLIB] if uses_bundled_zlib(target) else [FFMPEG]
+
+
+def build_inputs(target: Platform) -> dict[str, object]:
+    """Return what decides a platform's build besides the build scripts: the salt, the image and the packages."""
+    packages = list(BUILD_PACKAGES[target])
+    return {"salt": CACHE_SALT, "image": MANYLINUX_IMAGE, "packages": packages}
 
 
 def build_info(target: Platform) -> dict[str, object]:

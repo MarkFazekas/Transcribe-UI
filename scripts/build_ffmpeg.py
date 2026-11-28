@@ -2,13 +2,14 @@
 
 Usage, from the repository root (standard library only; `curl`, `make` and a C toolchain on `PATH`):
 
-    uv run --no-project scripts/build_ffmpeg.py key --platform <tag>   # the cache key, for $GITHUB_OUTPUT
+    uv run --no-project scripts/build_ffmpeg.py pins --platform <tag>  # key, image, packages for $GITHUB_OUTPUT
     uv run --no-project scripts/build_ffmpeg.py build [--platform <tag>] [--out DIR] [--work DIR]
     uv run --no-project scripts/build_ffmpeg.py verify [--platform <tag>] [--first-on-path] DIR
     uv run --no-project scripts/build_ffmpeg.py configuration           # sources and configure lines (JSON)
 
 `<tag>` is a release platform (`windows-x64`, `macos-arm64`, `macos-x64`, `linux-x64`; default:
-this machine's). `build` downloads the pinned sources (`build_ffmpeg_pins.py`) and checks their
+this machine's); `build` refuses a platform this machine cannot build (Windows only on Linux,
+every other platform only on itself). `build` downloads the pinned sources (`build_ffmpeg_pins.py`) and checks their
 SHA-256, builds zlib statically (not on macOS, which uses the system's), configures FFmpeg with
 the platform's line and builds it, checks the build tree's configure result and the libraries
 both programs load (`build_ffmpeg_checks.py`), and writes `ffmpeg`, `ffprobe` (`.exe` on
@@ -17,7 +18,8 @@ Windows), the licences and `ffmpeg-build.json` (sources and configure line) to `
 Linux with mingw-w64 (`x86_64-w64-mingw32-gcc`, Windows threads); the x86 builds need `nasm`.
 `verify` runs a build's programs: `-buildconf` must equal the platform's configure line and `-L`
 must report LGPL 2.1 or later; with `--first-on-path`, `PATH` must find both programs in DIR.
-The cache key hashes every `build_ffmpeg*.py`, so any change to the build or its checks
+The cache key hashes every `build_ffmpeg*.py` and the pinned inputs the workflow reads through
+`pins` (salt, build image, packages), so any change to the build, its checks or its tools
 rebuilds.
 """
 
@@ -34,12 +36,16 @@ from pathlib import Path
 from build_desktop import platform_tag
 from build_ffmpeg_checks import buildconf_arguments, buildconf_problems, licence_problems
 from build_ffmpeg_pins import (
+    BUILD_PACKAGES,
     FFMPEG,
+    MANYLINUX_IMAGE,
     PLATFORMS,
     PROGRAMS,
+    WINDOWS,
     ZLIB,
     Platform,
     build_info,
+    build_inputs,
     configure_arguments,
     executable,
     sources,
@@ -52,6 +58,7 @@ from build_ffmpeg_steps import (
     check_build_tree,
     fetch,
     missing_tools,
+    out_problem,
     output_of,
     publish,
     unpack,
@@ -74,12 +81,36 @@ MEGABYTE = 1_000_000
 
 
 def cache_key(target: Platform, files: Sequence[Path] = KEYED_FILES) -> str:
-    """Return the cache key of a platform's build: FFmpeg's version, the platform and a hash of the build files."""
+    """Return the cache key of a platform's build: FFmpeg's version, the platform and a hash of its inputs.
+
+    The hash covers the build files and the pinned inputs the workflow takes from them (the
+    salt, the build image, the packages it installs), so a change to any of them rebuilds.
+    """
     digest = hashlib.sha256()
     for path in files:
         digest.update(path.read_bytes())
+    inputs = json.dumps(build_inputs(target), sort_keys=True)
+    digest.update(inputs.encode())
     short = digest.hexdigest()[:KEY_HASH_LENGTH]
     return f"ffmpeg-{FFMPEG.version}-{target}-{short}"
+
+
+def pins_output(target: Platform) -> str:
+    """Return the `$GITHUB_OUTPUT` lines of a platform's build: its cache key, the build image and its packages."""
+    key = cache_key(target)
+    packages = " ".join(BUILD_PACKAGES[target])
+    return f"key={key}\nimage={MANYLINUX_IMAGE}\npackages={packages}\n"
+
+
+def _check_before_build(target: Platform, work: Work) -> None:
+    """Refuse a build whose out folder holds other files or whose tools are missing, before anything runs."""
+    refused = out_problem(work.out)
+    if refused is not None:
+        raise RuntimeError(refused)
+    missing = missing_tools(target)
+    if missing:
+        msg = f"the {target} build needs {', '.join(missing)} on PATH"
+        raise RuntimeError(msg)
 
 
 def build(target: Platform, work: Work) -> dict[str, float]:
@@ -88,10 +119,7 @@ def build(target: Platform, work: Work) -> dict[str, float]:
     Raises:
         RuntimeError: A tool is missing, a step failed, or the build breaks the allow-list.
     """
-    missing = missing_tools(target)
-    if missing:
-        msg = f"the {target} build needs {', '.join(missing)} on PATH"
-        raise RuntimeError(msg)
+    _check_before_build(target, work)
     folders = {}
     for source in sources(target):
         archive = fetch(source, work.downloads)
@@ -113,10 +141,13 @@ def build(target: Platform, work: Work) -> dict[str, float]:
 
 def _program_problems(path: Path, target: Platform) -> list[str]:
     """Return how one built program's `-buildconf` and `-L` differ from what the platform's build must show."""
-    shown = output_of([str(path), "-hide_banner", "-buildconf"])
+    try:
+        shown = output_of([str(path), "-hide_banner", "-buildconf"])
+        licence = output_of([str(path), "-hide_banner", "-L"])
+    except RuntimeError as error:
+        return [str(error)]
     arguments = buildconf_arguments(shown.stdout + shown.stderr)
     problems = buildconf_problems(path.name, arguments, configure_arguments(target))
-    licence = output_of([str(path), "-hide_banner", "-L"])
     problems.extend(licence_problems(path.name, licence.stdout))
     return problems
 
@@ -150,6 +181,20 @@ def _size(path: Path) -> str:
     return f"{path.name} {megabytes:.1f} MB"
 
 
+def build_host_problem(target: Platform, system: str, machine: str) -> str | None:
+    """Return why a machine (`sys.platform`, `platform.machine()`) cannot build the platform, or None.
+
+    The Windows build is cross-compiled on Linux; every other platform builds on itself.
+    """
+    if target == WINDOWS:
+        return None if system == "linux" else f"the {target} build is cross-compiled on Linux, not {system}"
+    try:
+        tag = platform_tag(system, machine)
+    except ValueError:
+        tag = f"{system} {machine}"
+    return None if tag == target else f"the {target} build runs only on {target}, not {tag}"
+
+
 def host_platform() -> Platform:
     """Return this machine's release platform.
 
@@ -169,7 +214,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build the static LGPL ffmpeg and ffprobe of the desktop app.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("configuration", help="print the sources and configure line of every platform (JSON)")
-    key = commands.add_parser("key", help="print the cache key of a platform's build")
+    key = commands.add_parser("pins", help="print the cache key, build image and packages of a platform's build")
     build_command = commands.add_parser("build", help="build both programs")
     verify_command = commands.add_parser("verify", help="run a build's programs")
     for command in (key, build_command, verify_command):
@@ -182,6 +227,10 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def _build_command(target: Platform, args: argparse.Namespace) -> int:
+    refused = build_host_problem(target, sys.platform, platform.machine())
+    if refused is not None:
+        sys.stderr.write(f"{refused}\n")
+        return 2
     work = Work(args.work.resolve(), args.out.resolve())
     try:
         timings = build(target, work)
@@ -211,9 +260,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stdout.write(f"{json.dumps(every, indent=2)}\n")
         return 0
     target: Platform = args.platform or host_platform()
-    if args.command == "key":
-        # Bytes, so Windows does not end the line with a carriage return (it goes to `$GITHUB_OUTPUT`).
-        sys.stdout.buffer.write(f"key={cache_key(target)}\n".encode())
+    if args.command == "pins":
+        # Bytes, so Windows does not end the lines with a carriage return (they go to `$GITHUB_OUTPUT`).
+        sys.stdout.buffer.write(pins_output(target).encode())
         return 0
     if args.command == "build":
         return _build_command(target, args)
