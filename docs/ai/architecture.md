@@ -1605,7 +1605,8 @@ database):
     capped at the total; every other job (ok, no speech, failed) counts as done.
   - Each recorded result keeps its run and the worker's times on it in the job payload
     (`result_run_id`, `result_started_at`, `result_finished_at`, from the result JSON).
-  - `progress_fraction` (0 to 1, 4 decimals): done over total.
+  - `progress_fraction` (0 to 1): done over total, rounded down to 4 decimals, so 1 means
+    every followed job is done.
   - `remaining_estimate_s` (whole seconds): the pending work less the time already spent on the
     file in progress, never below 0, so it counts down between refreshes and the finish stays
     put:
@@ -1620,7 +1621,9 @@ database):
       `finished_at` of the run's results (results of other runs are not used), else minus
       `transcribing_since` (the `updated_at` of the first report that showed `transcribing`
       with a current job, kept in the run payload: the worker reports `transcribing` before
-      its model loads and names its first job once loaded);
+      its model loads and names its first job once loaded; a known inaccuracy: jobs restored
+      from a backup are named before the model loads, so after such a restore the time on the
+      file in progress may start before the model load ends);
     - until then (no result of the run and no such report), what is left of the 20 min
       start-up allowance since the first `RUNNING` sighting is added instead;
     - 0 once the worker reported its end (`stopping`).
