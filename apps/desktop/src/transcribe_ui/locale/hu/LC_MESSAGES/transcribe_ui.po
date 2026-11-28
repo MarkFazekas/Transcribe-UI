@@ -148,6 +148,10 @@ msgstr "Fiókok"
 msgid "Advanced"
 msgstr "Speciális"
 
+#: src/transcribe_ui/gui/review/folders.py
+msgid "All folders"
+msgstr "Minden mappa"
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "All in one output folder"
 msgstr "Mind egy kimeneti mappába"
@@ -207,6 +211,14 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha végzett."
 
+#: src/transcribe_ui/gui/review/view.py
+msgid "Apply choices"
+msgstr "Választások alkalmazása"
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Apply or discard your changes before the upload."
+msgstr "A feltöltés előtt alkalmazza vagy vesse el a módosításait."
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
@@ -228,9 +240,18 @@ msgstr "Hangfájlok"
 msgid "Audio only"
 msgstr "Csak hang"
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Audio tracks ({count})"
+msgstr "Hangsávok ({count})"
+
 #: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Back"
 msgstr "Vissza"
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Back to the job"
+msgstr "Vissza a feladathoz"
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Backup volume"
@@ -245,12 +266,21 @@ msgstr "Tallózás..."
 msgid "Cancel"
 msgstr "Megszakítás"
 
+#: src/transcribe_ui/gui/review/widgets.py
+msgid "Cancel upload"
+msgstr "Feltöltés megszakítása"
+
+#: src/transcribe_ui/gui/review/display.py
+msgid "Changed; not applied yet"
+msgstr "Módosítva; még nincs alkalmazva"
+
 #: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Check"
 msgstr "Ellenőrzés"
 
 #: src/transcribe_ui/gui/download/panels.py
+#: src/transcribe_ui/gui/review/header.py
 msgid "Check again"
 msgstr "Újraellenőrzés"
 
@@ -267,6 +297,10 @@ msgstr ""
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Checking files"
 msgstr "Fájlok ellenőrzése"
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Checking stopped; continue any time with Check again."
+msgstr "Az ellenőrzés leállt; az „Ellenőrzés újra” gombbal bármikor folytatható."
 
 #: src/transcribe_ui/gui/cleanup/display.py
 #, python-brace-format
@@ -285,9 +319,17 @@ msgstr "A felhőbeállítás ellenőrzése..."
 msgid "Checking the cloud..."
 msgstr "A felhő ellenőrzése..."
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "Checking the files…"
+msgstr "A fájlok ellenőrzése…"
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Checking what is waiting for transcription..."
 msgstr "Annak ellenőrzése, mi vár átírásra..."
+
+#: src/transcribe_ui/gui/review/widgets.py
+msgid "Choice"
+msgstr "Választás"
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Choose a folder (a full path), or leave it empty."
@@ -305,6 +347,11 @@ msgstr "Válassza ki a beolvasandó mappát"
 msgid "Choose a folder, then tick the files to transcribe."
 msgstr "Válasszon mappát, majd jelölje be az átírandó fájlokat."
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Choose a track or a subtitle for {languages}."
+msgstr "Válasszon hangsávot vagy feliratot ehhez: {languages}."
+
 #: src/transcribe_ui/gui/download/form.py
 msgid "Choose at least one folder level."
 msgstr "Válasszon legalább egy mappaszintet."
@@ -316,6 +363,18 @@ msgstr "Válasszon legalább egy átírási nyelvet."
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Choose folder…"
 msgstr "Mappa választása…"
+
+#: src/transcribe_ui/gui/review/status.py
+msgid ""
+"Choose for the files that need attention, or remove them from the job, "
+"before the upload."
+msgstr ""
+"A feltöltés előtt döntsön a figyelmet igénylő fájlokról, vagy vegye ki "
+"őket a feladatból."
+
+#: src/transcribe_ui/gui/review/display.py
+msgid "Choose how to make this subtitle"
+msgstr "Válassza ki, hogyan készüljön ez a felirat"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Choose the audio track to transcribe."
@@ -351,6 +410,7 @@ msgid "Choose the subtitle stream to extract."
 msgstr "Válassza ki a kinyerendő feliratsávot."
 
 #: src/transcribe_ui/gui/download/panels.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Choose…"
 msgstr "Tallózás…"
 
@@ -462,6 +522,11 @@ msgstr ""
 "lehet, hogy már létezik. Egy perc múlva futtassa újra a felhőbeállítást; "
 "az átveszi, ami létrejött."
 
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "Current file: {sent} of {size} sent"
+msgstr "Aktuális fájl: {sent} / {size} elküldve"
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Current run"
 msgstr "Jelenlegi futás"
@@ -542,9 +607,14 @@ msgstr "Adat"
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
 #: src/transcribe_ui/gui/download/results.py
+#: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
 msgstr "Részletek"
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "Discard changes"
+msgstr "Módosítások elvetése"
 
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Dismiss"
@@ -553,6 +623,14 @@ msgstr "Elrejtés"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Done"
 msgstr "Kész"
+
+#: src/transcribe_ui/gui/review/status.py
+msgid ""
+"Done: the embedded subtitles are extracted; download them from the job "
+"page."
+msgstr ""
+"Kész: a beágyazott feliratok ki vannak nyerve; a feladat oldalán "
+"tölthetők le."
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Done; the cloud machine is stopping"
@@ -607,6 +685,11 @@ msgstr "Eltelt idő"
 msgid "Embedded subtitle"
 msgstr "Beágyazott felirat"
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Embedded subtitles ({count})"
+msgstr "Beágyazott feliratok ({count})"
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Enter a whole number of at least 1."
 msgstr "Adjon meg egy legalább 1 értékű egész számot."
@@ -638,6 +721,15 @@ msgstr ""
 msgid "Extensions without the dot, separated by spaces."
 msgstr "Kiterjesztések pont nélkül, szóközzel elválasztva."
 
+#: src/transcribe_ui/gui/review/view.py
+msgid "Extract all shown"
+msgstr "Minden látható kinyerése"
+
+#: src/transcribe_ui/gui/review/options.py
+#, python-brace-format
+msgid "Extract subtitle {number}: {stream}"
+msgstr "{number}. felirat kinyerése: {stream}"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Extracted"
 msgstr "Kinyerve"
@@ -649,6 +741,7 @@ msgstr "Sikertelen"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "File"
 msgstr "Fájl"
 
@@ -668,6 +761,11 @@ msgstr "Fájltípusok"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr "Fájlok"
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "Files uploaded: {done} of {total}"
+msgstr "Feltöltött fájlok: {done} / {total}"
 
 #: src/transcribe_ui/gui/settings/languages_view.py
 msgid "Filter languages"
@@ -707,6 +805,7 @@ msgid "Fix the marked fields, then save again."
 msgstr "Javítsa a megjelölt mezőket, majd mentsen újra."
 
 #: src/transcribe_ui/gui/download/results.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Folder"
 msgstr "Mappa"
 
@@ -723,6 +822,10 @@ msgid "Folder names were added to tell apart files of different folders."
 msgstr ""
 "A név mappanevekkel egészült ki, hogy a különböző mappák fájljai "
 "megkülönböztethetők legyenek."
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Folder:"
+msgstr "Mappa:"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folders this deep are not scanned."
@@ -804,6 +907,13 @@ msgstr "Feladat"
 msgid "Job {batch_id}, created {created}"
 msgstr "{batch_id} feladat, létrehozva: {created}"
 
+#: src/transcribe_ui/gui/review/uploads.py
+#, python-brace-format
+msgid "Job {batch_id}: {count} file is back in review."
+msgid_plural "Job {batch_id}: {count} files are back in review."
+msgstr[0] "{batch_id} feladat: {count} fájl visszakerült az ellenőrzéshez."
+msgstr[1] "{batch_id} feladat: {count} fájl visszakerült az ellenőrzéshez."
+
 #: src/transcribe_ui/gui/cloud/status.py
 #, python-brace-format
 msgid "Job {batch_id}: {status}"
@@ -819,6 +929,7 @@ msgid "Kind"
 msgstr "Típus"
 
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -837,6 +948,10 @@ msgstr "Nyelvek"
 #, python-brace-format
 msgid "Languages of {name}:"
 msgstr "{name} nyelvei:"
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Languages:"
+msgstr "Nyelvek:"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 msgid "Last check"
@@ -906,6 +1021,11 @@ msgstr "Hiányzik"
 msgid "Name"
 msgstr "Név"
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Needs attention ({count})"
+msgstr "Figyelmet igényel ({count})"
+
 #: src/transcribe_ui/gui/selection/view.py src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr "Új feladat"
@@ -942,6 +1062,10 @@ msgstr ""
 "Nincs elérhető kijelző az ablakhoz. Használja helyette a transcribe-ui "
 "parancssort."
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "No file of this job waits for review."
+msgstr "A feladat egyik fájlja sem vár ellenőrzésre."
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "No media file is at or below this path."
 msgstr "Ezen az útvonalon és alatta nincs médiafájl."
@@ -967,6 +1091,7 @@ msgid "Not checked yet"
 msgstr "Még nincs ellenőrizve"
 
 #: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/review/display.py
 msgid "Not checked yet."
 msgstr "Még nincs ellenőrizve."
 
@@ -1001,6 +1126,15 @@ msgstr "Nincs semmi kijelölve."
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Nothing is waiting for transcription: upload a job first."
 msgstr "Semmi nem vár átírásra: előbb töltsön fel egy feladatot."
+
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid ""
+"Nothing to transcribe or extract for {languages}: remove the file from "
+"the job."
+msgstr ""
+"Ehhez nincs mit átírni vagy kinyerni: {languages}; vegye ki a fájlt a "
+"feladatból."
 
 #: src/transcribe_ui/gui/cleanup/display.py
 #, python-brace-format
@@ -1105,6 +1239,10 @@ msgstr "Megerősítés szükséges"
 msgid "Preferences"
 msgstr "Általános"
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "Preparing the upload…"
+msgstr "A feltöltés előkészítése…"
+
 #: src/transcribe_ui/cli/credentials_command.py
 msgid "Press Enter alone to keep what is stored."
 msgstr "Ha csak Entert nyom, a tárolt érték megmarad."
@@ -1195,6 +1333,14 @@ msgstr "Frissítés most"
 msgid "Remaining"
 msgstr "Hátralévő idő"
 
+#: src/transcribe_ui/gui/review/widgets.py
+msgid "Remove"
+msgstr "Eltávolítás"
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "Remove ticked files from the job"
+msgstr "A bejelölt fájlok eltávolítása a feladatból"
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Repeat cleanup"
 msgstr "Takarítás megismétlése"
@@ -1230,6 +1376,7 @@ msgid "Resume"
 msgstr "Folytatás"
 
 #: src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Resume upload"
 msgstr "Feltöltés folytatása"
 
@@ -1256,6 +1403,11 @@ msgstr "Ellenőrzés"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Review & upload"
 msgstr "Ellenőrzés és feltöltés"
+
+#: src/transcribe_ui/gui/review/header.py
+#, python-brace-format
+msgid "Review and upload: job {batch_id}"
+msgstr "Ellenőrzés és feltöltés: {batch_id} feladat"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Reviewed"
@@ -1375,6 +1527,7 @@ msgstr "Mentve."
 msgid "Saving..."
 msgstr "Mentés folyamatban..."
 
+#: src/transcribe_ui/gui/review/status.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Saving…"
 msgstr "Mentés folyamatban…"
@@ -1559,6 +1712,7 @@ msgstr "Állapot"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Status"
 msgstr "Állapot"
 
@@ -1603,6 +1757,10 @@ msgid ""
 msgstr ""
 "Leállítja és bezárja? A munka a következő indításkor onnan folytatódik, "
 "ahol abbamaradt."
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Stop checking"
+msgstr "Ellenőrzés leállítása"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 msgid "Stop problem"
@@ -2073,6 +2231,18 @@ msgstr "A feladatban nincs ilyen fájl."
 msgid "The job has nothing to transcribe in the cloud."
 msgstr "A feladatban nincs semmi, amit a felhőben kellene átírni."
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "The job is uploading; its review continues once the upload stops."
+msgstr ""
+"A feladat feltöltése folyamatban van; az ellenőrzés a feltöltés leállása "
+"után folytatódik."
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "The job is uploading; its review waits until the upload stops."
+msgstr ""
+"A feladat feltöltése folyamatban van; az ellenőrzés megvárja a feltöltés "
+"leállását."
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The job {batch_id} does not exist."
@@ -2257,6 +2427,11 @@ msgstr ""
 msgid "The track or stream number must not be negative."
 msgstr "A sáv sorszáma nem lehet negatív."
 
+#: src/transcribe_ui/gui/review/uploads.py
+#, python-brace-format
+msgid "The upload of job {batch_id} is already running."
+msgstr "{batch_id} feladat feltöltése már fut."
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid ""
 "The work changed since you saw it. Check the new plan, then press Start "
@@ -2347,13 +2522,30 @@ msgstr ""
 msgid "This value is not valid."
 msgstr "Ez az érték nem érvényes."
 
+#: src/transcribe_ui/gui/review/view.py
+msgid "Tick the files to remove in the tables above."
+msgstr "Jelölje be az eltávolítandó fájlokat a fenti táblázatokban."
+
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Tick the files to transcribe."
 msgstr "Jelölje be az átírandó fájlokat."
 
+#: src/transcribe_ui/gui/review/options.py
+msgid "Transcribe"
+msgstr "Átírás"
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "Transcribe all shown"
+msgstr "Minden látható átírása"
+
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Transcribe into:"
 msgstr "Átírás nyelve:"
+
+#: src/transcribe_ui/gui/review/options.py
+#, python-brace-format
+msgid "Transcribe track {number}: {track}"
+msgstr "{number}. hangsáv átírása: {track}"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -2432,13 +2624,27 @@ msgstr "A terv frissítése…"
 msgid "Updating the selection…"
 msgstr "A kijelölés frissítése…"
 
-#: src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/gui/review/view.py
 msgid "Upload"
 msgstr "Feltöltés"
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Upload complete: the job is ready for transcription."
+msgstr "A feltöltés kész: a feladat átírásra kész."
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Upload not finished"
 msgstr "A feltöltés nem fejeződött be"
+
+#: src/transcribe_ui/gui/review/uploads.py
+#, python-brace-format
+msgid "Upload of job {batch_id}"
+msgstr "{batch_id} feladat feltöltése"
+
+#: src/transcribe_ui/gui/review/widgets.py
+#, python-brace-format
+msgid "Upload: {state}"
+msgstr "Feltöltés: {state}"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Uploaded"
@@ -2488,6 +2694,10 @@ msgstr "Csak videó"
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Wait for a free cloud machine at most"
 msgstr "Várakozás szabad felhőgépre legfeljebb"
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Wait until the files are checked."
+msgstr "Várja meg, amíg a fájlok ellenőrzése befejeződik."
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Waiting"
@@ -2595,6 +2805,10 @@ msgstr "tartalmazza"
 msgid "damaged"
 msgstr "sérült"
 
+#: src/transcribe_ui/gui/review/options.py
+msgid "default"
+msgstr "alapértelmezett"
+
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "ends with"
 msgstr "így végződik"
@@ -2610,6 +2824,10 @@ msgstr "Az ffmpeg nem tudta SRT-ként kinyerni a feliratsávot."
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffprobe could not read the file."
 msgstr "Az ffprobe nem tudta beolvasni a fájlt."
+
+#: src/transcribe_ui/gui/review/options.py
+msgid "forced"
+msgstr "kényszerített"
 
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "has all of them"
@@ -2639,6 +2857,10 @@ msgstr "illeszkedik a reguláris kifejezésre"
 msgid "no"
 msgstr "nem"
 
+#: src/transcribe_ui/gui/review/options.py
+msgid "no language tag"
+msgstr "nyelvcímke nélkül"
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "not a job description"
 msgstr "nem feladatleírás"
@@ -2648,6 +2870,10 @@ msgid "path of the request JSON file, or - to read the request from stdin"
 msgstr ""
 "a kérést tartalmazó JSON-fájl útvonala, vagy - a kérés beolvasásához a "
 "szabványos bemenetről (stdin)"
+
+#: src/transcribe_ui/gui/review/options.py
+msgid "picture-based: transcribe only"
+msgstr "képalapú: csak átírható"
 
 #: src/transcribe_ui/cli/parser.py
 msgid "print the JSON Schema of the requests"
@@ -2693,6 +2919,13 @@ msgstr "igen"
 msgid "{amount} USD"
 msgstr "{amount} USD"
 
+#: src/transcribe_ui/gui/review/options.py
+#, python-brace-format
+msgid "{count} channel"
+msgid_plural "{count} channels"
+msgstr[0] "{count} csatorna"
+msgstr[1] "{count} csatorna"
+
 #: src/transcribe_ui/gui/download/display.py
 #, python-brace-format
 msgid "{count} could not be placed"
@@ -2714,6 +2947,28 @@ msgid_plural "{count} existing subtitle files will be replaced."
 msgstr[0] "{count} meglévő feliratfájl lecserélődik."
 msgstr[1] "{count} meglévő feliratfájl lecserélődik."
 
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{count} file in review"
+msgid_plural "{count} files in review"
+msgstr[0] "{count} fájl ellenőrzés alatt"
+msgstr[1] "{count} fájl ellenőrzés alatt"
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid ""
+"{count} file is back in review (it changed, or needs a choice): {names}. "
+"Review it, then resume the upload."
+msgid_plural ""
+"{count} files are back in review (they changed, or need a choice): "
+"{names}. Review them, then resume the upload."
+msgstr[0] ""
+"{count} fájl visszakerült az ellenőrzéshez (megváltozott, vagy döntés "
+"kell róla): {names}. Ellenőrizze, majd folytassa a feltöltést."
+msgstr[1] ""
+"{count} fájl visszakerült az ellenőrzéshez (megváltozott, vagy döntés "
+"kell róla): {names}. Ellenőrizze, majd folytassa a feltöltést."
+
 #: src/transcribe_ui/gui/selection/display.py
 #, python-brace-format
 msgid "{count} file selected ({video} video, {audio} audio), {size}."
@@ -2734,6 +2989,13 @@ msgid "{count} job"
 msgid_plural "{count} jobs"
 msgstr[0] "{count} feladat"
 msgstr[1] "{count} feladat"
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{count} needs attention"
+msgid_plural "{count} need attention"
+msgstr[0] "{count} figyelmet igényel"
+msgstr[1] "{count} figyelmet igényel"
 
 #: src/transcribe_ui/gui/download/display.py
 #, python-brace-format
@@ -2781,6 +3043,11 @@ msgstr[1] "{count} kiírva"
 #, python-brace-format
 msgid "{duration} left"
 msgstr "{duration} van hátra"
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{files}; every one is ready to upload."
+msgstr "{files}; mind feltölthető."
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -2959,6 +3226,11 @@ msgstr "{language} (kényszerített)"
 #, python-brace-format
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} p {seconds} mp"
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{names} and {count} more"
+msgstr "{names} és még {count}"
 
 #: src/transcribe_ui/gui/selection/choices.py
 #, python-brace-format

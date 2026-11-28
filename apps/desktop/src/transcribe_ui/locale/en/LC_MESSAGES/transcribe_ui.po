@@ -124,6 +124,10 @@ msgstr ""
 msgid "Advanced"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/folders.py
+msgid "All folders"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "All in one output folder"
 msgstr ""
@@ -173,6 +177,14 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/view.py
+msgid "Apply choices"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Apply or discard your changes before the upload."
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
@@ -194,8 +206,17 @@ msgstr ""
 msgid "Audio only"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Audio tracks ({count})"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/wizard.py src/transcribe_ui/gui/steps/view.py
 msgid "Back"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Back to the job"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -211,12 +232,21 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/widgets.py
+msgid "Cancel upload"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/display.py
+msgid "Changed; not applied yet"
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Check"
 msgstr ""
 
 #: src/transcribe_ui/gui/download/panels.py
+#: src/transcribe_ui/gui/review/header.py
 msgid "Check again"
 msgstr ""
 
@@ -229,6 +259,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Checking files"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Checking stopped; continue any time with Check again."
 msgstr ""
 
 #: src/transcribe_ui/gui/cleanup/display.py
@@ -248,8 +282,16 @@ msgstr ""
 msgid "Checking the cloud..."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "Checking the files…"
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Checking what is waiting for transcription..."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/widgets.py
+msgid "Choice"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -268,6 +310,11 @@ msgstr ""
 msgid "Choose a folder, then tick the files to transcribe."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Choose a track or a subtitle for {languages}."
+msgstr ""
+
 #: src/transcribe_ui/gui/download/form.py
 msgid "Choose at least one folder level."
 msgstr ""
@@ -278,6 +325,16 @@ msgstr ""
 
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Choose folder…"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid ""
+"Choose for the files that need attention, or remove them from the job, "
+"before the upload."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/display.py
+msgid "Choose how to make this subtitle"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -312,6 +369,7 @@ msgid "Choose the subtitle stream to extract."
 msgstr ""
 
 #: src/transcribe_ui/gui/download/panels.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Choose…"
 msgstr ""
 
@@ -418,6 +476,11 @@ msgid ""
 "was created."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "Current file: {sent} of {size} sent"
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Current run"
 msgstr ""
@@ -498,8 +561,13 @@ msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py src/transcribe_ui/gui/dialogs.py
 #: src/transcribe_ui/gui/download/results.py
+#: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Details"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "Discard changes"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
@@ -508,6 +576,12 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Done"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid ""
+"Done: the embedded subtitles are extracted; download them from the job "
+"page."
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -563,6 +637,11 @@ msgstr ""
 msgid "Embedded subtitle"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Embedded subtitles ({count})"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Enter a whole number of at least 1."
 msgstr ""
@@ -592,6 +671,15 @@ msgstr ""
 msgid "Extensions without the dot, separated by spaces."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/view.py
+msgid "Extract all shown"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/options.py
+#, python-brace-format
+msgid "Extract subtitle {number}: {stream}"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Extracted"
 msgstr ""
@@ -603,6 +691,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "File"
 msgstr ""
 
@@ -621,6 +710,11 @@ msgstr ""
 #: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "Files uploaded: {done} of {total}"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/languages_view.py
@@ -659,6 +753,7 @@ msgid "Fix the marked fields, then save again."
 msgstr ""
 
 #: src/transcribe_ui/gui/download/results.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Folder"
 msgstr ""
 
@@ -672,6 +767,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Folder names were added to tell apart files of different folders."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Folder:"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -754,6 +853,13 @@ msgstr ""
 msgid "Job {batch_id}, created {created}"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/uploads.py
+#, python-brace-format
+msgid "Job {batch_id}: {count} file is back in review."
+msgid_plural "Job {batch_id}: {count} files are back in review."
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/cloud/status.py
 #, python-brace-format
 msgid "Job {batch_id}: {status}"
@@ -769,6 +875,7 @@ msgid "Kind"
 msgstr ""
 
 #: src/transcribe_ui/gui/download/results.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/review/widgets.py
 #: src/transcribe_ui/gui/settings/form.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -786,6 +893,10 @@ msgstr ""
 #: src/transcribe_ui/gui/selection/widgets.py
 #, python-brace-format
 msgid "Languages of {name}:"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Languages:"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
@@ -856,6 +967,11 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid "Needs attention ({count})"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/view.py src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr ""
@@ -890,6 +1006,10 @@ msgid ""
 "line instead."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "No file of this job waits for review."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "No media file is at or below this path."
 msgstr ""
@@ -913,6 +1033,7 @@ msgid "Not checked yet"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/review/display.py
 msgid "Not checked yet."
 msgstr ""
 
@@ -946,6 +1067,13 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Nothing is waiting for transcription: upload a job first."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/display.py
+#, python-brace-format
+msgid ""
+"Nothing to transcribe or extract for {languages}: remove the file from "
+"the job."
 msgstr ""
 
 #: src/transcribe_ui/gui/cleanup/display.py
@@ -1047,6 +1175,10 @@ msgstr ""
 msgid "Preferences"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "Preparing the upload…"
+msgstr ""
+
 #: src/transcribe_ui/cli/credentials_command.py
 msgid "Press Enter alone to keep what is stored."
 msgstr ""
@@ -1131,6 +1263,14 @@ msgstr ""
 msgid "Remaining"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/widgets.py
+msgid "Remove"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "Remove ticked files from the job"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Repeat cleanup"
 msgstr ""
@@ -1166,6 +1306,7 @@ msgid "Resume"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Resume upload"
 msgstr ""
 
@@ -1191,6 +1332,11 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Review & upload"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/header.py
+#, python-brace-format
+msgid "Review and upload: job {batch_id}"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -1299,6 +1445,7 @@ msgstr ""
 msgid "Saving..."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Saving…"
 msgstr ""
@@ -1471,6 +1618,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/review/widgets.py
 msgid "Status"
 msgstr ""
 
@@ -1510,6 +1658,10 @@ msgstr ""
 msgid ""
 "Stop and close? The work continues from where it stopped the next time "
 "you start it."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/header.py
+msgid "Stop checking"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
@@ -1929,6 +2081,14 @@ msgstr ""
 msgid "The job has nothing to transcribe in the cloud."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/status.py
+msgid "The job is uploading; its review continues once the upload stops."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "The job is uploading; its review waits until the upload stops."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The job {batch_id} does not exist."
@@ -2085,6 +2245,11 @@ msgstr ""
 msgid "The track or stream number must not be negative."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/uploads.py
+#, python-brace-format
+msgid "The upload of job {batch_id} is already running."
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid ""
 "The work changed since you saw it. Check the new plan, then press Start "
@@ -2162,12 +2327,29 @@ msgstr ""
 msgid "This value is not valid."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/view.py
+msgid "Tick the files to remove in the tables above."
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Tick the files to transcribe."
 msgstr ""
 
+#: src/transcribe_ui/gui/review/options.py
+msgid "Transcribe"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/view.py
+msgid "Transcribe all shown"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Transcribe into:"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/options.py
+#, python-brace-format
+msgid "Transcribe track {number}: {track}"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -2243,12 +2425,26 @@ msgstr ""
 msgid "Updating the selection…"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/display.py
+#: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/gui/review/view.py
 msgid "Upload"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Upload complete: the job is ready for transcription."
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Upload not finished"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/uploads.py
+#, python-brace-format
+msgid "Upload of job {batch_id}"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/widgets.py
+#, python-brace-format
+msgid "Upload: {state}"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -2296,6 +2492,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Wait for a free cloud machine at most"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+msgid "Wait until the files are checked."
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -2395,6 +2595,10 @@ msgstr ""
 msgid "damaged"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/options.py
+msgid "default"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "ends with"
 msgstr ""
@@ -2409,6 +2613,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffprobe could not read the file."
+msgstr ""
+
+#: src/transcribe_ui/gui/review/options.py
+msgid "forced"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/widgets.py
@@ -2437,12 +2645,20 @@ msgstr ""
 msgid "no"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/options.py
+msgid "no language tag"
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "not a job description"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
 msgid "path of the request JSON file, or - to read the request from stdin"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/options.py
+msgid "picture-based: transcribe only"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
@@ -2489,6 +2705,13 @@ msgstr ""
 msgid "{amount} USD"
 msgstr ""
 
+#: src/transcribe_ui/gui/review/options.py
+#, python-brace-format
+msgid "{count} channel"
+msgid_plural "{count} channels"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/download/display.py
 #, python-brace-format
 msgid "{count} could not be placed"
@@ -2510,6 +2733,24 @@ msgid_plural "{count} existing subtitle files will be replaced."
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{count} file in review"
+msgid_plural "{count} files in review"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid ""
+"{count} file is back in review (it changed, or needs a choice): {names}. "
+"Review it, then resume the upload."
+msgid_plural ""
+"{count} files are back in review (they changed, or need a choice): "
+"{names}. Review them, then resume the upload."
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/selection/display.py
 #, python-brace-format
 msgid "{count} file selected ({video} video, {audio} audio), {size}."
@@ -2528,6 +2769,13 @@ msgstr[1] ""
 #, python-brace-format
 msgid "{count} job"
 msgid_plural "{count} jobs"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{count} needs attention"
+msgid_plural "{count} need attention"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -2576,6 +2824,11 @@ msgstr[1] ""
 #: src/transcribe_ui/gui/cloud/display.py
 #, python-brace-format
 msgid "{duration} left"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{files}; every one is ready to upload."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -2731,6 +2984,11 @@ msgstr ""
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{minutes} min {seconds} s"
+msgstr ""
+
+#: src/transcribe_ui/gui/review/status.py
+#, python-brace-format
+msgid "{names} and {count} more"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/choices.py

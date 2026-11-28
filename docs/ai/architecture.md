@@ -633,6 +633,60 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   - Decisions: the cleanup has its own question instead of the generic confirmation dialog (that
     one makes Confirm the default button and lists the raw details); the unconfirmed request
     runs in the panel too, so it shows (and can be cancelled) while the long pool is full.
+- **Review and upload** (`gui/review/`, step 2 of a job; Qt-free `constants.py`, `options.py`,
+  `draft.py`, `folders.py`, `sender.py`, `loading.py`, `editing.py`, `commands.py`,
+  `uploads.py`, `viewmodel.py`, `display.py`, `status.py`; Qt `widgets.py`, `header.py`,
+  `view.py`, `install.py`). The page lives on the Jobs page's stack (`open_review` shows it
+  there; Back to the job and the job page hide it); `run_upload` (Upload or Resume upload on
+  the job page) starts the upload without leaving the page it came from.
+  - Loads: `get_batch` (the step, the allowed actions, the folders), then `review_batch` only
+    while the job allows it (else "No file of this job waits for review"), then `get_batch`
+    again, since a probe can change what the job allows. The page shows the probe's progress
+    with Stop checking (shown as stopped, not failed; Check again continues with the files not
+    checked yet) and a load error with Retry.
+  - One at a time: `review_batch`, `resolve_review` and `exclude_items` hold the job's lock
+    (`batch_busy` is never waited for), so `SerialSender` sends them one after the other: a new
+    review replaces a waiting one and cancels a running one (its answer is dropped), an action
+    waits. A review is not sent while the job's upload runs (shown as waiting for it). Each open
+    of a job and each filter change starts a new generation; answers of an older one, or about
+    another job, are dropped (an Apply's still emits `batches_changed`), and a retry from the
+    error dialog keeps its first send's generation. A hidden page cancels its review and sends
+    nothing on `batches_changed`; shown again, it loads once.
+  - Views: the filters (the job's languages as tick boxes, shared with New job; "All folders"
+    or a folder below the job's folder that holds a file in review) go into the request's
+    `filters`. Three tables: Embedded subtitles, Audio tracks (a row per file and language)
+    and Needs attention (a row per file: its problem's catalog text, or the languages without a
+    choice, or nothing to transcribe or extract). A row's combo box lists the choices of the
+    transcription: transcribe each probed audio track (one "Transcribe" for an audio file or a
+    single track) and extract each text subtitle stream; picture-based streams are only listed
+    in the details ("transcribe only"). "Transcribe all shown" and "Extract all shown" choose
+    for every row of the embedded-subtitle view the filters show, from the backend's
+    `suggestions` (§3.3 "Views"), so a choice can be made per folder or per language. A table
+    is rebuilt only when a review changes its rows' shape; a choice or a tick updates the cells
+    in place, so a combo box is never replaced under its own signal.
+  - Choices wait in a draft (per file and language, in the order made; choosing the stored
+    choice again drops the change) until Apply choices (`resolve_review`); Discard changes drops
+    them. The views come from the answer when it is the page's current, unfiltered view, else
+    they are loaded again (`resolve_review` answers unfiltered). Remove ticked files from the
+    job sends `exclude_items` through its backend confirmation; Remove tick boxes are per file.
+  - Buttons follow `actions` (Upload, "Resume upload" while labelled `upload_unfinished`;
+    Remove while `exclude_items` is listed; Apply while `resolve_review` is) and are disabled
+    while a check, a save or the job's upload runs, while choices wait for Apply, or while files
+    need attention; one hint says why. No button is a default or auto-default button, so a
+    stray Enter starts nothing.
+  - Upload (`UploadTracker`): `run_upload` in the activity panel, one per job (a second start
+    says "already running" in the status bar). The tracker follows its entries in the panel
+    (each progress event comes with a change of the panel's view-model) and keeps the latest
+    event per stage tagged with the call it came from, so a Resume shows only its own progress.
+    The page's upload box shows the files uploaded (`upload_item`), the current object's bytes
+    with a progress bar (`upload_bytes`), Cancel upload, Resume upload (a new start of the same
+    request) and Details of an error; once finished, the outcome: ready, held, extracted only,
+    or the files back in review by name (also named in the status bar). Every end (also a stop
+    or a failure) emits `batches_changed`, which reloads the job page and the review (the files
+    the upload sent back to review are probed again there; their choices stay when they probe the
+    same).
+  - Repaints: at most every `PROGRESS_REPAINT_MS`, only while the page is visible (repainted
+    once when it shows again); the tracker tells only about the job that changed.
 - **Writer lock**: the `database` start-up step sends `list_batches` (read-only) to take the
   lock. While another process holds it (`app_busy` from any response), a page that needs the
   database is replaced by a notice with Retry; Settings stays usable. A Retry that gets the
@@ -958,7 +1012,11 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   - **Views.** `review_batch` returns `subtitle_view` (files with embedded subtitles),
     `track_view` (video files with more than one audio track) and `unresolved` (files with a
     problem or an unresolved job), narrowed by the request's `filters` (job languages, a folder
-    compared with the path-flavour rule), plus totals over all items in review.
+    compared with the path-flavour rule), plus totals over all items in review. Each probed file
+    lists, per job shown, the pre-selection's `suggestions` (the track a transcription uses, the
+    text subtitle tagged with the job's language), so a frontend can offer them again (the
+    GUI's "Transcribe all shown" and "Extract all shown"); a response field only, no stored
+    payload changes.
     `resolve_review` applies its choices all or none (`choice_invalid` with the choice's index
     and a reason: unknown item or job, item not in review, `upload_started` (in an `uploading`
     batch, an item with `audio_objects` or `extracted_subtitles` rows: only items sent back to
