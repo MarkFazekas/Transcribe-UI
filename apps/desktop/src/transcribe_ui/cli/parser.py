@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from typing import NoReturn
 
 from transcribe_ui.api.classes import LanguageSetting
+from transcribe_ui.cli.constants import DEFAULT_PROGRESS_FORMAT, PROGRESS_FORMATS
 from transcribe_ui.constants import DISTRIBUTION_NAME
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.i18n.language import start_language
@@ -43,11 +44,20 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", metavar="command")
     run_help = tr("run the request in a JSON file and print the response as JSON")
     run_parser = commands.add_parser("run", help=run_help, description=run_help)
-    run_parser.add_argument("request", help=tr("path of the request JSON file"))
+    request_help = tr("path of the request JSON file, or - to read the request from stdin")
+    run_parser.add_argument("request", help=request_help)
+    progress_help = tr(
+        "how progress is written to stderr: ndjson (one JSON line per event) or text (one readable line per event)"
+    )
+    run_parser.add_argument("--progress", choices=PROGRESS_FORMATS, default=DEFAULT_PROGRESS_FORMAT, help=progress_help)
     schema_help = tr("print the JSON Schema of the requests")
     schema_parser = commands.add_parser("schema", help=schema_help, description=schema_help)
     response_help = tr("print the JSON Schema of the responses instead")
     schema_parser.add_argument("--response", action="store_true", help=response_help)
+    credentials_help = tr(
+        "ask for each credential (the keys and the secret without showing them) and store them in the keyring"
+    )
+    commands.add_parser("credentials", help=credentials_help, description=credentials_help)
     return parser
 
 

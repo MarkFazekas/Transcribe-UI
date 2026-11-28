@@ -1,4 +1,4 @@
-"""Flow tests of the CLI frontend: cancellation, request files, failures, the installed entry point."""
+"""Flow tests of the CLI frontend: cancellation, request files, stdin, failures, the installed entry point."""
 
 import io
 import signal
@@ -19,6 +19,7 @@ from transcribe_ui.api.info import app_version, get_app_info
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.api.routes import Route
 from transcribe_ui.api.schema import response_adapter
+from transcribe_ui.cli.console import Console
 from transcribe_ui.cli.constants import (
     EXIT_CANCELLED,
     EXIT_ERROR,
@@ -31,6 +32,8 @@ from transcribe_ui.cli.main import main
 from transcribe_ui.cli.run_command import BackendFactory
 
 GET_APP_INFO = b'{"action": "get_app_info"}'
+# A request whose problem location echoes a non-ASCII field name.
+NON_ASCII_INVALID = '{"action": "get_app_info", "kérés": 1}'.encode()
 SUBPROCESS_TIMEOUT_S = 60
 CRASH_DETAIL = "internal detail that must not leak"
 
@@ -54,7 +57,7 @@ def _broken_backend() -> Backend:
 def _run(request_file: Path, make_backend: BackendFactory | None = None) -> tuple[int, Response]:
     factory = partial(_seeded_backend, request_file.parent) if make_backend is None else make_backend
     stdout = io.BytesIO()
-    code = main(["run", str(request_file)], make_backend=factory, stdout=stdout, stderr=io.BytesIO())
+    code = main(["run", str(request_file)], make_backend=factory, console=Console(stdout=stdout, stderr=io.BytesIO()))
     return code, response_adapter().validate_json(stdout.getvalue())
 
 
@@ -116,22 +119,23 @@ def test_failure_outside_a_request_answers_json(tmp_path: Path) -> None:
 def test_missing_command_is_refused() -> None:
     """A command line without a command is answered with an error response and exit code 2."""
     stdout = io.BytesIO()
-    assert main([], stdout=stdout) == EXIT_INVALID_REQUEST
+    assert main([], console=Console(stdout=stdout)) == EXIT_INVALID_REQUEST
     assert _error_code(response_adapter().validate_json(stdout.getvalue())) == "invalid_arguments"
 
 
 def test_cli_schema_prints_the_request_union() -> None:
     """`transcribe-ui schema` prints the request union's schema (the committed snapshot)."""
     stdout = io.BytesIO()
-    assert main(["schema"], stdout=stdout) == EXIT_OK
+    assert main(["schema"], console=Console(stdout=stdout)) == EXIT_OK
     assert stdout.getvalue() == (SNAPSHOT_DIR / "Request.schema.json").read_bytes()
 
 
-def _run_entry_point(*args: str | Path) -> subprocess.CompletedProcess[bytes]:
+def _run_entry_point(*args: str | Path, stdin: bytes = b"") -> subprocess.CompletedProcess[bytes]:
     name = "transcribe-ui.exe" if sys.platform == "win32" else "transcribe-ui"
     script = Path(sysconfig.get_path("scripts")) / name
     return subprocess.run(  # noqa: S603 - runs the entry point installed from this repo
         [script, *args],
+        input=stdin,
         capture_output=True,
         timeout=SUBPROCESS_TIMEOUT_S,
         check=False,
@@ -156,3 +160,27 @@ def test_installed_entry_point_prints_the_version() -> None:
     completed = _run_entry_point("--version")
     assert completed.returncode == EXIT_OK, completed.stderr
     assert completed.stdout == f"transcribe-ui {app_version()}\n".encode()
+
+
+@pytest.mark.parametrize(
+    ("document", "expected"),
+    [(GET_APP_INFO, EXIT_OK), (NON_ASCII_INVALID, EXIT_INVALID_REQUEST)],
+)
+def test_installed_entry_point_reads_stdin(tmp_path: Path, document: bytes, expected: int) -> None:
+    """The installed script reads a piped UTF-8 request with `run -` and answers like `run <file>`."""
+    request_file = tmp_path / "request.json"
+    request_file.write_bytes(document)
+    piped = _run_entry_point("run", "-", stdin=document)
+    assert piped.returncode == expected, piped.stderr
+    assert not piped.stderr
+    response_adapter().validate_json(piped.stdout)
+    from_file = _run_entry_point("run", request_file)
+    assert (piped.returncode, piped.stdout) == (from_file.returncode, from_file.stdout)
+
+
+def test_credentials_refused_from_a_pipe() -> None:
+    """`credentials` with a pipe on stdin asks nothing and answers `invalid_arguments` (exit 2)."""
+    completed = _run_entry_point("credentials", stdin=b"secret\n")
+    assert completed.returncode == EXIT_INVALID_REQUEST
+    assert not completed.stderr
+    assert _error_code(response_adapter().validate_json(completed.stdout)) == "invalid_arguments"

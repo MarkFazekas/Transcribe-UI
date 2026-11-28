@@ -54,6 +54,13 @@ msgid ""
 "cloud instead."
 msgstr ""
 
+#: src/transcribe_ui/cli/credentials_command.py
+#, python-brace-format
+msgid ""
+"A key must be ASCII without spaces or control characters, at most "
+"{max_length} characters, and not only '*' characters."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A retried file has no audio to copy for one of its transcriptions."
 msgstr ""
@@ -245,6 +252,10 @@ msgstr ""
 msgid "Please confirm"
 msgstr ""
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "Press Enter alone to keep what is stored."
+msgstr ""
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Quit now"
 msgstr ""
@@ -259,14 +270,30 @@ msgid ""
 "the API token's permissions and bucket."
 msgstr ""
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 access key ID"
+msgstr ""
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 bucket name"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "R2 cannot be reached; check the network connection and the endpoint URL."
+msgstr ""
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 endpoint URL"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "R2 refused the credentials: the access key ID or the secret access key is"
 " wrong."
+msgstr ""
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 secret access key"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
@@ -283,6 +310,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Running"
+msgstr ""
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "Runpod API key"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -433,6 +464,12 @@ msgid ""
 "price."
 msgstr ""
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid ""
+"The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
+"starting or ending with a hyphen."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "The cloud already holds data under this job's ID (another computer's job,"
@@ -505,6 +542,12 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The custom plan file cannot be written ({reason})."
+msgstr ""
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid ""
+"The endpoint URL must be an https URL with a host name only, such as "
+"https://<account>.r2.cloudflarestorage.com."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -781,6 +824,12 @@ msgstr ""
 msgid "Transcribe-UI is busy in another window"
 msgstr ""
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid ""
+"Type each credential and press Enter; the keys and the secret are not "
+"shown as you type."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Uploading"
 msgstr ""
@@ -809,6 +858,12 @@ msgid ""
 "or published; try again later."
 msgstr ""
 
+#: src/transcribe_ui/cli/parser.py
+msgid ""
+"ask for each credential (the keys and the secret without showing them) "
+"and store them in the keyring"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffmpeg could not convert the audio track."
 msgstr ""
@@ -821,12 +876,18 @@ msgstr ""
 msgid "ffprobe could not read the file."
 msgstr ""
 
+#: src/transcribe_ui/cli/parser.py
+msgid ""
+"how progress is written to stderr: ndjson (one JSON line per event) or "
+"text (one readable line per event)"
+msgstr ""
+
 #: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
 msgid "no"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
-msgid "path of the request JSON file"
+msgid "path of the request JSON file, or - to read the request from stdin"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py

@@ -21,6 +21,7 @@ from transcribe_ui.api.classes import ProgressEvent, Response
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.api.routes import Routes
 from transcribe_ui.api.schema import response_adapter
+from transcribe_ui.cli.console import Console
 from transcribe_ui.cli.main import main
 from transcribe_ui.cli.output import exit_code
 
@@ -118,7 +119,9 @@ def _via_cli(leg: Leg, template: str, request_file: Path) -> Exchange:
     request_file.write_bytes(leg.document(template).encode("utf-8"))
     stdout = io.BytesIO()
     stderr = io.BytesIO()
-    code = main(["run", str(request_file)], make_backend=lambda: leg.backend, stdout=stdout, stderr=stderr)
+    code = main(
+        ["run", str(request_file)], make_backend=lambda: leg.backend, console=Console(stdout=stdout, stderr=stderr)
+    )
     lines = stderr.getvalue().decode("utf-8").splitlines()
     events = [ProgressEvent.model_validate_json(line) for line in lines]
     return leg.exchange(response_adapter().validate_json(stdout.getvalue()), events, code)

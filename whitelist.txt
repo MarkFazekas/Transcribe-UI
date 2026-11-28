@@ -129,6 +129,7 @@ invoker
 isalnum
 isalpha
 isascii
+isatty
 isdecimal
 isfinite
 islice

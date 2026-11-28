@@ -65,6 +65,16 @@ msgstr ""
 "Egy feladatból nem vehető ki az utolsó fájl; helyette törölje a "
 "feladatot, vagy takarítsa el a felhőből."
 
+#: src/transcribe_ui/cli/credentials_command.py
+#, python-brace-format
+msgid ""
+"A key must be ASCII without spaces or control characters, at most "
+"{max_length} characters, and not only '*' characters."
+msgstr ""
+"A kulcs csak ASCII-karakterekből állhat, szóköz és vezérlőkarakter "
+"nélkül, legfeljebb {max_length} karakter hosszú lehet, és nem állhat "
+"csupa „*” karakterből."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A retried file has no audio to copy for one of its transcriptions."
 msgstr "Egy újrapróbált fájl egyik átírásához nincs átmásolható hang."
@@ -277,6 +287,10 @@ msgstr "A képalapú feliratok nem nyerhetők ki szövegként; csak átírhatók
 msgid "Please confirm"
 msgstr "Megerősítés szükséges"
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "Press Enter alone to keep what is stored."
+msgstr "Ha csak Entert nyom, a tárolt érték megmarad."
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Quit now"
 msgstr "Kilépés most"
@@ -293,11 +307,23 @@ msgstr ""
 "Az R2 elfogadta a hozzáférési adatokat, de ehhez nincs joguk; ellenőrizze"
 " az API-token jogosultságait és bucketjét."
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 access key ID"
+msgstr "R2-hozzáférésikulcs-azonosító"
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 bucket name"
+msgstr "R2-bucket neve"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "R2 cannot be reached; check the network connection and the endpoint URL."
 msgstr ""
 "Az R2 nem érhető el; ellenőrizze a hálózati kapcsolatot és a végpont URL-"
 "jét."
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 endpoint URL"
+msgstr "R2-végpont URL-je"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -306,6 +332,10 @@ msgid ""
 msgstr ""
 "Az R2 elutasította a hozzáférési adatokat: a hozzáférésikulcs-azonosító "
 "vagy a titkos hozzáférési kulcs hibás."
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "R2 secret access key"
+msgstr "Titkos R2-hozzáférési kulcs"
 
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Resume"
@@ -322,6 +352,10 @@ msgstr "Transcribe-UI-kérések futtatása JSON-fájlokból."
 #: src/transcribe_ui/gui/texts.py
 msgid "Running"
 msgstr "Fut"
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid "Runpod API key"
+msgstr "Runpod API-kulcs"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Runpod accepted the API key and the cloud machines can be listed."
@@ -499,6 +533,14 @@ msgid ""
 "price."
 msgstr "A Runpod árlistáján nem szerepel a GPU; a becslés a szokásos árral számol."
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid ""
+"The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
+"starting or ending with a hyphen."
+msgstr ""
+"A bucket neve 3–63 kisbetűből, számjegyből és kötőjelből állhat, és nem "
+"kezdődhet vagy végződhet kötőjellel."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "The cloud already holds data under this job's ID (another computer's job,"
@@ -582,6 +624,14 @@ msgstr "Az egyéni terv fájlja nem olvasható ({reason})."
 #, python-brace-format
 msgid "The custom plan file cannot be written ({reason})."
 msgstr "Az egyéni terv fájlja nem írható ({reason})."
+
+#: src/transcribe_ui/cli/credentials_command.py
+msgid ""
+"The endpoint URL must be an https URL with a host name only, such as "
+"https://<account>.r2.cloudflarestorage.com."
+msgstr ""
+"A végpont URL-je csak gépnevet tartalmazó https URL lehet, például "
+"https://<fiókazonosító>.r2.cloudflarestorage.com."
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid ""
@@ -901,6 +951,14 @@ msgstr ""
 msgid "Transcribe-UI is busy in another window"
 msgstr "A Transcribe-UI egy másik ablakban dolgozik"
 
+#: src/transcribe_ui/cli/credentials_command.py
+msgid ""
+"Type each credential and press Enter; the keys and the secret are not "
+"shown as you type."
+msgstr ""
+"Írja be egyenként a hozzáférési adatokat, és nyomjon Entert; a kulcsok és"
+" a titkos kulcs gépelés közben nem jelennek meg."
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Uploading"
 msgstr "Feltöltés"
@@ -934,6 +992,14 @@ msgstr ""
 "Nem ellenőrizhető, hogy folyamatban van-e felhős futás, ezért semmi sem "
 "indult el, és semmi sem lett közzétéve; próbálja újra később."
 
+#: src/transcribe_ui/cli/parser.py
+msgid ""
+"ask for each credential (the keys and the secret without showing them) "
+"and store them in the keyring"
+msgstr ""
+"a hozzáférési adatok bekérése egyenként (a kulcsok és a titkos kulcs "
+"megjelenítése nélkül), és tárolásuk a kulcstartóban"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "ffmpeg could not convert the audio track."
 msgstr "Az ffmpeg nem tudta átalakítani a hangsávot."
@@ -946,13 +1012,23 @@ msgstr "Az ffmpeg nem tudta SRT-ként kinyerni a feliratsávot."
 msgid "ffprobe could not read the file."
 msgstr "Az ffprobe nem tudta beolvasni a fájlt."
 
+#: src/transcribe_ui/cli/parser.py
+msgid ""
+"how progress is written to stderr: ndjson (one JSON line per event) or "
+"text (one readable line per event)"
+msgstr ""
+"az előrehaladás kiírásának formája a stderr-en: ndjson (eseményenként egy"
+" JSON-sor) vagy text (eseményenként egy olvasható sor)"
+
 #: src/transcribe_ui/gui/feedback.py src/transcribe_ui/i18n/codes.py
 msgid "no"
 msgstr "nem"
 
 #: src/transcribe_ui/cli/parser.py
-msgid "path of the request JSON file"
-msgstr "a kérést tartalmazó JSON-fájl útvonala"
+msgid "path of the request JSON file, or - to read the request from stdin"
+msgstr ""
+"a kérést tartalmazó JSON-fájl útvonala, vagy - a kérés beolvasásához a "
+"szabványos bemenetről (stdin)"
 
 #: src/transcribe_ui/cli/parser.py
 msgid "print the JSON Schema of the requests"
