@@ -246,8 +246,9 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   `packaging/pyinstaller_main.py` (the build runs PyInstaller through it) adds `libstdc++` and
   `libgcc_s` to its exclude list on Linux, so the host's newer copies (which Mesa's LLVM needs)
   are never shadowed. `cli-bundle`/`gui-bundle` fail if one is bundled.
-- `packaging/entry_gui.py` catches an exception that escapes the GUI's `run`, logs it to the
-  GUI log (and stderr where there is one) and exits 1: the windowed Windows bootloader would
+- `packaging/entry_gui.py` imports the app inside its guard and catches an exception that
+  escapes the GUI (a failing import included): it prints it to stderr where there is one, logs
+  it to the GUI log when the app's logging can still be imported, and exits 1: the windowed Windows bootloader would
   otherwise show a modal traceback dialog, and a smoke run would wait for its timeout.
 - The smoke mode of the GUI (architecture §3.1) also fails on any record at ERROR or above in
   the app's loggers while it watches (an exception escaping a Qt slot, a critical message of Qt).
