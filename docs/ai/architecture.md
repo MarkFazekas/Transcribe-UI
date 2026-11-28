@@ -203,7 +203,9 @@ docs/human/, docs/ai/     see CLAUDE.md
       `runpod_check_passed`, else the error's code) and the error's `details`;
     - the desktop's own job failures: `JobView.result_error_code` (`result_unreadable`,
       `result_missing`; stored in the job payload, revision `result_error_code`; None for the
-      worker's own errors, which are shown as they are).
+      worker's own errors, which are shown as they are);
+    - the states the jobs pages show: batch phases, stages and labels, item phases, job
+      statuses and job kinds (their values are the codes; entries in `i18n/state_texts.py`).
   - The frontends translate what they present: every GUI text; each of those backend texts is
     shown from the catalog entry of its code (`i18n/texts.py` `code_text(kind, code, details,
     fallback)`; the entries are in `i18n/error_texts.py` and `i18n/code_texts.py`), formatted
@@ -276,7 +278,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   `language.py`, `app.py`. A test imports the Qt-free modules in a subprocess and checks that PySide6 stays
   unloaded; another parses every module outside `gui/` and refuses any import of `PySide6`,
   `shiboken6` or `transcribe_ui.gui` at any nesting level. Areas (`settings/`, `selection/`, `jobs/`, `review/`, `cloud/`, `download/`,
-  `cleanup/`) each get `viewmodel.py` and `view.py` in their part.
+  `cleanup/`) each get `viewmodel.py` and `view.py` in their part, and an install function that
+  `gui/areas.py` calls (one line each): it registers the page, connects the signals the area
+  handles and adds its start-up steps.
 - **Bridge** (`QtExecutor`): the GUI thread never calls `Backend.execute`. Each request runs as
   a `QRunnable` (auto-deleted by its pool after `run` or on `clear()`; one taken off its queue
   is deleted by the bridge, so finished calls are freed; `run` first waits until `start` has
@@ -320,7 +324,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   during progress always reaches its button.
 - **Bus** (`gui/signals.py`, declared whole by M6.2): navigation (`open_job`, `open_jobs`,
   `open_new_job`, `open_cloud`, `open_cloud_machines`, `open_settings(section)`), job actions
-  (`edit_selection`, `open_review`, `run_upload`, `open_download`, `retry_jobs(batch_id, jobs)`,
+  (`edit_selection`, `open_review`, `run_upload`, `open_download`, `retry_jobs(batch_id, jobs)`
+  with the ticked jobs as a tuple of `RetryJob`,
   `clean_up(batch_id, scope)`), cloud actions (`delete_unknown_batch`, `plan_invalidated`) and
   changes (`batches_changed(batch_ids)`, `runs_changed`, `settings_changed`). The shell maps
   navigation to pages; an action signal without a handler (`MainWindow.connect_handler`) shows
@@ -330,6 +335,38 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
 - **Shell** (Q33): a left navigation of four pages (New job, Jobs, Cloud, Settings), each a
   placeholder until its part registers it (`PageArea.add_page` replaces it), the activity panel
   below. Pages are marked whether they need the database (Settings does not).
+- **Step header** (`gui/steps/`; Qt-free `viewmodel.py`): the four steps 1 Files, 2 Review &
+  upload, 3 Transcription, 4 Download, rendered from the job's `stage` (steps before it done
+  with a check mark, its step bold, the step the page shows underlined; `done` is past every
+  step; no job yet is step 1). Back and Next show only when the placing page connects them.
+  The job page shows it at the job's stage; New job, review and upload, the start dialog and
+  download place it on their step.
+- **Jobs** (`gui/jobs/`; Qt-free `constants.py`, `display.py`, `commands.py`, `viewmodel.py`;
+  widgets `widgets.py`, `view.py`; `install.py`). The Jobs page is a list and a job page.
+  - The list sends `list_batches` (backend order, newest first; "Show hidden jobs" sets
+    `include_hidden`) at start-up (slot `batches`) and on every `batches_changed`; each row
+    shows the creation time (local), id, stage, phase, file and transcription counts, languages
+    and labels; Open or a double click emits `open_job`; Hide or Show for the selected job. The
+    selection is kept by batch id across reloads (cleared once the job is no longer listed),
+    and the table is rebuilt only when its rows changed.
+  - The job page (`open_job`) sends `get_batch` and reloads on `batches_changed` naming its job
+    (or any job); it shows the step header, the phase, counts, languages and labels, and one
+    row per transcription: file, language, kind, status, the reason of a failure (the catalog
+    text of `result_error_code`, else the worker's own `result_error`), the file's phase and
+    problem, its path. Transcriptions marked `flagged` are bold; while `create_retry_batch`
+    is allowed each has a Retry tick box, ticked by default (a reload keeps the user's ticks).
+  - Every button comes from `actions` (`ACTION_BUTTONS`, one button per action or group, in
+    the actions' order): Edit selection, Continue to review, Delete, Review (`review_batch`,
+    `resolve_review`), Upload ("Resume upload" while labelled `upload_unfinished`), Download
+    (the four download actions), Retry ticked files, Delete audio / everything from the cloud
+    ("Repeat cleanup" for the scope `cleanup_pending` names), Hide, Show. `exclude_items` has
+    no button here (the review page). Edit selection, Review, Upload, Download, Retry
+    (`retry_jobs` with the ticked jobs; disabled while none is ticked) and the cleanups
+    (`clean_up` with the scope) only emit their signal. Hide, Show, Delete and Continue to
+    review are sent by `JobCommands` (one at a time per job): Delete asks the backend's
+    confirmation and, confirmed, opens the list; Continue to review sends `start_review` and
+    emits `open_review`; each change emits `batches_changed`. A load error shows in the page
+    with Retry; an action's error opens the error dialog.
 - **Writer lock**: the `database` start-up step sends `list_batches` (read-only) to take the
   lock. While another process holds it (`app_busy` from any response), a page that needs the
   database is replaced by a notice with Retry; Settings stays usable. A Retry that gets the
@@ -651,6 +688,18 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     request's own fields) are not in the table: a listed action can still be refused. A
     frontend then shows the error and reloads the batch; after a request that changes other
     batches too (a retry, a launch, a refresh), it reloads the list.
+  - **Stage and labels** (same module, from the same facts; computed in every summary, not
+    stored). `BatchSummary.stage` is the step of the guided flow (§3.1 "GUI"): `files`
+    (`composing`), `review_upload` (`reviewing`, `uploading`), `transcription` (`ready`, and an
+    `uploading` batch whose manifest is held), `download` (`transcribed`), `done`
+    (`downloaded`, `cleaned`; table `PHASE_STAGES`). `BatchSummary.labels` lists, in this order,
+    the notes that apply: `cleanup_pending` (an interrupted cleanup), `upload_unfinished`
+    (`uploading`, not held), `manifest_held`, `subtitles_ready` (`ready` or `transcribed` with a
+    job `ok` or `extracted` that has no recorded placement outcome), `flagged_jobs` (a
+    transcription failed or found no speech), `audio_deleted` (until `cleaned`), `hidden`.
+    Frontends show both from the catalog; a new label is a code in `BatchLabel` and its entry,
+    nothing else. Each `JobView` says whether it is `flagged` (a `transcribe` job `failed` or
+    `no_speech`, which a retry batch can take), so no frontend restates that rule.
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
   own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
   `refresh_status` call `publish_held_manifests`). Replaced from M6.13 by §3.9 "Run scope"

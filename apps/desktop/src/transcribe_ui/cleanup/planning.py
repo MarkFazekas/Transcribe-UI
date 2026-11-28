@@ -12,12 +12,12 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from transcribe_ui.batches.actions import flagged_job
 from transcribe_ui.batches.payloads import BatchPayload, RetryJob, RetryOrigin
 from transcribe_ui.batches.phases import load_batch, require_phase
 from transcribe_ui.batches.records import StoredItem, StoredJob, stored_items
 from transcribe_ui.cleanup.classes import CreateRetryBatchRequest
 from transcribe_ui.cleanup.constants import (
-    FLAGGED_STATUSES,
     REASON_NO_SUCH_JOB,
     REASON_NOT_FLAGGED,
     RETRY_SOURCE_PHASES,
@@ -99,7 +99,7 @@ def _chosen_jobs(members: list[StoredItem], wanted: tuple[RetryJob, ...]) -> Cho
         found = by_key.get((job_ref.item_id, job_ref.language))
         if found is None or found.kind != "transcribe":
             raise RetryJobInvalidError(index, REASON_NO_SUCH_JOB)
-        if found.row.status not in FLAGGED_STATUSES:
+        if not flagged_job(found.kind, found.row.status):
             raise RetryJobInvalidError(index, REASON_NOT_FLAGGED)
         chosen[job_ref.item_id].append(found)
     for jobs in chosen.values():

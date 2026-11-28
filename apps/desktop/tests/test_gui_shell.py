@@ -32,6 +32,7 @@ from transcribe_ui.gui.constants import (
 )
 from transcribe_ui.gui.dialogs import ErrorDialog
 from transcribe_ui.gui.feedback import confirmation_view, error_view
+from transcribe_ui.gui.jobs.view import JobsPage
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.gui.texts import activity_state_text
 from transcribe_ui.state.logs import log_to_file
@@ -39,6 +40,8 @@ from transcribe_ui.state.logs import log_to_file
 TESTS_DIR = Path(__file__).resolve().parent
 SUBPROCESS_TIMEOUT_S = 60
 BATCH = "batch_20261127_120000"
+# `list_batches` sent once the writer lock is free again: the probe, then the jobs list's reload.
+PROBE_AND_RELOAD = 2
 
 
 @pytest.fixture
@@ -61,10 +64,11 @@ def _error(code: str, details: dict[str, object] | None = None) -> ErrorResponse
 
 
 def test_the_shell_shows_four_placeholder_pages(window: MainWindow) -> None:
-    """New job, Jobs, Cloud and Settings exist as placeholders until their parts register them."""
+    """New job, Jobs, Cloud and Settings exist; the ones not built yet are placeholders."""
     assert window.pages.navigation.count() == len(PAGES)
     assert window.pages.current_page() == PAGE_NEW_JOB
-    for key in (PAGE_NEW_JOB, PAGE_JOBS, PAGE_CLOUD, PAGE_SETTINGS):
+    assert isinstance(window.pages.page(PAGE_JOBS), JobsPage)
+    for key in (PAGE_NEW_JOB, PAGE_CLOUD, PAGE_SETTINGS):
         page = window.pages.page(key)
         assert isinstance(page, QLabel)
         assert page.text() == "This page is not available yet."
@@ -118,7 +122,9 @@ def test_the_error_dialog_retries_app_busy(window: MainWindow, gated: GatedRunne
     assert dialog.fix_button is not None
     dialog.fix_button.click()
     wait_for(qtbot, lambda: lock.state == "held")
-    assert (retried, gated.started("list_batches")) == ([True], 1)
+    # The probe, then the jobs list's reload once the lock is held again.
+    wait_for(qtbot, lambda: gated.started("list_batches") == PROBE_AND_RELOAD)
+    assert retried == [True]
 
 
 def test_app_busy_without_a_retry_probes_the_lock(window: MainWindow, gated: GatedRunner, qtbot: QtBot) -> None:
@@ -157,8 +163,10 @@ def test_activity_retry_resumes_the_entry(qtbot: QtBot, tmp_path: Path) -> None:
     assert dialog.fix_button is not None
     dialog.fix_button.click()
     wait_for(qtbot, lambda: entry.state == "finished")
-    # The re-send (long pool) and the lock probe (short pool) run side by side, in any order.
-    assert sorted(request.action for request in runner.sent) == sorted([UPLOAD, UPLOAD, "list_batches"])
+    # The re-send (long pool) and the lock probe (short pool) run side by side, in any order; the
+    # jobs list reloads once the probe got the lock.
+    wait_for(qtbot, lambda: len(runner.sent) == PROBE_AND_RELOAD + 2)
+    assert sorted(request.action for request in runner.sent) == sorted([UPLOAD, UPLOAD, "list_batches", "list_batches"])
 
 
 def test_the_confirmation_dialog_confirms(window: MainWindow) -> None:

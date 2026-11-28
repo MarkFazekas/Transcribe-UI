@@ -1,11 +1,11 @@
 """Every backend code has a catalog entry that fills from its details, in English and in Hungarian (plan m6 M6.14).
 
 The codes are collected from the backend itself (the `ERROR_*`, `CONFIRMATION_*`, `*_STAGE` and
-check constants of every `constants.py`, and the code literals of the response models), so a
-new code without an entry fails here. Each entry is filled from the details its code comes with:
-the samples of `support/code_samples.json` (whose keys are checked against the details the
-backend builds, where it builds them without a scenario), and every coded text of every golden
-file.
+check constants of every `constants.py`, the job statuses, and the code literals of the response
+and state models), so a new code without an entry fails here. Each entry is filled from the
+details its code comes with: the samples of `support/code_samples.json` (whose keys are checked
+against the details the backend builds, where it builds them without a scenario), and every
+coded text of every golden file.
 """
 
 import importlib
@@ -24,7 +24,9 @@ import transcribe_ui
 from support.golden import GOLDEN_DIR
 from transcribe_ui.api.classes import ErrorResponse
 from transcribe_ui.api.errors import DomainError
-from transcribe_ui.batches.payloads import ProblemCode, ResultErrorCode
+from transcribe_ui.batches.constants import JOB_STATUSES
+from transcribe_ui.batches.payloads import ItemPhase, JobKind, ProblemCode, ResultErrorCode
+from transcribe_ui.batches.responses import BatchLabel, BatchStage
 from transcribe_ui.cli.run_command import read_request
 from transcribe_ui.discovery.classes import ScanWarningCode
 from transcribe_ui.i18n.catalog import activate
@@ -41,6 +43,7 @@ from transcribe_ui.runpod.errors import RunpodApiError
 from transcribe_ui.runpod.inventory import volume_duplicated
 from transcribe_ui.runs.errors import CleanupPendingError, RunNotFoundError
 from transcribe_ui.state.errors import BatchNotFoundError
+from transcribe_ui.state.models import BatchPhase
 
 # Returned instead of a text when a code has no usable entry.
 FELL_BACK = "<fell back>"
@@ -110,6 +113,12 @@ def _codes() -> dict[TextKind, set[str]]:
         "item_problem": _literal(ProblemCode),
         "price_source": {"fallback"},
         "stage": _constants(suffix="_STAGE"),
+        "batch_phase": _literal(BatchPhase),
+        "batch_stage": _literal(BatchStage),
+        "batch_label": _literal(BatchLabel),
+        "item_phase": _literal(ItemPhase),
+        "job_status": set(JOB_STATUSES),
+        "job_kind": _literal(JobKind),
     }
 
 

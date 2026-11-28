@@ -91,6 +91,10 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr "Egy kijelölt útvonal nincs a beolvasott mappán belül."
 
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "All jobs"
+msgstr "Összes feladat"
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid ""
 "All of the job's data will be deleted from the cloud: audio, subtitles "
@@ -130,6 +134,14 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha végzett."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Audio deleted from the cloud"
+msgstr "A hang törölve a felhőből"
+
+#: src/transcribe_ui/gui/steps/view.py
+msgid "Back"
+msgstr "Vissza"
+
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Cancel"
 msgstr "Megszakítás"
@@ -167,6 +179,10 @@ msgstr "Bezárás"
 msgid "Cloud"
 msgstr "Felhő"
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Cloud cleanup interrupted; repeat it"
+msgstr "A felhőtakarítás megszakadt; ismételje meg"
+
 #: src/transcribe_ui/gui/dialogs.py
 #, python-brace-format
 msgid "Code: {code}"
@@ -175,6 +191,14 @@ msgstr "Kód: {code}"
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Confirm"
 msgstr "Megerősítés"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Continue to review"
+msgstr "Tovább az ellenőrzéshez"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Created"
+msgstr "Létrehozva"
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -186,6 +210,22 @@ msgstr ""
 "{name} létrehozása a Runpodon a kérés elküldése után hiúsult meg, így "
 "lehet, hogy már létezik. Egy perc múlva futtassa újra a felhőbeállítást; "
 "az átveszi, ami létrejött."
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Delete"
+msgstr "Törlés"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Delete audio from the cloud"
+msgstr "Hang törlése a felhőből"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Delete everything from the cloud"
+msgstr "Minden törlése a felhőből"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Deleted from the cloud"
+msgstr "Törölve a felhőből"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Deleting from the cloud"
@@ -203,13 +243,49 @@ msgstr "Részletek"
 msgid "Dismiss"
 msgstr "Elrejtés"
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Done"
+msgstr "Kész"
+
+#: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/i18n/state_texts.py
+msgid "Download"
+msgstr "Letöltés"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Downloaded"
+msgstr "Letöltve"
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Downloading subtitles"
 msgstr "Feliratok letöltése"
 
-#: src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Edit selection"
+msgstr "Kijelölés szerkesztése"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Embedded subtitle"
+msgstr "Beágyazott felirat"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Extracted"
+msgstr "Kinyerve"
+
+#: src/transcribe_ui/gui/texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Failed"
 msgstr "Sikertelen"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "File"
+msgstr "Fájl"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "File status"
+msgstr "Fájl állapota"
+
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
+msgid "Files"
+msgstr "Fájlok"
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Finished"
@@ -229,9 +305,42 @@ msgstr ""
 msgid "Folders this deep are not scanned."
 msgstr "Az alkalmazás ilyen mélyen lévő mappákat nem olvas be."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Hidden"
+msgstr "Elrejtve"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Hide"
+msgstr "Elrejtés"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "In review"
+msgstr "Ellenőrzés alatt"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Job"
+msgstr "Feladat"
+
+#: src/transcribe_ui/gui/jobs/view.py
+#, python-brace-format
+msgid "Job {batch_id}, created {created}"
+msgstr "{batch_id} feladat, létrehozva: {created}"
+
 #: src/transcribe_ui/gui/texts.py
 msgid "Jobs"
 msgstr "Feladatok"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Kind"
+msgstr "Típus"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Language"
+msgstr "Nyelv"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Languages"
+msgstr "Nyelvek"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Links are not followed."
@@ -240,6 +349,10 @@ msgstr "Az alkalmazás a hivatkozásokat nem követi."
 #: src/transcribe_ui/gui/texts.py
 msgid "New job"
 msgstr "Új feladat"
+
+#: src/transcribe_ui/gui/steps/view.py
+msgid "Next"
+msgstr "Tovább"
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
@@ -253,13 +366,25 @@ msgstr ""
 msgid "No media file is at or below this path."
 msgstr "Ezen az útvonalon és alatta nincs médiafájl."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "No speech"
+msgstr "Nincs beszéd"
+
 #: src/transcribe_ui/gui/shell.py
 msgid "Not available yet."
 msgstr "Még nem érhető el."
 
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Notes"
+msgstr "Megjegyzések"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Only transcriptions that failed or found no speech can be retried."
 msgstr "Csak a sikertelen és a beszédet nem találó átírások próbálhatók újra."
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Open"
+msgstr "Megnyitás"
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Open accounts"
@@ -277,6 +402,10 @@ msgstr "Naplómappa megnyitása"
 msgid "Open the job"
 msgstr "A feladat megnyitása"
 
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Path"
+msgstr "Elérési út"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "Picture-based subtitles cannot be extracted as text; they can only be "
@@ -290,6 +419,10 @@ msgstr "Megerősítés szükséges"
 #: src/transcribe_ui/cli/credentials_command.py
 msgid "Press Enter alone to keep what is stored."
 msgstr "Ha csak Entert nyom, a tárolt érték megmarad."
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Problem"
+msgstr "Probléma"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Quit now"
@@ -337,13 +470,46 @@ msgstr ""
 msgid "R2 secret access key"
 msgstr "Titkos R2-hozzáférési kulcs"
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Ready for transcription"
+msgstr "Átírásra kész"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Reason"
+msgstr "Indok"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Repeat cleanup"
+msgstr "Takarítás megismétlése"
+
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Resume"
 msgstr "Folytatás"
 
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Resume upload"
+msgstr "Feltöltés folytatása"
+
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/jobs/widgets.py
 #: src/transcribe_ui/gui/pages.py src/transcribe_ui/gui/texts.py
 msgid "Retry"
 msgstr "Újra"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Retry ticked files"
+msgstr "Bejelölt fájlok újrapróbálása"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Review"
+msgstr "Ellenőrzés"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Review & upload"
+msgstr "Ellenőrzés és feltöltés"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Reviewed"
+msgstr "Ellenőrizve"
 
 #: src/transcribe_ui/cli/parser.py
 msgid "Run Transcribe-UI requests from JSON files."
@@ -419,9 +585,25 @@ msgstr "Mappák beolvasása"
 msgid "See the log for what went wrong."
 msgstr "A hiba oka a naplóban olvasható."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Selected"
+msgstr "Kijelölve"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Selecting files"
+msgstr "Fájlok kijelölése"
+
 #: src/transcribe_ui/gui/texts.py
 msgid "Settings"
 msgstr "Beállítások"
+
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Show"
+msgstr "Megjelenítés"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Show hidden jobs"
+msgstr "Rejtett feladatok megjelenítése"
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -454,6 +636,10 @@ msgstr ""
 "A feladat néhány fájljának még nincs eredménye, ezért a hangjukra még "
 "szükség van; várja meg az átírást, vagy helyette töröljön mindent."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Some transcriptions failed or found no speech"
+msgstr "Néhány átírás sikertelen volt, vagy nem talált beszédet"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Something unexpected went wrong; the details are in the log."
 msgstr "Váratlan hiba történt; a részletek a naplóban olvashatók."
@@ -477,6 +663,23 @@ msgstr[1] ""
 "Egy felhőgép indul {jobs} átíráshoz ({audio_s:duration} hanganyag); a "
 "becsült költség {cost_low_usd:.2f}–{cost_high_usd:.2f} USD."
 
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Status"
+msgstr "Állapot"
+
+#: src/transcribe_ui/gui/jobs/view.py
+#, python-brace-format
+msgid ""
+"Status: {status}. Files: {files}. Transcriptions: {transcriptions}. "
+"Languages: {languages}."
+msgstr ""
+"Állapot: {status}. Fájlok: {files}. Átírások: {transcriptions}. Nyelvek: "
+"{languages}."
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Step"
+msgstr "Lépés"
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Stop and close"
 msgstr "Leállítás és bezárás"
@@ -496,6 +699,10 @@ msgstr "Leállítva. Az eddig elvégzett munka mentve van; bármikor folytathat�
 #: src/transcribe_ui/gui/texts.py
 msgid "Stopped; continue any time."
 msgstr "Leállítva; bármikor folytatható."
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Subtitles ready to download"
+msgstr "Letölthető feliratok"
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -951,6 +1158,18 @@ msgstr ""
 msgid "Transcribe-UI is busy in another window"
 msgstr "A Transcribe-UI egy másik ablakban dolgozik"
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Transcribed"
+msgstr "Átírva"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Transcription"
+msgstr "Átírás"
+
+#: src/transcribe_ui/gui/jobs/view.py
+msgid "Transcriptions"
+msgstr "Átírások"
+
 #: src/transcribe_ui/cli/credentials_command.py
 msgid ""
 "Type each credential and press Enter; the keys and the secret are not "
@@ -959,7 +1178,23 @@ msgstr ""
 "Írja be egyenként a hozzáférési adatokat, és nyomjon Entert; a kulcsok és"
 " a titkos kulcs gépelés közben nem jelennek meg."
 
-#: src/transcribe_ui/i18n/code_texts.py
+#: src/transcribe_ui/gui/jobs/display.py
+msgid "Upload"
+msgstr "Feltöltés"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Upload not finished"
+msgstr "A feltöltés nem fejeződött be"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Uploaded"
+msgstr "Feltöltve"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Uploaded; the transcription starts with the next run"
+msgstr "Feltöltve; az átírás a következő futással indul"
+
+#: src/transcribe_ui/i18n/code_texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Uploading"
 msgstr "Feltöltés"
 
@@ -970,6 +1205,10 @@ msgstr "Fájlok feltöltése"
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Value"
 msgstr "Érték"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Waiting"
+msgstr "Várakozik"
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"

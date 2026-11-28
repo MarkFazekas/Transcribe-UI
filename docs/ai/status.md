@@ -26,7 +26,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.12 (remaining-time estimate, backend) on `feat/m6.12-remaining-time`: PR #41, in review.
+- M6.5 (jobs list, job page, step header, `stage` and `labels`) on `feat/m6.5-jobs`: built,
+  pushed and in review.
 
 ## Waiting on humans
 
@@ -42,7 +43,7 @@ the status change on the current branch. On a merge conflict in this file, re-de
    additions) and M6.2 (GUI foundation) are merged.
    Then wave 2: M6.14 (texts in English and Hungarian, Q32; merged as #40) first, then M6.5 (it changes the
    shared goldens once) before M6.4 and M6.6 start, then M6.4, M6.6 and M6.12 (the
-   remaining-time estimate, backend), followed by M6.3 and M6.7 (M6.7 merged as #42); wave 3 M6.8, M6.9, M6.10; wave
+   remaining-time estimate, backend; merged as #41), followed by M6.3 and M6.7 (merged as #42); wave 3 M6.8, M6.9, M6.10; wave
    4 M6.11. M6.13 (several installations on one bucket, Q28, with its GUI) after M6.6 and M6.9;
    the later of M6.11 and M6.13 marks M6 built. The M4 Runpod trial run is deferred until
    everything else works (architect); nothing waits on it, and it still needs the architect
@@ -50,5 +51,5 @@ the status change on the current branch. On a merge conflict in this file, re-de
 3. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
-4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5) and the cleanup repeated
+4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5, on its branch) and the cleanup repeated
    (M6.10); `reconcile_cloud` at start-up and `refresh_status` while a run is active (M6.6).

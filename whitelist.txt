@@ -259,6 +259,7 @@ runnable
 runnables
 runpod
 sdk
+selectable
 serialises
 sessionmaker
 setenv

@@ -20,6 +20,8 @@
         "audio_deleted": false,
         "cleanup_pending": null,
         "extract_only": false,
+        "stage": "review_upload",
+        "labels": [],
         "actions": [
           "delete_batch",
           "review_batch",
@@ -130,7 +132,8 @@
               "status": "pending",
               "resolved": true,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             },
             {
               "language": "hu",
@@ -141,7 +144,8 @@
               "status": "pending",
               "resolved": true,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         },
@@ -164,7 +168,8 @@
               "status": "pending",
               "resolved": true,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             },
             {
               "language": "hu",
@@ -175,7 +180,8 @@
               "status": "pending",
               "resolved": true,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         }

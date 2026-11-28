@@ -239,6 +239,18 @@
       "title": "BatchItem",
       "type": "object"
     },
+    "BatchLabel": {
+      "enum": [
+        "cleanup_pending",
+        "upload_unfinished",
+        "manifest_held",
+        "subtitles_ready",
+        "flagged_jobs",
+        "audio_deleted",
+        "hidden"
+      ],
+      "type": "string"
+    },
     "BatchPhase": {
       "enum": [
         "composing",
@@ -388,6 +400,16 @@
       "title": "BatchSelection",
       "type": "object"
     },
+    "BatchStage": {
+      "enum": [
+        "files",
+        "review_upload",
+        "transcription",
+        "download",
+        "done"
+      ],
+      "type": "string"
+    },
     "BatchSummary": {
       "additionalProperties": false,
       "description": "A batch as the batch list shows it.",
@@ -439,6 +461,13 @@
           "title": "Jobs",
           "type": "integer"
         },
+        "labels": {
+          "items": {
+            "$ref": "#/$defs/BatchLabel"
+          },
+          "title": "Labels",
+          "type": "array"
+        },
         "languages": {
           "items": {
             "type": "string"
@@ -452,6 +481,9 @@
         },
         "phase": {
           "$ref": "#/$defs/BatchPhase"
+        },
+        "stage": {
+          "$ref": "#/$defs/BatchStage"
         },
         "updated_at": {
           "format": "date-time",
@@ -472,6 +504,8 @@
         "audio_deleted",
         "cleanup_pending",
         "extract_only",
+        "stage",
+        "labels",
         "actions"
       ],
       "title": "BatchSummary",
@@ -1856,6 +1890,10 @@
       "additionalProperties": false,
       "description": "One target language of an item.",
       "properties": {
+        "flagged": {
+          "title": "Flagged",
+          "type": "boolean"
+        },
         "kind": {
           "$ref": "#/$defs/JobKind"
         },
@@ -1929,7 +1967,8 @@
         "status",
         "resolved",
         "result_error",
-        "result_error_code"
+        "result_error_code",
+        "flagged"
       ],
       "title": "JobView",
       "type": "object"

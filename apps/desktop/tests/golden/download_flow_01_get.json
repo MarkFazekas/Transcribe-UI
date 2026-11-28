@@ -20,6 +20,11 @@
         "audio_deleted": false,
         "cleanup_pending": null,
         "extract_only": false,
+        "stage": "download",
+        "labels": [
+          "subtitles_ready",
+          "flagged_jobs"
+        ],
         "actions": [
           "plan_download",
           "run_download",
@@ -53,7 +58,8 @@
               "status": "ok",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         },
@@ -76,7 +82,8 @@
               "status": "no_speech",
               "resolved": true,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": true
             }
           ]
         },
@@ -99,7 +106,8 @@
               "status": "failed",
               "resolved": false,
               "result_error": "decoding failed",
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": true
             }
           ]
         },
@@ -122,7 +130,8 @@
               "status": "extracted",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         }

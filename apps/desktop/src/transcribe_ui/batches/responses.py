@@ -34,6 +34,21 @@ type BatchAction = Literal[
     "show_batch",
 ]
 
+# The step of the guided flow a batch is at (plan m6 §1 "Layout"), from its phase and flags:
+# select files, review and upload, transcribe in the cloud, download, or done.
+type BatchStage = Literal["files", "review_upload", "transcription", "download", "done"]
+# A note on a batch for the frontends (`BatchSummary.labels`; each has a catalog entry), in the
+# order they are shown.
+type BatchLabel = Literal[
+    "cleanup_pending",
+    "upload_unfinished",
+    "manifest_held",
+    "subtitles_ready",
+    "flagged_jobs",
+    "audio_deleted",
+    "hidden",
+]
+
 
 class OkResponse(FrozenModel):
     """Base of the success responses of this package (`status` "ok", written first)."""
@@ -58,6 +73,9 @@ class JobView(FrozenModel):
     # The code of `unreadable result` and `missing result` (the frontends show its catalog text);
     # None for the worker's own errors (shown as they are) and for jobs that did not fail.
     result_error_code: ResultErrorCode | None
+    # It failed or found no speech: a retry batch can take it (while the batch lists
+    # `create_retry_batch`).
+    flagged: bool
 
 
 class BatchItem(FrozenModel):
@@ -93,6 +111,11 @@ class BatchSummary(FrozenModel):
     cleanup_pending: CleanupScope | None
     # Only `extract` jobs: the batch needs no upload and no cloud run.
     extract_only: bool
+    # The step of the guided flow the batch is at, from its phase and flags.
+    stage: BatchStage
+    # Notes on the batch (an interrupted cleanup or upload, subtitles ready, ...), as codes in
+    # the order to show them.
+    labels: tuple[BatchLabel, ...]
     # The batch requests whose local conditions (phase, flags, item and job states) hold now, in
     # the order to offer them. A listed request can still be refused for a reason outside the
     # batch (a run is active, the batch is busy, the cloud cannot be reached, the request's own

@@ -1,0 +1,12 @@
+[
+  {
+    "action": "set_batch_hidden",
+    "batch_id": "batch_20261127_130010",
+    "hidden": true
+  },
+  {
+    "action": "set_batch_hidden",
+    "batch_id": "batch_20261127_130010",
+    "hidden": false
+  }
+]
