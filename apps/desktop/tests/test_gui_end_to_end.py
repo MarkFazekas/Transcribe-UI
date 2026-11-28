@@ -5,13 +5,14 @@ factory, the `prepare` tree, fake media, moto, the fake Runpod API), through `Qt
 user goes through the flow (`support/flow_steps.py`). Every request that reaches the backend is
 recorded. The CLI flow's steps must come in order; between them only requests that change nothing
 are allowed. The matched requests, replayed through the parity runner on fresh legs, must give the
-CLI flow's goldens byte for byte, and both flows must draw the same ids and send each step at the
-same clock.
+CLI flow's goldens byte for byte, and so must the GUI's own outcome of each step (its answer,
+events and exit code); both flows must draw the same ids and send each step at the same clock.
 """
 
 import time
 from collections.abc import Iterator
 from contextlib import closing
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
@@ -41,6 +42,7 @@ from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import GetSettingsRequest, GetSettingsResponse, UpdateSettingsRequest
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.gui import areas
+from transcribe_ui.gui.bridge import QtExecutor
 from transcribe_ui.gui.cloud.install import install_cloud
 from transcribe_ui.gui.shell import MainWindow
 
@@ -64,13 +66,26 @@ def _english_first(ports: Ports) -> None:
     assert stored.status == "ok", stored
 
 
+@dataclass
+class _Closing:
+    """Closes an executor when the block ends, however it ends: queued calls cancelled, its pool threads ended."""
+
+    executor: QtExecutor
+
+    def __enter__(self) -> None:
+        """Nothing to do before the block."""
+
+    def __exit__(self, *_exc_info: object) -> None:
+        """Shut the executor down, wait for its threads, close it."""
+        self.executor.shutdown()
+        assert self.executor.wait_for_threads(DRAIN_MS)
+        self.executor.close()
+
+
 def _closed(qtbot: QtBot, window: MainWindow) -> None:
-    """Wait for every call, then close the window's executor (its pool threads ended)."""
-    settled(qtbot, window)
-    executor = window.context.executor
-    executor.shutdown()
-    assert executor.wait_for_threads(DRAIN_MS)
-    executor.close()
+    """Wait for every call, then close the window's executor (also when the wait fails)."""
+    with _Closing(window.context.executor):
+        settled(qtbot, window)
 
 
 @pytest.fixture
@@ -88,10 +103,10 @@ def flow(qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Itera
     with moto_bucket():
         legs = LaunchLegs(bucket_prefix=GUI_BUCKET_PREFIX)
         ports = legs(root)
-        _english_first(ports)
-        recorder = FlowRecorder(ports.clock)
-        recorder.attach(Backend(recorder.wrap(ports)))
         with closing(ports.state):
+            _english_first(ports)
+            recorder = FlowRecorder(ports.clock)
+            recorder.attach(Backend(recorder.wrap(ports)))
             window = settled_window(qtbot, recorder, tmp_path / "log")
             yield GuiFlow(window, recorder, legs, root, timers)
             _closed(qtbot, window)
@@ -113,7 +128,11 @@ def _assert_goldens(matched: list[Sent], replayed: list[Exchange], root: Path) -
 def test_the_gui_sends_the_cli_flow(
     qtbot: QtBot, flow: GuiFlow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The GUI sends the CLI flow's steps in order and nothing else that changes something; replayed, they give its goldens."""
+    """The GUI sends the CLI flow's steps in order and nothing else that changes something.
+
+    Replayed, the steps give the CLI flow's goldens, and the GUI's own outcome of each step (answer,
+    events, exit code) equals them too.
+    """
     began = time.monotonic()
     drive(qtbot, flow, monkeypatch)
     elapsed = time.monotonic() - began

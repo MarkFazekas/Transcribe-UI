@@ -26,8 +26,6 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- The M8 plan (`docs/ai/plans/m8.md`, questions A23, A24, Q36) on `docs/m8-plan`: written, in
-  review.
 - M6.11 (GUI end-to-end flow: `tests/test_gui_end_to_end.py`, compared with the CLI flow) on
   `feat/m6.11-gui-e2e`: built, in review. No product code changed.
 - M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress.
@@ -50,8 +48,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
    both are merged: the later of the two marks M6 **(built)** in architecture §10. The M4
    Runpod trial run is deferred until everything else works (architect); nothing waits on it,
    and it still needs the architect present and their go.
-3. M8 (desktop release) is planned in `docs/ai/plans/m8.md`; M8.1 may start while the last
-   M6 parts are in review, and M8 does not wait for M7.
+3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is in
+   progress on `feat/m8.1-desktop-build`, and M8 does not wait for M7.
 4. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
