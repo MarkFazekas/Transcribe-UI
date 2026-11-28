@@ -1,13 +1,15 @@
 """The `linux-floor` check of the desktop smoke test (docs/ai/plans/m8.md §1 "Smoke tests").
 
 In an ubuntu:22.04 container (the oldest Ubuntu LTS the build supports) with only the libraries
-of `apps/desktop/packaging/linux-packages.txt` installed, the CLI's version and database checks
-and the GUI's offscreen start pass. The executables are mounted read-only; the container is
-removed afterwards whatever happened, which also ends a run that timed out inside it.
+of `apps/desktop/packaging/linux-packages.txt` installed, the CLI's version, database and probe
+checks and the GUI's offscreen start pass (the probe's WAV in a folder mounted from the host).
+The executables are mounted read-only; the container is removed afterwards whatever happened,
+which also ends a run that timed out inside it.
 """
 
 import os
 import shutil
+import tempfile
 import time
 from collections.abc import Sequence
 from contextlib import ExitStack
@@ -15,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from smoke_desktop_checks import Outcome, Smoke, check_cli_database, check_cli_version, check_gui, failed, judged
+from smoke_desktop_probe import ProbeSetup, check_cli_probe
 from smoke_desktop_process import ContainerLauncher, HostLauncher, RunResult
 
 # System libraries the Linux executables need (one Ubuntu package per line, `#` comments).
@@ -25,6 +28,10 @@ FLOOR_CHECK = "linux-floor"
 FLOOR_CLI = "/smoke/transcribe-ui-cli"
 # Where the container sees the GUI executable.
 FLOOR_GUI = "/smoke/transcribe-ui-gui"
+# Where the container sees the folder of the probe's WAV.
+FLOOR_MEDIA = "/smoke/media"
+# `PATH` of the probe in the container: the OS's own folders only.
+FLOOR_PATH = "/usr/bin:/bin"
 # Seconds starting the container may take (the image is pulled first).
 START_TIMEOUT_S = 600
 # Seconds installing the libraries may take.
@@ -66,23 +73,27 @@ class Container:
 
     docker: Docker
     name: str
+    # The host folder mounted at `FLOOR_MEDIA`.
+    media: Path
 
     def shell(self, script: str, timeout_s: float) -> RunResult:
         """Run a shell script in the container."""
         return self.docker.run(["exec", self.name, "sh", "-c", script], timeout_s)
 
     def checks(self, smoke: Smoke) -> list[Outcome]:
-        """Run the CLI's version and database checks and the GUI's offscreen start in the container."""
+        """Run the CLI's version, database and probe checks and the GUI's offscreen start in the container."""
         inside = ContainerLauncher(self.docker.executable, self.name, self.docker.launcher.environment)
         hungarian = {"LANGUAGE": "hu"}
         timeouts = (smoke.cli_timeout_s, smoke.gui_timeout_s)
         in_floor = Smoke(FLOOR_CLI, FLOOR_GUI, smoke.version, inside, *timeouts, hungarian_env=hungarian)
-        gui = check_gui("gui-offscreen", in_floor, [FLOOR_GUI], "offscreen")
-        return [check_cli_version(in_floor), check_cli_database(in_floor), gui]
+        probe = ProbeSetup(self.media, FLOOR_MEDIA, FLOOR_PATH)
+        cli = [check_cli_version(in_floor), check_cli_database(in_floor), check_cli_probe(in_floor, probe)]
+        return [*cli, check_gui("gui-offscreen", in_floor, [FLOOR_GUI], "offscreen")]
 
 
 def _start(container: Container, smoke: Smoke, image: str) -> RunResult:
     mounts = [_mount(smoke.cli, FLOOR_CLI), _mount(smoke.gui, FLOOR_GUI)]
+    mounts.append(_mount(str(container.media), FLOOR_MEDIA))
     command = [*DETACHED, container.name, *mounts, image, *KEEP_RUNNING]
     return container.docker.run(command, START_TIMEOUT_S)
 
@@ -113,10 +124,12 @@ def check_linux_floor(smoke: Smoke, image: str | None) -> Outcome:
     if image is None or executable is None:
         return failed(FLOOR_CHECK, "needs --floor-image and docker on PATH")
     docker = Docker(executable, HostLauncher(dict(os.environ)))
-    container = Container(docker, f"transcribe-ui-floor-{os.getpid()}")
     with ExitStack() as cleanup:
-        # Registered first: also removes a container whose start timed out (a slow pull), and
-        # ends whatever a timed-out `docker exec` left running inside.
+        # Entered first, so the folder goes only after the container is removed.
+        media = Path(cleanup.enter_context(tempfile.TemporaryDirectory(prefix="smoke-floor-media-")))
+        container = Container(docker, f"transcribe-ui-floor-{os.getpid()}", media)
+        # Registered before the start: also removes a container whose start timed out (a slow
+        # pull), and ends whatever a timed-out `docker exec` left running inside.
         cleanup.callback(docker.run, ["rm", "--force", container.name], CLEANUP_TIMEOUT_S)
         start = _start(container, smoke, image)
         if start.returncode != 0:

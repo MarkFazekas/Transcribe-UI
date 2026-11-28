@@ -47,12 +47,22 @@ def _app(root: Path) -> Path:
     names = (*REQUIRED_DATA, *revisions, "PySide6/Qt/translations/qtbase_hu.qm")
     for name in names:
         _write(contents_dir / "Resources" / name)
-    for plugin in ("libqcocoa.dylib", "libqoffscreen.dylib"):
-        _write(contents_dir / "Frameworks" / "PySide6" / "Qt" / "plugins" / "platforms" / plugin)
-    _write(contents_dir / "Frameworks" / "pkg__dot__libs" / "libz.dylib")
-    (contents_dir / "Frameworks" / "transcribe_ui").symlink_to("../Resources/transcribe_ui")
-    (contents_dir / "Frameworks" / "pkg.libs").symlink_to("pkg__dot__libs")
+    _write_binaries(contents_dir)
     return app
+
+
+def _write_binaries(contents_dir: Path) -> None:
+    """Write the app's binaries in `Frameworks`, with PyInstaller's links between it and `Resources`."""
+    frameworks = contents_dir / "Frameworks"
+    for plugin in ("libqcocoa.dylib", "libqoffscreen.dylib"):
+        _write(frameworks / "PySide6" / "Qt" / "plugins" / "platforms" / plugin)
+    _write(frameworks / "pkg__dot__libs" / "libz.dylib")
+    # The bundled media tools: binaries at the bundle's root, so in `Frameworks`, linked from `Resources`.
+    for tool in ("ffmpeg", "ffprobe"):
+        _write(frameworks / tool)
+        (contents_dir / "Resources" / tool).symlink_to(f"../Frameworks/{tool}")
+    (frameworks / "transcribe_ui").symlink_to("../Resources/transcribe_ui")
+    (frameworks / "pkg.libs").symlink_to("pkg__dot__libs")
 
 
 class _Hdiutil:
@@ -96,7 +106,7 @@ def test_app_listing_passes_the_gui_rules(tmp_path: Path) -> None:
     listing = list_bundle(str(app / EXECUTABLE))
     assert listing == list_app(app)
     assert not gui_problems(listing.entries, REVISIONS, "darwin")
-    assert "pkg.libs/libz.dylib" in listing.entries
+    assert {"pkg.libs/libz.dylib", "ffmpeg", "ffprobe"} <= listing.entries
     assert not {"Transcribe-UI", "Info.plist", "pkg__dot__libs/libz.dylib"} & listing.entries
 
 

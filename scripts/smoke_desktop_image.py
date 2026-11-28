@@ -11,7 +11,8 @@ signature of the app in the attached image, which also shows that packing it kep
 import os
 import sys
 import tempfile
-from contextlib import ExitStack
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from build_desktop_app import APP_BUNDLE, APPLICATIONS_LINK, APPLICATIONS_TARGET, HDIUTIL
@@ -156,3 +157,14 @@ def gui_executable(published: Path, stack: ExitStack) -> Path:
     except (OSError, ValueError) as error:
         msg = f"{published}: {error}"
         raise ImageError(msg) from error
+
+
+@contextmanager
+def opened_gui(published: Path) -> Iterator[Path]:
+    """Yield the GUI executable the checks run (`gui_executable`); leaving the block detaches a disk image.
+
+    Raises:
+        ImageError: The image could not be attached, or it does not hold the app as published.
+    """
+    with ExitStack() as stack:
+        yield gui_executable(published, stack)

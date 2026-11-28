@@ -1400,7 +1400,15 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   file. Bitmap codecs (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`, `xsub`) and unknown
   ones are transcribe-only.
 - ffmpeg/ffprobe: bundled static LGPL builds inside each executable (GUI and CLI; the CLI needs
-  them for `run_upload`). Resolution order: the
+  them for `review_batch` and `run_upload`), at the root of the one-file archive. They are
+  FFmpeg 9.1 built from the pinned upstream source by `scripts/build_ffmpeg.py` with the same
+  component selection on all four platforms (§8): no GPL, nonfree or version 3 part,
+  `--disable-autodetect`, every native decoder, demuxer, parser, muxer, encoder and filter,
+  the `lavfi` input as the only device, no network; zlib is the only external library (static
+  from its pinned source on Linux and Windows, the system's `libz` on macOS; Matroska needs it
+  for zlib-compressed tracks) and the platform's thread library the only other one. Opus is
+  encoded (only by the test media generator) with FFmpeg's native, experimental encoder, since
+  `libopus` is not in the build. Resolution order: the
   path set in the settings, then the bundled build (`sys._MEIPASS` of a PyInstaller build),
   then `PATH` (development runs without a bundle), so a `PATH` ffmpeg of unknown version never
   silently replaces the tested one. A settings path that is not absolute on this computer or
@@ -2986,8 +2994,22 @@ Few unit tests; mostly regression and flow tests:
   build-time options), which also shows that packing kept it, and
   the image is detached however the run ends), and on Linux the same CLI and
   offscreen checks in an `ubuntu:22.04` container with only the libraries of
-  `apps/desktop/packaging/linux-packages.txt`. Each leg uploads only its two files
-  (`actions/upload-artifact` with `archive: false`, 7 days; names
+  `apps/desktop/packaging/linux-packages.txt`. Both executables bundle ffmpeg and ffprobe
+  (§3.4; in the macOS app in its `Contents/Frameworks`, the app's `sys._MEIPASS`, where
+  the floor check gives them the `minos` rule): an `ffmpeg` job (one leg per platform; Windows cross-compiled with mingw-w64 on
+  Ubuntu, Linux in the same manylinux container) builds them with `scripts/build_ffmpeg.py`
+  only when the cache has no entry for the key `ffmpeg-<version>-<platform>-<hash of the build
+  scripts and pinned inputs>`, checks the build tree's configure result (GPL, nonfree and every
+  external library but zlib off, zlib, the platform's thread library and both programs on) and
+  that both programs load only the OS's own libraries (`ldd`, `otool -L`, `objdump -p`), and
+  saves them;
+  each build leg restores its entry (a miss fails the leg), checks `-buildconf` against the
+  platform's configure line and `-L` (LGPL 2.1 or later), runs the desktop tests that use the
+  real ffmpeg (with a zlib-compressed Matroska subtitle) with the built programs first on
+  `PATH`, and bundles them. The smoke test's `cli-probe` (also in the `ubuntu:22.04`
+  container) reviews a WAV with only the OS's folders on `PATH`, so it passes only through the
+  bundled ffprobe, and the bundle checks require both programs (in the app too). Each leg
+  uploads only its two files (`actions/upload-artifact` with `archive: false`, 7 days; names
   `transcribe-ui-<os>-<arch>-<variant>[.exe]`, the macOS GUI
   `transcribe-ui-macos-<arch>-gui.dmg`). Pull requests build and smoke-test the eight
   files and publish nothing; there is no release job yet (M8.5 adds it: a GitHub Release of
@@ -3048,7 +3070,8 @@ next step are in `docs/ai/status.md`.
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds the GUI and the CLI for each of the four
-  platforms, eight files (§8: one-file executables, the macOS GUI an `.app` in a `.dmg` per A23; built and smoke-tested since M8.1, not yet published); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
+  platforms, eight files (§8: one-file executables, the macOS GUI an `.app` in a `.dmg` per A23; built and smoke-tested since M8.1, not yet published), each bundling the static LGPL
+  ffmpeg and ffprobe (M8.2 **(built)**); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
   the CLI's `--help` with `LANGUAGE=hu` showing an app help text in Hungarian) and bundle the `.mo`
   catalogs (§3.1 "Language of the texts").
 - **M8.6** (planned in `plans/m8.md`, after M8): README for users (with `docs/cli.md`) and screenshots

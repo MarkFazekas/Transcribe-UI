@@ -10,6 +10,7 @@ argtypes
 asr
 astimezone
 attrgetter
+autodetection
 autoescape
 autogenerate
 autoincrement
@@ -19,14 +20,17 @@ backoff
 base32
 bom
 boms
+buildconf
 byref
 bytecode
 caplog
 capsys
 casefold
 cfg
+cflags
 chdir
 checkable
+chost
 chunksize
 cjk
 cloudflarestorage
@@ -37,6 +41,7 @@ codesign
 coeng
 copyfile
 copytree
+crb
 creat
 creationflags
 crockford
@@ -59,6 +64,9 @@ dfl
 dialogs
 dirs
 divmod
+dll
+dlls
+dnf
 dns
 dotall
 durations
@@ -92,6 +100,7 @@ fileno
 fileobj
 finditer
 flac
+fmpeg
 fmt
 formatter
 fromkeys
@@ -110,6 +119,7 @@ geteuid
 getframerate
 getmembers
 getnchannels
+getnframes
 getpid
 getrandbits
 getsampwidth
@@ -117,7 +127,9 @@ getsid
 getsignal
 gettempdir
 gitignore
+glibc
 goldens
+gpl
 gpus
 groupby
 hashable
@@ -125,10 +137,12 @@ hdiutil
 hhmmss
 hiddenimports
 hoc
+homebrew
 httpx
 hu
 i18n
 icns
+iconv
 ident
 ign
 ignorecase
@@ -159,10 +173,15 @@ kibibytes
 killpg
 langid
 lavfi
+ldd
 levelname
 levelno
 libpython
+lgpl
+libdir
 libwayland
+libwinpthread
+libz
 lineno
 linesep
 linkname
@@ -181,15 +200,19 @@ m6
 m7
 m8
 macos
+mak
 mako
+manylinux
 matroska
 maxsplit
 metavar
+mingw
 minimalegl
 misconfigured
 mkfifo
 mktemp
 mkv
+mkvmerge
 mofile
 moto
 mov
@@ -201,6 +224,7 @@ msvcrt
 multiline
 multitrack
 muxer
+nasm
 nblck
 ngettext
 ngram
@@ -213,6 +237,7 @@ ntpath
 ntr
 nul
 nullable
+objdump
 offscreen
 ondelete
 onedir
@@ -220,6 +245,7 @@ onnx
 openai
 ord
 orm
+os2threads
 otool
 paginator
 param
@@ -244,6 +270,7 @@ prefetcher
 preprocess
 preselected
 prog
+pthreads
 pyannote
 pydantic
 pyinstaller
@@ -275,7 +302,6 @@ removesuffix
 repo
 resizable
 rereview
-resizable
 restype
 retryable
 rfile
@@ -284,6 +310,7 @@ rowcount
 runnable
 runnables
 runpod
+samefile
 sdk
 selectable
 serialises
@@ -294,6 +321,7 @@ setnchannels
 setsampwidth
 sha
 shiboken6
+shlex
 showwithoutactivating
 side6
 sig
@@ -360,6 +388,8 @@ viewmodel
 virama
 vkkhrdisplay
 vob
+w32threads
+w64
 watchdog
 wav
 wayland
@@ -371,8 +401,10 @@ wintypes
 writeframes
 wronly
 x11
+x86
 xcb
 xdg
 yue
 yyyymmdd
+zlib
 zoneinfo

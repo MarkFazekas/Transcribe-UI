@@ -229,6 +229,7 @@ def _app_with_binaries(root: Path) -> Path:
         "Frameworks/binding/libbinding.dylib",
         "Frameworks/pkg__dot__libs/libz.dylib",
         "Frameworks/stray.dylib",
+        "Frameworks/ffmpeg",
     )
     for binary in binaries:
         _write(contents_dir / binary)
@@ -242,8 +243,9 @@ def _bundle_table(root: Path, sources: Path) -> Path:
     table = root / "BUNDLE-00.toc"
     entries = [
         ("Transcribe-UI", str(root / "work" / "Transcribe-UI"), "EXECUTABLE"),
-        ("binding/libbinding.dylib", str(sources / "binding" / "libbinding.dylib"), "BINARY"),
+        ("binding/libbinding.dylib", str(sources / "binding" / "libbinding.dylib"), "EXTENSION"),
         ("pkg.libs/libz.dylib", str(sources / "pkg.libs" / "libz.dylib"), "EXTENSION"),
+        ("ffmpeg", str(sources / "ffmpeg-dist" / "ffmpeg"), "BINARY"),
         ("transcribe_ui/version.txt", str(root / "work" / "version.txt"), "DATA"),
     ]
     table.write_bytes(repr((entries,)).encode())
@@ -264,12 +266,15 @@ def test_check_app_checks_every_mach_o_inside_the_app(monkeypatch: pytest.Monkey
         wheel_binary: [(26, 0)],
         _write(sources / "pkg.libs" / "libz.dylib").resolve(): [(14, 0)],
         (app / "Contents" / "Frameworks" / "stray.dylib").resolve(): [(14, 4)],
+        # The bundled ffmpeg: no wheel owns it, so its source's own minimum counts.
+        _write(sources / "ffmpeg-dist" / "ffmpeg").resolve(): [(15, 0)],
     }
     monkeypatch.setattr("build_desktop_macos.otool_reader", lambda: _reader(minimums))
     monkeypatch.setattr("build_desktop_macos.installed_wheels", lambda: {str(wheel_binary): BINDING})
     report = check_app(_bundle_table(tmp_path, sources), app)
     assert report.problems == (
         "Transcribe-UI needs macOS 15.0 (the floor is 14.0)",
+        "Frameworks/ffmpeg needs macOS 15.0 (the floor is 14.0)",
         "Frameworks/stray.dylib needs macOS 14.4 (the floor is 14.0)",
     )
     assert report.wheels == ("wheel shiboken6 6.12.0: tags cp310-abi3-macosx_14_0_universal2; highest minos 26.0",)

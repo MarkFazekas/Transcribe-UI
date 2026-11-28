@@ -34,6 +34,8 @@ HUNGARIAN_CATALOG = PACKAGE_DIR / "locale" / "hu" / "LC_MESSAGES" / "transcribe_
 REVISIONS_DIR = PACKAGE_DIR / "state" / "migrations" / "versions"
 # English help text of `--version`, whose Hungarian text `cli-help-hu` looks for.
 VERSION_HELP = "print the app version and exit"
+# No variable added to a run's environment.
+SMOKE_NONE: Mapping[str, str] = MappingProxyType({})
 # Environment of a GUI run in the smoke mode.
 SMOKE_MODE: Mapping[str, str] = MappingProxyType({"TRANSCRIBE_UI_SMOKE_TEST": "1"})
 # Status of a response that succeeded.
@@ -80,11 +82,11 @@ def judged(name: str, run: RunResult, problem: str | None) -> Outcome:
     return Outcome(name, passed=True, detail="", seconds=run.seconds)
 
 
-def _respond(smoke: Smoke, request: JsonObject) -> Answer:
+def respond(smoke: Smoke, request: JsonObject, extra_env: Mapping[str, str] = SMOKE_NONE) -> Answer:
     """Run one request with `<cli> run -`; return the run and its JSON response."""
     document = json.dumps(request).encode()
     argv = [smoke.cli, "run", "-"]
-    run = smoke.launcher.run(argv, {}, smoke.cli_timeout_s, document)
+    run = smoke.launcher.run(argv, extra_env, smoke.cli_timeout_s, document)
     try:
         response = json.loads(run.stdout)
     except ValueError:
@@ -92,7 +94,8 @@ def _respond(smoke: Smoke, request: JsonObject) -> Answer:
     return run, response if isinstance(response, dict) else None
 
 
-def _answered_ok(answer: Answer) -> bool:
+def answered_ok(answer: Answer) -> bool:
+    """Return whether the request answered with status `ok` (and its run exited 0)."""
     run, response = answer
     if run.returncode != 0 or response is None:
         return False
@@ -109,19 +112,19 @@ def check_cli_version(smoke: Smoke) -> Outcome:
 
 def check_cli_database(smoke: Smoke) -> Outcome:
     """`list_batches` answers `ok`: the fresh database was created and migrated by the bundled Alembic environment."""
-    answer = _respond(smoke, {"action": "list_batches"})
-    return judged("cli-database", answer[0], None if _answered_ok(answer) else "list_batches did not answer ok")
+    answer = respond(smoke, {"action": "list_batches"})
+    return judged("cli-database", answer[0], None if answered_ok(answer) else "list_batches did not answer ok")
 
 
 def _use_hungarian(smoke: Smoke) -> str | None:
     """Set the `language` setting to `hu` through `get_settings` and `update_settings`; return the problem."""
-    current = _respond(smoke, {"action": "get_settings"})
+    current = respond(smoke, {"action": "get_settings"})
     response = current[1] or {}
     settings = response.get("settings")
-    if not _answered_ok(current) or not isinstance(settings, dict):
+    if not answered_ok(current) or not isinstance(settings, dict):
         return f"get_settings did not answer ok\n{current[0].text()}"
-    updated = _respond(smoke, {"action": "update_settings", "settings": {**settings, "language": "hu"}})
-    if not _answered_ok(updated):
+    updated = respond(smoke, {"action": "update_settings", "settings": {**settings, "language": "hu"}})
+    if not answered_ok(updated):
         return f"update_settings did not answer ok\n{updated[0].text()}"
     return None
 
