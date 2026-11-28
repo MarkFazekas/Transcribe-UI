@@ -784,9 +784,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     returns `StartLanguages`; `GuiContext.system_language`), never again on the GUI thread. Restart now sets `GuiContext.restart` and closes the window through the
     close handling (Q30); keeping the window open there withdraws it
     (`CloseGuard.when_kept_open`), "Quit now" quits without a restart. `run_gui` starts the GUI
-    again only after the backend is closed, so the new process can take the writer lock: the
-    one-file build runs itself again (with `PYINSTALLER_RESET_ENVIRONMENT=1`, so it unpacks
-    its own files), from source the interpreter runs `transcribe_ui.gui.main.run`; a start
+    again only after the backend is closed, so the new process can take the writer lock: a
+    build runs its own executable again, `sys.executable` (a one-file build with
+    `PYINSTALLER_RESET_ENVIRONMENT=1`, so it unpacks its own files; on macOS the main executable
+    inside `Transcribe-UI.app`, which unpacks nothing), keeping this process's environment; from source the interpreter runs `transcribe_ui.gui.main.run`; a start
     that fails is logged.
   - Accounts: a masked field per credential (the endpoint and bucket too, §3.6; labels and the
     hints of refused values are the CLI's, `i18n/credential_texts.py`), empty with a
@@ -2915,8 +2916,9 @@ Few unit tests; mostly regression and flow tests:
 - `release-desktop.yml` on pull requests and pushes to `main` that touch the desktop app (not
   its test-only changes, except the tests that run the real ffmpeg), the contracts, the lock
   file, the root configuration or the build, smoke and release scripts; and on manual dispatch.
-  PyInstaller one-file builds, two per platform: the GUI executable (with Qt; windowed on
-  Windows; on macOS a console-mode one-file binary until A23 decides its shape) and the CLI
+  PyInstaller builds, two per platform: the GUI (with Qt; a windowed one-file executable on
+  Windows, a one-file binary on Linux, and on macOS, per A23, a onedir `Transcribe-UI.app`
+  in a compressed disk image, below) and the one-file CLI
   executable (console, without Qt or `transcribe_ui.gui`; it must never import Qt; small and
   fast to start). Legs: Windows x64 (`windows-2025`), macOS arm64 (`macos-15`), macOS x86_64
   (`macos-15-intel`) and Linux x64, built on `ubuntu-24.04` inside the
@@ -2942,7 +2944,24 @@ Few unit tests; mostly regression and flow tests:
   wheel's tags and highest `minos` are printed. No CI run starts the executables on macOS 14:
   GitHub retired the `macos-14` runner image on 2026-11-02 and no Intel macOS 14 label exists,
   so the floor of both macOS builds rests on these two rules (and on a real macOS 14 machine in
-  the manual acceptance, A24, if one is at hand); the executables run on macOS 15. The build runs in an environment without dev tools, with the app
+  the manual acceptance, A24, if one is at hand); the executables run on macOS 15. The macOS
+  GUI (A23) is built `--onedir --windowed` as `Transcribe-UI.app`, ad hoc signed by
+  PyInstaller (on both architectures), with PyInstaller's default icon until M8.3 sets the
+  project's (`APP_ICON` in `scripts/build_desktop_app.py`). Its `Info.plist` has
+  `CFBundleIdentifier` `io.github.markfazekas.transcribe-ui`, `CFBundleShortVersionString`
+  the base version's release segment, `CFBundleVersion` the commit date as `YYYY.M.D` (three
+  integers, as Apple asks), `LSMinimumSystemVersion` 14.0 and `NSHighResolutionCapable`;
+  PyInstaller's command line cannot set them, so the build writes them to a plist file that
+  `packaging/pyinstaller_main.py` passes to PyInstaller's `BUNDLE` (before it signs the
+  bundle), and the build fails if the written `Info.plist` differs. The floor check covers
+  every Mach-O file inside the app (found by its first bytes; links skipped): one that the
+  table of contents of `BUNDLE` names (by its bundled name, PyInstaller's `__dot__` folder
+  names restored) follows its source's wheel tag or `minos` as above, one it does not name
+  follows its own `minos` (so a missed lookup fails the build), and the main executable
+  follows its `minos`. The app and an `Applications` link are then packed with `hdiutil create`
+  into `transcribe-ui-macos-<arch>-gui.dmg` (HFS+, `ULFO`: lzfse, smaller than `UDZO` at its
+  default zlib level and faster to open, readable since macOS 10.11; tried three times, since
+  `hdiutil` sometimes reports "Resource busy" on hosted runners). The build runs in an environment without dev tools, with the app
   installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
   own OS on fresh per-user state, with every check under a timeout that kills the process
   tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic
@@ -2950,14 +2969,19 @@ Few unit tests; mostly regression and flow tests:
   the `language` setting), each archive's required and forbidden contents (catalogs, Alembic
   files, the stamp; no Qt in the CLI; Qt's Hungarian texts and the offscreen and native
   platform plugins in the GUI; no host C++ runtime on Linux), the GUI's smoke mode (§3.1)
-  offscreen and on the native platform (Linux under Xvfb), and on Linux the same CLI and
+  offscreen and on the native platform (Linux under Xvfb; on macOS the disk image is
+  attached read-only and hidden from Finder, it must hold exactly the app and the
+  `Applications` link, the GUI checks run the app's main executable, `gui-bundle` lists the
+  app's files by their bundled names, and the image is detached however the run ends), and on Linux the same CLI and
   offscreen checks in an `ubuntu:22.04` container with only the libraries of
-  `apps/desktop/packaging/linux-packages.txt`. Each leg uploads only its two executables
+  `apps/desktop/packaging/linux-packages.txt`. Each leg uploads only its two files
   (`actions/upload-artifact` with `archive: false`, 7 days; names
-  `transcribe-ui-<os>-<arch>-<variant>[.exe]`). Pull requests build and smoke-test the eight
+  `transcribe-ui-<os>-<arch>-<variant>[.exe]`, the macOS GUI
+  `transcribe-ui-macos-<arch>-gui.dmg`). Pull requests build and smoke-test the eight
   files and publish nothing; there is no release job yet (M8.5 adds it: a GitHub Release of
   the eight files on `main`, only when every leg passed). Builds are unsigned (macOS users
-  clear the quarantine flag; Windows SmartScreen may warn).
+  confirm the first start once with "Open Anyway" in System Settings, or clear the quarantine
+  flag of the CLI; Windows SmartScreen may warn).
 - `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
   changes: build the Docker image and smoke-test it (a full pod run with the fake engine, a fake
   Runpod API and moto S3; then, inside the image, the CUDA libraries load and, with no
@@ -3011,8 +3035,8 @@ next step are in `docs/ai/status.md`.
 - **M6** (planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
-- **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
-  platforms, eight files (§8; built and smoke-tested since M8.1, not yet published); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
+- **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds the GUI and the CLI for each of the four
+  platforms, eight files (§8: one-file executables, the macOS GUI an `.app` in a `.dmg` per A23; built and smoke-tested since M8.1, not yet published); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
   the CLI's `--help` with `LANGUAGE=hu` showing an app help text in Hungarian) and bundle the `.mo`
   catalogs (§3.1 "Language of the texts").
 - **M8.6** (planned in `plans/m8.md`, after M8): README for users (with `docs/cli.md`) and screenshots

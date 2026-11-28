@@ -8,28 +8,6 @@ Background for most items: `docs/ai/architecture.md` and `docs/ai/research/`.
 
 ## Open
 
-### A23. Shape of the macOS GUI file
-
-A20 and the working agreements (`docs/human/working-agreements.md` "Git and CI": "the runnable
-single-file executables … with no extra zip or other files") ask for one-file executables,
-eight files and nothing else. On
-macOS a bare one-file GUI binary works badly for an end user: a browser download loses the
-executable bit (`chmod +x` in Terminal), Gatekeeper blocks it until `xattr -d
-com.apple.quarantine` is run in Terminal, and a double-click opens a Terminal window next to the
-app. PyInstaller's one-file `.app` is deprecated and will be refused in PyInstaller 7
-(`research/desktop-release.md`).
-
-Options: (1) bare one-file binary, as A20 reads today. (2) The GUI as a normal `Transcribe-UI.app`
-(onedir: starts faster, has its name and icon in the Dock) inside one `.dmg` per architecture:
-the user opens the image and drags the app to Applications, no Terminal; the first start of the
-unsigned app still needs "Open Anyway" in System Settings once. Still eight files, but the two
-macOS GUI files are disk images, not executables. The macOS CLI stays a bare binary (it is used
-from Terminal anyway).
-
-Proposed default: (2), for the end-user experience (`plans/m8.md` §1, M8.4); the answer is
-recorded next to that working-agreements rule as its exception. Windows and Linux are
-unchanged.
-
 ### A24. Manual acceptance of the release builds
 
 CI starts and quits both builds on every platform (`plans/m8.md` §1 "Smoke tests") but cannot

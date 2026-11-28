@@ -31,10 +31,16 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - M8.1 (build, stamp and smoke-test both executables on four platforms) on
   `feat/m8.1-desktop-build`: built and smoke-tested locally on Linux; the PR's own
   `release-desktop.yml` run proves the four legs (Windows, macOS arm64 and x86_64, Linux).
+- M8.4 (the macOS GUI as `Transcribe-UI.app` in a `.dmg`, A23 answered "default") on
+  `feat/m8.4-macos-app`: built and unit-tested on Linux; only the PR's own
+  `release-desktop.yml` run proves the macOS legs (the app build, its `Info.plist`, the floor
+  check inside the app, `hdiutil`, and the smoke test on the attached image). It meets M8.2 in
+  `release-desktop.yml`, `scripts/build_desktop.py`, the smoke scripts and `tooling.md`'s
+  CI/CD row; whichever merges second rebases.
 
 ## Waiting on humans
 
-- Questions: A23, A24 (architect) and Q36 (product), all for M8; none blocks M6. M5 is built
+- Questions: A24 (architect) and Q36 (product), both for M8; none blocks M6. M5 is built
   and M6 is planned.
 
 ## Next

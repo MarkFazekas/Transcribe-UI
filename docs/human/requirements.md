@@ -308,6 +308,14 @@ Naming and conflicts:
 - Two executables per platform *(A20, architect decision)*: a GUI executable (windowed, GUI
   subsystem, contains Qt, opens the GUI) and a CLI executable (console, without Qt; serves `run`,
   `schema`, `--version` and `credentials`). The release has eight files, two per platform.
+- Shape of the macOS GUI file *(A23, architect: "default", accepting the proposed option 2)*:
+  the GUI is a normal `Transcribe-UI.app` (onedir: starts faster, has its name and icon in the
+  Dock) inside one `.dmg` per architecture: the user opens the image and drags the app to
+  Applications, no Terminal; the first start of the unsigned app still needs "Open Anyway" in
+  System Settings once. Still eight files, but the two macOS GUI files are disk images, not
+  executables. The macOS CLI stays a bare binary (it is used from Terminal anyway). Windows and
+  Linux are unchanged. The answer is recorded next to the working-agreements rule on uploaded
+  files as its exception.
 - Local state: SQLite with SQLAlchemy and Alembic.
 - Code layout, Django-like: constants per folder / app / sub-app in a `constants.py`, each with
   a roughly one-line explanation of its purpose, not with an underscore at the top of other
