@@ -44,7 +44,7 @@ from smoke_desktop_checks import (
     failed,
 )
 from smoke_desktop_floor import FLOOR_CHECK, check_linux_floor
-from smoke_desktop_image import ImageError, gui_executable
+from smoke_desktop_image import SIGNATURE_CHECK, ImageError, check_signature, gui_executable
 from smoke_desktop_process import HostLauncher, isolated_environment
 
 # A check, ready to run.
@@ -59,6 +59,7 @@ CHECKS = (
     "cli-help-hu",
     "cli-bundle",
     "gui-bundle",
+    SIGNATURE_CHECK,
     "gui-offscreen",
     "gui-native",
     FLOOR_CHECK,
@@ -92,6 +93,8 @@ def planned_checks(smoke: Smoke, floor_image: str | None, skipped: Sequence[str]
     }
     if sys.platform == "linux":
         checks[FLOOR_CHECK] = partial(check_linux_floor, smoke, floor_image)
+    if sys.platform == "darwin":
+        checks[SIGNATURE_CHECK] = partial(check_signature, smoke)
     selected = [name for name in CHECKS if name in checks]
     return [(name, checks[name]) for name in selected if name not in skipped]
 

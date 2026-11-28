@@ -6,20 +6,28 @@ from pathlib import Path
 
 import pytest
 from smoke_desktop_bundle import REQUIRED_DATA, app_of, gui_problems, list_app, list_bundle
+from smoke_desktop_checks import Smoke
 from smoke_desktop_image import (
     ImageError,
     attach_command,
+    check_signature,
+    detach,
     detach_command,
     gui_executable,
     image_problems,
     is_disk_image,
+    verify_command,
 )
-from smoke_desktop_process import Command, Environment, RunResult
+from smoke_desktop_process import Command, Environment, HostLauncher, RunResult
 
 # The revisions of the fake app.
 REVISIONS = ("__init__.py", "initial_schema.py")
 # The main executable inside the app.
 EXECUTABLE = "Contents/MacOS/Transcribe-UI"
+# Where `run_process` is looked up by the module under test.
+RUN_PROCESS = "smoke_desktop_image.run_process"
+# Apple's disk image tool.
+HDIUTIL_PATH = "/usr/bin/hdiutil"
 # A mount point of the command tests.
 MOUNT_POINT = Path("/t/volume")
 
@@ -141,7 +149,7 @@ def test_an_executable_is_run_as_it_is(tmp_path: Path) -> None:
 def test_the_image_is_detached_after_the_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The checks get the app's executable in the attached image, which is detached when the run ends."""
     hdiutil = _Hdiutil(with_app=True)
-    monkeypatch.setattr("smoke_desktop_image.run_process", hdiutil)
+    monkeypatch.setattr(RUN_PROCESS, hdiutil)
     monkeypatch.setattr(Path, "is_mount", _mounted_only(hdiutil))
     with ExitStack() as stack:
         executable = gui_executable(tmp_path / "gui.dmg", stack)
@@ -154,12 +162,58 @@ def test_the_image_is_detached_after_the_run(monkeypatch: pytest.MonkeyPatch, tm
 def test_a_wrong_image_is_detached_too(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """An image without the app fails the run and is still detached; a failed attach is reported."""
     hdiutil = _Hdiutil(with_app=False)
-    monkeypatch.setattr("smoke_desktop_image.run_process", hdiutil)
+    monkeypatch.setattr(RUN_PROCESS, hdiutil)
     monkeypatch.setattr(Path, "is_mount", _mounted_only(hdiutil))
     with pytest.raises(ImageError, match=r"the image lacks Transcribe-UI\.app"), ExitStack() as stack:
         gui_executable(tmp_path / "gui.dmg", stack)
     assert [command[1] for command in hdiutil.commands] == ["attach", "detach"]
     failing = _Hdiutil(with_app=False, attach_code=1)
-    monkeypatch.setattr("smoke_desktop_image.run_process", failing)
+    monkeypatch.setattr(RUN_PROCESS, failing)
     with pytest.raises(ImageError, match="could not attach"), ExitStack() as stack:
         gui_executable(tmp_path / "gui.dmg", stack)
+
+
+class _Codesign:
+    """Stands in for `run_process` of `codesign`: answers with `code`."""
+
+    def __init__(self, code: int) -> None:
+        self.code = code
+        self.commands: list[list[str]] = []
+
+    def __call__(self, argv: Command, _env: Environment, _timeout_s: float, _stdin: bytes = b"") -> RunResult:
+        self.commands.append(list(argv))
+        return RunResult(self.code, b"", b"invalid signature", 0)
+
+
+def _smoke(gui: Path) -> Smoke:
+    return Smoke("cli", str(gui), "0.1.0", HostLauncher({}), 1, 1, hungarian_env={})
+
+
+def _cannot_run(*_arguments: object) -> RunResult:
+    raise FileNotFoundError(HDIUTIL_PATH)
+
+
+def test_a_detach_that_cannot_run_is_a_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When `hdiutil` cannot even be started, the detach warns and raises nothing."""
+    monkeypatch.setattr(RUN_PROCESS, _cannot_run)
+    monkeypatch.setattr(Path, "is_mount", lambda _path: True)
+    detach(MOUNT_POINT)
+    assert f"warning: {MOUNT_POINT} could not be detached" in capsys.readouterr().err
+
+
+def test_signature_of_the_app_in_the_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`gui-signature` verifies the app the GUI checks run, deep and strict; a rejected signature fails it."""
+    app = Path("/t/volume/Transcribe-UI.app")
+    assert verify_command(app) == ["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)]
+    accepted = _Codesign(0)
+    monkeypatch.setattr(RUN_PROCESS, accepted)
+    passed = check_signature(_smoke(app / EXECUTABLE)).passed
+    assert (passed, accepted.commands) == (True, [verify_command(app)])
+    monkeypatch.setattr(RUN_PROCESS, _Codesign(1))
+    rejected = check_signature(_smoke(app / EXECUTABLE))
+    assert not rejected.passed
+    assert "codesign does not accept" in rejected.detail
+    assert not check_signature(_smoke(Path("/dist/transcribe-ui-macos-arm64-gui"))).passed

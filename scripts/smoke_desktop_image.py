@@ -4,7 +4,8 @@ Used by `scripts/smoke_desktop_build.py`. The image is attached read-only at a f
 never shown in Finder (`-nobrowse`); it must hold `Transcribe-UI.app` and the `Applications` link
 and nothing else, and the GUI checks run the app's main executable from it. It is detached when
 the run ends, however it ends (forced when a process still holds it); a detach that fails is
-reported, not raised, so it cannot hide the checks' outcome.
+reported, not raised, so it cannot hide the checks' outcome. `gui-signature` verifies the deep
+signature of the app in the attached image, which also shows that packing it kept the signature.
 """
 
 import os
@@ -15,6 +16,8 @@ from pathlib import Path
 
 from build_desktop_app import APP_BUNDLE, APPLICATIONS_LINK, APPLICATIONS_TARGET, HDIUTIL
 from build_desktop_bundle import app_executable
+from smoke_desktop_bundle import app_of
+from smoke_desktop_checks import Outcome, Smoke, failed, judged
 from smoke_desktop_process import run_process
 
 # Suffix of a disk image.
@@ -23,6 +26,12 @@ IMAGE_SUFFIX = ".dmg"
 HDIUTIL_TIMEOUT_S = 300
 # What the image holds besides hidden files: the app and the link to drag it onto.
 IMAGE_ENTRIES = frozenset((APP_BUNDLE, APPLICATIONS_LINK))
+# Name of the check of the app's signature (macOS only).
+SIGNATURE_CHECK = "gui-signature"
+# Apple's code signing tool (every macOS has it there).
+CODESIGN = "/usr/bin/codesign"
+# Seconds the verification of the app's signature may take.
+CODESIGN_TIMEOUT_S = 300
 
 
 class ImageError(RuntimeError):
@@ -69,17 +78,42 @@ def image_problems(root: Path) -> list[str]:
     return problems
 
 
-def detach(mount_point: Path) -> None:
-    """Detach the image at `mount_point` if it is mounted, forced when a plain detach fails; report a failure."""
+def _detach_problem(mount_point: Path) -> str | None:
+    """Detach the image at `mount_point` if it is mounted, forced when a plain detach fails; return what failed."""
     if not mount_point.is_mount():
-        return
+        return None
     plain = run_process(detach_command(mount_point, force=False), os.environ, HDIUTIL_TIMEOUT_S)
     if plain.returncode == 0:
-        return
+        return None
     forced = run_process(detach_command(mount_point, force=True), os.environ, HDIUTIL_TIMEOUT_S)
-    if forced.returncode != 0:
-        outputs = f"{plain.text()}\n{forced.text()}"
-        sys.stderr.write(f"warning: {mount_point} could not be detached\n{outputs}\n")
+    if forced.returncode == 0:
+        return None
+    return f"{plain.text()}\n{forced.text()}"
+
+
+def detach(mount_point: Path) -> None:
+    """Detach the image at `mount_point` if it is mounted (forced when needed); a failure is a warning, never raised."""
+    try:
+        problem = _detach_problem(mount_point)
+    except OSError as error:
+        problem = f"hdiutil could not be run: {error}"
+    if problem is not None:
+        sys.stderr.write(f"warning: {mount_point} could not be detached\n{problem}\n")
+
+
+def verify_command(app: Path) -> list[str]:
+    """Return the `codesign` command that verifies the app's signature, nested code included."""
+    return [CODESIGN, "--verify", "--deep", "--strict", str(app)]
+
+
+def check_signature(smoke: Smoke) -> Outcome:
+    """The app the GUI checks run (in the attached image) has a valid deep signature."""
+    app = app_of(Path(smoke.gui))
+    if app is None:
+        return failed(SIGNATURE_CHECK, f"{smoke.gui} is not the main executable of an app")
+    run = run_process(verify_command(app), os.environ, CODESIGN_TIMEOUT_S)
+    problem = None if run.returncode == 0 else "codesign does not accept the app's signature"
+    return judged(SIGNATURE_CHECK, run, problem)
 
 
 def attach(image: Path, stack: ExitStack) -> Path:

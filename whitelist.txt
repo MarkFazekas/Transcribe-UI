@@ -33,6 +33,7 @@ cloudflarestorage
 codec
 codecs
 codeload
+codesign
 coeng
 copyfile
 copytree
@@ -123,6 +124,7 @@ hashable
 hdiutil
 hhmmss
 hiddenimports
+hoc
 httpx
 hu
 i18n

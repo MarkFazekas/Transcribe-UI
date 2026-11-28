@@ -273,3 +273,14 @@ def test_check_app_checks_every_mach_o_inside_the_app(monkeypatch: pytest.Monkey
         "Frameworks/stray.dylib needs macOS 14.4 (the floor is 14.0)",
     )
     assert report.wheels == ("wheel shiboken6 6.12.0: tags cp310-abi3-macosx_14_0_universal2; highest minos 26.0",)
+
+
+def test_check_app_reports_a_table_it_cannot_read(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A table of contents that is not PyInstaller's literal is a problem of the build, not a traceback."""
+    app = _app_with_binaries(tmp_path)
+    monkeypatch.setattr("build_desktop_macos.otool_reader", lambda: _reader({}))
+    for text in ("([('a', 'b', 'BINARY')", "[]", "([('only-a-name',)],)"):
+        table = _write(tmp_path / "BUNDLE-00.toc", text.encode())
+        report = check_app(table, app)
+        assert len(report.problems) == 1
+        assert report.problems[0].startswith(f"{table}: not a table of contents this check can read")

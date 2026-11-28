@@ -20,7 +20,6 @@ compressed disk image `transcribe-ui-macos-<arch>-gui.dmg` (`scripts/build_deskt
 import argparse
 import os
 import platform
-import re
 import shutil
 import subprocess
 import sys
@@ -40,6 +39,7 @@ from build_desktop_app import (
     macos_report,
     make_disk_image,
     prepare_app,
+    release_segment,
 )
 
 # Root of the repository.
@@ -75,8 +75,6 @@ VARIANT_VARIABLE = "TRANSCRIBE_UI_BUNDLE_VARIANT"
 SHORT_SHA_LENGTH = 7
 # Components of a numeric Windows file version.
 WINDOWS_VERSION_PARTS = 4
-# Leading release segment of a PEP 440 version (`0.1.0` of a release candidate of it).
-RELEASE_SEGMENT = re.compile(r"\d+(?:\.\d+)*")
 # `<os>` of the asset name, by `sys.platform`.
 OS_NAMES: Mapping[str, str] = MappingProxyType({"win32": "windows", "darwin": "macos", "linux": "linux"})
 # `<arch>` of the asset name, by `platform.machine()` in lower case.
@@ -199,11 +197,7 @@ def numeric_version(base: str) -> tuple[int, ...]:
     Raises:
         ValueError: The version does not start with a release segment.
     """
-    match = RELEASE_SEGMENT.match(base)
-    if match is None:
-        msg = f"{base!r} has no release segment"
-        raise ValueError(msg)
-    parts = [int(part) for part in match.group().split(".")]
+    parts = [int(part) for part in release_segment(base).split(".")]
     padded = (*parts, 0, 0, 0, 0)
     return padded[:WINDOWS_VERSION_PARTS]
 

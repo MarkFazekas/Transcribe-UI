@@ -58,6 +58,8 @@ MINIMUM_LINES: Mapping[str, re.Pattern[str]] = MappingProxyType(
 OTOOL_OPTIONS = ("-arch", "all", "-l")
 # Seconds `otool` may take for one file.
 OTOOL_TIMEOUT_S = 60
+# What reading a table of contents that is not PyInstaller's literal raises (`literal_eval`, indexing, unpacking).
+TABLE_ERRORS = (SyntaxError, ValueError, LookupError, TypeError)
 
 
 def minimum_versions(otool_output: str) -> list[MacosVersion]:
@@ -222,7 +224,12 @@ def check_bundle(table_of_contents: Path, executable: Path) -> FloorReport:
 
 
 def bundle_sources(table_of_contents: Path) -> dict[str, Path]:
-    """Return the source of every file in the table of contents of PyInstaller's `BUNDLE`, by its bundled name."""
+    """Return the source of every file in the table of contents of PyInstaller's `BUNDLE`, by its bundled name.
+
+    Raises:
+        SyntaxError, ValueError, LookupError, TypeError: The table is not PyInstaller 6's literal
+            (`TABLE_ERRORS`: another PyInstaller, a damaged file).
+    """
     # The table is a Python literal: ([(name, source, type), ...],).
     entries = ast.literal_eval(table_of_contents.read_text(encoding="utf-8"))[0]
     return {name: Path(source) for name, source, _kind in entries}
@@ -253,8 +260,13 @@ def check_app(table_of_contents: Path, app: Path) -> FloorReport:
     read = otool_reader()
     if read is None:
         return FloorReport(("otool not found",), ())
+    try:
+        sources = bundle_sources(table_of_contents)
+    except TABLE_ERRORS as error:
+        problem = f"{table_of_contents}: not a table of contents this check can read ({error!r})"
+        return FloorReport((problem,), ())
     executable = app_executable(app)
-    binaries = app_binaries(app, bundle_sources(table_of_contents), executable)
+    binaries = app_binaries(app, sources, executable)
     report = floor_report(binaries, installed_wheels(), read)
     problems = (*executable_problems(executable, read), *report.problems)
     return FloorReport(problems, report.wheels)
