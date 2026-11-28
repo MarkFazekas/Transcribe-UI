@@ -63,7 +63,10 @@ class MainWindow(QMainWindow):
         retry: Callable[[], object] | None = None,
         over: QWidget | None = None,
     ) -> ErrorDialog:
-        """Open the error dialog (over `over`, default the window); its fix opens a page, or (`app_busy`) calls `retry`."""
+        """Open the error dialog over `over` (default: the window).
+
+        Its fix opens a page, or (`app_busy`) calls `retry` and probes the lock.
+        """
         fix = partial(self._apply_fix, retry)
         dialog = ErrorDialog(view, self.context.log_dir, fix, over or self)
         self.dialog = dialog

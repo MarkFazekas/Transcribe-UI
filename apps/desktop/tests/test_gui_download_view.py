@@ -6,6 +6,7 @@ panel, the overwrite question is the backend's confirmation, and a custom plan g
 file dialogs (answered by a fake).
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -70,9 +71,11 @@ def world(runs_world: RunsWorld) -> RunsWorld:
 
 
 @pytest.fixture
-def window(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> MainWindow:
-    """Return the window over the seeded backend (answers after it is deleted are dropped by the shell)."""
-    return window_over(qtbot, world.leg.backend, tmp_path)
+def window(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> Iterator[MainWindow]:
+    """Return the window over the seeded backend; after the test, wait until no call runs any more."""
+    created = window_over(qtbot, world.leg.backend, tmp_path)
+    yield created
+    _drain(qtbot, created)
 
 
 @pytest.fixture
@@ -83,6 +86,17 @@ def chooser(window: MainWindow) -> FakeChooser:
     fake = FakeChooser()
     area.chooser = fake
     return fake
+
+
+def _drain(qtbot: QtBot, window: MainWindow) -> None:
+    """Wait until every call of the window has finished (runs after pytest-qt deleted the window).
+
+    Keep this wait: the shell's `destroyed` -> `executor.close()` only drops the answers; it
+    neither cancels nor waits for calls still running on the pool threads. Without it, a
+    download, plan or `get_batch` can still open SQLite and take the writer lock in the finished
+    test's folder (which blocks its removal on Windows) and reach the next test's moto state.
+    """
+    wait_for(qtbot, lambda: not window.busy())
 
 
 def _dialog(window: MainWindow) -> DownloadDialog:
@@ -238,6 +252,8 @@ def test_count_steps_plan_once_after_the_delay(qtbot: QtBot, world: RunsWorld, t
     window = window_over(qtbot, runner, tmp_path)
     window.context.signals.open_download.emit(FIRST_BATCH_ID)
     dialog = _dialog(window)
+    # The settings and the first plan answered: only the steps below go through the delay.
+    wait_for(qtbot, dialog.download_button.isEnabled)
     dialog.model.edit(strategy="flat_with_folders", output_folder=str(world.leg.root / "out"))
     wait_for(qtbot, lambda: dialog.model.loaded.view is not None and not dialog.model.loaded.loading)
     sent = len(runner.requests)
@@ -246,3 +262,4 @@ def test_count_steps_plan_once_after_the_delay(qtbot: QtBot, world: RunsWorld, t
     wait_for(qtbot, lambda: not dialog.model.loaded.loading)
     plans = [request for request in runner.requests[sent:] if isinstance(request, PlanDownloadRequest)]
     assert [plan.placement.folder_count for plan in plans] == [3]
+    _drain(qtbot, window)

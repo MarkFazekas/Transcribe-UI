@@ -577,7 +577,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     Any answer of a download emits `batches_changed` (outcomes may have been recorded) and
     reloads the dialog once (it ignores its own signal), which then shows the last download's
     counts and its `failures`, each with the catalog text of its code; a download with
-    failures shows its dialog again (raised, without taking the focus), since the activity
+    failures shows its dialog again (raised; it asks Qt not to activate it, which may still
+    take the focus depending on the platform), since the activity
     panel's "Finished" would hide them. The dialog has no default button, so Enter in the
     output folder only ends the typing.
   - Custom: Export plan (save-file dialog → `export_custom_plan` with `path`), Import plan

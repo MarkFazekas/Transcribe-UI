@@ -48,7 +48,12 @@ class DialogOutlet:
         self._window.show_error(view, retry, self.parent)
 
     def show_dialog(self, *, activate: bool = False) -> None:
-        """Show the download dialog again if it was closed, on top; it takes the focus only with `activate`."""
+        """Show the download dialog again if it was closed, raised; `activate` also gives it the focus.
+
+        Without `activate` it asks Qt to show it without activating it (`WA_ShowWithoutActivating`);
+        whether a window shown before honours that depends on the platform, so it may still take
+        the focus.
+        """
         parent = self.parent
         if parent is None:
             return
@@ -56,6 +61,8 @@ class DialogOutlet:
         parent.show()
         parent.raise_()
         parent.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, on=False)
+        if activate:
+            parent.activateWindow()
 
 
 class QtDeferral:

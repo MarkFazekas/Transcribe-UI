@@ -51,7 +51,7 @@ class DownloadOutlet(Protocol):
         """Show an error; `retry` sends the request again (the `app_busy` fix)."""
 
     def show_dialog(self) -> None:
-        """Show the download dialog (again, if it was closed), without taking the focus."""
+        """Show the download dialog (again, if it was closed), raised; it may take the focus, depending on the platform."""
 
 
 def _entry_shown(entry: ActivityEntry) -> EntryShown:
