@@ -280,6 +280,18 @@ def test_another_computers_batch(world: RunsWorld) -> None:
     assert _reported(Worker(world, run_id)).remaining_estimate_s == round(SEEDED_RUNTIME_S + foreign_s)
 
 
+def test_another_computers_batch_after_the_pace(world: RunsWorld) -> None:
+    """Once the pace is measured, another computer's covered batch is followed by its pending jobs in R2 (the lease lists it)."""
+    write_foreign(world.store)
+    worker = Worker(world, launch_run(world).run_id)
+    worker.report()
+    world.cloud.clock.advance(timedelta(seconds=FILM_SECONDS * WORKER_FACTOR))
+    worker.done(FILM, FILM_SECONDS * WORKER_FACTOR)
+    worker.report()
+    remaining = round(WORKER_FACTOR * (PODCAST_SECONDS + FOREIGN_SECONDS))
+    assert refreshed_run(world, worker.run_id).remaining_estimate_s == remaining
+
+
 def test_all_done(world: RunsWorld, run_id: str, worker: Worker) -> None:
     """Every job done: 1 and nothing left while the pod stops; once final, no remaining time."""
     world.cloud.clock.advance(STEP)

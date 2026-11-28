@@ -11,9 +11,11 @@ progress, never below 0, so it counts down between refreshes:
 
 - Pending work: once the run has written an `ok` or `no_speech` result, the worker's pace (the
   summed `finished_at - started_at` of those results per weighted second of their audio) applied
-  to the pending weighted audio. Before that, the launch estimate's runtime factors without the
-  margin (audio x factor + overhead per job and pass), plus the covered batches of another
-  computer (`unknown_runtime_s`, kept at the launch).
+  to the pending weighted audio, that of the covered batches of another computer included (their
+  pending jobs read from R2: the run's lease lists them, so the worker does them too). Before
+  that, the launch estimate's runtime factors without the margin (audio x factor + overhead per
+  job and pass), plus the covered batches of another computer (`unknown_runtime_s`, kept at the
+  launch).
 - Time on the file in progress, on the worker's clock: its report's `updated_at` minus the latest
   `finished_at` of the run's results, else minus the `updated_at` of the first report that showed
   `transcribing` with a current job (`transcribing_since`, kept in the run payload; the worker
@@ -48,7 +50,7 @@ from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.runs.records import load_run, payload_of, update_run
 from transcribe_ui.runs.refreshing import Refreshed
 from transcribe_ui.runs.worker import WorkerReport
-from transcribe_ui.state.store import LocalState
+from transcribe_ui.storage.r2 import ObjectStore
 
 
 class RunEstimate(NamedTuple):
@@ -67,11 +69,15 @@ class RunWork(NamedTuple):
     jobs: FollowedJobs
 
 
-def record_progress(context: RequestContext, refreshed: Sequence[Refreshed]) -> None:
-    """Compute and store the progress of every run the refresh followed (after the results are recorded)."""
+def record_progress(context: RequestContext, refreshed: Sequence[Refreshed], store: ObjectStore) -> None:
+    """Compute and store the progress of every run the refresh followed (after the results are recorded).
+
+    Raises:
+        StorageError: R2 could not be read (another computer's covered batches).
+    """
     state = context.ports.state
     for each in refreshed:
-        work = _noted_transcribing(_run_work(state, each.run_id), each.worker)
+        work = _noted_transcribing(_run_work(context, each.run_id, store), each.worker)
         changes = {**estimate_progress(work, each.worker)._asdict()}
         changes["transcribing_since"] = work.payload.transcribing_since
         update_run(state, each.run_id, context.ports.clock.now(), changes=changes)
@@ -128,7 +134,7 @@ def _pending_work_s(work: RunWork, pending_s: float) -> float:
     audio_s = total_duration(done.weighted_s for done in paced)
     if audio_s > 0:
         spent = total_duration(done.spent_s for done in paced)
-        return spent / audio_s * pending_s
+        return spent / audio_s * (pending_s + weighted_duration(work.jobs.others))
     launch_s = total_duration(job_runtime_s(job) for job in work.jobs.pending)
     return launch_s + (work.payload.unknown_runtime_s or 0)
 
@@ -162,9 +168,17 @@ def _noted_transcribing(work: RunWork, worker: WorkerReport | None) -> RunWork:
     return work._replace(payload=payload)
 
 
-def _run_work(state: LocalState, run_id: str) -> RunWork:
-    with state.session() as session:
+def _run_work(context: RequestContext, run_id: str, store: ObjectStore) -> RunWork:
+    """Return what the run's progress is computed from; another computer's covered batches only while it runs.
+
+    Raises:
+        StorageError: R2 could not be read.
+    """
+    with context.ports.state.session() as session:
         row = load_run(session, run_id)
         payload = payload_of(row)
         jobs = followed_jobs(session, payload.covered_batch_ids, run_id)
-        return RunWork(row.status, payload, jobs)
+        status = row.status
+    if status == "running":
+        jobs = jobs.with_others(store)
+    return RunWork(status, payload, jobs)

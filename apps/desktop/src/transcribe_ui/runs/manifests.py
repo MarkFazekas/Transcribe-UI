@@ -13,7 +13,13 @@ from typing import NamedTuple
 from transcribe_contracts.classes import Manifest, ManifestItem, TranscribeJob
 from transcribe_contracts.constants import BATCH_METADATA_PREFIX
 from transcribe_contracts.errors import ContractError, UnsupportedSchemaError
-from transcribe_contracts.layout import batch_id_from_manifest_key, done_key, result_json_key, results_prefix
+from transcribe_contracts.layout import (
+    batch_id_from_manifest_key,
+    done_key,
+    manifest_key,
+    result_json_key,
+    results_prefix,
+)
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.runs.classes import PendingJob, ScopeBatch, UnreadableManifest
 from transcribe_ui.storage.r2 import ObjectStore
@@ -129,3 +135,20 @@ def _read_manifest(key: str, body: bytes) -> Manifest | UnreadableManifest:
         return UnreadableManifest(key=key, reason="unsupported_schema")
     except ContractError:
         return UnreadableManifest(key=key, reason="invalid")
+
+
+def pending_of_batches(store: ObjectStore, batch_ids: Iterable[str]) -> list[PendingJob]:
+    """Return the jobs without a result JSON of these batches, read from R2 (a batch without a readable manifest adds none).
+
+    Raises:
+        StorageError: R2 could not be read.
+    """
+    pending: list[PendingJob] = []
+    for batch_id in batch_ids:
+        key = manifest_key(batch_id)
+        body = store.read(key)
+        manifest = None if body is None else _read_manifest(key, body)
+        if isinstance(manifest, Manifest):
+            finished = [found.key for found in store.list_objects(results_prefix(batch_id))]
+            pending.extend(scope_batch(manifest, finished, known=False).pending_jobs)
+    return pending

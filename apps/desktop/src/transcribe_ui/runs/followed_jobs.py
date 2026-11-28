@@ -17,7 +17,9 @@ from transcribe_ui.batches.payloads import JobPayload
 from transcribe_ui.runs.classes import PendingJob
 from transcribe_ui.runs.constants import PACED_JOB_STATUSES, TRANSCRIBE_KIND
 from transcribe_ui.runs.estimate import job_weight
-from transcribe_ui.state.models import AudioObjectRow, JobRow
+from transcribe_ui.runs.manifests import pending_of_batches
+from transcribe_ui.state.models import AudioObjectRow, BatchRow, JobRow
+from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.constants import AUDIO_VERIFIED
 from transcribe_ui.upload.payloads import AudioObjectPayload
 
@@ -41,10 +43,24 @@ class WorkedJob(NamedTuple):
 
 
 class FollowedJobs(NamedTuple):
-    """A run's followed jobs still pending, and those whose result the run wrote."""
+    """A run's followed jobs still pending, those whose result the run wrote, and the covered batches not here."""
 
     pending: tuple[PendingJob, ...] = ()
     worked: tuple[WorkedJob, ...] = ()
+    # Covered batches this database does not know (another computer's; their jobs are in R2 only).
+    unknown_batch_ids: tuple[str, ...] = ()
+    # The pending jobs of those batches, read from R2 (`with_others`).
+    others: tuple[PendingJob, ...] = ()
+
+    def with_others(self, store: ObjectStore) -> "FollowedJobs":
+        """Return the jobs with the pending jobs of the covered batches this database does not know, read from R2.
+
+        Raises:
+            StorageError: R2 could not be read.
+        """
+        if not self.unknown_batch_ids:
+            return self
+        return self._replace(others=tuple(pending_of_batches(store, self.unknown_batch_ids)))
 
 
 def followed_jobs(session: Session, batch_ids: Sequence[str], run_id: str) -> FollowedJobs:
@@ -63,7 +79,14 @@ def followed_jobs(session: Session, batch_ids: Sequence[str], run_id: str) -> Fo
             done = _worked_job(job, stored, paced=row.status in PACED_JOB_STATUSES)
             if done is not None:
                 worked.append(done)
-    return FollowedJobs(tuple(pending), tuple(worked))
+    return FollowedJobs(tuple(pending), tuple(worked), _unknown(session, batch_ids))
+
+
+def _unknown(session: Session, batch_ids: Sequence[str]) -> tuple[str, ...]:
+    """Return the batches this database does not know, in order."""
+    known = select(BatchRow.batch_id).where(BatchRow.batch_id.in_(batch_ids))
+    here = frozenset(session.scalars(known))
+    return tuple(batch_id for batch_id in batch_ids if batch_id not in here)
 
 
 def _job(row: JobRow, stored: JobPayload, durations: AudioDurations) -> PendingJob:

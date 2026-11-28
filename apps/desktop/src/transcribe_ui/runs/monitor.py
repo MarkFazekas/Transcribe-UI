@@ -58,7 +58,7 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         refreshed, listed = _follow_runs(context, client, store)
         checked = check_ready_batches(context, store.get())
         remember_leases(state, store.get(), context.ports.clock.now())
-        record_progress(context, refreshed)
+        record_progress(context, refreshed, store.get())
         if client is not None:
             cloud = CloudAccess(store.get(), client.pods)
             collect_settled(state, cloud, listed, context.ports.clock.now())
