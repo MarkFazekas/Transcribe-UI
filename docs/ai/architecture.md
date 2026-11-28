@@ -372,6 +372,56 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     confirmation and, confirmed, opens the list; Continue to review sends `start_review` and
     emits `open_review`; each change emits `batches_changed`. A load error shows in the page
     with Retry; an action's error opens the error dialog.
+- **New job** (`gui/selection/`, step 1 of a job; Qt-free `constants.py`, `tree.py`,
+  `marks.py`, `choices.py`, `scanning.py`, `ticks.py`, `filters.py`, `targets.py`,
+  `saving.py`, `editing.py`, `display.py`, `rows.py`, `viewmodel.py`; Qt `models.py`,
+  `widgets.py`, `view.py`, `install.py`).
+  - Settings: `get_settings` at start-up (slot `settings`) and on `settings_changed`; a scan
+    takes its extensions and `include_hidden` from them (the request's defaults until they
+    answered), the language choosers offer the enabled languages in the user's order (plus a
+    reopened job's other languages). A failed load shows in the page with Retry.
+  - Folder: Choose folder (the system dialog, native separators) sends `scan_tree` on the scan
+    pool on a `latest` channel; the page shows "Scanning… N media files found so far" from the
+    progress events, Stop scan cancels it (shown as stopped, not failed), Scan again repeats
+    it with the same options and keeps the selection; another folder starts an empty one.
+  - Tree: `SelectionTreeModel`, a lazy `QAbstractItemModel` over `ScanIndex` (one pass over
+    the flat response: each folder's child folders, its first file and file count; a node is a
+    folder's index, files follow the folders), so rows, parents and cells are looked up only
+    for what the view shows (`QTreeView` with uniform row heights). The top row is the scan
+    root (its whole path), folders before files, in the scan's order. Columns: name with the
+    tick box, the subtitles the file already has (its sidecars' languages, forced ones marked,
+    "unknown language"; the tooltip lists the subtitle files), kind, size, and the languages a
+    selected file is transcribed into. A new scan resets the model; a preview, a match or a
+    language change emits `dataChanged` per folder.
+  - Selection: each click on a tick box appends one operation (`exclude` on a ticked row, else
+    `include`) and sends `preview_selection` with every operation and the scan's `scan_id` on
+    the short pool, on a `latest` channel. Tick boxes, partial folders and totals come only
+    from the latest answer; until it arrives, the clicked row shows what the click asked for,
+    so a quick second click undoes the first. A folder's operation carries the filters active
+    then; a file's carries none (an explicit file click always selects that file). Clear
+    selection drops every operation.
+  - Filters (media kind; subtitle languages with all / any / missing one; name starts with,
+    ends with, contains, regular expression, applied 300 ms after the last keystroke) become
+    the request's `SelectionFilter`; its own validation refuses a bad regular expression,
+    which is shown, and folder ticks wait until it is fixed. While a filter is active, a
+    preview of one `include` of the scan root with it (its own `latest` key) tells which files
+    match: the others, and folders without a match, are dimmed.
+  - Languages: the job's target languages (none ticked at first; the spoken language is the
+    user's choice); a file selected in the tree can have its own ("Same as the job" unticked),
+    sent as `item_languages` only for files the latest preview selected (kept for the others
+    in case they are ticked again).
+  - Create job sends `create_batch` (one at a time; enabled once a folder is scanned, a file is
+    selected and a language chosen, otherwise a hint says what is missing); the
+    `existing_languages` confirmation goes through the generic dialog; a created job emits
+    `batches_changed` and `open_job`, and the page starts a new job on the same folder with the
+    same languages.
+  - Edit selection (`edit_selection`, the shell's handler): the page shows itself and sends
+    `get_batch`; the stored composition gives the scan (its own options), the operations, the
+    languages and each file's own languages; a job without one starts from an empty selection
+    on its scan root with the settings' options and the job's languages. The step header shows
+    the job's stage; "Save selection" sends `edit_batch`; "Start a new job instead" and
+    `open_new_job` go back to a new job. Scans run on the scan pool and previews on the short
+    pool, so New job works while uploads fill the long pool.
 - **Writer lock**: the `database` start-up step sends `list_batches` (read-only) to take the
   lock. While another process holds it (`app_busy` from any response), a page that needs the
   database is replaced by a notice with Retry; Settings stays usable. A Retry that gets the
@@ -547,8 +597,10 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
 - `preview_selection` returns the selected files in scan order (with their sidecar languages,
   forced ones and unknown-language count), each folder with a selected file below it as `all`
   or `partial`, and totals (files, video, audio, bytes).
-- The GUI uses a lazy `QAbstractItemModel` over the scan result (virtual rows, parent check
-  state derived from children), which scales to tens of thousands of nodes.
+- The GUI uses a lazy `QAbstractItemModel` over the scan result (virtual rows: an index carries
+  its node number, folders by index), which scales to tens of thousands of nodes. Its check
+  states are never derived from children in the GUI: every tick box, folder state and total
+  comes from the latest `preview_selection` answer (§3.1 "GUI", "New job").
 
 ### 3.3 Batches
 
