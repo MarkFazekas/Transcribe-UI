@@ -119,7 +119,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             },
             {
               "language": "hu",
@@ -130,7 +131,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         },
@@ -153,7 +155,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             },
             {
               "language": "hu",
@@ -164,7 +167,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         },
@@ -189,7 +193,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             },
             {
               "language": "hu",
@@ -200,7 +205,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         },
@@ -223,7 +229,8 @@
               "status": "pending",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         }

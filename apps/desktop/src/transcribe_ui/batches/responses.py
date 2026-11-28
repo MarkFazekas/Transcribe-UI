@@ -73,6 +73,9 @@ class JobView(FrozenModel):
     # The code of `unreadable result` and `missing result` (the frontends show its catalog text);
     # None for the worker's own errors (shown as they are) and for jobs that did not fail.
     result_error_code: ResultErrorCode | None
+    # It failed or found no speech: a retry batch can take it (while the batch lists
+    # `create_retry_batch`).
+    flagged: bool
 
 
 class BatchItem(FrozenModel):

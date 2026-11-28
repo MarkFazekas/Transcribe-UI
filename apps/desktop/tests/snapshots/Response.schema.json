@@ -1890,6 +1890,10 @@
       "additionalProperties": false,
       "description": "One target language of an item.",
       "properties": {
+        "flagged": {
+          "title": "Flagged",
+          "type": "boolean"
+        },
         "kind": {
           "$ref": "#/$defs/JobKind"
         },
@@ -1963,7 +1967,8 @@
         "status",
         "resolved",
         "result_error",
-        "result_error_code"
+        "result_error_code",
+        "flagged"
       ],
       "title": "JobView",
       "type": "object"

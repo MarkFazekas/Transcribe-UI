@@ -14,6 +14,7 @@ from types import MappingProxyType
 from typing import get_args
 
 import pytest
+from sqlalchemy import select
 
 from support.actions import (
     COPIED_SOURCE,
@@ -22,14 +23,16 @@ from support.actions import (
     RETRIED_SOURCE,
     SCENARIOS,
     scenario_batch_id,
+    scenario_item_id,
     seed_scenarios,
     seeded_root,
 )
-from support.fakes import seeded_ports
+from support.fakes import FIXED_NOW, seeded_ports
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.batches.actions import BatchFacts, ItemCounts, JobCounts, batch_labels, batch_stage
 from transcribe_ui.batches.constants import PHASE_STAGES
-from transcribe_ui.state.models import BatchPhase
+from transcribe_ui.state.models import BatchPhase, JobRow, PlacementRow
+from transcribe_ui.state.store import LocalState
 
 READY = "subtitles_ready"
 FLAGGED = "flagged_jobs"
@@ -134,3 +137,28 @@ def test_the_labels_are_shown_in_order() -> None:
         copying_retry=False,
     )
     assert batch_labels(facts) == (PENDING, READY, FLAGGED, AUDIO_DELETED, "hidden")
+
+
+def _place(state: LocalState, name: str, position: int) -> None:
+    """Record a placement outcome for the job of a scenario's item."""
+    item_id = scenario_item_id(name, position)
+    with state.session() as session:
+        job = session.scalars(select(JobRow).where(JobRow.item_id == item_id)).one()
+        row = PlacementRow(job_id=job.job_id, batch_id=job.batch_id, outcome="place", payload={})
+        row.created_at = FIXED_NOW
+        session.add(row)
+
+
+def test_placed_subtitles_are_no_longer_ready(tmp_path: Path) -> None:
+    """`subtitles_ready` stays while a subtitle has no placement outcome, and goes once every one has."""
+    ports = seeded_ports(tmp_path)
+    with closing(ports.state):
+        seed_scenarios(ports.state, seeded_root(tmp_path))
+        name = "transcribed_clean"
+        _place(ports.state, name, 0)
+        batch_id = scenario_batch_id(name)
+        assert _listed(Backend(ports))[batch_id] == (DOWNLOAD, (READY,))
+        _place(ports.state, name, 1)
+        assert _listed(Backend(ports))[batch_id] == (DOWNLOAD, ())
+        detail = Backend(ports).execute_json(json.dumps({"action": "get_batch", "batch_id": batch_id}))
+        assert not json.loads(detail.model_dump_json())["batch"]["summary"]["labels"]

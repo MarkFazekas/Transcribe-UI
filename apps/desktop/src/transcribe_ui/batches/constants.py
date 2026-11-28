@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, get_args
 
+from transcribe_ui.batches.responses import BatchLabel, BatchStage
 from transcribe_ui.cleanup.constants import AUDIO_PHASES, CLEANED, EVERYTHING_PHASES, RETRY_SOURCE_PHASES
 from transcribe_ui.media.constants import ERROR_MEDIA_TOOL_FAILED, ERROR_MEDIA_TOOL_TIMEOUT
 from transcribe_ui.placement.constants import DOWNLOAD_PHASES
@@ -107,7 +108,7 @@ JOB_STATUSES: Final = frozenset((JOB_PENDING, JOB_EXTRACTED, JOB_OK, "no_speech"
 SUBTITLE_STATUSES: Final = frozenset((JOB_OK, JOB_EXTRACTED))
 
 # The step of the guided flow a batch is at (`BatchSummary.stage`), by its phase (plan m6 §1 "Layout").
-PHASE_STAGES: Final[Mapping[str, str]] = MappingProxyType(
+PHASE_STAGES: Final[Mapping[str, BatchStage]] = MappingProxyType(
     {
         COMPOSING: "files",
         REVIEWING: "review_upload",
@@ -119,24 +120,24 @@ PHASE_STAGES: Final[Mapping[str, str]] = MappingProxyType(
     },
 )
 # Stage of an `uploading` batch whose upload is complete and whose manifest is held while a run is active.
-STAGE_WHEN_HELD: Final = "transcription"
+STAGE_WHEN_HELD: Final[BatchStage] = "transcription"
 # Batch phases in which the results are arriving or in, but not all placed yet.
 RESULT_PHASES: Final = frozenset(("ready", "transcribed"))
 
 # Label: a cloud cleanup of the batch was interrupted; repeat it (no worker starts meanwhile).
-LABEL_CLEANUP_PENDING: Final = "cleanup_pending"
+LABEL_CLEANUP_PENDING: Final[BatchLabel] = "cleanup_pending"
 # Label: the upload started and is not finished; `run_upload` resumes it.
-LABEL_UPLOAD_UNFINISHED: Final = "upload_unfinished"
+LABEL_UPLOAD_UNFINISHED: Final[BatchLabel] = "upload_unfinished"
 # Label: the upload is complete; its manifest is held until the active run ends.
-LABEL_MANIFEST_HELD: Final = "manifest_held"
-# Label: subtitles can be downloaded (some while the batch is `ready`, all once it is `transcribed`).
-LABEL_SUBTITLES_READY: Final = "subtitles_ready"
+LABEL_MANIFEST_HELD: Final[BatchLabel] = "manifest_held"
+# Label: subtitles can be downloaded that no download placed yet (while `ready` or `transcribed`).
+LABEL_SUBTITLES_READY: Final[BatchLabel] = "subtitles_ready"
 # Label: a transcription failed or found no speech (a retry can take it).
-LABEL_FLAGGED_JOBS: Final = "flagged_jobs"
+LABEL_FLAGGED_JOBS: Final[BatchLabel] = "flagged_jobs"
 # Label: the batch's audio was deleted from the cloud (shown until the batch is `cleaned`).
-LABEL_AUDIO_DELETED: Final = "audio_deleted"
+LABEL_AUDIO_DELETED: Final[BatchLabel] = "audio_deleted"
 # Label: the batch is hidden from the default list.
-LABEL_HIDDEN: Final = "hidden"
+LABEL_HIDDEN: Final[BatchLabel] = "hidden"
 # Mode of a new job; `careful` is only used by retry batches.
 DEFAULT_MODE: Final = "normal"
 

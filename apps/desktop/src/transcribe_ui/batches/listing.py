@@ -8,13 +8,13 @@ from sqlalchemy import ColumnElement, Select, case, func, select
 from sqlalchemy.orm import Session
 
 from transcribe_ui.api.ports import RequestContext
-from transcribe_ui.batches.actions import ItemCounts, JobKey, copying_sources
+from transcribe_ui.batches.actions import ItemCounts, JobKey, copying_sources, placed_job_ids
 from transcribe_ui.batches.classes import GetBatchRequest, ListBatchesRequest, SetBatchHiddenRequest
 from transcribe_ui.batches.constants import ALL_PHASES, FINISHED_PHASES, ITEM_REVIEW_PHASES
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.batches.records import batch_summary, load_detail, stored_items, summary_of
 from transcribe_ui.batches.responses import BatchSummary, GetBatchResponse, ListBatchesResponse, SetBatchHiddenResponse
-from transcribe_ui.state.models import BatchRow, ItemRow, JobRow
+from transcribe_ui.state.models import BatchRow, ItemRow, JobRow, PlacementRow
 from transcribe_ui.upload.constants import ITEM_REVIEWED
 
 # The conditions that pick the listed batches (none: every batch).
@@ -45,10 +45,11 @@ def _item_counts(session: Session, listed: Listing) -> dict[str, ItemCounts]:
 
 def _job_keys(session: Session, listed: Listing) -> defaultdict[str, list[JobKey]]:
     jobs: defaultdict[str, list[JobKey]] = defaultdict(list)
-    columns = select(JobRow.batch_id, JobRow.language, JobRow.kind, JobRow.status)
-    joined = columns.join(BatchRow).where(*listed)
-    for batch_id, language, kind, status in session.execute(joined):
-        jobs[batch_id].append((language, kind, status))
+    listed_ids = select(BatchRow.batch_id).where(*listed)
+    placed = placed_job_ids(session, PlacementRow.batch_id.in_(listed_ids))
+    joined = select(JobRow).join(BatchRow).where(*listed)
+    for job in session.scalars(joined):
+        jobs[job.batch_id].append(JobKey.of_row(job, placed))
     return jobs
 
 

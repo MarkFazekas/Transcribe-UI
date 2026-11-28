@@ -58,7 +58,8 @@
               "status": "ok",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         },
@@ -81,7 +82,8 @@
               "status": "no_speech",
               "resolved": true,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": true
             }
           ]
         },
@@ -104,7 +106,8 @@
               "status": "failed",
               "resolved": false,
               "result_error": "decoding failed",
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": true
             }
           ]
         },
@@ -127,7 +130,8 @@
               "status": "extracted",
               "resolved": false,
               "result_error": null,
-              "result_error_code": null
+              "result_error_code": null,
+              "flagged": false
             }
           ]
         }

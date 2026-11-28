@@ -18,13 +18,23 @@ from transcribe_ui.batches.actions import (
     batch_labels,
     batch_stage,
     copying_sources,
+    flagged_job,
+    placed_job_ids,
     stored_cleanup_pending,
 )
 from transcribe_ui.batches.choices import choice_problem
 from transcribe_ui.batches.constants import ITEM_REVIEW_PHASES
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, ItemPhase, JobKind, JobPayload, StoredComposition
 from transcribe_ui.batches.responses import BatchDetail, BatchItem, BatchSelection, BatchSummary, JobView
-from transcribe_ui.state.models import AudioObjectRow, BatchPhase, BatchRow, ExtractedSubtitleRow, ItemRow, JobRow
+from transcribe_ui.state.models import (
+    AudioObjectRow,
+    BatchPhase,
+    BatchRow,
+    ExtractedSubtitleRow,
+    ItemRow,
+    JobRow,
+    PlacementRow,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +154,7 @@ def job_view(member: ItemPayload, job: StoredJob) -> JobView:
         resolved=choice_problem(member, job.kind, payload) is None,
         result_error=payload.result_error,
         result_error_code=payload.result_error_code,
+        flagged=flagged_job(job.kind, job.row.status),
     )
 
 
@@ -169,7 +180,7 @@ def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey]
     From its item counts, its jobs' (language, kind, status) and whether a retry batch still
     copies its audio (`actions.copying_sources`).
     """
-    languages = sorted({language for language, _kind, _status in jobs})
+    languages = sorted({job.language for job in jobs})
     facts = batch_facts(row, item_counts, jobs, copying=copying)
     return BatchSummary(
         batch_id=row.batch_id,
@@ -191,14 +202,15 @@ def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey]
 
 
 def _extract_only(jobs: Sequence[JobKey]) -> bool:
-    kinds = {kind for _language, kind, _status in jobs}
+    kinds = {job.kind for job in jobs}
     return kinds == {"extract"}
 
 
 def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchSummary:
     """Return the summary of a batch whose items are read (in the session that read them)."""
     stored = [job.row for member in members for job in member.jobs]
-    jobs = [(job_row.language, job_row.kind, job_row.status) for job_row in stored]
+    placed = placed_job_ids(session, PlacementRow.batch_id == row.batch_id)
+    jobs = [JobKey.of_row(job_row, placed) for job_row in stored]
     item_counts = ItemCounts.of_phases([member.phase for member in members])
     copying = row.batch_id in copying_sources(session)
     return batch_summary(row, item_counts, jobs, copying=copying)
