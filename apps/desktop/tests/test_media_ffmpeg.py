@@ -84,7 +84,7 @@ def test_probe_reads_tracks_tags_and_subtitles(tmp_path: Path, tools: FfmpegMedi
 
 @pytest.mark.parametrize(
     ("encoder", "extension", "codec"),
-    [("aac", "m4a", "aac"), ("libopus", "opus", "opus"), ("ac3", "ac3", "ac3"), ("pcm_s16le", "wav", "pcm_s16le")],
+    [("aac", "m4a", "aac"), (media.OPUS, "opus", "opus"), ("ac3", "ac3", "ac3"), ("pcm_s16le", "wav", "pcm_s16le")],
 )
 def test_probe_audio_file(tmp_path: Path, tools: FfmpegMediaTools, encoder: str, extension: str, codec: str) -> None:
     """An audio file has one track of its codec, no video and its length."""
@@ -124,7 +124,7 @@ def test_convert_copies_the_track_codec(tmp_path: Path, tools: FfmpegMediaTools,
 
 
 @pytest.mark.parametrize(
-    ("encoder", "extension"), [("aac", "m4a"), ("libopus", "opus"), ("ac3", "ac3"), ("pcm_s16le", "wav")]
+    ("encoder", "extension"), [("aac", "m4a"), (media.OPUS, "opus"), ("ac3", "ac3"), ("pcm_s16le", "wav")]
 )
 def test_convert_keeps_each_codec(tmp_path: Path, tools: FfmpegMediaTools, encoder: str, extension: str) -> None:
     """AAC, Opus, AC-3 and PCM are stream-copied into Matroska unchanged."""
@@ -171,6 +171,20 @@ def test_extract_gives_valid_srt(tmp_path: Path, tools: FfmpegMediaTools, stream
     assert [cue[0] for cue in cues] == ["1", "2"]
     assert cues[0][1] == "00:00:00,000"
     assert _cue_texts(srt) == list(media.SRT_TEXTS)
+
+
+def test_zlib_compressed_subtitles(tools: FfmpegMediaTools) -> None:
+    """A Matroska text track compressed with zlib probes and extracts to its cues (ffmpeg built with zlib)."""
+    probed = _probe(tools, media.ZLIB_SUBTITLES)
+
+    srt = tools.extract(media.ZLIB_SUBTITLES, 0, CancelFlag())
+
+    streams = [(stream.index, stream.codec, stream.kind, stream.language) for stream in probed.subtitle_streams]
+    assert streams == [(0, "subrip", "text", "eng")]
+    assert [cue[1:] for cue in SRT_CUE.findall(srt)] == [
+        ("00:00:00,000", "00:00:01,000", media.SRT_TEXTS[0]),
+        ("00:00:01,000", "00:00:02,000", media.SRT_TEXTS[1]),
+    ]
 
 
 def test_extract_mov_text(tmp_path: Path, tools: FfmpegMediaTools) -> None:

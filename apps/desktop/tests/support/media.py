@@ -1,7 +1,8 @@
 """Tiny media files generated with ffmpeg `lavfi` sources (architecture §7).
 
 Every file is a couple of seconds long, so generating one takes a fraction of a second. ffmpeg
-must be on `PATH` (CI installs it; tooling.md).
+must be on `PATH` (CI installs it; tooling.md). Only FFmpeg's own encoders are used, so the
+generator runs on the bundled LGPL build too (Opus through the native encoder, not libopus).
 """
 
 import shutil
@@ -24,6 +25,15 @@ BASE_TONE_HZ = 440
 SECOND_TONE_HZ = 880
 # lavfi video source of the generated videos (tiny frames, few of them).
 VIDEO_SOURCE = f"testsrc=size=32x24:rate=5:duration={VIDEO_SECONDS}"
+# The native Opus encoder of FFmpeg: experimental, and it takes 48 kHz input only.
+OPUS = "opus"
+# The only sample rate the native Opus encoder takes.
+OPUS_RATE_HZ = "48000"
+# A Matroska file whose English SubRip track (the two `SRT_TEXTS` cues) is zlib-compressed, which
+# the Matroska muxer of FFmpeg cannot write. Made once with mkvmerge 82.0 from `SOURCE_SRT`:
+# `mkvmerge --no-date --disable-track-statistics-tags --language 0:eng --compression 0:zlib
+# -o zlib_subtitles.mkv source.srt`. FFmpeg reads the cues only when built with zlib.
+ZLIB_SUBTITLES = Path(__file__).resolve().parent.parent / "fixtures" / "zlib_subtitles.mkv"
 
 
 def ffmpeg() -> str:
@@ -55,6 +65,17 @@ def file_input(path: str) -> tuple[str, ...]:
     return ("-i", path)
 
 
+def encoder(name: str, stream: str = "a") -> tuple[str, ...]:
+    """Return the output arguments that encode the stream specifier `stream` with an encoder.
+
+    The native Opus encoder also gets `-strict experimental` and its 48 kHz sample rate.
+    """
+    arguments: tuple[str, ...] = (f"-c:{stream}", name)
+    if name == OPUS:
+        arguments += ("-strict", "experimental", f"-ar:{stream}", OPUS_RATE_HZ)
+    return arguments
+
+
 def sine(seconds: int, frequency: int = BASE_TONE_HZ) -> tuple[str, ...]:
     """Return the ffmpeg input arguments of a sine tone."""
     return lavfi(f"sine=frequency={frequency}:duration={seconds}")
@@ -78,7 +99,7 @@ def multitrack_video(folder: Path) -> Path:
     inputs = [*lavfi(VIDEO_SOURCE), *sine(VIDEO_SECONDS), *sine(VIDEO_SECONDS, SECOND_TONE_HZ)]
     inputs += [*file_input(srt), *file_input(srt)]
     mapping = ["-map", "0:v", "-map", "1:a", "-map", "2:a", "-map", "3:s", "-map", "4:s"]
-    codecs = ["-c:v", "mpeg4", "-c:a:0", "aac", "-c:a:1", "libopus", "-c:s:0", "srt", "-c:s:1", "ass"]
+    codecs = ["-c:v", "mpeg4", *encoder("aac", "a:0"), *encoder(OPUS, "a:1"), "-c:s:0", "srt", "-c:s:1", "ass"]
     tags = ["-metadata:s:a:0", "language=hun", "-metadata:s:a:1", "language=eng", "-metadata:s:a:1", "title=Original"]
     tags += ["-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=hun"]
     flags = ["-disposition:a:0", "0", "-disposition:a:1", "default", "-disposition:s:0", "0"]
@@ -105,10 +126,10 @@ def mov_text_video(folder: Path) -> Path:
     return path
 
 
-def audio_file(folder: Path, encoder: str, extension: str) -> Path:
+def audio_file(folder: Path, encoder_name: str, extension: str) -> Path:
     """Return a one-track audio file made with the encoder."""
     path = folder / f"tone.{extension}"
-    generate(*sine(AUDIO_SECONDS), "-c:a", encoder, str(path))
+    generate(*sine(AUDIO_SECONDS), *encoder(encoder_name), str(path))
     return path
 
 
