@@ -20,21 +20,57 @@ from pytestqt.qtbot import QtBot
 
 from support.cloud import ManualTimers
 from support.credentials import moto_bucket
-from support.end_to_end import STEPS, golden_bytes, golden_name
+from support.end_to_end import EN, HU, STEPS, golden_bytes, golden_name
 from support.flow_steps import GuiFlow, drive
-from support.gui import untracked_window
-from support.gui_flow import FlowRecorder, assert_same_clock, assert_same_draws, match_steps, replay, request_document
+from support.gated import DRAIN_MS
+from support.gui_flow import (
+    FlowRecorder,
+    Sent,
+    assert_same_clock,
+    assert_same_draws,
+    gui_exchanges,
+    match_steps,
+    replay,
+    request_document,
+)
 from support.launch_legs import LaunchLegs
-from support.selection_window import settled
+from support.parity import Exchange
+from support.selection_window import settled, settled_window
 from support.upload import build_upload_tree
 from transcribe_ui.api.backend import Backend
+from transcribe_ui.api.classes import GetSettingsRequest, GetSettingsResponse, UpdateSettingsRequest
+from transcribe_ui.api.ports import Ports
 from transcribe_ui.gui import areas
 from transcribe_ui.gui.cloud.install import install_cloud
+from transcribe_ui.gui.shell import MainWindow
 
 # Prefix of the GUI leg's bucket, apart from the replay's legs in the same moto mock.
 GUI_BUCKET_PREFIX = "transcribe-gui-"
 # Most seconds the GUI flow may take (generous: a regression guard, not a benchmark).
 FLOW_BUDGET_S = 60.0
+
+
+def _english_first(ports: Ports) -> None:
+    """Store the leg's settings with English before Hungarian, as the user's order (not a recorded request).
+
+    The job's languages follow the user's order, and the CLI flow sends English first.
+    """
+    backend = Backend(ports)
+    loaded = backend.execute(GetSettingsRequest(action="get_settings"))
+    assert isinstance(loaded, GetSettingsResponse)
+    others = tuple(code for code in loaded.settings.enabled_languages if code not in {EN, HU})
+    settings = loaded.settings.model_copy(update={"enabled_languages": (EN, HU, *others)})
+    stored = backend.execute(UpdateSettingsRequest(action="update_settings", settings=settings))
+    assert stored.status == "ok", stored
+
+
+def _closed(qtbot: QtBot, window: MainWindow) -> None:
+    """Wait for every call, then close the window's executor (its pool threads ended)."""
+    settled(qtbot, window)
+    executor = window.context.executor
+    executor.shutdown()
+    assert executor.wait_for_threads(DRAIN_MS)
+    executor.close()
 
 
 @pytest.fixture
@@ -52,14 +88,26 @@ def flow(qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Itera
     with moto_bucket():
         legs = LaunchLegs(bucket_prefix=GUI_BUCKET_PREFIX)
         ports = legs(root)
+        _english_first(ports)
         recorder = FlowRecorder(ports.clock)
         recorder.attach(Backend(recorder.wrap(ports)))
         with closing(ports.state):
-            window = untracked_window(recorder, tmp_path / "log")
-            qtbot.addWidget(window, before_close_func=partial(settled, qtbot))
-            window.show()
+            window = settled_window(qtbot, recorder, tmp_path / "log")
             yield GuiFlow(window, recorder, legs, root, timers)
-            settled(qtbot, window)
+            _closed(qtbot, window)
+
+
+def _assert_goldens(matched: list[Sent], replayed: list[Exchange], root: Path) -> None:
+    """Each step's replay, and what the GUI itself got (answer, events, exit code), equal its golden byte for byte."""
+    assert len(replayed) == len(STEPS)
+    answered = gui_exchanges(matched, root)
+    for index, (each, exchange) in enumerate(zip(matched, replayed, strict=True)):
+        golden = golden_bytes(index)
+        assert exchange.golden().encode("utf-8") == golden, (
+            f"{each.name()}: its replay differs from {golden_name(index)}"
+        )
+        shown = answered[index].golden().encode("utf-8")
+        assert shown == golden, f"{each.name()}: the GUI's own answer differs from {golden_name(index)}"
 
 
 def test_the_gui_sends_the_cli_flow(
@@ -75,8 +123,5 @@ def test_the_gui_sends_the_cli_flow(
     replayed = replay(tmp_path / "replay", [request_document(each.request, flow.root) for each in matched])
     assert_same_draws(matched, sent, replayed)
     assert_same_clock(matched, replayed)
-    assert len(replayed.exchanges) == len(STEPS)
-    for index, (each, exchange) in enumerate(zip(matched, replayed.exchanges, strict=True)):
-        replied = exchange.golden().encode("utf-8")
-        assert replied == golden_bytes(index), f"{each.name()}: its replay differs from {golden_name(index)}"
+    _assert_goldens(matched, replayed.exchanges, flow.root)
     assert elapsed < FLOW_BUDGET_S, f"the GUI flow took {elapsed:.1f} s"

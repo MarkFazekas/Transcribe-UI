@@ -10,6 +10,7 @@ from collections.abc import Callable
 from PySide6.QtWidgets import QPushButton
 from pytestqt.qtbot import QtBot
 
+from transcribe_ui.gui.activity import ActivityEntry
 from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.cloud.view import CloudPage
 from transcribe_ui.gui.constants import PAGE_CLOUD, PAGE_JOBS, PAGES
@@ -22,6 +23,8 @@ from transcribe_ui.gui.shell import MainWindow
 WAIT_MS = 10_000
 # The state of a finished entry of the activity panel.
 FINISHED = "finished"
+# States of an entry of the activity panel that ended (only `finished` lets the flow go on).
+ENDED = frozenset((FINISHED, "failed", "stopped"))
 # The job page's button that shows the Jobs page's list.
 ALL_JOBS = "All jobs"
 
@@ -54,20 +57,29 @@ def navigate(qtbot: QtBot, window: MainWindow, key: str) -> None:
     wait(qtbot, lambda: window.pages.current_page() == key)
 
 
-def entries(window: MainWindow) -> set[int]:
-    """Return the identities of the activity panel's entries."""
-    return {id(entry) for entry in window.context.activity.entries}
+def entries(window: MainWindow) -> list[ActivityEntry]:
+    """Return the activity panel's entries now (the panel replaces its list, so this one stays as it is)."""
+    return list(window.context.activity.entries)
 
 
-def _finished(window: MainWindow, before: set[int], action: str) -> bool:
+def _ended(window: MainWindow, before: list[ActivityEntry], action: str) -> ActivityEntry | None:
+    """Return the newest entry of `action` that is not in `before`, once it ended (finished, stopped or failed)."""
     found = window.context.activity.entries
-    new = [entry for entry in found if id(entry) not in before and entry.request.action == action]
-    return bool(new) and new[-1].state == FINISHED
+    new = [entry for entry in found if entry.request.action == action and not any(entry is old for old in before)]
+    if new and new[-1].state in ENDED:
+        return new[-1]
+    return None
 
 
-def finished_after(qtbot: QtBot, window: MainWindow, before: set[int], action: str) -> None:
-    """Wait until a new entry of the activity panel (not in `before`) sent `action` and finished."""
-    settle(qtbot, window, lambda: _finished(window, before, action))
+def finished_after(qtbot: QtBot, window: MainWindow, before: list[ActivityEntry], action: str) -> None:
+    """Wait until a new entry of the activity panel (not in `before`) sent `action` and ended; it must have finished.
+
+    A stopped or failed entry fails the flow at once, with its error.
+    """
+    settle(qtbot, window, lambda: _ended(window, before, action))
+    entry = _ended(window, before, action)
+    assert entry is not None
+    assert entry.state == FINISHED, f"{action} ended {entry.state}: {entry.status}"
 
 
 def jobs_page(window: MainWindow) -> JobsPage:

@@ -1,8 +1,8 @@
 """The GUI's end-to-end flow compared with the CLI's (plan m6 M6.11).
 
 `FlowRecorder` stands between the window's executor and the backend: it records every request
-that reaches the backend (in the order the calls start), its answer, the ids it drew from the
-seeded source and the clock when it started. `match_steps` finds the end-to-end steps among them
+that reaches the backend (in the order the calls start), its answer and progress events, the ids
+it drew from the seeded source and the clock when it started. `match_steps` finds the end-to-end steps among them
 in order and refuses any other request that could change something. `replay` sends the matched
 requests through the parity runner on a fresh leg built like the CLI flow's, recording the same
 draws and clock per step, so the test compares both and the goldens.
@@ -23,9 +23,10 @@ from support.normalise import PathNormaliser
 from support.parity import Exchange, Template, run_parity
 from support.upload import build_upload_tree
 from transcribe_ui.api.backend import Backend
-from transcribe_ui.api.classes import Request, Response
+from transcribe_ui.api.classes import ProgressEvent, Request, Response
 from transcribe_ui.api.ports import CancelToken, Clock, IdSource, Ports, ProgressSink
 from transcribe_ui.cli.output import exit_code
+from transcribe_ui.runs.responses import ReconcileCloudResponse, RefreshStatusResponse
 
 # Status of an answer that asks for a confirmation (the request changed nothing).
 ASKS = "needs_confirmation"
@@ -46,13 +47,6 @@ READ_ONLY_ACTIONS = frozenset(
         "plan_download",
     ),
 )
-# Requests that change only the GUI's preferences: no backend request reads them (architecture
-# §3.8, "settings only pre-fill"), and the replay, which leaves them out, still gives the goldens.
-PREFERENCE_ACTIONS = frozenset(("update_settings",))
-# The cloud checks: they change something only when their answer reports it.
-CHECK_ACTIONS = frozenset(("refresh_status", "reconcile_cloud"))
-# Fields of a check's answer that report what it found or changed (all empty: it changed nothing).
-CHECK_REPORTS = ("runs", "batches", "published", "held", "busy", "entries")
 
 
 @dataclass
@@ -63,11 +57,42 @@ class Sent:
     request: Request
     clock: datetime
     draws: list[str] = field(default_factory=list)
+    events: list[ProgressEvent] = field(default_factory=list)
     response: Response | None = None
 
     def name(self) -> str:
         """Return how a failure names the request."""
         return f"request {self.index} ({self.request.action}: {self.request.model_dump_json()})"
+
+
+@dataclass
+class _Running:
+    """Marks the request a pool thread runs while the block runs, so its draws are attributed to it."""
+
+    mark: threading.local
+    sent: Sent
+
+    def __enter__(self) -> None:
+        """Mark the request."""
+        self.mark.sent = self.sent
+
+    def __exit__(self, *_exc_info: object) -> None:
+        """Clear the mark, however the block ended."""
+        self.mark.sent = None
+
+
+@dataclass
+class _Forwarding:
+    """A progress sink that keeps each event of a request and passes it on to the window's sink."""
+
+    sent: Sent
+    inner: ProgressSink | None
+
+    def emit(self, event: ProgressEvent) -> None:
+        """Keep the event, then pass it on."""
+        self.sent.events.append(event)
+        if self.inner is not None:
+            self.inner.emit(event)
 
 
 class FlowRecorder:
@@ -110,15 +135,13 @@ class FlowRecorder:
         return drawn
 
     def execute(self, request: Request, progress: ProgressSink | None, cancel: CancelToken | None) -> Response:
-        """Record the request, run it, record its answer."""
+        """Record the request, run it, record its progress events and its answer."""
         assert self._backend is not None
         with self._lock:
             sent = Sent(len(self.sent), request, self._clock.now())
             self.sent.append(sent)
-        # `Backend.execute` answers every failure as an `ErrorResponse`, so the mark is always cleared.
-        self._current.sent = sent
-        response = self._backend.execute(request, progress, cancel)
-        self._current.sent = None
+        with _Running(self._current, sent):
+            response = self._backend.execute(request, _Forwarding(sent, progress), cancel)
         sent.response = response
         return response
 
@@ -142,18 +165,25 @@ def _golden_status(index: int) -> tuple[str, str]:
     return answer["action"], answer["status"]
 
 
-def _changes_nothing(sent: Sent) -> bool:
-    """Return whether a request outside the steps changed nothing a step depends on.
+def _found_nothing(response: Response | None) -> bool:
+    """Return whether the answer is a cloud check's that found and changed nothing.
 
-    It only reads, asked for a confirmation, saved the preferences, or is a check that found nothing.
+    A refresh with no run, ready batch or held manifest; a reconcile with no run, no machine and
+    nothing needing attention.
     """
-    action = sent.request.action
-    if action in READ_ONLY_ACTIONS or action in PREFERENCE_ACTIONS or _status(sent) == ASKS:
+    if isinstance(response, RefreshStatusResponse):
+        reports = (response.runs, response.batches, response.busy, response.published, response.held)
+        return not any(reports)
+    if isinstance(response, ReconcileCloudResponse):
+        return not (response.entries or response.runs or response.attention)
+    return False
+
+
+def _changes_nothing(sent: Sent) -> bool:
+    """Return whether a request outside the steps changed nothing: it only reads, asked, or is a check that found nothing."""
+    if sent.request.action in READ_ONLY_ACTIONS or _status(sent) == ASKS:
         return True
-    if action not in CHECK_ACTIONS or sent.response is None or sent.response.status != "ok":
-        return False
-    answer = json.loads(sent.response.model_dump_json())
-    return all(not answer.get(report) for report in CHECK_REPORTS)
+    return _found_nothing(sent.response)
 
 
 def _is_step(sent: Sent, expected: tuple[str, str] | None) -> bool:
@@ -186,12 +216,13 @@ def match_steps(sent: Sequence[Sent], *, complete: bool = True) -> list[Sent]:
 
 
 def gui_exchanges(matched: Sequence[Sent], root: Path) -> list[Exchange]:
-    """Return the GUI's own answers to the steps so far, normalised like the parity runner's."""
+    """Return the GUI's own outcomes of the steps so far (answer, events, exit code), normalised like the parity runner's."""
     normaliser = PathNormaliser([root])
     found: list[Exchange] = []
     for each in matched:
         assert each.response is not None
-        found.append(Exchange(normaliser.response_json(each.response), (), exit_code(each.response)))
+        events = tuple(normaliser.model_json(event) for event in each.events)
+        found.append(Exchange(normaliser.response_json(each.response), events, exit_code(each.response)))
     return found
 
 

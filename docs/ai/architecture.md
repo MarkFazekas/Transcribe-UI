@@ -813,8 +813,8 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     the session).
 - **A job through the window** (M6.11; the GUI end-to-end flow, §7). Settings pre-fill New job:
   the scan options, and the languages in the user's order (the job's `languages` follow
-  `enabled_languages`, not the order of the ticks; a user who wants English first puts it
-  first in Preferences). New job scans (`scan_tree` draws the scan id), previews on the kept
+  `enabled_languages`, not the order of the ticks; a user who wants English first unticks
+  and ticks Hungarian again in Preferences, which puts it last). New job scans (`scan_tree` draws the scan id), previews on the kept
   scan and creates the job on it (`scan_id`, so no second scan), confirming
   `existing_languages` through the generic dialog; the job page opens. Continue to review
   opens the review page, which checks the files (`review_batch` once, as long as the job
@@ -824,8 +824,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   into a typed folder), Retry creates the retry job from the ticked transcriptions and opens
   it, and the cleanup buttons ask the cleanup question before deleting. Between these steps
   the GUI sends only requests that change nothing the steps depend on (loads, previews,
-  plans, the credential and setup checks, a start-up cloud check that finds nothing, a save
-  of the preferences) and asks the backend's confirmation where the CLI flow confirms at
+  plans, the credential and setup checks, a start-up cloud check that finds nothing) and asks the backend's confirmation where the CLI flow confirms at
   once; the steps' requests give the CLI flow's responses byte for byte.
 
 ### 3.2 Discovery and selection
@@ -2807,26 +2806,30 @@ Few unit tests; mostly regression and flow tests:
     GUI flow.
   - GUI end-to-end flow (`tests/test_gui_end_to_end.py`; `support/gui_flow.py`,
     `support/flow_steps.py`, `support/flow_window.py`): a user drives the real window over its
-    own leg (`LaunchLegs` with another bucket prefix): saves the preferences with English
-    before Hungarian (the job's languages follow the user's order), tests the accounts, checks
-    the cloud setup, scans and ticks the media folder, chooses the languages (the silent video
+    own leg (`LaunchLegs` with another bucket prefix), whose settings are stored beforehand
+    with English before Hungarian (the job's languages follow the user's order and the CLI flow
+    sends English first; the store is not a request of the flow). The user tests the accounts,
+    checks the cloud setup, scans and ticks the media folder, chooses the languages (the silent video
     in Hungarian only), creates the job (confirmed), continues to review, uploads, starts the
     transcription, lets the poll's manual timer fire three times (the simulated worker changes
     the cloud before the second and the third), downloads with `mirror` into a typed folder,
     retries the ticked transcriptions, opens the start dialog for the retry's plan, and cleans
     up through the cleanup question three times. A recording runner between the window's
     executor and the backend (also the backend's id source) keeps every request that reaches
-    the backend, its answer, the ids drawn on its thread and the clock when it started.
+    the backend, its answer and progress events, the ids drawn on its thread and the clock when
+    it started.
     - Matching: walking the requests in start order, a request is the next step's when it has
       the step's action and, like the step's golden answer, asks for a confirmation or not (the
       GUI asks before the cleanup the CLI flow confirms at once). Any other request must change
       nothing: a read-only action (`get_*`, `list_*`, the credential and setup checks, scans,
-      previews, plans), an answer `needs_confirmation`, `update_settings` (the GUI's
-      preferences, which no backend request reads, §3.8), or a cloud check whose answer reports
-      nothing; otherwise the test fails naming it.
+      previews, plans), an answer `needs_confirmation`, or a cloud check whose typed answer
+      reports nothing (a refresh without runs, batches or manifests; a reconcile without
+      entries, runs or `attention`); otherwise the test fails naming it.
     - The matched requests (paths normalised to `<root>`) are replayed through the parity
       runner on fresh legs built like the CLI flow's, with the worker's changes before the same
-      steps; each response must equal its `end_to_end_*` golden byte for byte. The replay's
+      steps; each response must equal its `end_to_end_*` golden byte for byte, and so must the
+      GUI's own outcome of the step (its answer, events and exit code, normalised), so a step
+      the GUI got answered differently (an error, say) fails too. The replay's
       backend leg records its draws and clock per step: the GUI's draws since the previous
       step (its `scan_tree` draws the scan id the replayed `create_batch` draws) must be the
       step's draws, and each step must start at the replay's clock; a mismatch names the GUI

@@ -1,6 +1,6 @@
 """The user's steps of the GUI's end-to-end flow, in the CLI flow's order (plan m6 M6.11).
 
-Settings (English before Hungarian, Test the accounts, Check the cloud setup), New job (scan, tick,
+Settings (Test the accounts, Check the cloud setup; the leg's settings list English first), New job (scan, tick,
 languages, the silent video in Hungarian only, Create job, confirmed), Continue to review, Upload,
 Start transcription, the poll's interval three times (the simulated worker changes the cloud before
 the second and the third, as in the CLI flow), Download (mirror), Retry, the retry's plan, and the
@@ -65,27 +65,11 @@ class GuiFlow:
     timers: ManualTimers
 
 
-def _english_first(qtbot: QtBot, window: MainWindow, page: SettingsPage) -> None:
-    """Preferences: untick Hungarian and tick it again (a language ticked again goes last); Save."""
-    page.setCurrentWidget(page.preferences)
-    table = page.preferences.fields.languages
-    hungarian = table.table.item(table.row_of(HU), 0)
-    assert hungarian is not None
-    hungarian.setCheckState(Qt.CheckState.Unchecked)
-    hungarian.setCheckState(Qt.CheckState.Checked)
-    with qtbot.waitSignal(window.context.signals.settings_changed, timeout=WAIT_MS):
-        page.preferences.controls.save_button.click()
-    saved = page.models.preferences.shown.saved
-    assert saved is not None
-    assert saved.enabled_languages[:2] == (EN, HU)
-
-
 def _settings(qtbot: QtBot, window: MainWindow) -> None:
-    """Settings: English before Hungarian in the preferences, Test the accounts, Check the cloud setup."""
+    """Settings: Test the accounts, Check the cloud setup."""
     navigate(qtbot, window, PAGE_SETTINGS)
     page = window.pages.page(PAGE_SETTINGS)
     assert isinstance(page, SettingsPage)
-    _english_first(qtbot, window, page)
     page.setCurrentWidget(page.accounts)
     controls = page.accounts.controls
     controls.test_button.click()
