@@ -20,7 +20,6 @@ them (`media/tools.py` `bundle_dir`). The stamped version is bundled as
 
 import argparse
 import os
-import platform
 import re
 import shutil
 import subprocess
@@ -34,6 +33,7 @@ from types import MappingProxyType
 from typing import Literal
 
 from build_desktop_macos import check_bundle
+from build_platform import host_tag
 
 # Root of the repository.
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -72,12 +72,6 @@ SHORT_SHA_LENGTH = 7
 WINDOWS_VERSION_PARTS = 4
 # Leading release segment of a PEP 440 version (`0.1.0` of a release candidate of it).
 RELEASE_SEGMENT = re.compile(r"\d+(?:\.\d+)*")
-# `<os>` of the asset name, by `sys.platform`.
-OS_NAMES: Mapping[str, str] = MappingProxyType({"win32": "windows", "darwin": "macos", "linux": "linux"})
-# `<arch>` of the asset name, by `platform.machine()` in lower case.
-ARCH_NAMES: Mapping[str, str] = MappingProxyType(
-    {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}
-)
 # Product name in the Windows version resource.
 PRODUCT_NAME = "Transcribe-UI"
 # File description of each variant in the Windows version resource.
@@ -155,20 +149,6 @@ def stamped_version(base: str, commit: Commit) -> str:
 def release_tag(commit: Commit) -> str:
     """Return the tag of a release of the commit, `desktop-<YYYYMMDD>-<short sha>`."""
     return f"desktop-{commit.day}-{commit.short_sha}"
-
-
-def platform_tag(system: str, machine: str) -> str:
-    """Return `<os>-<arch>` of the asset names for `sys.platform` and `platform.machine()`.
-
-    Raises:
-        ValueError: The system or the machine is not one the release builds for.
-    """
-    os_name = OS_NAMES.get(system)
-    arch = ARCH_NAMES.get(machine.lower())
-    if os_name is None or arch is None:
-        msg = f"no release build for {system} on {machine}"
-        raise ValueError(msg)
-    return f"{os_name}-{arch}"
 
 
 def is_windows(tag: str) -> bool:
@@ -321,7 +301,7 @@ def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
     Raises:
         RuntimeError: PyInstaller failed or did not write the executable.
     """
-    tag = platform_tag(sys.platform, platform.machine())
+    tag = host_tag()
     present = [paths.media_tool(tool, tag).is_file() for tool in MEDIA_TOOLS]
     if not all(present):
         msg = f"{paths.ffmpeg} lacks ffmpeg or ffprobe (build them with scripts/build_ffmpeg.py build)"
@@ -361,7 +341,7 @@ def _stamp() -> int:
 
 def _macos_floor_problems(variant: Variant, paths: BuildPaths, executable: Path) -> list[str]:
     """Return what in the executable needs a newer macOS than the release supports; print each wheel's line."""
-    stem = asset_stem(variant, platform_tag(sys.platform, platform.machine()))
+    stem = asset_stem(variant, host_tag())
     report = check_bundle(paths.work / "build" / stem / "PKG-00.toc", executable)
     for line in report.wheels:
         sys.stdout.write(f"{line}\n")

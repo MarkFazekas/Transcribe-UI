@@ -11,12 +11,12 @@ from build_desktop import (
     Commit,
     asset_name,
     numeric_version,
-    platform_tag,
     pyinstaller_arguments,
     release_tag,
     stamped_version,
     windows_version_resource,
 )
+from build_platform import platform_tag
 
 # A commit hash.
 SHA = "abc1234def5678abc1234def5678abc1234def56"

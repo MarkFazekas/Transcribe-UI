@@ -20,6 +20,7 @@ on:
       - pyproject.toml
       - .python-version
       - scripts/build_desktop*.py
+      - scripts/build_platform.py
       - scripts/build_ffmpeg*.py
       - scripts/smoke_desktop_*.py
       - scripts/release_desktop.py

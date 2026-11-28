@@ -33,7 +33,6 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from build_desktop import platform_tag
 from build_ffmpeg_checks import buildconf_arguments, buildconf_problems, licence_problems
 from build_ffmpeg_pins import (
     BUILD_PACKAGES,
@@ -62,13 +61,14 @@ from build_ffmpeg_steps import (
     publish,
     unpack,
 )
+from build_platform import host_tag, platform_tag
 
 # Folder of the scripts.
 SCRIPTS_DIR = Path(__file__).resolve().parent
 # Root of the repository.
 REPO_ROOT = SCRIPTS_DIR.parent
-# The files whose content decides the build and its checks; the cache key hashes them.
-KEYED_FILES = tuple(sorted(SCRIPTS_DIR.glob("build_ffmpeg*.py")))
+# The files whose content decides the build and its checks (every one it imports); the cache key hashes them.
+KEYED_FILES = (*sorted(SCRIPTS_DIR.glob("build_ffmpeg*.py")), SCRIPTS_DIR / "build_platform.py")
 # Characters of the files' hash in the cache key.
 KEY_HASH_LENGTH = 16
 # Default folder of the built programs (the cached folder).
@@ -198,7 +198,7 @@ def host_platform() -> Platform:
     Raises:
         ValueError: It is not one the release builds for.
     """
-    tag = platform_tag(sys.platform, platform.machine())
+    tag = host_tag()
     for target in PLATFORMS:
         if target == tag:
             return target
