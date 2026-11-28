@@ -68,8 +68,8 @@ def test_the_shell_shows_four_placeholder_pages(window: MainWindow) -> None:
     """New job, Jobs, Cloud and Settings exist; the ones not built yet are placeholders."""
     assert window.pages.navigation.count() == len(PAGES)
     assert window.pages.current_page() == PAGE_NEW_JOB
-    assert isinstance(window.pages.page(PAGE_JOBS), JobsPage)
-    assert isinstance(window.pages.page(PAGE_SETTINGS), SettingsPage)
+    built = (type(window.pages.page(PAGE_JOBS)), type(window.pages.page(PAGE_SETTINGS)))
+    assert built == (JobsPage, SettingsPage)
     for key in (PAGE_NEW_JOB, PAGE_CLOUD):
         page = window.pages.page(key)
         assert isinstance(page, QLabel)

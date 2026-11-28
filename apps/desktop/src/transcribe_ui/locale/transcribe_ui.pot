@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 03:04+0100\n"
+"POT-Creation-Date: 2026-11-28 03:06+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -77,16 +77,8 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr ""
 
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "API key"
-msgstr ""
-
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "About"
-msgstr ""
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Access key ID"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -152,10 +144,6 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/widgets.py
 msgid "Browse..."
-msgstr ""
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Bucket"
 msgstr ""
 
 #: src/transcribe_ui/gui/activity_view.py
@@ -340,22 +328,12 @@ msgstr ""
 msgid "Embedded subtitle"
 msgstr ""
 
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Endpoint URL"
-msgstr ""
-
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Enter a whole number of at least 1."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Enter the R2 storage values under Settings, Accounts to start."
-msgstr ""
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid ""
-"Enter the S3 API endpoint of R2 without a path: https://<account "
-"ID>.r2.cloudflarestorage.com"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -594,12 +572,6 @@ msgstr ""
 msgid "Output folder"
 msgstr ""
 
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid ""
-"Paste the whole value: no spaces, at most 1024 characters, not the masked"
-" one (*****)."
-msgstr ""
-
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Path"
 msgstr ""
@@ -824,10 +796,6 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Secret"
-msgstr ""
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Secret access key"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -1497,12 +1465,6 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Uploading files"
-msgstr ""
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid ""
-"Use 3-63 lower-case letters, digits and hyphens, not starting or ending "
-"with a hyphen."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py

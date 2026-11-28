@@ -95,17 +95,9 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr "Egy kijelölt útvonal nincs a beolvasott mappán belül."
 
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "API key"
-msgstr "API-kulcs"
-
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "About"
 msgstr "Névjegy"
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Access key ID"
-msgstr "Hozzáférési kulcs azonosítója"
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Accounts"
@@ -181,10 +173,6 @@ msgstr "Mentési kötet"
 #: src/transcribe_ui/gui/settings/widgets.py
 msgid "Browse..."
 msgstr "Tallózás..."
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Bucket"
-msgstr "Tároló (bucket)"
 
 #: src/transcribe_ui/gui/activity_view.py
 msgid "Cancel"
@@ -380,10 +368,6 @@ msgstr "Kijelölés szerkesztése"
 msgid "Embedded subtitle"
 msgstr "Beágyazott felirat"
 
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Endpoint URL"
-msgstr "Végpont URL-je"
-
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Enter a whole number of at least 1."
 msgstr "Adjon meg egy legalább 1 értékű egész számot."
@@ -391,14 +375,6 @@ msgstr "Adjon meg egy legalább 1 értékű egész számot."
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Enter the R2 storage values under Settings, Accounts to start."
 msgstr "A kezdéshez adja meg az R2-tárhely adatait a Beállítások, Fiókok oldalon."
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid ""
-"Enter the S3 API endpoint of R2 without a path: https://<account "
-"ID>.r2.cloudflarestorage.com"
-msgstr ""
-"Az R2 S3 API-végpontját adja meg, elérési út nélkül: "
-"https://<fiókazonosító>.r2.cloudflarestorage.com"
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Enter the value"
@@ -639,14 +615,6 @@ msgstr "Elavult ({fields})"
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Output folder"
 msgstr "Kimeneti mappa"
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid ""
-"Paste the whole value: no spaces, at most 1024 characters, not the masked"
-" one (*****)."
-msgstr ""
-"Illessze be a teljes értéket: szóközök nélkül, legfeljebb 1024 karakter, "
-"és ne a csillagokkal takart változatot (*****)."
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Path"
@@ -891,10 +859,6 @@ msgstr "Mappák beolvasása"
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Secret"
 msgstr "Titok"
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid "Secret access key"
-msgstr "Titkos hozzáférési kulcs"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "See the log for what went wrong."
@@ -1660,14 +1624,6 @@ msgstr "Feltöltés"
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Uploading files"
 msgstr "Fájlok feltöltése"
-
-#: src/transcribe_ui/gui/settings/account_texts.py
-msgid ""
-"Use 3-63 lower-case letters, digits and hyphens, not starting or ending "
-"with a hyphen."
-msgstr ""
-"3–63 kisbetűt, számjegyet és kötőjelet használjon; nem kezdődhet és nem "
-"végződhet kötőjellel."
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid ""

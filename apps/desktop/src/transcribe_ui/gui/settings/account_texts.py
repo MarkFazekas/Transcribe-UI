@@ -10,20 +10,22 @@ from transcribe_ui.credentials.classes import (
     KeyringState,
 )
 from transcribe_ui.gui.settings.constants import NoticeKind
+from transcribe_ui.gui.settings.texts import settings_hint
 from transcribe_ui.i18n.catalog import ntr, tr
+from transcribe_ui.i18n.credential_texts import credential_labels, credential_rules
 from transcribe_ui.runpod.classes import CloudObjectKind, CloudObjectStatus, SetupCloudResponse
 
 
 def credential_label(name: str) -> str:
-    """Return the label of a credential's field (by credential name)."""
-    labels = {
-        "r2_endpoint_url": tr("Endpoint URL"),
-        "r2_bucket": tr("Bucket"),
-        "r2_access_key_id": tr("Access key ID"),
-        "r2_secret_access_key": tr("Secret access key"),
-        "runpod_api_key": tr("API key"),
-    }
+    """Return the label of a credential's field (the CLI's prompt label: one source of the texts)."""
+    labels: dict[str, str] = dict(credential_labels().items())
     return labels[name]
+
+
+def credential_hint(field: str) -> str:
+    """Return how to fix a credential the request's validator refused (the CLI's rule texts)."""
+    rules: dict[str, str] = dict(credential_rules().items())
+    return rules.get(field, settings_hint(field))
 
 
 def credential_source(credential: CredentialStatus) -> str:
@@ -40,18 +42,6 @@ def credential_placeholder(credential: CredentialStatus) -> str:
     if credential.source == "missing":
         return tr("Enter the value")
     return tr("Type a new value to replace it")
-
-
-def credential_hint(name: str) -> str:
-    """Return how to fix a credential the request's validator refused (by field key)."""
-    hints = {
-        "r2_endpoint_url": tr(
-            "Enter the S3 API endpoint of R2 without a path: https://<account ID>.r2.cloudflarestorage.com",
-        ),
-        "r2_bucket": tr("Use 3-63 lower-case letters, digits and hyphens, not starting or ending with a hyphen."),
-    }
-    token = tr("Paste the whole value: no spaces, at most 1024 characters, not the masked one (*****).")
-    return hints.get(name, token)
 
 
 def keyring_note(keyring: KeyringState) -> str:

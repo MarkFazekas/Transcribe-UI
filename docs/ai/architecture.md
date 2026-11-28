@@ -397,7 +397,7 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   `hooks.py`, `restart.py`, `texts.py`, `account_texts.py`; Qt: `view.py` (the page: tabs
   Preferences, Accounts, Cloud setup, About; `open_settings(section)` selects one), its section
   views, `wizard.py`, `notice_view.py`, `install.py` (`install_settings(window)`, one line in
-  `build_shell`).
+  `gui/areas.py`).
   - Preferences: one form over the whole `Settings` (languages with on/off and a word timing
     mark, the stored order kept and a newly enabled language added last; video and audio
     extensions typed on one line, split at spaces, commas and semicolons, sent as typed;
@@ -425,7 +425,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     one-file build runs itself again (with `PYINSTALLER_RESET_ENVIRONMENT=1`, so it unpacks
     its own files), from source the interpreter runs `transcribe_ui.gui.main.run`; a start
     that fails is logged.
-  - Accounts: a masked field per credential (the endpoint and bucket too, §3.6), empty with a
+  - Accounts: a masked field per credential (the endpoint and bucket too, §3.6; labels and the
+    hints of refused values are the CLI's, `i18n/credential_texts.py`), empty with a
     placeholder; where each is set (keyring, environment variable, not set) from
     `credentials_status`; the keyring's state when it is not usable; the note that the Runpod
     key is optional (§3.9). Save sends `store_credentials` with only the fields typed into,
