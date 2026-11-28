@@ -100,6 +100,20 @@ def test_cli_json_is_the_same_in_both_languages(tmp_path: Path, request_json: st
     assert english == hungarian.replace(b'"language": "hu"', b'"language": "en"')
 
 
+@pytest.mark.parametrize("argv", [["run"], ["foo"], ["run", "a.json", "extra"]])
+def test_cli_usage_errors_are_language_neutral(tmp_path: Path, argv: list[str]) -> None:
+    """A command line argparse refuses gives the same `invalid_arguments` JSON in both languages."""
+    outputs = []
+    for language in (ENGLISH, HUNGARIAN):
+        ports = _ports(tmp_path / language, language)
+        stdout = io.BytesIO()
+        with closing(ports.state):
+            main(argv, make_backend=partial(Backend, ports), stdout=stdout)
+        outputs.append(stdout.getvalue())
+    assert outputs[0] == outputs[1]
+    assert b"invalid_arguments" in outputs[0]
+
+
 @pytest.mark.parametrize("request_json", REQUESTS)
 def test_backend_bytes_are_the_same_in_both_languages(tmp_path: Path, request_json: str) -> None:
     """The same request gives the same response bytes whichever language the frontend shows."""
