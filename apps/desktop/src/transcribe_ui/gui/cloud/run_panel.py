@@ -56,7 +56,7 @@ def _field_titles() -> dict[str, str]:
         "remaining": tr("Remaining"),
         "elapsed": tr("Elapsed"),
         "cost": tr("Cost so far"),
-        "deadline": tr("Stopped at the latest"),
+        "deadline": tr("Stops at the latest"),
         "updated": tr("Last check"),
         "end": tr("Outcome"),
         "worker_error": tr("Worker error"),

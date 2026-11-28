@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from transcribe_ui.gui.activity import Activity
+from transcribe_ui.gui.cloud.area import CloudModels
 from transcribe_ui.gui.cloud.constants import StatusTarget
 from transcribe_ui.gui.cloud.display import countdown_text, is_final
-from transcribe_ui.gui.cloud.machines import MachinesModel
 from transcribe_ui.gui.cloud.runs import RunList
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.i18n.texts import code_text
@@ -50,15 +50,19 @@ def _job_items(activity: Activity) -> list[StatusItem]:
     return found
 
 
-def status_items(runs: RunList, machines: MachinesModel, activity: Activity, now: datetime) -> tuple[StatusItem, ...]:
-    """Return the status bar's items: the run, the cloud machines' attention or check error, the busy jobs."""
+def status_items(models: CloudModels, activity: Activity, now: datetime) -> tuple[StatusItem, ...]:
+    """Return the status bar's items: the run, the machines' attention, a failed check, the busy jobs.
+
+    A failed check is one of the machines, or one of the runs that the next check does not simply retry.
+    """
+    machines = models.machines
     found: list[StatusItem] = []
-    run = _run_item(runs, now)
+    run = _run_item(models.runs, now)
     if run is not None:
         found.append(run)
     if machines.attention:
         found.append(StatusItem(tr("A cloud machine needs attention"), "machines"))
-    if machines.error is not None:
+    if machines.error is not None or models.poll.shown_error() is not None:
         found.append(StatusItem(tr("The cloud could not be checked"), "cloud"))
     found.extend(_job_items(activity))
     return tuple(found)

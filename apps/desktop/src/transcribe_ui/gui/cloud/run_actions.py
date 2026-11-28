@@ -1,6 +1,6 @@
 """Stop and Cancel of the current run, and following a run the start dialog launched (Q34; §3.1 "GUI").
 
-Qt-free. "Cancel" (waiting for a machine) and "Stop" (starting or transcribing) both send
+Qt-free. "Stop waiting" (Q34's Cancel, while waiting for a machine) and "Stop" (starting or transcribing) both send
 `cancel_worker`, which the backend asks to confirm first: the run and its stage, and that the
 subtitles already finished are kept while the files not done yet wait for the next start. Stop
 runs on the short pool, so it is never queued behind an upload or a download. Closing the
@@ -11,12 +11,12 @@ from functools import partial
 
 from transcribe_ui.api.classes import Response
 from transcribe_ui.gui.cloud.commands import CloudCommands
-from transcribe_ui.gui.cloud.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.cloud.display import is_final
 from transcribe_ui.gui.cloud.poll import CloudPoll
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.cloud.runs import RunList
 from transcribe_ui.gui.executor import Executor
+from transcribe_ui.gui.jobs.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.runs.classes import CancelWorkerRequest
 from transcribe_ui.runs.responses import CancelWorkerResponse, LaunchWorkerResponse
@@ -58,6 +58,7 @@ class RunActions(ViewModel):
         self._outlet.emit(BATCHES_CHANGED_SIGNAL, tuple(dict.fromkeys(covered)))
 
     def _stopped(self, covered: tuple[str, ...], response: Response) -> None:
+        # A failed stop may have recorded a pod or ended the run before it failed: reload either way.
+        self._runs.announce()
         if isinstance(response, CancelWorkerResponse):
-            self._runs.announce()
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, covered)

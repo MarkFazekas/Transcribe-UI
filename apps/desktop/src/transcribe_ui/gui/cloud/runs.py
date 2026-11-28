@@ -9,14 +9,16 @@ covered reload.
 """
 
 from collections.abc import Callable
+from contextlib import ExitStack
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
-from transcribe_ui.gui.cloud.constants import BATCHES_CHANGED_SIGNAL, LIST_KEY, RUN_HISTORY_LIMIT, RUNS_CHANGED_SIGNAL
+from transcribe_ui.gui.cloud.constants import LIST_KEY, RUN_HISTORY_LIMIT, RUNS_CHANGED_SIGNAL
 from transcribe_ui.gui.cloud.display import is_final
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.executor import Executor, LatestChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
+from transcribe_ui.gui.jobs.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.runs.classes import ListRunsRequest
 from transcribe_ui.runs.responses import ListRunsResponse, RunProgress
@@ -73,7 +75,11 @@ class RunList(ViewModel):
         """Reload the runs, then tell the other pages that runs changed."""
         self.load()
         self._announcing = True
-        self._outlet.emit(RUNS_CHANGED_SIGNAL)
+        with ExitStack() as reset:
+            reset.callback(self._announced)
+            self._outlet.emit(RUNS_CHANGED_SIGNAL)
+
+    def _announced(self) -> None:
         self._announcing = False
 
     def _listed(self, response: Response) -> None:

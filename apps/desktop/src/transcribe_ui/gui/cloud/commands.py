@@ -3,8 +3,9 @@
 Qt-free. Stop and Cancel of a run (`cancel_worker`) and Terminate or Cancel of a cloud machine
 (`terminate_pod`, `cancel_queued_pod`) each ask the backend first: the `needs_confirmation`
 answer is shown by the window's confirmation dialog, and Confirm re-sends the same request with
-each confirmation's `set_to`. An error opens the error dialog (Retry re-sends); a success calls
-the action's follow-up. A second press while the key's request is in flight sends nothing.
+each confirmation's `set_to`. An error opens the error dialog (Retry re-sends). A success and an
+error both call the action's follow-up (an error may have changed something before it failed);
+a declined confirmation and a `cancelled` answer (the window closing) call nothing. A second press while the key's request is in flight sends nothing.
 """
 
 import logging
@@ -17,18 +18,33 @@ from transcribe_ui.api.classes import ErrorBody, ErrorResponse, NeedsConfirmatio
 from transcribe_ui.api.constants import ERROR_CANCELLED, ERROR_INTERNAL
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor
-from transcribe_ui.gui.feedback import ErrorView, confirmation_view, confirmed_request, error_view
+from transcribe_ui.gui.feedback import (
+    ConfirmationItem,
+    ConfirmationView,
+    Details,
+    ErrorView,
+    confirmation_view,
+    confirmed_request,
+    error_view,
+)
 
 logger = logging.getLogger(__name__)
 
-# Called with the response of a request that succeeded.
-type Succeeded = Callable[[Response], None]
+# Called with the final answer of a request: its success, or its error.
+type Finished = Callable[[Response], None]
 
 
 def internal_error(request: Request) -> ErrorView:
     """Return the `internal_error` shown when a confirmation does not fit its request (a backend bug)."""
     body = ErrorBody(code=ERROR_INTERNAL, message="The confirmation does not fit the request.")
     return error_view(ErrorResponse(action=request.action, error=body))
+
+
+def _question(response: NeedsConfirmation) -> ConfirmationView:
+    """Return the confirmation without its details table: each question names what it stops (and why it is safe)."""
+    no_details = Details((), ())
+    asked = [ConfirmationItem(question.message, no_details) for question in confirmation_view(response).confirmations]
+    return ConfirmationView(tuple(asked))
 
 
 class CloudCommands:
@@ -44,28 +60,29 @@ class CloudCommands:
         """Return whether the key's request is in flight."""
         return self._channel.busy(key)
 
-    def send(self, key: Hashable, request: Request, on_success: Succeeded) -> bool:
+    def send(self, key: Hashable, request: Request, on_finished: Finished) -> bool:
         """Send a request (refused while the key's previous one is in flight); return whether it was sent."""
-        answered = partial(self._answered, key, request, on_success)
+        answered = partial(self._answered, key, request, on_finished)
         return self._channel.send(key, request, answered) is not None
 
-    def _answered(self, key: Hashable, request: Request, on_success: Succeeded, response: Response) -> None:
+    def _answered(self, key: Hashable, request: Request, on_finished: Finished, response: Response) -> None:
         if isinstance(response, NeedsConfirmation):
-            confirmed = partial(self._confirmed, key, request, response, on_success)
-            self._outlet.confirm(confirmation_view(response), confirmed)
+            confirmed = partial(self._confirmed, key, request, response, on_finished)
+            self._outlet.confirm(_question(response), confirmed)
         elif not isinstance(response, ErrorResponse):
-            on_success(response)
+            on_finished(response)
         elif response.error.code != ERROR_CANCELLED:
             # A `cancelled` answer means the window is closing: nothing to show.
-            resend = partial(self.send, key, request, on_success)
+            resend = partial(self.send, key, request, on_finished)
             self._outlet.show_error(error_view(response), resend)
+            on_finished(response)
         self._on_answer()
 
-    def _confirmed(self, key: Hashable, request: Request, asked: NeedsConfirmation, on_success: Succeeded) -> None:
+    def _confirmed(self, key: Hashable, request: Request, asked: NeedsConfirmation, on_finished: Finished) -> None:
         try:
             confirmed = confirmed_request(request, asked)
         except ValidationError:
             logger.exception("The confirmation of %s does not fit the request", request.action)
             self._outlet.show_error(internal_error(request), None)
             return
-        self.send(key, confirmed, on_success)
+        self.send(key, confirmed, on_finished)

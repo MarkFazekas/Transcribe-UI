@@ -144,7 +144,8 @@ def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None
     wait_for(qtbot, dialog.start_button.isEnabled)
     assert dialog.isVisible()
     dialog.plan.delete_buttons[FOREIGN_BATCH_ID].click()
-    assert deleted == [FOREIGN_BATCH_ID]
+    # Emitted after the click returns (its handler may rebuild the table and the button).
+    wait_for(qtbot, lambda: deleted == [FOREIGN_BATCH_ID])
     dialog.start_button.click()
     wait_for(qtbot, lambda: not dialog.isVisible() and page.history.runs.run_active())
     panel = page.run_panel

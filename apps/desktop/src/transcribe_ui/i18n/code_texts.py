@@ -9,6 +9,7 @@ transcriptions what it calls jobs.
 
 from transcribe_ui.i18n.catalog import ntr, tr
 from transcribe_ui.i18n.codes import CodeTable, Details, count_of
+from transcribe_ui.runs.constants import WAITING_RUN_STAGES
 
 
 def _delete_batch(details: Details) -> str:
@@ -81,7 +82,7 @@ def _overwrite_targets(details: Details) -> str:
 
 
 def _cancel_worker(details: Details) -> str:
-    if details.get("stage") in {"launching", "waiting"}:
+    if details.get("stage") in WAITING_RUN_STAGES:
         return tr(
             "Stop waiting for a cloud machine? Nothing has been transcribed yet; the files wait for the next start "
             "of transcription.",

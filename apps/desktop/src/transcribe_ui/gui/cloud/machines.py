@@ -43,6 +43,8 @@ class MachinesModel(ViewModel):
         # The error of the last check (None after one that succeeded).
         self.error: ErrorView | None = None
         self._waiting: list[Proceed] = []
+        # A check was asked for while one was in flight: send it again once that one answers.
+        self._again = False
 
     @property
     def checking(self) -> bool:
@@ -57,10 +59,12 @@ class MachinesModel(ViewModel):
         """Check the cloud machines (a check in flight answers for both); `proceed` once it answered."""
         if proceed is not None:
             self._waiting.append(proceed)
+        if self.checking:
+            self._again = True
+            return
         request = ReconcileCloudRequest(action="reconcile_cloud")
-        sent = self._channel.send(RECONCILE_KEY, request, self._checked, None, self.changed)
-        if sent is not None:
-            self.changed()
+        self._channel.send(RECONCILE_KEY, request, self._checked, None, self.changed)
+        self.changed()
 
     def stop(self, row: MachineRow) -> None:
         """Terminate a straggler or overdue pod, or cancel such a queued pod, through the backend's confirmation."""
@@ -85,11 +89,17 @@ class MachinesModel(ViewModel):
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
         self.changed()
+        if self._again:
+            # Its `proceed`s wait for the check sent now.
+            self._again = False
+            self.check()
+            return
         waiting = self._waiting
         self._waiting = []
         for proceed in waiting:
             proceed()
 
     def _stopped(self, _response: Response) -> None:
+        # Also after a failed stop: it may have stopped something before it failed.
         self._runs_changed()
         self.check()

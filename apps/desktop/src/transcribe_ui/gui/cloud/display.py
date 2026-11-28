@@ -10,11 +10,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from transcribe_ui.gui.cloud.constants import CANCEL_STAGES, COST_DECIMALS, PROGRESS_SCALE
+from transcribe_ui.gui.cloud.constants import COST_DECIMALS, PROGRESS_SCALE
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.i18n.formats import format_datetime, format_duration, format_number
 from transcribe_ui.i18n.texts import code_text
-from transcribe_ui.runs.constants import FINAL_RUN_STATUSES
+from transcribe_ui.runs.constants import FINAL_RUN_STATUSES, WAITING_RUN_STAGES
 from transcribe_ui.runs.responses import RunProgress, RunStage, WorkerProgress
 
 
@@ -54,7 +54,7 @@ class RunView:
     end_reason: str
     worker_error: str
     stop_error: str
-    # "Cancel" while waiting for a machine, "Stop" while starting or transcribing; None once final.
+    # "Stop waiting" while waiting for a machine, "Stop" while starting or transcribing; None once final.
     stop_label: str | None
     worker_log: Path | None
 
@@ -89,8 +89,11 @@ def is_final(progress: RunProgress) -> bool:
 
 
 def stop_label(stage: RunStage) -> str:
-    """Return the stop button's label: "Cancel" while waiting for a machine, "Stop" afterwards (Q34)."""
-    return tr("Cancel") if stage in CANCEL_STAGES else tr("Stop")
+    """Return the stop button's label: "Stop waiting" while waiting for a machine, "Stop" afterwards.
+
+    Q34's "Cancel"; named apart from the confirmation dialog's own Cancel ("do not stop").
+    """
+    return tr("Stop waiting") if stage in WAITING_RUN_STAGES else tr("Stop")
 
 
 def countdown_text(finish_at: datetime | None, now: datetime) -> str:

@@ -42,6 +42,8 @@ CONFIRMATION_LAUNCH: Final = "launch_plan"
 CONFIRMATION_TERMINATE_POD: Final = "terminate_pod"
 # Confirmation code: a queued pod is cancelled.
 CONFIRMATION_CANCEL_QUEUED_POD: Final = "cancel_queued_pod"
+# Run stages before a cloud machine works on the run: stopping it then only ends the wait for a machine.
+WAITING_RUN_STAGES: Final = frozenset(("launching", "waiting"))
 # Confirmation code: a run is stopped (`cancel_worker`; details: the run and its stage).
 CONFIRMATION_CANCEL_WORKER: Final = "cancel_worker"
 

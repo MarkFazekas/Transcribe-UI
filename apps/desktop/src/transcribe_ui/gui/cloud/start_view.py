@@ -7,8 +7,9 @@ the dialog with its fix and Retry.
 
 from collections.abc import Callable
 from functools import partial
-from typing import Final, override
+from typing import override
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from transcribe_ui.batches.responses import BatchStage
+from transcribe_ui.gui.cloud.constants import TRANSCRIPTION_STAGE
 from transcribe_ui.gui.cloud.plan_display import PlanBatchRow, PlanView
 from transcribe_ui.gui.cloud.sections import CheckBanner, OnFix
 from transcribe_ui.gui.cloud.start import StartModel
@@ -29,9 +30,6 @@ from transcribe_ui.gui.feedback import Fix
 from transcribe_ui.gui.jobs.widgets import fill_table, row_table
 from transcribe_ui.gui.steps.view import StepHeader
 from transcribe_ui.i18n.catalog import tr
-
-# The stage the step header of the dialog shows (step 3).
-TRANSCRIPTION_STAGE: Final[BatchStage] = "transcription"
 
 # Asks to delete another computer's job from the cloud (its batch id).
 type DeleteUnknown = Callable[[str], object]
@@ -89,6 +87,7 @@ class PlanSection(QWidget):
         for widget in (self.summary, self._cost, self.table, self._skipped):
             layout.addWidget(widget)
         self.delete_buttons: dict[str, QPushButton] = {}
+        self._rows: tuple[PlanBatchRow, ...] | None = None
 
     def show_plan(self, view: PlanView | None) -> None:
         """Show a plan (nothing while none is known)."""
@@ -103,16 +102,24 @@ class PlanSection(QWidget):
         self._skipped.setVisible(bool(view.unreadable))
 
     def _fill(self, rows: tuple[PlanBatchRow, ...]) -> None:
+        # Rebuilt only when a row changed, so a click during a reload keeps its button.
+        if rows == self._rows:
+            return
+        self._rows = rows
         fill_table(self.table, [_batch_cells(row) for row in rows])
         self.delete_buttons = {}
         last = self.table.columnCount() - 1
         for index, row in enumerate(rows):
             if not row.known:
                 button = QPushButton(tr("Delete from cloud"), self.table)
-                button.clicked.connect(partial(self._on_delete_unknown, row.batch_id))
+                button.clicked.connect(partial(self._ask_delete, row.batch_id))
                 self.table.setCellWidget(index, last, button)
                 self.delete_buttons[row.batch_id] = button
         self.table.resizeColumnsToContents()
+
+    def _ask_delete(self, batch_id: str, *_qt_arguments: object) -> None:
+        # After the click returns: the handler may plan again and rebuild the table (and this button).
+        QTimer.singleShot(0, partial(self._on_delete_unknown, batch_id))
 
 
 class StartOptions(QWidget):
@@ -163,7 +170,7 @@ class StartOptions(QWidget):
             self._model.form.choose_wait(seconds)
 
     def _test_mode_clicked(self, checked: bool) -> None:  # noqa: FBT001 -- a Qt slot gets the state positionally
-        self._model.use_test_mode(enabled=checked)
+        self._model.plan_again(test_mode=checked)
 
 
 class StartDialog(QDialog):
@@ -195,10 +202,13 @@ class StartDialog(QDialog):
         """Show the phase, the plan, the choices, the error and Start; close once the run started."""
         model = self.model
         if model.phase == "launched":
-            self.accept()
+            if self.isVisible():
+                self.accept()
             return
-        self._phase.setText(_phase_text(model.phase))
-        self._phase.setVisible(bool(self._phase.text()))
+        if model.phase != "closed" and not self.isVisible():
+            # Reopened by the model: a Start answered with a changed plan after the dialog closed.
+            self.open()
+        self._show_phase()
         self.changed_notice.setVisible(model.form.plan_changed)
         self.plan.show_plan(model.form.view)
         self.options.show_form()
@@ -241,3 +251,9 @@ class StartDialog(QDialog):
         if fix.kind != "retry":
             self.reject()
         self._on_fix(fix)
+
+    def _show_phase(self) -> None:
+        texts = (_phase_text(self.model.phase), self.model.notice)
+        shown = [text for text in texts if text]
+        self._phase.setText(" ".join(shown))
+        self._phase.setVisible(bool(shown))

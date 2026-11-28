@@ -8,20 +8,27 @@ mode and the plan's fingerprint. When the backend's plan changed meanwhile, it a
 new plan to confirm (`needs_confirmation`): the dialog shows it, says that it changed, and the
 next Start confirms it with the confirmation's `set_to`. An error (`cleanup_pending` with its
 link to the job, a run already active, the cloud unreachable) shows in the dialog with its fix
-and Retry. The launch's answer reaches the run list even when the dialog was closed meanwhile.
+and Retry, which sends the failed request again (the plan or the launch). The launch's answer
+reaches the run list even when the dialog was closed meanwhile; while a Start is in flight a
+reopened dialog cannot start again. A changed plan answered after the dialog was closed reopens
+it with that plan (nothing was started, and the user meant to start); an error then opens the
+error dialog. An earlier opening's Start that answers into a reopened dialog only leaves a note
+there (or the error dialog), and never closes it.
 """
 
 from collections.abc import Callable
+from functools import partial
 
 from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.gui.cloud.commands import internal_error
-from transcribe_ui.gui.cloud.constants import LAUNCH_KEY, PLAN_KEY, StartPhase
+from transcribe_ui.gui.cloud.constants import LAUNCH_KEY, PLAN_KEY, StartPhase, StartStep
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.cloud.start_form import StartForm, asked_plan
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor, LatestChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.viewmodel import ViewModel
+from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.runs.responses import LaunchWorkerResponse, PlanLaunchResponse
 
 # Called with the answer of a launch that started a run.
@@ -41,17 +48,26 @@ class StartModel(ViewModel):
         self.phase: StartPhase = "closed"
         self.form = StartForm()
         self.error: ErrorView | None = None
+        # A note about a Start sent from an earlier opening of the dialog, or "".
+        self.notice = ""
+        # Which request failed last (Retry sends it again), or None.
+        self._failed: StartStep | None = None
+        # Each opening of the dialog has its own number; a launch answers the opening it was sent from.
+        self._opening = 0
 
     @property
     def can_start(self) -> bool:
-        """Return whether Start applies: a plan with work is shown and nothing is starting."""
+        """Return whether Start applies: a plan with work is shown and no Start is in flight."""
         view = self.form.view
-        return self.phase == "ready" and view is not None and not view.empty
+        shown = self.phase == "ready" and view is not None and not view.empty
+        return shown and not self._launch.busy(LAUNCH_KEY)
 
     def show_dialog(self) -> None:
         """Open the dialog fresh (no test mode, the default wait) and plan."""
+        self._opening += 1
         self.form = StartForm()
         self.error = None
+        self.notice = tr("Your earlier Start is still being sent.") if self._launch.busy(LAUNCH_KEY) else ""
         self.phase = "planning"
         self.plan_again()
 
@@ -60,39 +76,36 @@ class StartModel(ViewModel):
         self.phase = "closed"
         self.changed()
 
-    def plan_again(self) -> None:
-        """Plan again while the dialog is open and not starting (test mode changed, a job deleted, Retry)."""
-        if self.phase not in {"planning", "ready"}:
+    def plan_again(self, *, test_mode: bool | None = None) -> None:
+        """Plan again while the dialog is open and not starting: test mode changed, a job deleted, Retry."""
+        same_mode = test_mode is not None and test_mode == self.form.test_mode
+        if same_mode or self.phase not in {"planning", "ready"}:
             return
+        if test_mode is not None:
+            self.form.test_mode = test_mode
         self.error = None
         self.phase = "planning"
         self._plans.send(PLAN_KEY, self.form.plan_request(), self._planned)
         self.changed()
 
-    def use_test_mode(self, *, enabled: bool) -> None:
-        """Switch test mode (a 2 h limit, the machine kept for SSH) and plan again, as the fingerprint changes."""
-        if enabled != self.form.test_mode and self.phase != "launching":
-            self.form.test_mode = enabled
-            self.plan_again()
-
     def retry(self) -> None:
-        """Try the step that failed again: Start when a plan is shown, else the plan."""
-        if self.form.plan is None:
+        """Send the request that failed again: the launch after a failed Start, else the plan."""
+        if self._failed == "launch" and self.form.plan is not None:
+            self.error = None
+            self.start()
+        else:
             self.plan_again()
-            return
-        self.error = None
-        self.start()
 
     def start(self) -> None:
         """Start the cloud machine on the plan shown (one launch at a time)."""
-        plan_shown = self.phase == "ready" and self.form.plan is not None
-        if not plan_shown or self._launch.busy(LAUNCH_KEY):
+        if not self.can_start:
             return
         # Before the send: an executor may answer inside it.
         self.phase = "launching"
         self.error = None
         self.changed()
-        self._launch.send(LAUNCH_KEY, self.form.launch_request(), self._answered)
+        answered = partial(self._answered, self._opening)
+        self._launch.send(LAUNCH_KEY, self.form.launch_request(), answered)
 
     def _planned(self, response: Response) -> None:
         if self.phase != "planning":
@@ -104,28 +117,43 @@ class StartModel(ViewModel):
             self.form.show(plan, plan.fingerprint, changed=False)
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
+            self._failed = "plan"
         self.changed()
 
-    def _answered(self, response: Response) -> None:
+    def _answered(self, opening: int, response: Response) -> None:
         if isinstance(response, LaunchWorkerResponse):
-            self.phase = "launched"
+            if opening == self._opening:
+                self.phase = "launched"
+            else:
+                self.notice = tr("The cloud machine of your earlier Start is starting; the Cloud page shows it.")
             self.changed()
             self._launched(response)
             return
         error = None
         if isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             error = error_view(response)
-        if self.phase == "closed":
-            # Closed while starting: nothing started; an error still shows, in the window's dialog.
-            if error is not None:
-                self._outlet.show_error(error, None)
+            self._failed = "launch"
+        asked = isinstance(response, NeedsConfirmation)
+        if opening != self._opening or (self.phase == "closed" and not asked):
+            self._not_started(error, asked=asked)
             return
+        # The Start of this opening (reopened if it was closed: a changed plan asks to confirm again).
         self.phase = "ready"
         self.error = error
         if isinstance(response, NeedsConfirmation):
-            asked = asked_plan(response)
-            if asked is None:
+            changed_plan = asked_plan(response)
+            if changed_plan is None:
                 self.error = internal_error(self.form.launch_request())
             else:
-                self.form.show(*asked, changed=True)
+                self.form.show(*changed_plan, changed=True)
+        self.changed()
+
+    def _not_started(self, error: ErrorView | None, *, asked: bool) -> None:
+        """A Start from an earlier opening, or from a closed dialog, started nothing: say so."""
+        self.notice = ""
+        if error is not None:
+            self._outlet.show_error(error, None)
+        elif asked:
+            self.notice = tr("Your earlier Start started nothing, as the work changed; check the plan here.")
+            self.plan_again()
         self.changed()

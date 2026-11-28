@@ -56,7 +56,7 @@ class MachineRow:
     status: str
     run_id: str
     role: str
-    # "Terminate" (pod) or "Cancel" (queued pod) for a straggler or an overdue one; None for the current run's.
+    # "Terminate" (pod) or "Stop waiting" (queued pod) for a straggler or an overdue one; None for the current run's.
     action_label: str | None
 
 
@@ -84,16 +84,14 @@ def plan_view(plan: LaunchPlan) -> PlanView:
     """Return a launch plan as the start dialog shows it."""
     scope = plan.scope
     cost = plan.cost
-    summary = ntr(
-        "{jobs} transcription in {batches} job, {audio} of audio.",
-        "{jobs} transcriptions in {batches} jobs, {audio} of audio.",
-        scope.pending_jobs,
-    )
+    jobs = ntr("{count} transcription", "{count} transcriptions", scope.pending_jobs)
+    batches = ntr("{count} job", "{count} jobs", len(scope.batches))
     named = {
-        "jobs": format_number(scope.pending_jobs),
-        "batches": format_number(len(scope.batches)),
+        "transcriptions": jobs.format(count=format_number(scope.pending_jobs)),
+        "jobs": batches.format(count=format_number(len(scope.batches))),
         "audio": format_duration(scope.pending_duration_s),
     }
+    summary = tr("{transcriptions} in {jobs}, {audio} of audio.")
     price = tr("Estimated cost: {low} to {high} ({price} per hour).").format(
         low=money(cost.low_usd),
         high=money(cost.high_usd),
@@ -130,7 +128,7 @@ def machine_row(entry: CloudEntry) -> MachineRow:
         role = tr("{role}, past its time limit").format(role=role)
     action = None
     if needs_stop:
-        action = tr("Terminate") if pod else tr("Cancel")
+        action = tr("Terminate") if pod else tr("Stop waiting")
     return MachineRow(
         entry=entry,
         kind=tr("Machine") if pod else tr("Waiting for a machine"),

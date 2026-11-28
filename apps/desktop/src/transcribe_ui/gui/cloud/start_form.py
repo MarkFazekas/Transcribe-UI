@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from pydantic import ValidationError
 
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
-from transcribe_ui.gui.cloud.constants import FINGERPRINT_FIELD, PLAN_DETAIL
+from transcribe_ui.gui.cloud.constants import PLAN_DETAIL
 from transcribe_ui.gui.cloud.plan_display import PlanView, plan_view, wait_choices
 from transcribe_ui.runs.classes import LaunchPlan, LaunchWorkerRequest, PlanLaunchRequest, WaitBounds
-from transcribe_ui.runs.constants import WAIT_DEFAULT_S
+from transcribe_ui.runs.constants import CONFIRM_FINGERPRINT_FIELD, WAIT_DEFAULT_S
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def asked_plan(response: NeedsConfirmation) -> tuple[LaunchPlan, str] | None:
     """Return the plan a launch confirmation asks for and its fingerprint (None, logged, if it has none)."""
     for asked in response.confirmations:
-        if asked.field == FINGERPRINT_FIELD and isinstance(asked.set_to, str):
+        if asked.field == CONFIRM_FINGERPRINT_FIELD and isinstance(asked.set_to, str):
             return _plan_of(asked)
     logger.error("The launch confirmation names no fingerprint")
     return None

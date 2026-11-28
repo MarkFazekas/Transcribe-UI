@@ -14,13 +14,13 @@ from functools import partial
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
-from transcribe_ui.gui.cloud.constants import BATCHES_CHANGED_SIGNAL, REFRESH_INTERVAL_MS, RETRYING_CODES
+from transcribe_ui.gui.cloud.constants import REFRESH_INTERVAL_MS, RETRYING_CODES
 from transcribe_ui.gui.cloud.display import local_time
 from transcribe_ui.gui.cloud.ports import CloudOutlet, TimerFactory
 from transcribe_ui.gui.cloud.runs import RunList
-from transcribe_ui.gui.constants import CALL_QUEUED, CALL_RUNNING
 from transcribe_ui.gui.executor import Executor, SingleFlightChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
+from transcribe_ui.gui.jobs.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.runs.classes import RefreshStatusRequest
@@ -78,9 +78,9 @@ class CloudPoll(ViewModel):
     def note(self) -> str:
         """Return what the page says about the checks: one running or waiting, or the last one retrying."""
         state = self._channel.state
-        if state == CALL_RUNNING:
+        if state == "running":
             return tr("Checking the cloud...")
-        if state == CALL_QUEUED:
+        if state == "queued":
             return tr("Waiting to check the cloud...")
         if self.error is None or self.error.code not in RETRYING_CODES:
             return ""

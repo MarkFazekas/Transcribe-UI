@@ -104,7 +104,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     once (every step is idempotent, so the state is consistent either way). Exit codes: 0
     success, 1 error response, 2 request file (or command line) invalid, 3
     `needs_confirmation` (so `delete_batch` and `exclude_items` without `confirm` exit 3 since
-    M6.1), 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
+    M6.1, and `cancel_worker` without `confirm` since M6.6: a script that stops a run must now
+    send `"confirm": true`), 130 `cancelled`. `transcribe-ui schema` prints the JSON Schema of
     `Request` (`--response`: of `Response`) so requests can be written by hand or by an LLM;
     `--version` prints the app version.
   - **CLI ergonomics** (M6.7; no new semantics, `run` stays the way to every request):
@@ -138,7 +139,8 @@ docs/human/, docs/ai/     see CLAUDE.md
     - Confirming: a request that needs a confirmation exits 3 with a `needs_confirmation`
       response listing each `field` and its `set_to`; add those fields with those values to
       the request file (or the piped document) and run it again. For example
-      `{"action": "delete_batch", "batch_id": "...", "confirm": true}`; a plan confirmation
+      `{"action": "delete_batch", "batch_id": "...", "confirm": true}` (stopping a run likewise:
+      `{"action": "cancel_worker", "run_id": "...", "confirm": true}`); a plan confirmation
       sets `confirm_fingerprint` to the fingerprint the response gave. Nothing changed
       before the second run.
   - **GUI** (PySide6, `transcribe_ui/gui/`): view-models translate widget state into the same
@@ -469,7 +471,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs.
     "Refresh now" checks at once and restarts the interval. A check's `runs_busy`,
     `state_busy` or `cloud_unreachable` shows as "Last updated <time>; retrying at the next
-    check", another error in the page's banner with its fix, never as a dialog. Each check
+    check", another error in the page's banner with its fix and as a status bar link, never as
+    a dialog. Each check
     reloads the run list (even a failed one) and emits `runs_changed`, and `batches_changed`
     for the batches it reported. A run that turns final flashes the window in the task bar
     (`QApplication.alert`) and emits `batches_changed` for its covered batches. The timer is a
@@ -477,10 +480,14 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set; with one
     (or when that is not known) `reconcile_cloud` (slot `reconcile`) and `refresh_status`
     (slot `refresh`) run, without one both are left out (M6.13 adds those screens).
-  - Stop and Cancel (Q34; `run_actions.py`): "Cancel" while the stage is `launching` or
-    `waiting`, "Stop" afterwards; both send `cancel_worker`, whose backend confirmation the
-    generic dialog shows; Stop runs on the `short` pool, so a full `long` pool never delays
-    it. Start transcription is disabled while the shown run is not final. Closing the window
+  - Stop and Cancel (Q34; `run_actions.py`): "Stop waiting" (Q34's Cancel, named apart from
+    the confirmation dialog's own Cancel) while the stage is one of `WAITING_RUN_STAGES`
+    (`launching`, `waiting`; `runs/constants.py`, shared with the question's text), "Stop"
+    afterwards; both send `cancel_worker`, whose backend confirmation the generic dialog shows
+    without its details table (the question names what it stops; the same for the machines'
+    stops); Stop runs on the `short` pool, so a full `long` pool never delays it. Every answer
+    of a stop except a declined question and `cancelled` reloads the run list, a failed one
+    too (it may have changed the run before it failed). Start transcription is disabled while the shown run is not final. Closing the window
     never stops a run: the shell reads `GuiContext.run_active` (the run list's) when asked, so
     the close question adds its cloud note.
   - The start dialog (`start.py`, `start_view.py`; step 3 of the step header): opening it
@@ -494,22 +501,32 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     plan comes back as `needs_confirmation`, whose plan (details) the dialog shows with "The
     work changed since you saw it" and whose `set_to` the next Start confirms. Errors
     (`cleanup_pending` with "Open the job", `run_active`, cloud errors) show in the dialog with
-    their fix and Retry; a fix that opens a page closes the dialog first. Start is disabled
-    while the plan has nothing to transcribe. The dialog may be closed while the machine
-    starts: the launch's answer still reaches the run list (and starts the poll); an error
-    then opens the error dialog.
+    their fix and Retry, which sends the failed request again (the plan or the launch); a fix
+    that opens a page closes the dialog first. Start is disabled while the plan has nothing to
+    transcribe and while a Start is in flight. The dialog may be closed while the machine
+    starts: the launch's answer still reaches the run list (and starts the poll); a changed
+    plan answered then reopens the dialog with that plan (nothing started, and the user meant
+    to start), an error opens the error dialog. A reopened dialog shows a note while an
+    earlier opening's Start is in flight, and when it answers (started: "the Cloud page shows
+    it"; a changed plan: it plans again); that answer never closes it. "Delete from cloud"
+    emits its signal after the click returns, and the table is rebuilt only when a row
+    changed.
   - Cloud machines (`machines.py`): `reconcile_cloud` at start-up and on Check; each entry's
     kind, name, Runpod status, run and role (current run's, or left over; past its time
     limit). A straggler or an overdue entry has Terminate (`terminate_pod`) or Cancel
-    (`cancel_queued_pod`), each asked through the backend's confirmation, then checked again.
+    (`cancel_queued_pod`, labelled "Stop waiting"), each asked through the backend's
+    confirmation, then checked again, also after a failed stop. A check asked for while one is
+    in flight is sent again once that one answered.
     `attention` shows a banner with "Show cloud machines" (`open_cloud_machines` scrolls to the
     list) and a status bar link; a failed check shows the page's banner with Retry.
   - Run history: the listed runs with start, run id, stage, outcome, elapsed time and cost (to
     the end, else the last check), test mode and the kept worker log.
   - Status bar line (`status.py`, `status_view.py`; a permanent widget of the window's status
     bar): the run that is not final (stage and countdown; to the Cloud page), a machine needing
-    attention (to the machines list), a failed cloud check, and each job whose long step is
-    queued or running in the activity panel (to its job page), as links.
+    attention (to the machines list), a failed cloud check (of the machines, or of the runs
+    unless it is retrying), and each job whose long step is queued or running in the activity
+    panel (to its job page), as links. Changes of the activity panel repaint it at most every
+    `PROGRESS_REPAINT_MS`; run and machine changes repaint at once.
   - Decisions: the GUI reuses the jobs area's read-only table helpers (`gui/jobs/widgets.py`)
     without editing them; the start dialog is reached from the Cloud page (the job page has no
     action for it, since a launch covers every uploaded job).

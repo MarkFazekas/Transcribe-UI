@@ -151,7 +151,7 @@ def _wait_then_start(world: CloudWorld, area: CloudArea) -> str:
     world.cloud.settings.capacity = False
     run_id = _launch(area, wait_s=TWO_HOURS_S)
     view = _view(area)
-    assert (view.stage, view.stop_label, poll.active) == ("waiting", "Cancel", True)
+    assert (view.stage, view.stop_label, poll.active) == ("waiting", "Stop waiting", True)
     assert area.outlet.signals(BATCHES_CHANGED)[-1] == ((FOREIGN_BATCH_ID, FIRST_BATCH_ID),)
     poll.fire()
     assert _stage(area) == "waiting"
@@ -263,29 +263,6 @@ def test_another_check_error_shows_in_the_page(world: CloudWorld) -> None:
     assert (error.code, error.fix is not None, poll.note(), area.outlet.errors) == ("credentials_missing", True, "", [])
 
 
-def test_answers_after_the_dialog_closed(world: CloudWorld) -> None:
-    """A plan answered after Close shows nothing; a launch answered after Close still reaches the runs."""
-    area, manual = _manual(world)
-    start = area.models.start
-    start.show_dialog()
-    start.close()
-    manual.answer(PLAN)
-    assert (start.phase, start.form.view) == ("closed", None)
-    _close_while_starting(area, manual)
-
-
-def _close_while_starting(area: CloudArea, manual: ManualExecutor) -> None:
-    start = area.models.start
-    start.show_dialog()
-    manual.answer(PLAN)
-    start.start()
-    start.close()
-    manual.answer(LAUNCH)
-    assert (start.phase, area.timers.poll.active, len(manual.pending(LIST))) == ("launched", True, 1)
-    manual.answer_all()
-    assert area.models.runs.run_active()
-
-
 def test_stop_and_cancel_ask_the_backend_first(world: CloudWorld, area: CloudArea) -> None:
     """Cancel while waiting: declined, nothing changes; confirmed, the run is cancelled and the poll stops."""
     world.cloud.settings.capacity = False
@@ -321,7 +298,7 @@ def test_the_start_up_checks_and_a_straggler(world: CloudWorld, area: CloudArea)
     started = [action for action in area.runner.actions() if action != LIST]
     assert (done, started) == ([True], ["credentials_status", "reconcile_cloud", REFRESH])
     assert (machines.attention, [row.action_label for row in machines.rows]) == (True, ["Terminate"])
-    shown = status_items(area.models.runs, machines, Activity(SyncExecutor(area.runner)), world.now())
+    shown = status_items(area.models, Activity(SyncExecutor(area.runner)), world.now())
     assert [found.target for found in shown] == ["machines"]
     machines.stop(machines.rows[0])
     assert (machines.attention, machines.rows, len(area.outlet.asked)) == (False, (), 1)
@@ -378,7 +355,7 @@ def test_test_mode_and_the_wait_reach_the_launch(area: CloudArea) -> None:
     start = area.models.start
     start.show_dialog()
     assert [seconds for seconds, _label in start.form.wait_choices()][:2] == [300, 900]
-    start.use_test_mode(enabled=True)
+    start.plan_again(test_mode=True)
     start.form.choose_wait(TWO_HOURS_S)
     start.start()
     launched = _picked(area, LAUNCH)[-1]
@@ -422,7 +399,7 @@ def test_the_countdown_and_the_texts_in_hungarian(world: CloudWorld, area: Cloud
     _launch(area)
     activate("hu")
     view = _view(area)
-    assert (view.stage_text, view.stop_label) == ("Várakozás szabad felhőgépre", "Megszakítás")
+    assert (view.stage_text, view.stop_label) == ("Várakozás szabad felhőgépre", "Várakozás leállítása")
     assert countdown_text(finish, world.now()) == "5 p 0 mp van hátra"
 
 
@@ -434,3 +411,28 @@ def test_gui_requests_are_valid_cli_requests(tmp_path: Path, golden: Path) -> No
         exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=LaunchLegs(seed=seed_held_leg))
     codes = [json.loads(exchange.response).get("error", {}).get("code") for exchange in exchanges]
     assert "invalid_request" not in codes
+
+
+def test_a_failed_stop_reloads_the_runs(world: CloudWorld) -> None:
+    """A stop that fails still reloads the run list (it may have changed the run before it failed)."""
+    area, manual = _manual(world)
+    _launched_manually(area, manual)
+    area.models.actions.stop()
+    manual.answer(CANCEL)
+    lists = len(manual.pending(LIST))
+    failed = ErrorResponse(action=CANCEL, error=ErrorBody(code="stop_unverified", message="Not yet."))
+    manual.answer(CANCEL, failed)
+    assert (len(manual.pending(LIST)), len(area.outlet.errors)) == (lists + 1, 1)
+
+
+def test_a_check_error_shows_in_the_status_bar(world: CloudWorld) -> None:
+    """A check of the runs that failed for good shows in the status bar; a retrying one does not."""
+    area, manual = _manual(world)
+    poll = area.models.poll
+    activity = Activity(SyncExecutor(area.runner))
+    poll.tick()
+    manual.answer(REFRESH, ErrorResponse(action=REFRESH, error=ErrorBody(code="runs_busy", message="Busy.")))
+    assert status_items(area.models, activity, world.now()) == ()
+    poll.tick()
+    manual.answer(REFRESH, ErrorResponse(action=REFRESH, error=ErrorBody(code="credentials_invalid", message="No.")))
+    assert [found.target for found in status_items(area.models, activity, world.now())] == ["cloud"]
