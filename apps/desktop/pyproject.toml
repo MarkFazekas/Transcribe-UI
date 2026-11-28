@@ -26,6 +26,15 @@ transcribe-ui = "transcribe_ui.cli.main:run"
 [project.gui-scripts]
 transcribe-ui-gui = "transcribe_ui.gui.main:run"
 
+# The release build's tools (docs/ai/plans/m8.md §1 "Packaging tool"): installed only into the
+# build environment (`--no-dev --group packaging`), never into a bundle.
+[dependency-groups]
+packaging = [
+    "pyinstaller>=6.22",
+    # Converts the PNG icon to `.ico` / `.icns` (M8.3).
+    "pillow>=13.0",
+]
+
 [tool.uv.sources]
 transcribe-contracts = { workspace = true }
 
