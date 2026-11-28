@@ -16,7 +16,7 @@ from support.batches import FIRST_BATCH_ID, build_batch_tree
 from support.credentials import moto_bucket
 from support.golden import assert_golden
 from support.launch import LAUNCH, PLAN, document
-from support.launch_legs import LaunchLegs, seed_held_leg
+from support.launch_legs import LaunchLegs, seed_ready_leg
 from support.monitor import LIST_RUNS, REFRESH, write_done, write_log, write_result, write_status
 from support.parity import Exchange, Template, run_parity
 from support.runpod import Cloud
@@ -38,8 +38,8 @@ type LegChange = Callable[[Cloud, R2ObjectStore, str], None]
 
 
 def _seed_queued(ports: Ports, root: Path, store: R2ObjectStore, cloud: Cloud) -> None:
-    """The held batch and another computer's manifest; no capacity, so the launch queues."""
-    seed_held_leg(ports, root, store, cloud)
+    """The published batch and another computer's manifest; no capacity, so the launch queues."""
+    seed_ready_leg(ports, root, store, cloud)
     cloud.settings.capacity = False
 
 

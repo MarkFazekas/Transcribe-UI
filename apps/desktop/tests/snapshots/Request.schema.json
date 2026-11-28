@@ -3,6 +3,31 @@
     "AbsoluteFile": {
       "$ref": "#/$defs/LocalPath"
     },
+    "AdoptCloudBatchRequest": {
+      "additionalProperties": false,
+      "description": "Add another computer's cloud job to this computer's jobs, so its subtitles can be downloaded here.",
+      "properties": {
+        "action": {
+          "const": "adopt_cloud_batch",
+          "title": "Action",
+          "type": "string"
+        },
+        "batch_id": {
+          "$ref": "#/$defs/BatchId"
+        },
+        "confirm": {
+          "default": false,
+          "title": "Confirm",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "batch_id"
+      ],
+      "title": "AdoptCloudBatchRequest",
+      "type": "object"
+    },
     "BatchId": {
       "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
       "type": "string"
@@ -78,7 +103,7 @@
     },
     "CleanupCloudRequest": {
       "additionalProperties": false,
-      "description": "Delete a batch's audio, or all its data, from the cloud; needs `confirm`.\n\n`everything` on a batch whose results may not be downloaded yet also needs\n`confirm_not_downloaded`. A batch this database does not know (another computer's, Q28)\ncan be cleaned up with `everything` once its manifest reads.",
+      "description": "Delete a batch's audio, or all its data, from the cloud; needs `confirm`.\n\n`everything` on a batch whose results may not be downloaded yet also needs\n`confirm_not_downloaded`. A batch this database does not know (another computer's, Q28)\ncan be cleaned up with `everything` once its manifest reads. When the cloud holds another\ncomputer's batch under the id of one this database knows, deleting it also needs\n`confirm_unknown`: the confirmation of the known batch does not cover it.",
       "properties": {
         "action": {
           "const": "cleanup_cloud",
@@ -96,6 +121,11 @@
         "confirm_not_downloaded": {
           "default": false,
           "title": "Confirm Not Downloaded",
+          "type": "boolean"
+        },
+        "confirm_unknown": {
+          "default": false,
+          "title": "Confirm Unknown",
           "type": "boolean"
         },
         "scope": {
@@ -637,6 +667,22 @@
       "title": "ListBatchesRequest",
       "type": "object"
     },
+    "ListCloudBatchesRequest": {
+      "additionalProperties": false,
+      "description": "List every job in the cloud (R2 only): this computer's and other computers' (architecture §3.9).",
+      "properties": {
+        "action": {
+          "const": "list_cloud_batches",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "ListCloudBatchesRequest",
+      "type": "object"
+    },
     "ListRunsRequest": {
       "additionalProperties": false,
       "description": "List the latest runs as stored, newest first; reads only the database (no Runpod or R2 call).\n\nElapsed time and cost are as of each run's end, else its last `refresh_status`.",
@@ -899,12 +945,17 @@
     },
     "RefreshStatusRequest": {
       "additionalProperties": false,
-      "description": "Follow the runs that are not final, look for results of `ready` batches, publish held manifests.\n\nPast its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is\nended, its `runs/<run_id>/` objects kept locally and deleted.",
+      "description": "Follow the runs that are not final (with a Runpod key) and look for results of `ready` batches.\n\nPast its desktop deadline a run's pod is terminated (verified); a run whose pod is gone is\nended, its `runs/<run_id>/` objects kept locally and deleted.",
       "properties": {
         "action": {
           "const": "refresh_status",
           "title": "Action",
           "type": "string"
+        },
+        "recheck": {
+          "default": false,
+          "title": "Recheck",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1678,6 +1729,7 @@
   },
   "discriminator": {
     "mapping": {
+      "adopt_cloud_batch": "#/$defs/AdoptCloudBatchRequest",
       "cancel_queued_pod": "#/$defs/CancelQueuedPodRequest",
       "cancel_worker": "#/$defs/CancelWorkerRequest",
       "check_credentials": "#/$defs/CheckCredentialsRequest",
@@ -1696,6 +1748,7 @@
       "import_custom_plan": "#/$defs/ImportCustomPlanRequest",
       "launch_worker": "#/$defs/LaunchWorkerRequest",
       "list_batches": "#/$defs/ListBatchesRequest",
+      "list_cloud_batches": "#/$defs/ListCloudBatchesRequest",
       "list_runs": "#/$defs/ListRunsRequest",
       "plan_download": "#/$defs/PlanDownloadRequest",
       "plan_launch": "#/$defs/PlanLaunchRequest",
@@ -1774,6 +1827,12 @@
     },
     {
       "$ref": "#/$defs/ListBatchesRequest"
+    },
+    {
+      "$ref": "#/$defs/ListCloudBatchesRequest"
+    },
+    {
+      "$ref": "#/$defs/AdoptCloudBatchRequest"
     },
     {
       "$ref": "#/$defs/GetBatchRequest"

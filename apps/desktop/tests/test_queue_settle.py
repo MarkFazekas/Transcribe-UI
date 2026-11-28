@@ -27,7 +27,7 @@ from support.launch import (
 )
 from support.monitor import refreshed_run
 from support.runpod_api import Failure, Json, Record
-from support.runs import RUN_ID, RunsWorld, seed_uploaded
+from support.runs import RUN_ID, RunsWorld, seed_ready
 from support.stops import forget_queued_on_cancel, queued_run
 from transcribe_contracts.pods import pod_name
 from transcribe_ui.runpod.constants import QUEUED_POD_DEPLOYED, QUEUED_POD_EXPIRED
@@ -54,9 +54,9 @@ POD_PATH = "/v2/pods/"
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

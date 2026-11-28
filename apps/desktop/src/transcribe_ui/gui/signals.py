@@ -99,7 +99,7 @@ class StartupSlot(IntEnum):
     RUNS = 50
     # `reconcile_cloud`, only when a Runpod key is set (M6.6).
     RECONCILE = 60
-    # `refresh_status`, only when a Runpod key is set (M6.6).
+    # `refresh_status`, with or without a Runpod key (M6.6; R2 only without one, M6.13).
     REFRESH = 70
 
 

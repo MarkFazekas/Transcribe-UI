@@ -71,6 +71,8 @@ ERROR_CREDENTIALS_INVALID: Final = "credentials_invalid"
 ERROR_KEYRING_UNAVAILABLE: Final = "keyring_unavailable"
 # Error code: the keyring backend failed (locked, refused, broken).
 ERROR_KEYRING_FAILED: Final = "keyring_failed"
+# Keyring state of a backend that failed while reading: whether a credential is stored there is not known.
+KEYRING_FAILED: Final = "failed"
 
 # Message of a passed R2 check.
 R2_CHECK_PASSED: Final = "R2 accepted the credentials and the bucket can be listed."

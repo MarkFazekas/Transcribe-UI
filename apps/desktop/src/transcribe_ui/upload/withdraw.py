@@ -5,14 +5,16 @@ writing it and moving the batch to `ready`. Before exclusion or re-review change
 `withdrawal_guard` checks whether the object at its manifest key is this database's
 (`upload/leftover.py`); another computer's batch with the same id is never touched. If it is
 ours, the guard takes the runs lock (bounded wait: the caller holds the batch lock) and lets the
-change go ahead only while no run is active. The change records a `PendingWithdrawal` in its own
+change go ahead only while no live run lease lists the batch (`runs/leases.py`; R2 alone, so it
+works on an installation without the Runpod key). The change records a `PendingWithdrawal` in its own
 transaction, then `upload/steps.py` `finish_after_change` carries it out (`finish_withdrawal`:
 the affected items' results, `_done.json`, the manifest last, then the record is cleared). If
 that fails, the request still succeeds (`withdrawal_pending`) and the withdrawal is finished,
-always under the runs lock with no run active, by whichever comes first: the next
-`manifest_step` of the batch, or `publish_held_manifests` (called by `launch_worker` before it
-launches, and by `refresh_status`), which finishes every pending withdrawal. Results of the
-other items stay, so the worker redoes only the jobs whose result is gone.
+always under the runs lock while no live lease lists the batch, by whichever comes first: the
+next exclusion or re-review, the start of `run_upload`, the manifest step or the extract-only
+transition. A launch never lists the leftover meanwhile: its scope counts a manifest whose
+digest a pending withdrawal recorded as absent. Results of the other items stay, so the worker
+redoes only the jobs whose result is gone.
 """
 
 from collections.abc import Collection, Iterator
@@ -25,9 +27,7 @@ from transcribe_contracts.layout import manifest_key
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.payloads import PendingWithdrawal
 from transcribe_ui.batches.phases import load_batch
-from transcribe_ui.runs.activity import check_activity
-from transcribe_ui.runs.cloud import open_cloud
-from transcribe_ui.runs.errors import RunActiveError
+from transcribe_ui.runs.leases import refuse_if_leased
 from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.storage.r2 import ObjectStore
 from transcribe_ui.upload.leftover import manifest_digest, own_manifest
@@ -38,11 +38,11 @@ def withdrawal_guard(context: RequestContext, store: ObjectStore, batch_id: str)
     """Yield the digest of this database's leftover manifest in R2 (None when there is none).
 
     The caller holds the batch lock and is about to change an `uploading` batch. With a leftover
-    manifest of ours, the block runs under the runs lock and only while no run is active.
+    manifest of ours, the block runs under the runs lock and only while no live lease lists the batch.
 
     Raises:
-        RunActiveError: A run is active (nothing was changed).
-        ActivityUnknownError: The cloud could not be checked (fail closed; nothing was changed).
+        RunActiveError: A live lease lists the batch (nothing was changed).
+        StorageError: R2 could not be read (fail closed; nothing was changed).
         RunsBusyError: The runs lock stayed held for the whole wait (nothing was changed).
     """
     state = context.ports.state
@@ -55,10 +55,8 @@ def withdrawal_guard(context: RequestContext, store: ObjectStore, batch_id: str)
     if body is None or not own.owns(body):
         yield None
         return
-    with state.locks.runs(context.cancel.is_cancelled), open_cloud(context) as cloud:
-        activity = check_activity(state, cloud, context.ports.clock.now())
-        if activity.active:
-            raise RunActiveError(activity.sources)
+    with state.locks.runs(context.cancel.is_cancelled):
+        refuse_if_leased(store, batch_id, context.ports.clock.now())
         yield manifest_digest(body)
 
 

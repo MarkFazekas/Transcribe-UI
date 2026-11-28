@@ -1,6 +1,7 @@
 """Withdrawing a leftover manifest before exclusion or re-review (plan m5 M5.9, architecture §3.3)."""
 
 import threading
+from datetime import timedelta
 
 import pytest
 
@@ -21,6 +22,7 @@ from transcribe_contracts.classes import Manifest
 from transcribe_contracts.layout import done_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.api.errors import Details, DomainError
+from transcribe_ui.runs.leases import write_lease
 
 # Seconds a test thread waits for an event at most.
 THREAD_TIMEOUT_S = 10
@@ -38,7 +40,7 @@ def test_exclusion_withdraws_only_the_excluded_item(runs_world: RunsWorld) -> No
     kept = all_present(runs_world, *result_keys(FIRST_BATCH_ID, ids[PODCAST]))
     assert (excluded.status, getattr(excluded, "withdrawal_pending", None), gone, kept) == ("ok", False, True, True)
     assert (neighbour_untouched(runs_world, ids), pending_of(runs_world)) == (True, None)
-    assert runs_world.step().outcome == "published"
+    runs_world.step()
     assert [entry.item_id for entry in read_manifest(MANIFEST, read_back(runs_world)).items] == [ids[PODCAST]]
 
 
@@ -95,21 +97,21 @@ def _unchanged(world: RunsWorld, film: str) -> bool:
 
 
 @pytest.mark.parametrize("via_rereview", [False, True])
-def test_withdrawal_refused_while_a_run_is_active(runs_world: RunsWorld, *, via_rereview: bool) -> None:
-    """A live pod: exclusion and re-review are refused with `run_active` naming the run; nothing changes."""
+def test_withdrawal_refused_while_leased(runs_world: RunsWorld, *, via_rereview: bool) -> None:
+    """A run whose lease lists the batch may read the leftover: `run_active` naming the run; nothing changes."""
     film = seed_leftover(runs_world)[FILM]
-    runs_world.cloud.api.pods.add(app_pod_name(RUN_ID, runs_world.now()))
+    write_lease(runs_world.store, RUN_ID, (FIRST_BATCH_ID,), runs_world.now() + timedelta(hours=1))
     code, details = _refusal(runs_world, film, via_rereview=via_rereview)
     assert (code, details.get("run_ids"), _unchanged(runs_world, film)) == ("run_active", [RUN_ID], True)
 
 
-@pytest.mark.parametrize("via_rereview", [False, True])
-def test_withdrawal_refused_when_the_cloud_is_unknown(runs_world: RunsWorld, *, via_rereview: bool) -> None:
-    """The activity check failing is a refusal too (fail closed): nothing changes."""
-    film = seed_leftover(runs_world)[FILM]
+def test_withdrawal_ignores_runpod(runs_world: RunsWorld) -> None:
+    """The check reads only the leases in R2: a live pod (and a Runpod outage) does not refuse the exclusion."""
+    ids = seed_leftover(runs_world)
+    runs_world.cloud.api.pods.add(app_pod_name(RUN_ID, runs_world.now()))
     runs_world.cloud.api.fail("GET", "/v2/pods", *OUTAGE)
-    code, _details = _refusal(runs_world, film, via_rereview=via_rereview)
-    assert (code, _unchanged(runs_world, film)) == ("cloud_unreachable", True)
+    excluded = exclude_film(runs_world, ids)
+    assert (excluded.status, none_present(runs_world, MANIFEST)) == ("ok", True)
 
 
 def _hold_runs(world: RunsWorld, entered: threading.Event) -> None:

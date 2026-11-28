@@ -62,7 +62,6 @@ def create_batch(request: CreateBatchRequest, context: RequestContext) -> Create
         row = BatchRow(
             batch_id=batch_id,
             phase=COMPOSING,
-            manifest_held=False,
             audio_deleted=False,
             hidden=False,
             created_at=now,
@@ -72,7 +71,7 @@ def create_batch(request: CreateBatchRequest, context: RequestContext) -> Create
         session.add(row)
         session.flush()
         add_items(session, batch_id, composition, ports.ids)
-        detail = load_detail(session, row)
+        detail = load_detail(session, row, now=now)
     return CreateBatchResponse(batch=detail, warnings=composition.warnings)
 
 
@@ -94,7 +93,8 @@ def edit_batch(request: EditBatchRequest, context: RequestContext) -> EditBatchR
             )
             session.execute(delete(ItemRow).where(ItemRow.batch_id == batch_id))
             add_items(session, batch_id, composition, context.ports.ids)
-            detail = load_detail(session, load_batch(session, batch_id))
+            now = context.ports.clock.now()
+            detail = load_detail(session, load_batch(session, batch_id), now=now)
     return EditBatchResponse(batch=detail, warnings=composition.warnings)
 
 
@@ -131,5 +131,6 @@ def start_review(request: StartReviewRequest, context: RequestContext) -> StartR
             compare_and_set_phase(session, batch_id, COMPOSING, REVIEWING, now=context.ports.clock.now())
             set_item_phases(session, batch_id, COMPOSING, REVIEWING)
         row = load_batch(session, batch_id)
-        summary = summary_of(session, row, stored_items(session, batch_id))
+        now = context.ports.clock.now()
+        summary = summary_of(session, row, stored_items(session, batch_id), now=now)
     return StartReviewResponse(batch=summary)

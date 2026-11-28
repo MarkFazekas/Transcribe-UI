@@ -54,7 +54,7 @@ class StatusLine(QLabel):
         # Progress events come often: their repaints wait at most `PROGRESS_REPAINT_MS`.
         self._throttle = _timer(self, PROGRESS_REPAINT_MS, self.refresh)
         self._throttle.setSingleShot(True)
-        for model in (models.runs, models.poll, models.machines):
+        for model in (models.runs, models.poll, models.machines, models.key):
             model.subscribe(self.refresh)
         activity.subscribe(self._activity_changed)
         self.refresh()

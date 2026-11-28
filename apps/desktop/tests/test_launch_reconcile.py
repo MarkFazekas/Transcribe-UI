@@ -24,7 +24,7 @@ from support.launch import (
     set_up_cloud,
 )
 from support.runpod_api import Failure
-from support.runs import OTHER_RUN_ID, RUN_ID, RunsWorld, app_pod_name, seed_uploaded
+from support.runs import OTHER_RUN_ID, RUN_ID, RunsWorld, app_pod_name, seed_ready
 from transcribe_ui.runs.constants import ERROR_RUN_ACTIVE, LAUNCH_LOOKUP_GAP_S, LAUNCH_SETTLE_S
 from transcribe_ui.runs.responses import ReconcileCloudResponse, TerminatePodResponse
 
@@ -48,9 +48,9 @@ FOREIGN_POD = "somebody-elses-pod"
 
 @pytest.fixture
 def ready(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

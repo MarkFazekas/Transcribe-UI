@@ -1,152 +1,54 @@
-"""The manifest step and `publish_held_manifests` (plan m5 §1 "Manifest held back during a run", requirements "Runpod control").
+"""The manifest step (architecture §3.3 "Manifest step", §3.9 "Run scope").
 
-The manifest is the batch's readiness marker: uploaded last, it makes the batch `ready` for the
-worker. It is never uploaded while a worker run is active, so a running worker never gets work
-its `MAX_RUNTIME_S` and cost estimate did not include: the batch then stays `uploading` with
-`manifest_held` set, and `publish_held_manifests` (called by `launch_worker` and
-`refresh_status`) uploads it once no run is active. Both run under the runs lock, which is also
-held by every request that starts a run, so no run can start between the activity check and
-the upload.
+The manifest is the batch's readiness marker: uploaded last, it makes the batch `ready`. It is
+published as soon as the upload is verified, on any installation, without an activity check: a
+run processes only the batches its lease lists (A21), so a batch published during a run waits
+for the next one (`waits_for_current_run`).
 
-Order: the manifest object is written first, then the batch moves to `ready` by compare-and-set.
-A crash in between leaves a complete manifest for an `uploading` batch (the worker may process
-it, which is correct); the next manifest step writes the same bytes again and moves the batch.
-Exclusion and re-review withdraw such a manifest before deleting audio (`upload/withdraw.py`); a
-withdrawal left pending by a failure is finished here before a new manifest is written.
+Order: a pending withdrawal of a leftover manifest is finished first (under the runs lock, while
+no live lease lists the batch), then the manifest object is written, then the batch moves to
+`ready` by compare-and-set. A crash in between leaves a complete manifest for an `uploading`
+batch; the next manifest step writes the same bytes again and moves the batch.
 """
-
-from typing import Literal
 
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.constants import UPLOADING_PHASES
-from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
-from transcribe_ui.runs.activity import check_activity
-from transcribe_ui.runs.cloud import CloudAccess
-from transcribe_ui.runs.errors import ActivityUnknownError
+from transcribe_ui.batches.phases import load_batch, require_phase
+from transcribe_ui.runs.leases import refuse_if_leased
 from transcribe_ui.state.errors import LockOrderError
-from transcribe_ui.storage.errors import StorageError
 from transcribe_ui.storage.r2 import ObjectStore
-from transcribe_ui.upload.classes import HeldPublication, ManifestStep
-from transcribe_ui.upload.errors import NothingToTranscribeError, UploadIncompleteError
-from transcribe_ui.upload.manifest import build_manifest, held_batch_ids, withdrawing_batch_ids
-from transcribe_ui.upload.steps import finish_withdrawal, move_to_ready, publish_manifest
-
-# What happened to one held batch: published, skipped as incomplete, or no longer held (moved on).
-type HeldOutcome = Literal["published", "incomplete", "moved"]
+from transcribe_ui.upload.manifest import build_manifest, write_manifest
+from transcribe_ui.upload.steps import finish_withdrawal, move_to_ready
 
 
-def manifest_step(context: RequestContext, cloud: CloudAccess, batch_id: str) -> ManifestStep:
-    """Upload the batch's manifest (→ `ready`), or hold it back while a run is active.
+def manifest_step(context: RequestContext, store: ObjectStore, batch_id: str) -> None:
+    """Upload the batch's manifest and move the batch to `ready`.
 
     The caller holds the batch's lock and not the runs lock (lock order runs → batch: the runs
-    lock is taken here through its bounded wait). The manifest is built from the database; the
-    upload must be complete. When the activity check cannot read the cloud, or the manifest
-    cannot be written, the batch is marked held and the error is raised: re-sending, or the
-    next `publish_held_manifests`, resumes.
+    lock is taken here, through its bounded wait, only to finish a pending withdrawal). The
+    manifest is built from the database; the upload must be complete.
 
     Raises:
-        RunsBusyError: The runs lock stayed held for the whole wait; nothing was changed.
-        CancelledError: Cancelled while waiting for the runs lock; nothing was changed.
         WrongPhaseError: The batch is not `uploading`.
         UploadIncompleteError: An item is in review or an audio object is not verified.
         NothingToTranscribeError: The batch has no `transcribe` job (extract-only path).
-        ActivityUnknownError: The Runpod lists or R2 could not be read (the manifest is held).
-        StorageError: The manifest could not be written (the manifest is held).
-        LockOrderError: The calling thread already holds the runs lock (a programming error:
-            launch and refresh use `publish_held_manifests`).
+        RunActiveError: A pending withdrawal cannot be finished: a live lease lists the batch.
+        RunsBusyError: The runs lock stayed held for the whole wait (nothing was changed).
+        StorageError: R2 failed; re-sending resumes.
+        LockOrderError: The calling thread already holds the runs lock (a programming error).
     """
     state = context.ports.state
     if state.locks.holds_runs():
-        msg = "manifest_step takes the runs lock itself; under it, use publish_held_manifests."
-        raise LockOrderError(msg)
-    with state.locks.runs(context.cancel.is_cancelled):
-        with state.session() as session:
-            require_phase(load_batch(session, batch_id), UPLOADING_PHASES)
-            manifest = build_manifest(session, batch_id)
-        try:
-            activity = check_activity(state, cloud, context.ports.clock.now())
-        except ActivityUnknownError:
-            _hold(context, batch_id)
-            raise
-        if activity.active:
-            _hold(context, batch_id)
-            return ManifestStep(batch_id=batch_id, outcome="held", activity=activity.sources)
-        try:
-            publish_manifest(context, cloud.store, manifest)
-        except StorageError:
-            _hold(context, batch_id)
-            raise
-        move_to_ready(context, batch_id, held_only=False)
-    return ManifestStep(batch_id=batch_id, outcome="published")
-
-
-def publish_held_manifests(context: RequestContext, cloud: CloudAccess) -> HeldPublication:
-    """Finish pending withdrawals, then upload the held manifests (→ `ready`), if no run is active.
-
-    The caller holds the runs lock. Each batch's lock is only tried (lock order runs → batch,
-    never waiting): a busy batch is skipped until the next call. First every `uploading` batch
-    with a pending withdrawal of a leftover manifest gets it finished (held or not), so no
-    worker the caller launches can see a leftover. Then each held manifest is built from the
-    database and published only when the upload is complete (no item in review, every object
-    verified).
-
-    Raises:
-        ActivityUnknownError: The Runpod lists or R2 could not be read (nothing was published).
-        StorageError: A withdrawal or a manifest write failed (what came before it is done).
-        LockOrderError: The calling thread does not hold the runs lock (a programming error).
-    """
-    state = context.ports.state
-    if not state.locks.holds_runs():
-        msg = "publish_held_manifests needs the runs lock; take it first."
+        msg = "manifest_step takes the runs lock itself; it must not be held already."
         raise LockOrderError(msg)
     with state.session() as session:
-        held = held_batch_ids(session)
-        withdrawing = withdrawing_batch_ids(session)
-    if not held and not withdrawing:
-        return HeldPublication()
-    activity = check_activity(state, cloud, context.ports.clock.now())
-    if activity.active:
-        return HeldPublication(held=tuple(held), activity=activity.sources)
-    outcomes: dict[str, list[str]] = {"published": [], "incomplete": [], "moved": [], "busy": [], "withdrawn": []}
-    for batch_id in withdrawing:
-        outcomes[_withdraw(context, cloud.store, batch_id)].append(batch_id)
-    for batch_id in held:
-        with state.locks.try_batch(batch_id) as taken:
-            outcome = _publish_held(context, cloud.store, batch_id) if taken else "busy"
-        outcomes[outcome].append(batch_id)
-    return HeldPublication(
-        published=tuple(outcomes["published"]),
-        busy=tuple(sorted(set(outcomes["busy"]))),
-        incomplete=tuple(outcomes["incomplete"]),
-        withdrawn=tuple(outcomes["withdrawn"]),
-    )
-
-
-def _withdraw(context: RequestContext, store: ObjectStore, batch_id: str) -> str:
-    """Finish the batch's pending withdrawal if its lock is free; return `withdrawn` or `busy`."""
-    with context.ports.state.locks.try_batch(batch_id) as taken:
-        if not taken:
-            return "busy"
-        finish_withdrawal(context, store, batch_id)
-    return "withdrawn"
-
-
-def _publish_held(context: RequestContext, store: ObjectStore, batch_id: str) -> HeldOutcome:
-    """Publish one held batch whose lock this thread holds."""
-    with context.ports.state.session() as session:
         row = load_batch(session, batch_id)
-        if row.phase != "uploading" or not row.manifest_held:
-            return "moved"
-        try:
-            manifest = build_manifest(session, batch_id)
-        except (UploadIncompleteError, NothingToTranscribeError):
-            return "incomplete"
-    publish_manifest(context, store, manifest)
-    move_to_ready(context, batch_id, held_only=True)
-    return "published"
-
-
-def _hold(context: RequestContext, batch_id: str) -> None:
-    with context.ports.state.session() as session:
-        now = context.ports.clock.now()
-        touch_batch(session, batch_id, UPLOADING_PHASES, now=now, also_set={"manifest_held": True})
+        require_phase(row, UPLOADING_PHASES)
+        pending = row.pending_withdrawal is not None
+        manifest = build_manifest(session, batch_id, uploaded_by=context.ports.installation.current())
+    if pending:
+        with state.locks.runs(context.cancel.is_cancelled):
+            refuse_if_leased(store, batch_id, context.ports.clock.now())
+            finish_withdrawal(context, store, batch_id)
+    write_manifest(store, manifest)
+    move_to_ready(context, batch_id)

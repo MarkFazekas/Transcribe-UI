@@ -21,13 +21,16 @@ from pydantic import (
     NonNegativeInt,
     PositiveInt,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
 from transcribe_contracts.constants import (
     AUDIO_EXTENSION_PATTERN,
     BATCH_ID_PATTERN,
+    DOT_PARTS,
     LANGUAGE_CODE_PATTERN,
+    PATH_SEPARATORS,
     SCHEMA_MAJOR,
     SCHEMA_VERSION,
     SCHEMA_VERSION_PATTERN,
@@ -139,6 +142,15 @@ def _pure_path(path: str, flavor: PathFlavor) -> PurePath:
     return PureWindowsPath(path) if flavor == "windows" else PurePosixPath(path)
 
 
+def has_dot_part(path: str, flavor: PathFlavor) -> bool:
+    """Return whether the path, split as written in its flavour, has a `.` or `..` part.
+
+    `PurePath` drops `.` parts and keeps `..` lexically, so the raw text is split instead.
+    """
+    parts = re.split(PATH_SEPARATORS[flavor], path)
+    return bool(DOT_PARTS.intersection(parts))
+
+
 class Manifest(ContractModel):
     """Batch manifest: `batch_metadata/<batch_id>.json`, written by the desktop app last."""
 
@@ -148,6 +160,10 @@ class Manifest(ContractModel):
     scan_root: NonEmptyText
     path_flavor: PathFlavor
     items: tuple[ManifestItem, ...] = Field(min_length=1)  # noqa: WPS110 - JSON field name fixed by the contract
+    uploaded_by: NonEmptyText | None = Field(
+        default=None,
+        description="Id of the installation that uploaded the batch (1.1); None when not recorded.",
+    )
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Self:
@@ -166,11 +182,16 @@ class Manifest(ContractModel):
                     _fail(f"audio object key {audio.object_key!r} must be {expected!r}")
 
     def _check_paths(self) -> None:
-        root = _pure_path(self.scan_root, self.path_flavor)
+        flavor = self.path_flavor
+        root = _pure_path(self.scan_root, flavor)
         if not root.is_absolute():
-            _fail(f"scan_root {self.scan_root!r} is not an absolute {self.path_flavor} path")
+            _fail(f"scan_root {self.scan_root!r} is not an absolute {flavor} path")
+        originals = [manifest_item.original_path for manifest_item in self.items]
+        for path in (self.scan_root, *originals):
+            if has_dot_part(path, flavor):
+                _fail(f"{path!r} has a '.' or '..' part")
         for manifest_item in self.items:
-            if not _pure_path(manifest_item.original_path, self.path_flavor).is_relative_to(root):
+            if not _pure_path(manifest_item.original_path, flavor).is_relative_to(root):
                 _fail(f"{manifest_item.original_path!r} is not under scan_root {self.scan_root!r}")
 
 
@@ -267,6 +288,26 @@ class RunStatus(ContractModel):
         if self.state in {"finished", "failed"} and self.current is not None:
             _fail(f"a {self.state!r} run has no current job")
         return self
+
+
+class RunLease(ContractModel):
+    """Run lease `runs/<run_id>/launch.json` (1.1): the batches the run may process, written by the launching desktop.
+
+    The worker processes only the batches listed here; without the object it processes nothing.
+    Other desktops read it to know which batches a live run covers (until `deadline_at`).
+    """
+
+    schema_version: SchemaVersion = SCHEMA_VERSION
+    run_id: Ulid
+    batch_ids: tuple[BatchId, ...] = Field(min_length=1)
+    deadline_at: AwareDatetime = Field(description="The pod name deadline: no worker of the run runs after it.")
+
+    @field_validator("batch_ids")
+    @classmethod
+    def _check_batches(cls, batch_ids: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(batch_ids)) != len(batch_ids):
+            _fail("batch ids are not unique")
+        return batch_ids
 
 
 class PodName(ContractModel):

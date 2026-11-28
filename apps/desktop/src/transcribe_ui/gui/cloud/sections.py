@@ -1,4 +1,4 @@
-"""The Cloud page's other sections: the cloud machines list, the run history and the check banners.
+"""The Cloud page's other sections: the cloud machines list, the run history, the check and key banners.
 
 Bind to the view-models and decide nothing: rows, texts and which machine has a stop button are
 display data; a click calls a view-model or the page's callback.
@@ -10,6 +10,7 @@ from functools import partial
 from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
 from transcribe_ui.gui.cloud.display import HistoryRow, history_row
+from transcribe_ui.gui.cloud.key import RunpodKey, missing_key_text, needs_key_hint
 from transcribe_ui.gui.cloud.machines import MachinesModel
 from transcribe_ui.gui.cloud.plan_display import MachineRow
 from transcribe_ui.gui.cloud.run_panel import open_file
@@ -17,6 +18,7 @@ from transcribe_ui.gui.cloud.runs import RunList
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.feedback import ErrorView, Fix
 from transcribe_ui.gui.jobs.widgets import fill_table, row_table
+from transcribe_ui.gui.texts import fix_label
 from transcribe_ui.i18n.catalog import tr
 
 # What a button does.
@@ -67,12 +69,16 @@ def _history_cells(row: HistoryRow) -> list[str]:
 
 
 class MachinesSection(QGroupBox):
-    """The app's live cloud machines (Check), each straggler or overdue one with Terminate or Cancel."""
+    """The app's live cloud machines (Check), each straggler or overdue one with Terminate or Cancel.
 
-    def __init__(self, model: MachinesModel, parent: QWidget | None = None) -> None:
-        """Bind to `model`."""
+    Without a Runpod key, Check and the stops are disabled and the section says why.
+    """
+
+    def __init__(self, model: MachinesModel, key: RunpodKey, parent: QWidget | None = None) -> None:
+        """Bind to `model` and `key`."""
         super().__init__(tr("Cloud machines"), parent)
         self.model = model
+        self.key = key
         layout = QVBoxLayout(self)
         top = QHBoxLayout()
         self.check_button = QPushButton(tr("Check"), self)
@@ -85,13 +91,16 @@ class MachinesSection(QGroupBox):
         layout.addWidget(self.table)
         self._shown: tuple[MachineRow, ...] | None = None
         self.stop_buttons: dict[str, QPushButton] = {}
-        model.subscribe(self.refresh)
+        for source in (model, key):
+            source.subscribe(self.refresh)
         self.refresh()
 
     def refresh(self) -> None:
         """Show the machines, the check's state and the stop buttons."""
         model = self.model
-        self.check_button.setEnabled(not model.checking)
+        missing = self.key.missing
+        self.check_button.setEnabled(not model.checking and not missing)
+        self.check_button.setToolTip(needs_key_hint() if missing else "")
         self.state.setText(self._state_text())
         if model.rows != self._shown:
             self._shown = model.rows
@@ -99,10 +108,12 @@ class MachinesSection(QGroupBox):
         for row in model.rows:
             button = self.stop_buttons.get(row.entry.entry_id)
             if button is not None:
-                button.setEnabled(not model.stopping(row))
+                button.setEnabled(not model.stopping(row) and not missing)
 
     def _state_text(self) -> str:
         model = self.model
+        if self.key.missing:
+            return needs_key_hint()
         if model.checking:
             return tr("Checking the cloud machines...")
         if model.error is not None:
@@ -205,3 +216,23 @@ class CheckBanner(QWidget):
         if fix is not None and fix.kind == "retry":
             # `app_busy`: the writer lock is probed too, so its notice learns that the other process let go.
             self._on_fix(fix)
+
+
+class KeyBanner(QWidget):
+    """Shown while this computer has no Runpod key: what it can and cannot do, and the way to the accounts."""
+
+    def __init__(self, on_fix: OnFix, parent: QWidget | None = None) -> None:
+        """Hidden until needed; "Open accounts" calls `on_fix` with the accounts fix."""
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.message = wrapped_label(missing_key_text(), self)
+        layout.addWidget(self.message, 1)
+        self.accounts_button = QPushButton(fix_label("accounts"), self)
+        self.accounts_button.clicked.connect(self._open_accounts)
+        layout.addWidget(self.accounts_button)
+        self._on_fix = on_fix
+        self.setVisible(False)
+
+    def _open_accounts(self) -> None:
+        self._on_fix(Fix("accounts", fix_label("accounts")))

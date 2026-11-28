@@ -9,6 +9,7 @@ from platformdirs import PlatformDirs
 from transcribe_ui.state.constants import (
     APP_DIR_NAME,
     DATABASE_FILE_NAME,
+    INSTALLATION_ID_FILE_NAME,
     ROOT_CACHE_FOLDER,
     ROOT_CONFIG_FOLDER,
     ROOT_DATA_FOLDER,
@@ -55,6 +56,11 @@ class AppPaths:
     def database_file(self) -> Path:
         """Return the SQLite database file."""
         return self.data_dir / DATABASE_FILE_NAME
+
+    @property
+    def installation_id_file(self) -> Path:
+        """Return the file holding this installation's id (Q35)."""
+        return self.data_dir / INSTALLATION_ID_FILE_NAME
 
     @property
     def writer_lock_file(self) -> Path:

@@ -22,7 +22,7 @@ LATE_BATCH_ID = "batch_20260102_090000"
 
 @pytest.fixture
 def world(tmp_path: Path) -> Iterator[CloudWorld]:
-    """Return a launch leg: the cloud set up, the held batch and another computer's job waiting."""
+    """Return a launch leg: the cloud set up, the published batch and another computer's job waiting."""
     with cloud_world(tmp_path) as created:
         yield created
 

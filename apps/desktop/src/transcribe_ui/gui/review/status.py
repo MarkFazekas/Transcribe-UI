@@ -30,7 +30,7 @@ from transcribe_ui.gui.selection.display import size_text
 from transcribe_ui.gui.texts import activity_state_text
 from transcribe_ui.i18n.catalog import ntr, tr
 from transcribe_ui.i18n.formats import format_number
-from transcribe_ui.i18n.texts import code_text, progress_text
+from transcribe_ui.i18n.texts import progress_text
 
 
 @dataclass(frozen=True)
@@ -204,7 +204,6 @@ def _outcome_text(model: ReviewModel, status: UploadStatus) -> str:
         return text.format(count=format_number(count), names=names)
     texts = {
         "ready": tr("Upload complete: the job is ready for transcription."),
-        "held": code_text("batch_label", "manifest_held"),
         "transcribed": tr("Done: the embedded subtitles are extracted; download them from the job page."),
     }
     return texts.get(finished.outcome, activity_state_text(status.entry.state))

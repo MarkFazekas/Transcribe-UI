@@ -91,7 +91,7 @@ def compare_and_set_phase(  # noqa: PLR0913, WPS211 -- the phase change plus opt
 ) -> None:
     """Move a batch from `expected` to `new` in one `UPDATE ... WHERE phase = :expected`.
 
-    `conditions` narrow the match further (e.g. `BatchRow.manifest_held`); `also_set` are column
+    `conditions` narrow the match further (e.g. `BatchRow.hidden`); `also_set` are column
     values written together with the phase. A request that lost a race changes nothing: the
     error rolls back its whole transaction.
 

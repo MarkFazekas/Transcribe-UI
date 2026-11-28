@@ -2,18 +2,22 @@
 
 Binds the sections to the view-models and decides nothing. A failed check of the cloud shows a
 banner with its fix and Retry; machines that need attention show a banner that leads to the
-cloud machines list.
+cloud machines list; without a Runpod key a banner says what this computer can and cannot do,
+with a button to the accounts. Each showing of the page asks again whether the key is set.
+Other areas may add a section below the current run (`add_section`).
 """
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import override
 
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from transcribe_ui.gui.cloud.area import CloudModels
 from transcribe_ui.gui.cloud.ports import Clock
 from transcribe_ui.gui.cloud.run_panel import OpenJob, RunPanel
-from transcribe_ui.gui.cloud.sections import CheckBanner, HistorySection, MachinesSection, OnFix
+from transcribe_ui.gui.cloud.sections import CheckBanner, HistorySection, KeyBanner, MachinesSection, OnFix
 from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.i18n.catalog import tr
@@ -62,25 +66,46 @@ class CloudPage(QScrollArea):
         body = QWidget(self)
         layout = QVBoxLayout(body)
         self.check_banner = CheckBanner(callbacks.retry_checks, callbacks.fix, body)
+        self._key_banner = KeyBanner(callbacks.fix, body)
         self.attention = AttentionBanner(self.show_machines, body)
         self.run_panel = RunPanel(models, clock, self.open_start, callbacks.open_job, body)
         self.start_dialog = StartDialog(models.start, callbacks.delete_unknown, callbacks.fix, self)
-        self.machines = MachinesSection(models.machines, body)
+        self.machines = MachinesSection(models.machines, models.key, body)
         self.history = HistorySection(models.runs, body)
-        for widget in (self.check_banner, self.attention, self.run_panel, self.machines, self.history):
+        self._layout = layout
+        banners = (self.check_banner, self._key_banner, self.attention)
+        sections = (self.run_panel, self.machines, self.history)
+        for widget in (*banners, *sections):
             layout.addWidget(widget)
         layout.addStretch()
         self.setWidget(body)
-        models.machines.subscribe(self.refresh)
-        models.poll.subscribe(self.refresh)
+        for model in (models.machines, models.poll, models.key):
+            model.subscribe(self.refresh)
         self.refresh()
 
     def refresh(self) -> None:
-        """Show the banners: the failed check (the machines' check first), the machines' attention."""
-        machines = self._models.machines
-        error = machines.error or self._models.poll.shown_error()
+        """Show the banners: the failed check (the machines' check first), the missing key, the machines' attention."""
+        models = self._models
+        error = models.machines_error() or models.poll.shown_error()
         self.check_banner.show_error(error)
-        self.attention.setVisible(machines.attention)
+        self._key_banner.setVisible(models.key.missing)
+        self.attention.setVisible(models.machines.attention)
+
+    def add_section(self, section: QWidget) -> None:
+        """Show another area's section below the current run."""
+        section.setParent(self.widget())
+        below_run = self._layout.indexOf(self.run_panel) + 1
+        self._layout.insertWidget(below_run, section)
+
+    def check_now(self) -> None:
+        """Check the runs and the results now (another area added a job that may have results)."""
+        self._models.poll.refresh_now()
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Ask again whether the Runpod key is set (it may have been stored in Settings meanwhile)."""
+        self._models.key.check()
+        super().showEvent(event)
 
     def open_start(self) -> None:
         """Open the start dialog (it plans at once)."""

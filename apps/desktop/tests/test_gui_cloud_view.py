@@ -11,21 +11,25 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 from pytestqt.qtbot import QtBot
 
+from support.batches import FIRST_BATCH_ID
 from support.cloud import CloudWorld, cloud_world
 from support.fakes import FIXED_NOW
+from support.flow_window import started
 from support.gated import POLL_S, upload, uploads, wait_for
 from support.gui import window_over
 from support.launch import FOREIGN_BATCH_ID, write_foreign
 from support.runs import RUN_ID, app_pod_name
+from support.worker_sim import SimulatedJob, finished
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.classes import Request, Response
 from transcribe_ui.api.ports import CancelToken, ProgressSink
 from transcribe_ui.gui.cleanup.view import CleanupDialog
+from transcribe_ui.gui.cloud.constants import REFRESH_INTERVAL_MS
 from transcribe_ui.gui.cloud.start_view import StartDialog
 from transcribe_ui.gui.cloud.status_view import StatusLine
 from transcribe_ui.gui.cloud.view import CloudPage
@@ -34,6 +38,11 @@ from transcribe_ui.gui.dialogs import CloseQuestion, ConfirmationDialog
 from transcribe_ui.gui.executor import cancelled_response
 from transcribe_ui.gui.shell import MainWindow
 
+# The seeded job's two files (their ids in the launch world).
+FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
+PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
+# How long a test lets queued events run (ms).
+SETTLE_MS = 200
 # Another computer's second job, written while the start dialog is open.
 LATE_BATCH_ID = "batch_20260102_090000"
 
@@ -65,7 +74,7 @@ class HeldUploads:
 
 @pytest.fixture
 def world(tmp_path: Path) -> Iterator[CloudWorld]:
-    """Return a launch leg: the held batch and another computer's job wait."""
+    """Return a launch leg: the published batch and another computer's job wait."""
     with cloud_world(tmp_path) as created:
         yield created
 
@@ -112,7 +121,7 @@ def _confirm(qtbot: QtBot, window: MainWindow) -> None:
 
 
 def _start_a_run(qtbot: QtBot, window: MainWindow) -> None:
-    window.context.hooks.run()
+    started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
@@ -122,8 +131,8 @@ def _start_a_run(qtbot: QtBot, window: MainWindow) -> None:
 
 
 def _planned_dialog(qtbot: QtBot, window: MainWindow) -> StartDialog:
-    """Run the start-up steps, open the start dialog and wait for its plan."""
-    window.context.hooks.run()
+    """Run the start-up steps (their cloud check holds the runs lock), open the start dialog and wait for its plan."""
+    started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
@@ -170,7 +179,7 @@ def _delete_the_unknown_job(qtbot: QtBot, window: MainWindow) -> None:
 
 def test_the_start_dialog_starts_a_run(qtbot: QtBot, window: MainWindow) -> None:
     """The dialog plans, lists another computer's job with "Delete from cloud" (emitting its signal), and starts."""
-    window.context.hooks.run()
+    started(qtbot, window)
     page = _page(window)
     page.run_panel.buttons.start_button.click()
     dialog = page.start_dialog
@@ -231,3 +240,23 @@ def test_a_reopened_dialog_does_not_start_on_enter(
     QTest.keyClick(dialog, Qt.Key.Key_Return)
     _settled(qtbot, window)
     assert (dialog.isHidden(), held.actions.count("launch_worker")) == (True, launches)
+
+
+def test_a_run_that_ends_stops_the_poll(qtbot: QtBot, world: CloudWorld, held: HeldUploads, window: MainWindow) -> None:
+    """The run's end reloads the jobs (the area's own signal owes no check): the poll stops, no extra check is sent."""
+    _start_a_run(qtbot, window)
+    _settled(qtbot, window)
+    page = _page(window)
+    current = page.history.runs.current
+    assert current is not None
+    jobs = (SimulatedJob(FILM_ID, "en", "ok"), SimulatedJob(PODCAST_ID, "en", "no_speech"))
+    finished(world.cloud, world.store, current.run.run_id, FIRST_BATCH_ID, jobs)
+    before = held.actions.count("refresh_status")
+    page.check_now()
+    wait_for(qtbot, lambda: not page.history.runs.run_active() and not window.busy())
+    # Let queued events run: a check the run's end owed would be sent now.
+    qtbot.wait(SETTLE_MS)
+    _settled(qtbot, window)
+    timers = [timer for timer in window.findChildren(QTimer) if timer.interval() == REFRESH_INTERVAL_MS]
+    sent = held.actions.count("refresh_status") - before
+    assert ([timer.isActive() for timer in timers], sent) == ([False], 1)

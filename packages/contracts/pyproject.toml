@@ -1,6 +1,6 @@
 [project]
 name = "transcribe-contracts"
-version = "1.0.0"
+version = "1.1.0"
 description = "R2 data contract shared by the Transcribe-UI desktop app and the Runpod worker."
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"

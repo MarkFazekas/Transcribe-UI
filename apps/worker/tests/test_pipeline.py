@@ -12,7 +12,7 @@ import shutil
 import sys
 import time
 import wave
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
@@ -29,6 +29,7 @@ from transcribe_contracts.classes import (
     JobResult,
     Manifest,
     ManifestItem,
+    RunLease,
     RunStatus,
     TranscribeJob,
     TranscriptionMode,
@@ -47,6 +48,8 @@ from transcribe_worker.pipeline.storage import ObjectStore, S3ObjectStore
 BUCKET = "transcribe-test"
 RUN_ID = "01JDA4B7C8D9E0F1G2H3J4K5M6"
 EARLIER_RUN_ID = "01JDA4B7C8D9E0F1G2H3J4K5M7"
+# The runs of these tests; `put_batch` lists a batch in the lease of each.
+LEASED_RUN_IDS = (RUN_ID, EARLIER_RUN_ID)
 BATCH_A = "batch_20261126_143005"
 BATCH_B = "batch_20261126_150000"
 START = datetime.fromisoformat("2026-11-26T12:00:00+00:00")
@@ -94,6 +97,7 @@ class Source:
 
 
 SPEECH_SOURCE = Source(SPEECH)
+ONE_SPEECH = (SPEECH_SOURCE,)
 
 
 @dataclass(frozen=True)
@@ -214,14 +218,44 @@ def make_item(store: ObjectStore, batch_id: str, item_id: str, source: Source) -
     )
 
 
-def put_batch(store: ObjectStore, batch_id: str, sources: list[Source]) -> list[str]:
-    """Upload the audio and the manifest (last) of a batch; return the item ids."""
+def put_batch(store: ObjectStore, batch_id: str, sources: Sequence[Source], *, leased: bool = True) -> list[str]:
+    """Upload the audio and the manifest (last) of a batch and list it in the test runs' leases; return the item ids."""
     entries = [make_item(store, batch_id, item_id, source) for item_id, source in zip(ITEM_IDS, sources, strict=False)]
     manifest = Manifest(
         batch_id=batch_id, created_at=START, scan_root="/media", path_flavor="posix", items=tuple(entries)
     )
     store.write(layout.manifest_key(batch_id), manifest.model_dump_json().encode(), JSON_TYPE)
+    if leased:
+        lease_batch(store, batch_id)
     return [entry.item_id for entry in entries]
+
+
+def lease_batch(store: ObjectStore, batch_id: str) -> None:
+    """Add the batch to the lease of every test run (as the launching desktop lists its scope)."""
+    for run_id in LEASED_RUN_IDS:
+        key = layout.run_lease_key(run_id)
+        body = store.read(key)
+        listed = () if body is None else RunLease.model_validate_json(body).batch_ids
+        lease = RunLease(run_id=run_id, batch_ids=(*listed, batch_id), deadline_at=START + timedelta(days=2))
+        store.write(key, lease.model_dump_json().encode(), JSON_TYPE)
+
+
+def job_result(batch_id: str, item_id: str, run_id: str) -> JobResult:
+    """Return the `no_speech` result of an English job."""
+    return JobResult(
+        batch_id=batch_id,
+        item_id=item_id,
+        language=ENGLISH,
+        mode="normal",
+        run_id=run_id,
+        status="no_speech",
+        aligned=True,
+        cue_count=0,
+        audio_duration_s=AUDIO_DURATION_S,
+        started_at=START,
+        finished_at=START,
+        engine=EngineInfo(name="fake", version="1", model="fake", compute_type="normal", batch_size=1),
+    )
 
 
 def run(store: ObjectStore, config: WorkerConfig, decode: Callable[[Path, Path], None] = copy_decode) -> int:
@@ -253,6 +287,17 @@ def summary_counts(store: ObjectStore, batch_id: str) -> tuple[int, int, int]:
     assert body is not None, key
     counts = read_batch_summary(key, body).counts
     return counts.ok, counts.no_speech, counts.failed
+
+
+def finished_batches(store: ObjectStore) -> list[str]:
+    """Return the test batches that have `_done.json`."""
+    return [batch_id for batch_id in (BATCH_A, BATCH_B) if store.read(layout.done_key(batch_id)) is not None]
+
+
+def status_progress(store: ObjectStore) -> tuple[str, int, int]:
+    """Return the run status's state, done jobs and total jobs."""
+    status = read_status(store)
+    return status.state, status.done_jobs, status.total_jobs
 
 
 def read_status(store: ObjectStore) -> RunStatus:
@@ -330,20 +375,7 @@ def test_suspicious_output_is_redone_carefully(run_once: Callable[[], int], stor
 def test_existing_results_are_kept(run_once: Callable[[], int], store: S3ObjectStore) -> None:
     """A restarted run continues: a job with a result is skipped, the rest finishes the batch."""
     done_before, pending = put_batch(store, BATCH_A, [SPEECH_SOURCE, SPEECH_SOURCE])
-    earlier = JobResult(
-        batch_id=BATCH_A,
-        item_id=done_before,
-        language=ENGLISH,
-        mode="normal",
-        run_id=EARLIER_RUN_ID,
-        status="no_speech",
-        aligned=True,
-        cue_count=0,
-        audio_duration_s=AUDIO_DURATION_S,
-        started_at=START,
-        finished_at=START,
-        engine=EngineInfo(name="fake", version="1", model="fake", compute_type="normal", batch_size=1),
-    )
+    earlier = job_result(BATCH_A, done_before, EARLIER_RUN_ID)
     store.write(layout.result_srt_key(BATCH_A, done_before, ENGLISH), b"", "application/x-subrip")
     store.write(layout.result_json_key(BATCH_A, done_before, ENGLISH), earlier.model_dump_json().encode(), JSON_TYPE)
 
@@ -378,11 +410,75 @@ def test_done_and_unreadable_batches_are_skipped(run_once: Callable[[], int], st
     store.write(layout.done_key(BATCH_A), b"{}", JSON_TYPE)
     future = json.dumps({"schema_version": "2.0", "batch_id": BATCH_B}).encode()
     store.write(layout.manifest_key(BATCH_B), future, JSON_TYPE)
+    lease_batch(store, BATCH_B)
 
     assert run_once() == EXIT_OK
 
     assert store.list_keys(layout.results_prefix(BATCH_A)) == []
     assert store.list_keys(layout.batch_prefix(BATCH_B)) == []
+
+
+def test_without_a_lease_nothing_is_processed(run_once: Callable[[], int], store: S3ObjectStore) -> None:
+    """No `launch.json`: nothing is processed and the run fails (the entry then ends the pod whatever the exit code)."""
+    put_batch(store, BATCH_A, ONE_SPEECH, leased=False)
+
+    assert run_once() == EXIT_FAILED
+
+    assert not store.list_keys(layout.results_prefix(BATCH_A))
+    assert not finished_batches(store)
+    status = read_status(store)
+    assert (status.state, status.done_jobs, "has no lease" in (status.error or "")) == (FAILED, 0, True)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [b"{not json", b'{"schema_version": "1.1", "run_id": "other", "batch_ids": [], "deadline_at": "x"}', None],
+    ids=["unreadable", "invalid", "other_run"],
+)
+def test_a_bad_lease_processes_nothing(run_once: Callable[[], int], store: S3ObjectStore, body: bytes | None) -> None:
+    """An unreadable lease, or one written for another run: nothing is processed and the run fails."""
+    put_batch(store, BATCH_A, ONE_SPEECH, leased=False)
+    lease = body
+    if lease is None:
+        # A valid lease of another run under this run's key.
+        other = RunLease(run_id=EARLIER_RUN_ID, batch_ids=(BATCH_A,), deadline_at=START + timedelta(days=2))
+        lease = other.model_dump_json().encode()
+    store.write(layout.run_lease_key(RUN_ID), lease, JSON_TYPE)
+
+    assert run_once() == EXIT_FAILED
+
+    processed = (store.list_keys(layout.results_prefix(BATCH_A)), finished_batches(store))
+    heartbeat = store.read(layout.run_status_key(RUN_ID)) or b""
+    assert (processed, b'"state":"failed"' in heartbeat, b"lease" in heartbeat) == (([], []), True, True)
+
+
+def test_unlisted_manifest_is_ignored(run_once: Callable[[], int], store: S3ObjectStore, config: WorkerConfig) -> None:
+    """A batch published after the launch: no job, no backup restore, no `_done.json` for it."""
+    put_batch(store, BATCH_A, ONE_SPEECH)
+    backed_up, done_before = put_batch(store, BATCH_B, [SPEECH_SOURCE, SPEECH_SOURCE], leased=False)
+    backed_up_key = layout.result_json_key(BATCH_B, backed_up, ENGLISH)
+    backup_file = config.backup_dir.joinpath(*backed_up_key.split("/"))
+    backup_file.parent.mkdir(parents=True)
+    backup_file.write_bytes(job_result(BATCH_B, backed_up, EARLIER_RUN_ID).model_dump_json().encode())
+    backup_file.with_suffix(".srt").write_bytes(b"")
+    finished = job_result(BATCH_B, done_before, EARLIER_RUN_ID).model_dump_json().encode()
+    store.write(layout.result_json_key(BATCH_B, done_before, ENGLISH), finished, JSON_TYPE)
+
+    exit_code = run_once()
+
+    assert (exit_code, finished_batches(store), status_progress(store)) == (EXIT_OK, [BATCH_A], ("finished", 1, 1))
+    assert store.read(backed_up_key) is None
+
+
+def test_listed_batch_without_manifest_is_skipped(run_once: Callable[[], int], store: S3ObjectStore) -> None:
+    """A listed batch cleaned up between the launch and the start is skipped, not a failure."""
+    put_batch(store, BATCH_A, ONE_SPEECH)
+    lease_batch(store, BATCH_B)
+
+    exit_code = run_once()
+
+    assert (exit_code, finished_batches(store), status_progress(store)) == (EXIT_OK, [BATCH_A], ("finished", 1, 1))
+    assert not store.list_keys(layout.batch_prefix(BATCH_B))
 
 
 def test_broken_audio_fails_only_its_job(store: S3ObjectStore, config: WorkerConfig) -> None:
@@ -398,6 +494,8 @@ def test_broken_audio_fails_only_its_job(store: S3ObjectStore, config: WorkerCon
 
 def test_unreachable_storage_fails_the_run(store: S3ObjectStore, config: WorkerConfig) -> None:
     """Listing fails: exit code 1 and a failed run status."""
+    put_batch(store, BATCH_A, [SPEECH_SOURCE])
+
     assert run(FailingStore(store, fail_list=True), config) == EXIT_FAILED
 
     status = read_status(store)
@@ -409,6 +507,7 @@ def test_log_file_is_uploaded(run_once: Callable[[], int], store: S3ObjectStore,
     log_file = config.work_dir / LOG_FILE_NAME
     log_file.parent.mkdir(parents=True)
     log_file.write_text('{"message": "hello"}\n')
+    lease_batch(store, BATCH_A)
 
     assert run_once() == EXIT_OK
 

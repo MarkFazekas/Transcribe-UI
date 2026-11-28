@@ -476,11 +476,15 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     and cost as of the last check (never extrapolated), the deadline, the last check's time,
     the outcome, the worker's error and a deadline stop's `stop_error`; a kept worker log opens
     with the system's viewer.
-  - The poll (`poll.py`): while the list holds a run that is not final, or right after a
-    launch, `refresh_status` every `REFRESH_INTERVAL_S` (300 s) on the `poll` pool and a
+  - The poll (`poll.py`): while the list holds a run that is not final, right after a
+    launch, or while the last check said that results are awaited (`awaiting_results`),
+    `refresh_status` every `REFRESH_INTERVAL_S` (300 s) on the `poll` pool and a
     single-flight channel; a tick is skipped while one is queued or running ("Waiting to check
-    the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs.
-    "Refresh now" checks at once and restarts the interval. A check's `runs_busy`,
+    the cloud" / "Checking the cloud"); the timer stops once a load holds only final runs and
+    no results are awaited.
+    "Refresh now" checks at once and restarts the interval. The start-up check and "Refresh
+    now" send `recheck` (§3.9 "A batch removed from the cloud"); the timer's checks do
+    not. A check's `runs_busy`,
     `state_busy` or `cloud_unreachable` shows as "Last updated <time>; retrying at the next
     check", another error in the page's banner with its fix and as a status bar link, never as
     a dialog. Each check
@@ -488,20 +492,34 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     for the batches it reported. A run that turns final flashes the window in the task bar
     (`QApplication.alert`) and emits `batches_changed` for its covered batches. The timer is a
     port (`QtTimer`; tests fire a manual one), so no test sleeps.
-  - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set; with one
-    (or when that is not known) `reconcile_cloud` (slot `reconcile`) and `refresh_status`
-    (slot `refresh`) run, without one both are left out (M6.13 adds those screens). The
-    settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
+  - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set
+    (`key.py`, `RunpodKey`, from the response's `runpod_key_set`; asked again each time the
+    page is shown; a check in flight, such as the page's, answers for the start-up step too,
+    which waits for it); with one (or when that is not known, or the keyring failed while
+    reading) `reconcile_cloud` runs (slot
+    `reconcile`); `refresh_status` (slot `refresh`) runs with or without it (§3.9 "Roles").
+    Without the key (R2-only) the page shows a banner with the reason and "Open accounts";
+    Start transcription, Stop and Cancel and the machines check are disabled with the hint
+    "Needs a Runpod API key on this computer."; a machines check's error is not shown while
+    the key is known to be missing (`CloudModels.machines_error`). The poll also runs while the last check's
+    `awaiting_results` is true, without a run of this computer; `batches_changed` (an upload,
+    an adoption) starts a stopped poll and owes it a check, so until a check answers a load of
+    the run list does not stop it (a check answers for the changes made before it was sent, by
+    success or by an error the next tick would only repeat; a retrying error or a cancel settles
+    nothing) (the Cloud area's own signals for its runs, launched, stopped
+    or ended, owe none: `gui/cloud/runs.py` `emit_ended`); Refresh now during a check checks once more
+    after it. The settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
     before the machines check. The cloud area asks `credentials_status` itself (a local read)
     instead of reading the settings area's view-model, so the areas stay independent.
   - Stop and Cancel (Q34; `run_actions.py`): "Stop waiting" (Q34's Cancel, named apart from
     the confirmation dialog's own Cancel) while the stage is one of `WAITING_RUN_STAGES`
     (`launching`, `waiting`; `runs/constants.py`, shared with the question's text), "Stop"
     afterwards; both send `cancel_worker`, whose backend confirmation the generic dialog shows
-    without its details table (the question names what it stops; the same for the machines'
-    stops); Stop runs on the `short` pool, so a full `long` pool never delays it. Every answer
-    of a stop except a declined question and `cancelled` reloads the run list, a failed one
-    too (it may have changed the run before it failed). Start transcription is disabled while
+    without its details table (`confirmation_view(..., with_details=False)`; the question
+    names what it stops; the same for the machines' stops and the adoption); Stop runs on the
+    `short` pool, so a full `long` pool never delays it. Every answer of a stop except a
+    declined question and `cancelled` reloads the run list, a failed one too (it may have
+    changed the run before it failed). Start transcription is disabled while
     the shown run is not final. Closing the window never stops a run: the shell reads
     `GuiContext.run_active` (the run list's) when asked, so the close question adds its cloud
     note.
@@ -557,10 +575,28 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   opens the job's download dialog, step 4 of the step header: non-modal and one per job,
   kept while the window lives, so it reopens with the user's choices and the window stays
   usable while it is open.
-  - The first opening pre-fills the choices from `get_settings` (the placement defaults:
-    strategy, output folder, folder count, overwrite); every opening loads `get_batch` (the
-    stage) and the plan. A settings answer that arrives after the user changed a choice
-    pre-fills nothing. Each change of a choice sends the plan again on a `latest` channel:
+  - Jobs of other computers (`others.py`, `others_display.py`, `others_table.py`,
+    `others_view.py`; §3.9 "Adoption"): a section of the Cloud page, below the current run,
+    added by the download area through `CloudPage.add_section`. "Look in the cloud" sends `list_cloud_batches`
+    (latest wins; only when asked) and lists the jobs with `known` false (files, audio length,
+    state) in a table view over a Qt model (`others_table.py`; nothing is built per row, and a
+    new list keeps the selected job selected). One Download (or a double-click on a row) acts
+    on the selected job; it is disabled with a hint while no job is selected or the selected
+    one is being adopted. It sends `adopt_cloud_batch` (exclusive per job), whose confirmation
+    the generic dialog shows without its details table. Once adopted, the jobs reload
+    (`batches_changed`), its download dialog opens (`open_download`), the Cloud page checks
+    the cloud (`check_now`) and the list loads again; until a list succeeds, the adopted job's
+    row counts as adopting (its Download stays disabled, so a second click cannot hit
+    `batch_exists`). An error opens the error dialog (Retry re-sends) and also reloads the
+    list.
+  - The first opening loads `get_settings` and `get_batch` side by side and, once both
+    answered, pre-fills the choices from the placement defaults (strategy, output folder,
+    folder count, overwrite), with `mirror` for an adopted job (`BatchSummary.adopted`; its
+    originals are on another computer, so `next_to_media` is refused); only then does it plan.
+    Every later opening loads `get_batch` (the stage) and the plan. A settings answer that
+    arrives after the user changed a choice pre-fills nothing; a `batches_changed` for the job
+    before the pre-fill is remembered (so is a reopening then, since a hidden dialog hears no
+    change), and the pre-fill then loads `get_batch` again with its plan. Each change of a choice sends the plan again on a `latest` channel:
     `plan_download` for a strategy, the `check_only` import for a custom plan (on the `short`
     pool: the bridge picks a pool by request, `pool_for`); folder count steps and level ticks
     wait `PLAN_DELAY_MS` (250 ms) for the next one. A plan of choices changed since is
@@ -724,7 +760,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     event per stage tagged with the call it came from, so a Resume shows only its own progress.
     The page's upload box shows the files uploaded (`upload_item`), the current object's bytes
     with a progress bar (`upload_bytes`, dropped once the next file's event arrives), Cancel upload, Resume upload (a new start of the same
-    request) and Details of an error; once finished, the outcome: ready, held, extracted only,
+    request) and Details of an error; once finished, the outcome: ready, extracted only,
     or the files back in review by name (also named in the status bar). Every end (also a stop
     or a failure) emits `batches_changed`, which reloads the job page and the review (the files
     the upload sent back to review are probed again there; their choices stay when they probe the
@@ -970,10 +1006,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   outcome (placed, or skipped as an existing file, a missing folder or an empty result), in one
   download or several; an item whose source changed during `uploading` goes back to review on its
   own (or is excluded) while the batch stays `uploading` (excluding the last item is refused); a
-  batch whose upload completes while a run is active keeps its manifest back and stays `uploading`
-  until the run ends (the held manifest is rebuilt from the database when it is published), so a
-  worker never gets work its deadline and estimate did not include (replaced from M6.13 by §3.9 "Run scope"); cloud cleanup is possible from
-  `uploading` on (below). `audio` cleanup sets an "audio deleted" flag without changing the phase;
+  batch whose upload completes while a run is active is published at once but is not in that
+  run's lease, so the worker never gets work its deadline and estimate did not include: it
+  waits for the next start (`waits_for_current_run`, §3.9 "Run scope"); cloud cleanup is
+  possible from `uploading` on (below). `audio` cleanup sets an "audio deleted" flag without changing the phase;
   `everything` ends in `cleaned`.
 
   Items that failed or produced no speech are flagged in `transcribed`/`downloaded` and can be
@@ -988,13 +1024,12 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
 - **Cloud cleanup**: `cleanup_cloud` with scope `audio` or `everything` and an explicit
   confirmation flag; a maintenance action on the batch page, available at any time (offered
   after download). Deleting what is already gone is not an error.
-  - Both scopes are refused while a worker run is active (a local run launching, queued or
-    running; a live `transcribe-ui-*` pod or queued pod; or a `status.json` younger than its
-    heartbeat timeout; `plans/m5.md` §1), so no worker writes after a cleanup (replaced from M6.13 by §3.9 "Run scope": refused
-    only for batches a live lease lists).
-    A batch still in `uploading` has no manifest, so no worker sees it: its cleanup
-    (`everything` only, requirements "Cloud cleanup") is allowed during a run (unless R2 holds a leftover manifest of an
-    interrupted manifest step for it) and also aborts open multipart uploads.
+  - Both scopes are refused while a live run lease lists the batch (§3.9 "Run scope": that run
+    may be working on it; `run_active` names the lease), so no worker writes after a cleanup.
+    The check reads R2 alone, so it works without the Runpod key. A batch no lease lists (one
+    published after the run started, or still in `uploading`) can be cleaned up during a run;
+    an `uploading` batch's cleanup (`everything` only, requirements "Cloud cleanup") also aborts
+    open multipart uploads.
   - `everything` order (resumable): manifest first (so no worker can pick the batch up again),
     then `_done.json` and results, then audio; a crash in between leaves only objects under the
     batch prefix, which the next attempt removes. If results were not downloaded yet, the
@@ -1084,12 +1119,12 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     stream out of range, a track for an audio file, a picture subtitle to extract) and returns
     the unfiltered views.
   - **Leaving the upload.** The database forgets an item's upload before R2 does, so no
-    interruption leaves a held manifest that lists deleted audio. `exclude_items` (batch in
+    interruption leaves a manifest of this database that lists deleted audio. `exclude_items` (batch in
     `reviewing` or `uploading`, never the last item: `last_item`; after these checks, without
     `confirm` it answers `needs_confirmation` with the item count and whether audio recorded as
     uploaded for the items is deleted, and changes nothing) opens the object store first
     when the batch is `uploading` (a credentials error changes nothing; a batch in review needs
-    no credentials), then in one transaction clears `manifest_held` and deletes the excluded
+    no credentials), then in one transaction records a pending withdrawal (if any) and deletes the excluded
     items with their `audio_objects` and `extracted_subtitles` rows, so the exclusion itself
     cannot be lost. Then, per item, it aborts the open multipart uploads under the item's
     audio prefix and deletes every object there (the listing also finds objects that were
@@ -1099,7 +1134,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     `batches/rereview.py` `return_item_to_review` is the upload's way to send an item whose
     source changed back to review (caller holds the batch lock; the item must belong to the
     batch): one transaction sets the item `reviewing`, deletes its audio and
-    extracted-subtitle rows, sets its jobs pending and clears `manifest_held`; then its open
+    extracted-subtitle rows and sets its jobs pending; then its open
     multipart uploads are aborted and its objects deleted. Objects an interruption leaves
     behind stay under the item's prefix, where a later exclusion, re-upload (M5.10) or
     cleanup removes them. A batch with only `extract` jobs left shows `extract_only` in its
@@ -1142,20 +1177,22 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     batches too (a retry, a launch, a refresh), it reloads the list.
   - **Stage and labels** (same module, from the same facts; computed in every summary, not
     stored). `BatchSummary.stage` is the step of the guided flow (§3.1 "GUI"): `files`
-    (`composing`), `review_upload` (`reviewing`, `uploading`), `transcription` (`ready`, and an
-    `uploading` batch whose manifest is held), `download` (`transcribed`), `done`
-    (`downloaded`, `cleaned`; table `PHASE_STAGES`). `BatchSummary.labels` lists, in this order,
-    the notes that apply: `cleanup_pending` (an interrupted cleanup), `upload_unfinished`
-    (`uploading`, not held), `manifest_held`, `subtitles_ready` (`ready` or `transcribed` with a
-    job `ok` or `extracted` that has no recorded placement outcome), `flagged_jobs` (a
-    transcription failed or found no speech), `audio_deleted` (until `cleaned`), `hidden`.
+    (`composing`), `review_upload` (`reviewing`, `uploading`), `transcription` (`ready`),
+    `download` (`transcribed`), `done` (`downloaded`, `cleaned`, and a batch removed from the
+    cloud by another computer; table `PHASE_STAGES`). `BatchSummary.labels` lists, in this
+    order, the notes that apply: `cleanup_pending` (an interrupted cleanup), `upload_unfinished`
+    (`uploading`), `waits_for_current_run` (§3.9 "Run scope"), `removed_from_cloud` (§3.9),
+    `subtitles_ready` (`ready` or `transcribed`, not removed, with a job `ok` or `extracted`
+    that has no recorded placement outcome), `flagged_jobs` (a transcription failed or found no
+    speech), `audio_deleted` (until `cleaned`), `adopted` (another computer's batch, §3.9),
+    `hidden`.
     Frontends show both from the catalog; a new label is a code in `BatchLabel` and its entry,
     nothing else. Each `JobView` says whether it is `flagged` (a `transcribe` job `failed` or
     `no_speech`, which a retry batch can take), so no frontend restates that rule.
 - **Manifest step** (`transcribe_ui/upload/`: `manifest.py`, `publish.py`; no request of its
-  own: `run_upload` and `create_retry_batch` call `manifest_step`; `launch_worker` and
-  `refresh_status` call `publish_held_manifests`). Replaced from M6.13 by §3.9 "Run scope"
-  (A21): the manifest is published without an activity check and nothing is held.
+  own: `run_upload` and `create_retry_batch` call `manifest_step`). The manifest is published
+  as soon as the upload is verified, without an activity check: a run processes only the
+  batches its lease lists (A21, §3.9 "Run scope").
   - **Manifest from the database.** `build_manifest` lists every item with `transcribe` jobs,
     in selection order, with the audio objects its jobs use (by key) and its jobs by language;
     `scan_root` and `path_flavor` are the batch's (the flavour of the OS that scanned it). It is
@@ -1163,26 +1200,17 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     has a `verified` `audio_objects` row, whose payload (`upload/payloads.py`) holds the
     manifest's audio entry (track, extension, codec, duration, size); otherwise
     `upload_incomplete` (details: the item ids). A batch without `transcribe` jobs gets
-    `nothing_to_transcribe` (the extract-only path). `created_at` is the batch's creation time,
-    so the same database state always gives the same bytes and a manifest written again after
-    an interruption is the same object.
+    `nothing_to_transcribe` (the extract-only path). `created_at` is the batch's creation time
+    and `uploaded_by` this installation's id (§3.9 "Downloading twice"), so the same database
+    state always gives the same bytes and a manifest written again after an interruption is the
+    same object.
   - **`manifest_step`** (caller holds the batch lock and not the runs lock, else
-    `LockOrderError`; the runs lock is taken through its bounded wait, so a long launch gives
-    `runs_busy` with nothing changed): checks that the batch is
-    `uploading`, builds the manifest, runs the activity check (§3.7). Inactive: the manifest is
-    written to `batch_metadata/<id>.json`, then the batch moves `uploading` → `ready` by
-    compare-and-set, clearing `manifest_held`. Active: `manifest_held` is set (outcome `held`
-    with the activity sources). The check failing (`cloud_unreachable`) or the manifest write
-    failing (an `r2_*` error) also sets `manifest_held`, then the error is raised; re-sending or
-    the next `publish_held_manifests` resumes. `manifest_held` is never set without the runs lock, so a launch that holds it
-    cannot see a batch become held (and published by its own `publish_held_manifests`) outside
-    the scope it confirmed.
-  - **`publish_held_manifests`** (caller holds the runs lock, checked): with no held batch it
-    does nothing (no cloud call); otherwise it runs its own activity check and, when no run is
-    active, try-locks each held batch (`LockRegistry.try_batch`; a busy batch is skipped, listed
-    as `busy`), rebuilds its manifest from the database (an incomplete one is skipped as
-    `incomplete`), writes it and moves the batch by compare-and-set on `phase = uploading AND
-    manifest_held`.
+    `LockOrderError`): checks that the batch is `uploading` and builds the manifest; a pending
+    withdrawal of a leftover manifest is finished first, under the runs lock (taken through its
+    bounded wait: `runs_busy` with nothing changed) and only while no live lease lists the batch
+    (else `run_active`); then the manifest is written to `batch_metadata/<id>.json` and the batch
+    moves `uploading` → `ready` by compare-and-set. A failed write (an `r2_*` error) leaves the
+    batch `uploading`; re-sending resumes.
   - **Order and interruption.** The manifest object is written before the phase change. A crash
     in between leaves a complete manifest for an `uploading` batch (the worker may process it,
     which is correct); the next step writes the same bytes and moves the batch.
@@ -1190,17 +1218,15 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     `upload/steps.py`). Exclusion and re-review change the batch such a manifest describes, so
     they withdraw it first:
     - **Ours only.** The object at `batch_metadata/<id>.json` is ours when its bytes have the
-      SHA-256 of a manifest this database built (recorded by a pending withdrawal, or built
-      from the current state), or when it reads as a manifest with the batch's own
-      `created_at` and `scan_root` (the same batch written from an earlier state). Anything
+      SHA-256 a pending withdrawal recorded, or when it reads as a manifest with the batch's
+      own `created_at` and `scan_root` (the batch as this database built it, from any state). Anything
       else, such as another computer's batch with the same id (another creation time), is left
       alone with its `_done.json` and results.
-    - **No run active** (replaced from M6.13 by §3.9 "Run scope": refused only while a live
-      lease lists the batch). With a leftover manifest of ours, the request takes the runs lock
+    - **No run lists it.** With a leftover manifest of ours, the request takes the runs lock
       through the bounded wait (it holds the batch lock; the guard refuses to run with the runs
-      lock already held) and checks the run activity before changing anything: an active run
-      gives `run_active` (details: the run ids and every sign), an unknown one
-      `cloud_unreachable`, a long wait `runs_busy`, and nothing changes.
+      lock already held) and checks the live leases before changing anything (R2 alone, §3.9
+      "Run scope"): a lease that lists the batch gives `run_active` (details: the run ids and
+      the lease), an R2 failure its `r2_*` error, a long wait `runs_busy`, and nothing changes.
     - **Recorded, then carried out.** The change's own transaction records a
       `PendingWithdrawal` (the digest of the object found and the affected item ids,
       accumulated over changes) in the batch's `pending_withdrawal` column. Then, still under
@@ -1210,31 +1236,26 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
       `_done.json` must go, or the worker would skip the batch once it is published again.
     - **Who finishes a pending withdrawal.** An R2 failure after the change was saved does not
       fail the request: it is logged and the response says `withdrawal_pending: true`. The
-      record is then finished, always under the runs lock with no run active and before
-      anything else is written for the batch, by: the next exclusion or re-review of the batch;
-      its `manifest_step`, before the new manifest is written; `publish_held_manifests`, which
-      first finishes the pending withdrawal of every `uploading` batch (held or not, its lock
-      only tried) and is called by `launch_worker` before it launches and by
-      `refresh_status`; the start of every `run_upload` (before its orphan sweep); and the
-      extract-only transition to `transcribed` (below) (replaced from M6.13 by §3.9 "Run scope"): no `publish_held_manifests`
-      or launch, and "no run active" means no live lease lists the batch). The launch scope
-      counts a leftover whose digest a pending withdrawal recorded as absent (a held batch is
-      counted from the database (replaced from M6.13 by §3.9 "Run scope")).
+      record is then finished, always under the runs lock while no live lease lists the batch
+      and before anything else is written for the batch, by: the next exclusion or re-review of
+      the batch; its `manifest_step`, before the new manifest is written; the start of every
+      `run_upload` (before its orphan sweep); and the extract-only transition to `transcribed`
+      (below). The launch scope counts a leftover whose digest a pending withdrawal recorded as
+      absent, so no lease of this computer lists it.
     - **Remaining window.** This app cannot launch during a withdrawal: its launch holds the
-      runs lock for its whole check-publish-launch sequence, and a launch already under way
-      (`launching`, `queued`, a pod or a heartbeat) makes the check report a run. Runs of
-      another computer (same account and bucket) are visible only through the Runpod lists and
-      heartbeats: one started in the seconds between the check and the manifest delete, or not
-      listed yet, could still read the leftover and write `_done.json` or a result after their
-      deletion; the batch would then be skipped or keep a stale subtitle until its results are
-      deleted again. This needs a crash in the manifest step, a later exclusion or re-review,
-      and a launch on another computer at that moment, and is accepted.
+      runs lock from its scope through its lease, and the scope leaves the leftover out once
+      the withdrawal is recorded. Another computer's launch may read the leftover in the
+      seconds between this check and the manifest delete (its lease then lists the batch); its
+      worker could still write `_done.json` or a result after their deletion, and the batch
+      would be skipped or keep a stale subtitle until its results are deleted again. This needs a
+      crash in the manifest step, a later exclusion or re-review, and a launch on another
+      computer at that moment, and is accepted.
 
 - **Upload** (`transcribe_ui/upload/`: `services.py` (`run_upload`), `start.py`, `sweep.py`,
   `items.py`, `tracks.py`, `transfer.py`, `rows.py`, `temp.py`, `finish.py`; request
-  `run_upload`, opens the database). Under the batch's lock (never waited for); R2 and the
-  Runpod API are opened once with all five credentials (the manifest step needs both), so a
-  credentials error changes nothing. No R2, Runpod or ffmpeg call runs inside a transaction,
+  `run_upload`, opens the database). Under the batch's lock (never waited for); R2 is opened
+  once with the R2 credentials (no Runpod key is needed), so a credentials error changes
+  nothing. No R2 or ffmpeg call runs inside a transaction,
   and the runs lock is taken only through its bounded wait.
   - **Start.** A batch in `reviewing` needs every item `reviewed` (else `review_incomplete`,
     details: the item ids). Batch ids are unique only in this database, so before the first
@@ -1254,10 +1275,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     the batch: objects of excluded or re-reviewed items whose deletion was interrupted, objects
     uploaded but never recorded, another extension of a track (one rule covers the plan's
     "orphans" and "what is left under a re-uploaded item's prefix"). A pending withdrawal is
-    finished first, whether or not there are orphans (under the runs lock, no run active),
-    since its leftover manifest may list those objects; while a run is active, the cloud
-    cannot be checked or the runs lock stays busy, the withdrawal and the sweep are put off
-    (`sweep_skipped: true`) and the upload goes on: the objects are in no manifest this
+    finished first, whether or not there are orphans (under the runs lock, while no live lease lists the batch),
+    since its leftover manifest may list those objects; while a live lease lists the batch or
+    the runs lock stays busy, the withdrawal and the sweep are put off (`sweep_skipped: true`)
+    and the upload goes on: the objects are in no manifest this
     database builds, and the withdrawal is finished before any new manifest is written.
   - **Per item** (resolved items in selection order; `uploaded` ones are skipped, items in
     review are reported), each step in its own transaction, so a resume continues after the
@@ -1291,13 +1312,13 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     (validated when the payload is built). A missing source object gives `r2_object_missing`;
     a track without a copy source gives `copy_source_missing` (details: item id, track).
   - **End.** Items still in review: outcome `items_in_review` (their ids), no manifest. A batch
-    with `transcribe` jobs goes through the manifest step (outcome `ready`, or `held` with the
-    activity sources). A batch with only `extract` jobs moves `uploading` → `transcribed`
-    without a manifest; a pending withdrawal is finished first under the runs lock, and during
-    a run it is refused with `run_active` (nothing more changes; re-sending resumes).
+    with `transcribe` jobs goes through the manifest step (outcome `ready`). A batch with only
+    `extract` jobs moves `uploading` → `transcribed` without a manifest; a pending withdrawal is
+    finished first under the runs lock, and while a live lease lists the batch it is refused
+    with `run_active` (nothing more changes; re-sending resumes).
   - **Response**: the batch summary, the outcome, the items in review, the objects uploaded or
     copied and the subtitles extracted by this request, the objects the sweep deleted,
-    `sweep_skipped`, and the activity that holds the manifest. Progress: `upload_bytes` per part
+    and `sweep_skipped`. Progress: `upload_bytes` per part
     (bytes of the current object) and `upload_item` per item. `run_upload` on a batch past
     `uploading` is `wrong_phase`.
   - **Interruptions.** A kill or a cancel at any point leaves recorded steps only for objects
@@ -1332,30 +1353,32 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   - **Copy and publish.** Under the retry batch's lock the handler reads its phase again: one
     that moved on meanwhile gives `past_upload`, one cleaned up meanwhile `wrong_phase`
     (nothing is copied into a cleaned prefix). Otherwise it runs `run_upload`'s resumable path (`upload/services.py` `continue_upload`: temp folder, stale multipart
-    uploads, orphan sweep, the copy variant per item, then the manifest step, held during a
-    run (replaced from M6.13 by §3.9 "Run scope")). The response carries the retry batch's summary, `created`, the outcome (`ready`,
-    `held`) and the objects copied. A kill or a cancel at any point is resumed by repeating the
+    uploads, orphan sweep, the copy variant per item, then the manifest step). The response carries the retry batch's summary, `created`, the
+    outcome (`ready`) and the objects copied. A kill or a cancel at any point is resumed by repeating the
     request (it finds the batch by `retry_of`) or by `run_upload` on the retry batch; no second
     retry batch is made.
   - **Cleanup order of locks.** `cleanup_cloud` takes the runs lock (bounded wait), then the
     batch lock of the id (never waited for). For a known batch the runs lock is held through
-    the checks, the activity check and the transaction that records the cleanup, then released
+    the checks, the lease check and the transaction that records the cleanup, then released
     before the deletes: the recorded marker keeps every launch out, and the batch lock and the
-    phase keep the manifest step and `publish_held_manifests` (replaced from M6.13 by §3.9 "Run scope") out, so a long delete never
+    phase keep the manifest step out, so a long delete never
     blocks `refresh_status` (the deadline stop) or `cancel_worker`. The batch lock is held to
     the end. An unknown batch keeps both locks to the end (nothing local blocks a launch).
   - **Known batch.** Phases: `everything` from `uploading` on, again in `cleaned` (to finish an
     interrupted cleanup); `audio` in `ready`, `transcribed` and `downloaded`, refused while a
     transcribe job is `pending` (`results_pending`, details: the count). Both are refused while
     a retry batch of the batch is `uploading` with an item not `uploaded` (`retry_copying`,
-    details: the retry batch). Confirmations: `confirm`, and for `everything` on a `ready` or
+    details: the retry batch). Neither is possible for a batch another computer removed from
+    the cloud (`batch_removed_from_cloud`), and `audio` not for an adopted batch
+    (`adopted_batch`; §3.9). Confirmations: `confirm` (the plain or the stronger form of
+    "delete everything", §3.9 "Downloading twice"), and for `everything` on a `ready` or
     `transcribed` batch also `confirm_not_downloaded` while a transcribe job that did not fail
     has no recorded placement outcome (the rule that moves a batch to `downloaded`, §3.5;
-    a `downloaded` batch never asks; both listed at once). The activity check (replaced from M6.13 by §3.9 "Run scope") runs (`run_active`, `cloud_unreachable`) unless the batch is
-    `uploading` or `cleaned` and R2 holds no manifest for it. Then one transaction records the
+    a `downloaded` batch never asks; both listed at once). The per-batch lease check (§3.9 "Run scope") refuses while a live lease lists the batch
+    (`run_active`). Then one transaction records the
     intent: `audio_deleted` for both scopes (no retry can start from audio being deleted), the
     batch payload's `cleanup_pending` (the scope; shown in `BatchSummary`), and for
-    `everything` the phase `cleaned` with `manifest_held` and `pending_withdrawal` cleared
+    `everything` the phase `cleaned` with `pending_withdrawal` cleared
     (nothing publishes the batch again). A last transaction after the last delete clears
     `cleanup_pending`. While any batch has it (a kill or an R2 failure in between: its manifest
     or audio may still be in R2), `plan_launch` and `launch_worker` refuse with
@@ -1372,11 +1395,44 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     `BatchId` (else `invalid_request`); `batch_metadata/<id>.json` must exist
     (`batch_not_found`) and read through `reading.read_manifest` (`manifest_unreadable`) before
     anything is deleted; one confirmation (details: the file count, `known: false`); refused
-    while a run is active (replaced from M6.13 by §3.9 "Run scope"). Nothing local remembers this cleanup, so the manifest, the only
-    proof that the prefix is a published batch, goes last: everything under `<id>/` but
-    `_done.json`, then `_done.json` (a worker skips the batch while it exists), then the
-    manifest. A crash between the last two leaves a manifest whose audio is gone, which a
-    worker would fail quickly; repeating the cleanup removes it.
+    while a live lease lists it. Nothing local remembers this cleanup, so it writes the marker
+    `<id>/_deleting.json` first (`layout.deleting_key`; not counted as a deleted object), then
+    aborts the open multipart uploads, deletes the manifest (the batch disappears for
+    listings, adoptions and launches), `_done.json` (so no refresh moves a half-deleted batch
+    to `transcribed`), the results and everything else under `<id>/`, and the marker last. A
+    cancel before the manifest delete removes the marker again (best effort), so the batch
+    stays as it was. The uploading computer deletes the marker whenever it reclaims its prefix
+    (`finish_withdrawal`, before its own deletes, and `clear_leftovers`), so a stale marker
+    cannot purge a withdrawn job or a new upload.
+    The cleanup is also recorded locally (table `pending_cleanups`: the bucket, as the
+    identity of the store it runs on, the batch id and when it started; written before the marker,
+    dropped after it; `cleanup/pending.py`), since the batch is gone from every listing once
+    its manifest is: `refresh_status` with `recheck` (start-up, Refresh now) settles every
+    record of the configured bucket (another bucket's records wait until it is configured
+    again), under the batch's lock (only tried) and unless a live lease lists it. An R2 error
+    about one object keeps that record (logged) and the others go on; one about R2 itself
+    (unreachable, the credentials, the bucket: `SETTLE_STOPPING_CODES`) stops the settling,
+    logged once, and the refresh goes on. A store's identity (`storage/client.py`
+    `bucket_identity`, `ObjectStore.identity`) is a SHA-256 of the normalised endpoint (scheme
+    and host lowercased, default port and trailing slash dropped) and the bucket name, taken
+    from the credentials the store was opened with: no second keyring read, and the endpoint,
+    which carries the account id, is never stored. Manifest gone, marker there: the deletion passed its point
+    of no return and was confirmed, so the rest is deleted without a question; manifest still
+    there: the marker is deleted and the batch stays as it was; neither: nothing to do, once
+    the bucket is proven to exist (`check_access`, once per refresh). Two computers cleaning the same job at once
+    may delete each other's marker; this is accepted (each one's own steps still finish or
+    undo its cleanup). The
+    record is then dropped, and the response lists the finished ones (`finished_cleanups`; the
+    Cloud page notes them). A marker without a manifest is the proof that an interrupted cleanup left the
+    rest, transcribed or not: repeating the request asks `cleanup_unknown_leftover` (details:
+    `batch_id`, `known: false`) and deletes what the listing still shows. A prefix with
+    neither a manifest nor the marker (perhaps another computer's upload in progress; an
+    uploader never writes the marker) is never touched: `batch_not_found`. The known batch's
+    cleanup keeps its order (manifest first); the local `cleanup_pending` marker resumes it.
+  - **Another batch under a known id** (the known rule, §3.9 "Known batches"): the cleanup of
+    the known batch, after its own confirmations, is diverted to the unknown path, which asks
+    its own question on the request field `confirm_unknown` (`cleanup_unknown_batch` or its
+    stronger form); the known batch's confirmations never cover it.
   - **Response**: the batch id, the scope, the batch summary (None for an unknown batch), the
     objects deleted and the multipart uploads aborted by this request.
 
@@ -1488,9 +1544,10 @@ into place, so an interrupted download never leaves a partial file.
 Planner (`placement/`: `planner.py`, `custom.py`, `drafts.py`, `naming.py`, `probe.py`; the
 download requests below wire it to the batches):
 
-- Pure: `plan_placement(jobs, scan_root, options, rules, probe)` (from M6.13 also the batch's
-  `path_flavor`, for splitting sources and the scan root, §3.9) and
-  `import_custom_plan(document, jobs, options, rules, probe)` return a `PlacementPlan` (one
+- Pure: `plan_placement(jobs, scan_root, options, rules, probe)` and
+  `import_custom_plan(document, jobs, options, rules, probe)` (with `export_custom_plan` and
+  `folder_levels`; `rules` is the target's `PathRules`, or a `TargetNames` that also carries the
+  batch's own `path_flavor` in which the sources and the scan root are split, §3.9) return a `PlacementPlan` (one
   entry per job: source, target, outcome, rename reasons; and plan errors). The input is the
   planner's own models (item id, language, source path, subtitle state `available`, `empty`,
   `failed` or `pending`), not the batch model. The only I/O is the injected
@@ -1504,7 +1561,10 @@ download requests below wire it to the batches):
   refused). `mirror` and both flat strategies need an absolute `output_folder`
   (`output_not_absolute`); `next_to_media` ignores one, so settings pre-filled with an output
   folder still apply. The scan root and every source path must be absolute without `..`
-  parts (`scan_root_invalid`, `source_path_invalid`), so no target leaves its folder. A
+  parts (`scan_root_invalid`, `source_path_invalid`), and every part of a source below the scan
+  root a single name in the batch's flavour (not empty, `.` or `..`, no separator, drive or
+  anchor: `source_path_invalid`), so no target leaves its folder. Another computer's batch
+  cannot be placed next to its media (`no_local_sources`, §3.9). A
   source outside the scan root is `outside_scan_root` for `mirror` and `flat_with_folders`
   (`flat` places it without folder names).
 - Names are worked out for every job, whatever its subtitle state, so a partial download (requirements "Subtitle download options")
@@ -1661,8 +1721,15 @@ database):
     characters (fits the Windows Credential Manager limit). The response names what was
     stored. No keyring → `keyring_unavailable`, whose message names the environment variables
     to set instead; a backend failure → `keyring_failed`; both list what was written before.
-  - `credentials_status`: the keyring state (`available`, `unavailable`, `failed`) and, per
-    credential, its environment variable and source (`keyring`, `environment`, `missing`).
+  - `credentials_status`: the keyring state (`available`, `unavailable`, `failed`), per
+    credential its environment variable and source (`keyring`, `environment`, `missing`), and
+    `runpod_key_set` (`Lookup.runpod_key_set`, the rule `runs/cloud.py` `runpod_key_set` also
+    uses: the key was found, or the keyring failed while reading, so it may hold it). Every
+    GUI area reads that field: the Cloud page's key and the settings area's cloud setup (a
+    failed keyring offers the cloud setup, whose check reports the keyring's error). `r2_set`:
+    every R2 credential found, or the keyring failed; without it the Cloud area's start-up
+    sends no `refresh_status` (nothing in the cloud can be checked; the first-start wizard asks
+    for R2), and the settings area opens the first-start wizard (one rule for both areas).
   - `check_credentials`: per service an outcome `ok`, `missing` or `failed` with the error
     code and message (a failed check is a success response). R2 lists one key of the bucket
     (`r2_auth_failed`, `r2_access_denied`, `r2_bucket_not_found`, `r2_unreachable`,
@@ -1790,17 +1857,15 @@ database):
   startup reconciles `GET /v2/pods` and `GET /v2/queued-pods` and offers to terminate or cancel
   stragglers. This layer only works while the app is running; a queued pod may start while it
   is closed, which is why the pod-side layers (§5.2) must be sufficient on their own.
-- "Start transcription" launches one worker for every batch in `ready`. The worker processes
-  every manifest in `batch_metadata/` without `_done.json` (from M6.13 only the batches its
-  lease lists, §3.9 "Run scope"), so the estimate and
-  `MAX_RUNTIME_S` cover all of them, including batches this computer does not know (listed
+- "Start transcription" launches one worker for every manifest in `batch_metadata/` without
+  `_done.json`; the worker processes only the batches its lease lists (§3.9 "Run scope"), so the
+  estimate and `MAX_RUNTIME_S` cover exactly them, including batches this computer does not know (listed
   separately, Q28, §3.9). The app shows:
   waiting for a machine (cancellable), starting, transcribing (batch, file, elapsed time,
   cost so far), finished or failed.
-- **Run activity** (`transcribe_ui/runs/activity.py`, with `pods.py` and `heartbeats.py`;
-  `check_activity`): used by `launch_worker`, `cleanup_cloud`, the manifest step and
-  `publish_held_manifests` (from M6.13 only by `launch_worker`, with any live lease as a
-  source; cleanup and the withdrawal use a per-batch lease check, §3.9 "Run scope"), always under the runs lock (checked: `LockRegistry.holds_runs`,
+- **Run activity** (`transcribe_ui/runs/activity.py`, with `pods.py`, `heartbeats.py` and
+  `leases.py`; `check_activity`): used only by `launch_worker` (cleanup and the withdrawal use
+  the per-batch lease check, §3.9 "Run scope"), always under the runs lock (checked: `LockRegistry.holds_runs`,
   else `LockOrderError`). It returns every sign of a live run (`RunActivity.sources`: kind,
   name, status and the run id, so a refusal can name the run); none means inactive. A run is
   active when:
@@ -1824,27 +1889,27 @@ database):
     `updated_at` at most `HEARTBEAT_STALE_S` + `HEARTBEAT_MARGIN_S` before the clock (the margin
     covers a worker clock behind this one). An `updated_at` ahead of the clock counts, but is
     taken as at most the run's `deadline_at` + the margin. An older object never counts,
-    readable or not, so a broken or far-future heartbeat cannot block for ever.
+    readable or not, so a broken or far-future heartbeat cannot block for ever;
+  - a run lease counts (`runs/<run_id>/launch.json`, kind `lease`; §3.9 "Run scope"), another
+    computer's included, except one written more than `LAUNCH_SETTLE_S` + `HEARTBEAT_MARGIN_S` (the clock difference to R2) ago whose run has no
+    live entry in the Runpod lists (its pod was never created or is gone), so a stale lease
+    does not block Start for hours.
 
   The check fails closed: a Runpod list or lookup that fails (after the client's retries)
   or an R2 list or read that fails raises `cloud_unreachable` (details `part`: `runpod` or
-  `r2`, `cause`: the error code, e.g. `runpod_key_rejected`), never "inactive". So the
-  manifest step needs the Runpod key too: `runs/cloud.py` `open_cloud` reads all five
-  credentials in one lookup and opens R2 and the Runpod pods API (no call yet, so a
-  credentials error changes nothing).
+  `r2`, `cause`: the error code, e.g. `runpod_key_rejected`), never "inactive". The launch opens R2 and the Runpod
+  API with all five credentials in one lookup (`runs/cloud.py` `open_cloud_client`; no call yet,
+  so a credentials error changes nothing).
 - **Launch scope** (`transcribe_ui/runs/scope.py`, `manifests.py`; `read_launch_scope`): what
   the next run processes, read the way the worker plans (§5.3). For each object under
   `batch_metadata/`: a key that is not a manifest key is unreadable (`not_a_manifest`); a batch
   with `_done.json` is skipped; a manifest of another major (`unsupported_schema`) or an invalid
   one (`invalid`) is unreadable and not counted; otherwise every job whose result JSON is not
-  listed under `<id>/results/` is pending (with its mode and audio duration). Batches with a
-  held manifest are added from the database (`held`, every job pending) unless their manifest
-  is in R2 already, pending or finished there (an unreadable or vanished copy counts the held
-  version). Each batch says whether this database knows it (`known`; unknown ones are
+  listed under `<id>/results/` is pending (with its mode and audio duration). A leftover
+  manifest a pending withdrawal will delete counts as absent. Each batch says whether this database knows it (`known`; unknown ones are
   another computer's, Q28; the rule is §3.9 "Known batches") and its file count. The
   fingerprint is the SHA-256 of the sorted covered batch ids, the sorted pending jobs (`<batch>/<item>/<language>/<mode>`) and the total
-  pending duration (3 decimals): publishing a held batch keeps it, a new result or another
-  batch changes it.
+  pending duration (3 decimals): a new result or another batch changes it.
 - **Plan and estimate** (`runs/planning.py`, `estimate.py`; request `plan_launch`, DB, no
   lock, reads only; field `test_mode`): the launch scope, `MAX_RUNTIME_S`, the cost range and the
   wait bounds (default 1 h, 5 min to 24 h, A19). `MAX_RUNTIME_S` = 20 min start-up
@@ -1855,7 +1920,8 @@ database):
   `GET /v2/catalog/gpus`; any failure of that call (a key error included) or a missing entry
   gives the fallback 0.27 USD/h with a `note` (the plan is informational; the launch reports key
   errors itself). The factors are placeholders recalibrated at M7.
-- **Launch** (`runs/launch.py`, `creating.py`, `pod_body.py`, `records.py`, `payloads.py`;
+- **Launch** (`runs/launch.py`, `starting.py`, `creating.py`, `pod_body.py`, `records.py`,
+  `payloads.py`;
   request `launch_worker`: `wait_s`, `test_mode`, `confirm_fingerprint`). Under the runs lock
   for the whole sequence, no transaction across a Runpod or R2 call (first, as in `plan_launch`,
   a batch with `cleanup_pending`, an interrupted cloud cleanup, gives `cleanup_pending`, §3.3):
@@ -1868,21 +1934,16 @@ database):
      `confirm_fingerprint`, details `plan`, the message saying when the plan changed), and
      nothing changes. The plan's `fingerprint` hashes the scope's fingerprint, `MAX_RUNTIME_S`
      and the test mode, so a plan confirmed without test mode cannot start a test-mode run;
-  4. (removed from M6.13, §3.9 "Run scope") `publish_held_manifests` (pending withdrawals finished, held manifests published; a sign
-     of a run it finds gives `run_active`); a withdrawal left pending because its batch lock
-     was busy gives `batch_busy` before any run is recorded (re-send), since a worker could read
-     the leftover;
-  5. the run row (`launching`, run id from the id source, pod name with the deadline, payload
+  4. the run row (`launching`, run id from the id source, pod name with the deadline, payload
      `RunPayload`: runtime, test mode, wait, queue `expiresAt`, name deadline, covered batch
-     ids, fingerprint, pending duration, estimate) is committed; from M6.13 the lease
-     `runs/<run_id>/launch.json` is written next (a failed write makes the run
-     `launch_failed` with nothing created, §3.9 "Run scope");
-  6. one `POST /v2/pods` with the body of plan m5 §1 (template id, no image; GPU with
+     ids, fingerprint, pending duration, estimate) is committed; the lease
+     `runs/<run_id>/launch.json` (the covered batch ids, the name deadline) is written next (a
+     failed write makes the run `launch_failed` with nothing created, §3.9 "Run scope");
+  5. one `POST /v2/pods` with the body of plan m5 §1 (template id, no image; GPU with
      `minCudaVersion` 12.8; `SECURE`; 60 GB disk; the Global Volume at `/workspace`; env
      `TRANSCRIBE_RUN_ID`, `MAX_RUNTIME_S`, `KEEP_POD_ALIVE`; `queue.expiresAt` = now + wait).
      The name deadline is `expiresAt` + `MAX_RUNTIME_S` + 10 min, rounded up to the minute.
-  The covered batch ids are the scope's, less a held batch that stayed held (its lock was busy);
-  such a batch only makes the estimate high (replaced from M6.13 by §3.9 "Run scope"). Outcomes (`outcome`): 201 → `pod` (run `running`
+  The covered batch ids are the scope's: the run's lease lists exactly them. Outcomes (`outcome`): 201 → `pod` (run `running`
   with the pod id), 202 → `queued` (run `queued` with the queued-pod id). Runpod refusing (any
   4xx after the client's 429 retries, or no connection before sending) created nothing: the run
   becomes `launch_failed` and the answer is `launch_refused` (details `http_status`), or the key
@@ -1985,9 +2046,9 @@ database):
   unless the report said `finished` or `failed`, which ends it as the worker reported
   (answered again for a run already `cancelled`); a stop that does not show gives
   `stop_unverified` and a failed read `cloud_unreachable`, and the run stays as it was. Other
-  final runs give `run_not_active`, unknown ids `run_not_found`. From M6.13 a verified
-  cancel that makes the run final (also of `terminate_pod` and `cancel_queued_pod`) deletes the
-  run's lease, best effort, after the final status is committed (§3.9 "Run scope").
+  final runs give `run_not_active`, unknown ids `run_not_found`. A verified cancel that makes
+  the run final (also of `terminate_pod` and `cancel_queued_pod`) deletes the run's lease, best
+  effort, after the final status is committed (§3.9 "Run scope", "Lease removal").
 - **Reconcile and stragglers** (`runs/reconcile.py`, `stragglers.py`; runs lock):
   `reconcile_cloud` reads both lists once, resolves every `launching` run, and returns every
   run that was not final (as it is now) and the live `transcribe-ui-*` entries: pods in any
@@ -2021,16 +2082,20 @@ database):
   without a pod, a deployed pod that had ended) leaves the run to `refresh_status`, which reads
   the worker's report. Ids follow the reaper's rule `[A-Za-z0-9_-]{1,64}`.
 - **Monitoring** (`runs/monitor.py`, `refreshing.py`, `following.py`, `ending.py`, `halting.py`,
-  `worker.py`, `results.py`, `result_reads.py`, `collect.py`, `progress.py`; request
-  `refresh_status`, no fields; runs lock for the whole request, no transaction across a Runpod
-  or R2 call). The GUI sends it periodically while a run is active, or while
-  `awaiting_results` says so (from M6.13), and once at start-up. Only
-  the Runpod key is read up front; R2 is opened on first use (`runs/cloud.py` `LazyStore`), so
-  missing or rejected R2 credentials never block a deadline stop. In order:
+  `worker.py`, `results.py`, `ready_batches.py`, `result_reads.py`, `collect.py`,
+  `lease_release.py`, `leases.py`, `progress.py`; request `refresh_status`, field
+  `recheck` (default false; the GUI's start-up check and Refresh now: §3.9 "A batch removed
+  from the cloud", and the interrupted cleanups of §3.3 "Unknown batch"); runs lock
+  for the whole request, no transaction across a Runpod or R2 call). The GUI sends it
+  periodically while a run is active, or while `awaiting_results` says so, and once at
+  start-up, with or without the Runpod key. The Runpod client is opened only when a key is set
+  (without one, steps 1, 2 and 4 are skipped and each open run records `credentials_missing`
+  as its `stop_error`, §3.9 "Roles"); R2 is opened on first use (`runs/cloud.py` `LazyStore`),
+  so missing or rejected R2 credentials never block a deadline stop. In order:
   1. Every run that is not final is followed; the Runpod lists are read once, only when such a
      run exists or a final run waits for collection. With an open run a failed read or lookup
      fails the request with nothing more changed (re-send); with none, a failed read is logged
-     and only collection (step 4) is put off, so results and held manifests do not stall.
+     and only collection (step 4) is put off, so results do not stall.
      A `launching` run is resolved by its name (`resolve_launching`). A run without a pod id
      follows its queued pod: a pod listed under the run's name is adopted as seen; else the
      queued pod (listed, else read by id) decides like the settling rule (`QUEUED`: `queued`; a
@@ -2066,13 +2131,14 @@ database):
      a pod that may still bill is never marked final. A stop whose Runpod call fails is
      recorded the same way (its error code as `stop_error`, the run followed); the other runs
      are still followed and recorded, and the error is raised once every run was handled.
-     From M6.13 a run that becomes final here or in step 1 with its pod gone or never created
-     has its lease deleted, best effort, before collection (§3.9 "Run scope" lists the
-     paths).
-  3. Every `ready` batch (not only the run's: the worker processes every manifest, from M6.13
-     only its lease's; another computer's run may list it; its lock
+     A run that becomes final here or in step 1 has its lease deleted, best effort, before step
+     3 reads the leases (§3.9 "Run scope", "Lease removal").
+  3. Every followed `ready` batch (not removed from the cloud; not only the run's: another
+     computer's run may list it; its lock
      only tried, a busy one listed in `busy`) gets the status of each pending transcribe job
-     whose result JSON is listed (`ok`, `no_speech`, `failed` through `reading.read_job_result`,
+     whose result JSON is listed (`ok`, `no_speech`, `failed` through `reading.read_job_result`;
+     a batch with neither `_done.json` nor its manifest in R2 is marked `removed_from_cloud`
+     instead, §3.9),
      stored in the job's `status` column: the failed/no-speech flags; a failed result's `error` in
      the job payload's `result_error`), then moves to `transcribed` by compare-and-set when
      `_done.json` exists (HEAD, as the launch scope decides). `_done.json` is looked for before
@@ -2085,9 +2151,10 @@ database):
      batch to `transcribed`, the `downloaded` rule (§3.5) moves it on to `downloaded` when every job
      already has a placement outcome or failed (downloaded in full while `ready`); the response
      shows the phase. Then the rule is applied to every `transcribed` batch whose lock is free (a
-     download killed after its last outcome). From M6.13 this step also reads the live leases
+     download killed after its last outcome). This step also reads the live leases
      (`runs/*/launch.json`, with the bound and finality of §3.9 "Run scope") and keeps them in
-     memory with the refresh time, for `waits_for_current_run`.
+     memory with the refresh time, for `waits_for_current_run`, and the response says whether
+     results are still awaited (`awaiting_results`).
   4. Every final run not yet collected (`objects_collected`; `cancelled` and `launch_failed`
      runs too, whose pod is verified gone or never existed) keeps its last status in the
      payload (if its end did not; written before anything is deleted), writes `worker.log` to
@@ -2111,9 +2178,6 @@ database):
      `cancel_queued_pod` mark a final, collected run uncollected (`records.reopen_collection`),
      so the first refresh after the straggler is gone collects what it wrote, once and whole.
      Refresh never calls reconcile, so nothing loops.
-  5. (removed from M6.13, §3.9 "Run scope") With no local run open, `publish_held_manifests` (its own activity check: a straggler or a
-     recent heartbeat keeps the manifests held). Collection runs first, so the ended run's own
-     heartbeat no longer counts.
 
   Each followed run stores what the refresh saw in its payload (`runs/refreshing.py`): the
   refresh time (`refreshed_at`), the deadline stop's error (`stop_error`, cleared by a refresh
@@ -2133,8 +2197,8 @@ database):
   `cost_so_far_usd` (from the pod's creation until `elapsed_until`: the run's end, else its
   `refreshed_at`, never the moment of the request; at its price; a display estimate),
   `ended_at`, `end_reason`, `stop_error`, the kept `worker_log` path, and three progress fields
-  below), the checked `ready` batches with their job counts and phase, the `busy` ones, and the
-  manifests `published` or still `held` (replaced from M6.13 by §3.9 "Run scope").
+  below), the checked `ready` batches with their job counts and phase, the `busy` ones, and
+  `awaiting_results`.
   `cancel_worker`, and `terminate_pod` and
   `cancel_queued_pod` when they end a local run, record `ended_at` and the end reason
   (`cancelled`, or the worker's own end) too, so its time and cost stop at the stop; every final
@@ -2166,7 +2230,9 @@ database):
     put:
     - pending work: once the run has written an `ok` or `no_speech` result, the worker's pace
       (the summed `finished_at - started_at` of those results per weighted second of their
-      audio; failed results do not set the pace) times the pending weighted audio. Before that,
+      audio; failed results do not set the pace) times the pending weighted audio, that of the
+      covered batches of another computer included (their pending jobs read from the result
+      listing in R2: the run's lease lists them, so its worker does them too). Before that,
       the launch estimate's runtime factors without the margin (per pending job and pass:
       audio × 0.2 + 60 s), plus the covered batches of another computer (`unknown_runtime_s`,
       the same factors over their launch-scope jobs, kept at the launch);
@@ -2186,13 +2252,18 @@ database):
       kept), and once the run is final (`update_run` clears it, with `estimated_finish_at`,
       whenever a run becomes final, so a cancel or a stop clears it too; `progress_fraction`
       is kept).
-    - Another computer's covered batches count only until the pace is measured; after that
-      they are not followed (their jobs are not in this database; follow-up in M6.13).
+    - Another computer's covered batches count in the remaining time only (their audio is not
+      in `progress_fraction`): by `unknown_runtime_s` until the pace is measured, then by their
+      pending jobs in R2, so the remaining time does not drop when the first file is done.
+      "Another computer's" is as at the launch: the run payload keeps the covered batches this
+      database knew then (`known_batch_ids`), so a batch adopted during the run stays counted
+      from R2 and the progress does not jump (a run launched before the field: the covered
+      batches the database has).
   - `estimated_finish_at`: the refresh time (`refreshed_at`) plus `remaining_estimate_s` (UTC),
     null when the estimate is. All three are as of the refresh and never extrapolate against
     now; the clock is the injected one, so the parity goldens are stable.
   - The GUI polls `refresh_status` every 300 s (`REFRESH_INTERVAL_S`, M6.6) while a run is not final, or while
-    `awaiting_results` (§3.9, from M6.13) says so (the user can refresh by hand) and counts down to `estimated_finish_at` every second in between; a countdown
+    `awaiting_results` (§3.9) says so (the user can refresh by hand) and counts down to `estimated_finish_at` every second in between; a countdown
     that reaches 0 before the run is final shows "finishing" and never goes negative; each
     refresh replaces the target. The GUI computes no estimate; the CLI JSON has the same
     fields. The deadline stop still works with the 5-minute poll: it happens at the first
@@ -2222,7 +2293,11 @@ directories, the settings store, the locks and the lazily opened database.
   `run_progress` (M6.12: adds `weighted_known_duration_s`, `unknown_runtime_s`,
   `transcribing_since`, `progress_fraction`, `remaining_estimate_s`, `estimated_finish_at` to run
   payloads and `result_run_id`, `result_started_at`, `result_finished_at` to job payloads as
-  null). Every change
+  null) and `shared_bucket` (M6.13: drops `manifest_held`, adds the column `removed_from_cloud`
+  (false), the batch payload key `adopted` as null, the run payload key `known_batch_ids` as
+  null, the table `known_leases`: the live run leases the last refresh read, `state/leases.py`,
+  §3.9 "Run scope", and the table `pending_cleanups`, §3.3 "Unknown batch"). The data dir also holds
+  the file `installation_id` (§3.9 "Downloading twice"). Every change
   is a new revision, including any change of a stored payload's shape (a field added, removed,
   renamed or retyped, a literal value dropped; the payload models forbid unknown fields, so an
   older app could not read a payload with an added field, and the revision makes it refuse the
@@ -2252,12 +2327,12 @@ directories, the settings store, the locks and the lazily opened database.
   cloud setup) are served, so the CLI works while the GUI is open.
 - **Batch locks** (in-process, one per batch): every request that changes a batch takes its
   lock; it is never waited for: a held lock gives `batch_busy`. Work that skips a busy batch
-  instead of failing (`publish_held_manifests`) uses `try_batch`, which yields whether the
-  lock was taken (replaced from M6.13 by §3.9 "Run scope").
-- **Runs lock** (in-process, one): taken by the requests that launch, follow or clean up runs
-  and by the manifest steps; waited for at most `RUNS_LOCK_WAIT_S` (30 s, checking the cancel
+  instead of failing (`refresh_status` checking the `ready` batches) uses `try_batch`, which
+  yields whether the lock was taken.
+- **Runs lock** (in-process, one): taken by the requests that launch, follow or clean up runs,
+  by the cleanups and by the withdrawals of a leftover manifest; waited for at most `RUNS_LOCK_WAIT_S` (30 s, checking the cancel
   token), then `runs_busy` (re-sending resumes). The registry records the holding thread, so
-  code that must run under it (the activity check, `publish_held_manifests` (replaced from M6.13 by §3.9 "Run scope")) checks
+  code that must run under it (the activity check, a withdrawal) checks
   `holds_runs` and raises `LockOrderError` otherwise.
 - **Lock order** is runs → batch → database transaction (innermost). A request holding batch
   locks takes the runs lock only through the bounded wait, so no two requests can wait on each
@@ -2265,7 +2340,7 @@ directories, the settings store, the locks and the lazily opened database.
   the runs lock, or for a second session, while the thread has a session open raises
   `LockOrderError` (a programming error, so `internal_error`).
 - **Phase changes** are compare-and-set (`compare_and_set_phase`: one `UPDATE … WHERE phase =
-  :expected` plus optional conditions such as `manifest_held`): no row changed gives
+  :expected` plus optional conditions): no row changed gives
   `phase_conflict` (or `batch_not_found`), and the error rolls back the request's whole
   transaction, so a request that lost a race changes nothing. A batch row the session already
   loaded is expired after the change, so it reads the new phase.
@@ -2310,168 +2385,199 @@ directories, the settings store, the locks and the lazily opened database.
 ### 3.9 Several installations on one bucket
 
 Requirements "Runpod control" (Q28): installations on several computers share one bucket, and
-not all of them hold the Runpod key. Planned in `plans/m6.md` (M6.13 and the GUI parts named
-there). The answers it rests on are Q28, Q35, A21 and A22.
+not all of them hold the Runpod key. Built in M6.13 (`plans/m6.md`). The answers it rests on are
+Q28, Q35, A21 and A22.
 
 - **Roles.** Every installation needs the four R2 credentials; the Runpod key is optional.
   - An installation without it (R2-only) composes, reviews, uploads, checks for results,
     downloads and cleans up. Cloud setup, Start transcription, Cancel and Stop, and the cloud
     machines list need the key; the GUI shows them as unavailable with the reason (another
     computer with a Runpod key starts transcription for every uploaded job).
-  - Today: the credential store and `credentials_status` already treat each credential on its
-    own, `check_credentials` reports Runpod `missing` without failing, and `setup_cloud`,
-    `launch_worker`, `cancel_worker`, `reconcile_cloud`, `terminate_pod` and
-    `cancel_queued_pod` rightly need the key. But the upload's manifest step, `cleanup_cloud`
-    and the withdrawal of a leftover manifest open the cloud through `runs/cloud.py`
-    `open_cloud`, which reads all five credentials (the activity check fails closed without
-    the Runpod lists), and `refresh_status` reads the Runpod key up front. So an R2-only
-    installation can neither publish an upload, nor clean up, nor see its results.
-  - Needed: these open the Runpod client only when a key is set; the manifest step needs no
-    check, and the per-batch lease check of cleanup and the withdrawal works from R2 alone
-    ("Run scope" below). `refresh_status` without a key: steps 1 and 2 are skipped (a local run
-    left open, the key removed later, gets `credentials_missing` as its `stop_error`); step 3
-    runs; collection (step 4) is put off, as it already is when the Runpod lists cannot be read
-    (`runs/monitor.py` `_collect`); step 5 goes away with the held manifests ("Run scope").
+  - The credential store and `credentials_status` treat each credential on its own,
+    `check_credentials` reports Runpod `missing` without failing, and `setup_cloud`,
+    `plan_launch`, `launch_worker`, `cancel_worker`, `reconcile_cloud`, `terminate_pod` and
+    `cancel_queued_pod` need the key.
+  - `run_upload`, `create_retry_batch`, `cleanup_cloud`, `exclude_items` and the re-review open
+    R2 alone (`runs/cloud.py` `open_store`): the manifest step needs no check, and cleanup and
+    the withdrawal of a leftover manifest use the per-batch lease check ("Run scope" below).
+  - `refresh_status` opens the Runpod client only when a key is set (`runpod_key_set`).
+    Without one, steps 1 and 2 are skipped and each local run left open records
+    `credentials_missing` as its `stop_error`; step 3 runs (results and the live leases);
+    collection (step 4) is put off, as when the Runpod lists cannot be read.
 - **Run scope** (A21, decided: option 2; replaces the held manifests and the activity check
-  before publishing from M6.13; the code still has them today).
-  - Lease: the launching desktop writes `runs/<run_id>/launch.json` (desktop-written; the
+  before publishing).
+  - Lease: the launching desktop writes `runs/<run_id>/launch.json` (contract `RunLease`: the
     covered batch ids and the pod name deadline) after committing the run row and before the
-    single `POST /v2/pods` (§3.7 launch). A failed lease write makes the run `launch_failed`
-    with nothing created. The worker (§5.3) processes only the batches listed there; without
-    the file it processes nothing, reports a failed status and its pod is terminated. A listed
-    batch whose manifest has disappeared (a cleanup between the lease and the start) is
-    skipped, not a failure. What a run does not list is never processed by it (nor its
-    `_done.json` or backups restored), whatever any computer publishes later.
+    single `POST /v2/pods` (`runs/starting.py`). A failed lease write makes the run
+    `launch_failed` with nothing created. Two computers with a key can pass their activity
+    checks at the same moment, so after writing its lease the launch lists the leases again: a
+    lease of another run written less than `LAUNCH_SETTLE_S` + `HEARTBEAT_MARGIN_S` ago (`concurrent_leases`) makes
+    the run `launch_failed` with `run_active` before the POST (both may back off; Start again
+    then works for one of them). The worker (§5.3) processes only the batches listed
+    there; without a readable lease it processes nothing, reports a failed status and its entry
+    ends the pod. A listed batch whose manifest has disappeared (a cleanup between the lease
+    and the start) is skipped, not a failure. What a run does not list is never processed by it
+    (nor its `_done.json` written or its backups restored), whatever any computer publishes
+    later.
   - Publishing: a manifest is written as soon as an upload is verified, on any installation,
-    without an activity check. `manifest_held` and `publish_held_manifests` are removed (a new
-    Alembic revision drops the flag; a batch still held at the upgrade stays `uploading` and is
-    published when its upload is resumed with `run_upload`).
-  - Live lease: a lease counts until its deadline, and no longer once the run's `status.json`
-    is final. Every lease is bounded by its R2 `LastModified` + `LEASE_MAX_SPAN_S` (the largest
-    possible span: 24 h wait + 24 h `MAX_RUNTIME_S` + 10 min + `HEARTBEAT_MARGIN_S`); a
-    readable deadline is capped at that bound, an unreadable lease inside it counts as live and
-    lists every batch, and an older lease never counts.
-  - Lease removal: every transition of a run to a final status whose pod is verified gone or
-    never existed deletes its `launch.json`, best effort, with collection (which deletes all of
-    `runs/<run_id>/`) as the backstop. The paths: `cancel_worker`, `terminate_pod` and
-    `cancel_queued_pod` when they make the run final; the deadline stop; a pod gone in
-    `refresh_status`; the launch's own `launch_failed` (`runs/creating.py`: POST refused, or
-    cancelled before sending); `resolve_launching` → `launch_failed`, `cancelled` or `failed`
-    from a queued-pod status; the launch lookup's `ended` outcome; and the queued-pod endings
-    of refresh step 1 (`CANCELLED`, `EXPIRED`, `FAILED`, `queue_ended`). An ambiguously failed
-    lease write that stored the object is covered by the same rule. The delete runs under the
-    runs lock, outside any transaction and only after the final status is committed; it opens
-    R2 lazily (as `LazyStore`), and an R2 or credentials failure is logged and never fails or
-    reverts a verified stop (collection or the next refresh removes the lease). The delete
-    lives in the shared run-ending helper, so every ending path gets it, `reconcile_cloud`
-    (through `resolve_launching`) included. A run that never writes `status.json` (cancelled while
-    queued, `launch_failed`, a crash before the POST) therefore does not block Start here or on
-    other computers until its deadline. A straggler that starts later finds no lease and
-    processes nothing, which is safe.
+    without an activity check (`upload/publish.py`). `manifest_held` and
+    `publish_held_manifests` are gone; the revision `shared_bucket` drops the flag, and a batch
+    still held at the upgrade stays `uploading` and is published when its upload is resumed
+    with `run_upload`.
+  - Live lease (`runs/leases.py`): a lease counts until its deadline, and no longer once the
+    run's `status.json` is final or no longer written (older than `HEARTBEAT_STALE_S` +
+    `HEARTBEAT_MARGIN_S` by its `LastModified`: a dead worker, the rule of
+    `runs/heartbeats.py`); an unreadable lease too. Every lease is bounded by its R2 `LastModified` +
+    `LEASE_MAX_SPAN_S` (the longest wait + the longest runtime + the name deadline margin +
+    `HEARTBEAT_MARGIN_S`); a readable deadline is capped at that bound, an unreadable lease
+    inside it counts and lists every batch, and an older lease never counts. Reading fails
+    closed (an R2 error is raised, never "no lease").
+  - Lease removal (`runs/lease_release.py`): every request that can end a run
+    (`launch_worker`, `cancel_worker`, `terminate_pod`, `cancel_queued_pod`, `reconcile_cloud`,
+    `refresh_status`) notes the final runs when it starts and, under the runs lock, outside any
+    transaction and after the final status is committed, deletes the lease of every run that
+    became final since (a run the request created included: the launch's own `launch_failed`).
+    A run becomes final only while its pod is verified gone or never existed (§3.7), so this
+    covers every ending path: the verified cancel and stops, the deadline stop, a pod gone in
+    refresh step 2, the queued-pod endings of step 1, `resolve_launching` and the launch lookup.
+    `refresh_status` releases after step 2, before it reads the leases in step 3. R2 is opened
+    lazily; an R2 or credentials failure is logged and never fails or reverts the request
+    (collection, which deletes all of `runs/<run_id>/`, or the lease's bound end it). An
+    ambiguously failed lease write that stored the object is covered by the same rule. So a run
+    that never writes `status.json` (cancelled while queued, `launch_failed`) does not block
+    Start here or on other computers until its deadline; a straggler that starts later finds no
+    lease and processes nothing.
   - `waits_for_current_run` (batch label, "uploaded, waits for the current run", requirements
-    Q27): only for `ready` batches, set while a live lease exists that does not list the batch.
-    It is derived from the local open run's covered batch ids plus the leases `refresh_status`
-    step 3 last read, kept in the backend's memory with the refresh time (no database change;
-    the start-up refresh fills it again), so no list request reads R2.
-  - Activity: `cleanup_cloud` and the withdrawal of a leftover manifest (§3.3) use only a
-    per-batch lease check (a live lease that lists the batch, with `status.json` finality; no
-    Runpod lists), so they work on every installation. `check_activity` (heartbeats, the
-    Runpod lists, a local open run, any live lease) serves only the launch (one run at a time;
-    another computer's live lease counts).
-  - Withdrawals: from M6.13 the launch no longer finishes pending withdrawals (with
-    `publish_held_manifests`, its `batch_busy` refusal for an unfinished one goes). The scope
-    already counts a leftover whose pending withdrawal is recorded as absent, so no lease lists
-    it; it is finished, under the runs lock and while no live lease lists the batch, by the next
-    exclusion or re-review, the manifest step, the start of `run_upload` and the extract-only
-    transition. A withdrawal holds the runs lock from its lease check through recording the
-    `PendingWithdrawal`, which the "Remaining window" (§3.3) relies on.
+    Q27): on a `ready` batch while a live run is known and none lists it
+    (`batches/run_scope.py`). Known: the local runs that are not final (their covered batch
+    ids) and the live leases `refresh_status` step 3 last read, stored in the table
+    `known_leases` (`state/leases.py`; replaced as a whole by each refresh, after R2 was read;
+    leases past their `until` by the injected clock, and leases of runs that are final here
+    since, are left out), so no list request reads R2 and
+    every frontend and process (a fresh CLI call too) gives the same label. Decision: stored
+    rather than derived from local state alone, since only R2 knows other computers' runs. An unreadable lease lists every batch, so it makes no
+    batch wait. The label is as of the last refresh; the poll keeps it current while results
+    are awaited.
+  - Activity: `cleanup_cloud` and the withdrawal of a leftover manifest (§3.3) use only the
+    per-batch lease check (`runs/leases.py` `refuse_if_leased`: a live lease that lists the
+    batch gives `run_active` with the lease as its sign; no Runpod lists), so they work on every
+    installation. `check_activity` (a local open run, the Runpod lists, heartbeats, any live
+    lease: kind `lease`) serves only the launch (one run at a time; another computer's live
+    lease counts).
+  - Withdrawals: the launch no longer finishes pending withdrawals (its `batch_busy` refusal
+    for an unfinished one is gone). The scope counts a leftover whose pending withdrawal is
+    recorded as absent, so no lease of this computer lists it; it is finished, under the runs
+    lock and while no live lease lists the batch, by the next exclusion or re-review, the start
+    of `run_upload`, the manifest step (refused with `run_active` while a lease lists the
+    batch) and the extract-only transition. A withdrawal holds the runs lock from its lease
+    check through recording the `PendingWithdrawal`, which the "Remaining window" (§3.3)
+    relies on.
   - Versions: the lease is required by the worker, yet M6.13 stays on contracts 1.1 (no major
     bump): no desktop is released before M8, and every Runpod run (M4, M7) uses the current
-    build. The M6.13 PR must not be used for a Runpod run until the new schema-1 worker image is
-    pushed: an old image ignores the lease, which breaks A21 silently (no billing risk).
-- **Known batches.** A batch counts as this database's (`known`) only when its id is in the
-  database and its manifest is recognised as this database's (`upload/leftover.py`
-  `OwnManifest`: the digest, or the same `created_at` and `scan_root`), or the batch was
-  adopted (below). Another computer's batch that happens to have the same id is unknown. This
-  applies to the launch scope (§3.7), `list_cloud_batches` and the cleanup of unknown batches.
+    build. A Runpod run of this build needs the new schema-1 worker image pushed first: an old
+    image ignores the lease, which breaks A21 silently (no billing risk).
+- **Known batches.** A batch in R2 counts as this database's (`known`) only when its id is in
+  the database and the batch was adopted (below) or its manifest is recognised as this
+  database's (`upload/leftover.py` `is_known`: the digest a pending withdrawal recorded, or the
+  same `created_at` and `scan_root`). Another computer's batch that happens to have the same id
+  is unknown. This applies to the launch scope (§3.7), `list_cloud_batches` and the cleanup: a
+  `cleanup_cloud` on an id this database knows runs its own checks and confirmations, then goes
+  to the unknown batch's path when R2 holds a readable manifest of another batch under the id
+  (no manifest, or one that does not read, keeps it this database's).
 - **The start** (an installation with the key). `plan_launch` lists every manifest without
   `_done.json`, the unknown ones separately (id, files, audio length), counts them in
   `MAX_RUNTIME_S` and the cost estimate, and each can be deleted from the cloud with one
-  confirmation (`cleanup_cloud` on an unknown batch, §3.3). Built in M5; the GUI shows it in
-  M6.6 and M6.10.
+  confirmation (`cleanup_cloud` on an unknown batch, §3.3). The run's lease lists all of them.
 - **Results poll.** `refresh_status` step 3 checks `_done.json` and the results of every
-  `ready` batch, whoever started the run, so the uploader places the subtitles (next to the
-  originals included) as for a run it started. Its response says whether results are still
-  awaited (`awaiting_results`: some `ready` batch that was not removed from the cloud); the GUI
+  followed `ready` batch, whoever started the run, so the uploader places the subtitles (next
+  to the originals included) as for a run it started. Its response says whether results are
+  still awaited (`awaiting_results`: some `ready` batch not removed from the cloud); the GUI
   polls every 300 s while that or an open run says so, with or without the Runpod key, and on
   "Refresh now". The GUI does not derive the condition itself.
 - **A batch removed from the cloud by another computer.** Step 3 looks for `_done.json` first;
-  a local `ready` batch with neither `_done.json` nor its manifest in R2, although this
-  database did not clean it up, is marked `removed_from_cloud` (the batch label of that code,
-  "removed from the cloud by another computer"). Its stage is `done`, its `actions` row allows only hiding (and
-  placing extracted subtitles), `set_batch_hidden` accepts it, it no longer counts for
-  `awaiting_results`, and its history stays.
+  a `ready` batch with neither `_done.json` nor its manifest in R2 (this database's own cleanup
+  moves a batch to `cleaned` first) is marked by the column `removed_from_cloud`
+  (`runs/ready_batches.py`) and shows the batch label of that code ("removed from the cloud by
+  another computer"). Its stage is `done`; its actions allow only hiding (`hide_batch`,
+  accepted by `set_batch_hidden`) and placing extracted subtitles (the downloads plan only its
+  extract jobs, as for `cleaned`); `cleanup_cloud` refuses it (`batch_removed_from_cloud`). It
+  no longer counts for `awaiting_results`, is no longer checked by the poll, and its history
+  stays. A HEAD in a bucket that does not exist also finds nothing, so before the first mark of
+  a refresh the bucket is listed once (`check_access`): a missing bucket (a mistyped name) is
+  the refresh's R2 error, never a removal. The mark can be undone: `refresh_status` with
+  `recheck` (the GUI sets it at start-up and on "Refresh now") first HEADs the marked
+  batches again, and one whose manifest or `_done.json` is back is followed again. So another
+  existing bucket of the account still marks every `ready` batch removed, but switching back
+  and refreshing restores them; the same covers a batch whose uploader withdrew and published
+  its manifest again while this computer refreshed.
 - **Download of another installation's job.**
-  - `list_cloud_batches` (new; R2 only): every manifest in R2 with its id, `known`, file count,
-    audio length, and its state (waiting, transcribing with the results done so far,
-    transcribed).
-  - `adopt_cloud_batch` (new; one confirmation): refuses an id this database already uses
-    (`batch_exists`), reads the manifest (`reading.read_manifest`) and records the batch in the
-    local history, labelled as another computer's (`adopted`), with the manifest's jobs, `scan_root`,
-    `path_flavor` and each item's `original_path` as stored. From then on it is followed by
-    `refresh_status` and downloaded like any batch, again any number of times (Q25).
+  - `list_cloud_batches` (`batches/cloud_jobs.py`; R2 only): every manifest in R2 that reads,
+    with its id, `known`, file count, job count, audio length (each file's first audio object),
+    the jobs with a result, and its state (`waiting`: no result; `transcribing`: some results,
+    no `_done.json`; `transcribed`: `_done.json`).
+  - `adopt_cloud_batch` (`batches/adoption.py`, `adopted_rows.py`; one confirmation, code
+    `adopt_cloud_batch`): refuses an id this database already uses (`batch_exists`), reads the
+    manifest (`reading.read_manifest`: `batch_not_found`, `manifest_unreadable`) and records the
+    batch `ready`, created when the manifest was, with the payload's `adopted`
+    (`AdoptedBatch`: the manifest's `uploaded_by`), the summary's `adopted` true (the field a
+    frontend reads, e.g. to pre-select `mirror`) and the label `adopted`; its items `uploaded`
+    with each `original_path` as stored and the relative path, its jobs pending, its audio
+    objects recorded as verified (the remaining time reads their durations). From then on it is
+    followed by `refresh_status` and downloaded like any batch, again any number of times (Q25).
   - The manifest is untrusted input. Each item's path below the scan root is split with the
-    manifest's `path_flavor`; adoption refuses the manifest (`manifest_path_invalid`) when a
-    part is empty, `.` or `..`, contains `/`, `\` or NUL, or reads as a drive or an anchor in
-    either the manifest's flavour or this computer's (a POSIX part `..\..\x` or `C:evil` is
-    refused). From M6.13 the placement planner splits sources and the scan root with the
-    batch's own `path_flavor` (a new planner input) and only targets with the target rules;
-    today it parses both with the target rules (`TargetNames.pure`) and checks only that a
-    source is absolute and has no `..`. For any batch it then refuses a source whose relative
-    part below the scan root is empty, `.` or `..`, or holds a separator, drive or anchor of
-    that flavour (`source_path_invalid`); every other character of a folder or file name it
-    copies into a target (`mirror`, `flat_with_folders`) goes through §3.5's name rules, which
-    make it valid on the target OS. The contract's own check
-    (`classes.py` `Manifest._check_paths`, a lexical `is_relative_to`, which lets `..` through)
-    also refuses `.` and `..` parts in `scan_root` and `original_path` (an M6.13 code item;
-    the desktop never writes such paths, so no schema version changes).
-  - Placement: `mirror` into a chosen folder (the default for such a batch; the folder takes
-    the place of the scan root, so the original relative folders and file names are kept),
-    `flat`, `flat_with_folders` and custom work from the relative paths; `next_to_media` is
-    refused (`no_local_sources`), since the originals are on another computer. In the custom
-    plan, `source_path` is the manifest's `original_path` and `original_folder` its parent, in
-    the uploader's path flavour; they identify the file and are not checked on this computer.
-  - Not available for such a batch: retry (the uploader decides), the "audio" cleanup, and
-    subtitles extracted from inside video files (they are made and kept only on the uploading
-    computer and never reach the cloud, §3.3); its download plan says so.
+    manifest's `path_flavor`; adoption refuses the manifest (`manifest_path_invalid`, naming the
+    item) when a part is no single name on every OS (`placement/naming.py` `unsafe_part`:
+    empty, `.` or `..`, a NUL, `/` or `\`, or a drive or an anchor; a POSIX part `..\..\x` or
+    `C:evil` is refused). The placement planner splits sources and the scan root with the
+    batch's own `path_flavor` (`TargetNames.source_flavor`) and only targets with the target
+    rules; for any batch it refuses a source whose relative part below the scan root is empty,
+    `.` or `..`, or holds a separator, drive or anchor of that flavour (`source_path_invalid`);
+    every other character of a folder or file name it copies into a target (`mirror`,
+    `flat_with_folders`) goes through §3.5's name rules, which make it valid on the target OS.
+    The contract's own check (`Manifest._check_paths`) refuses `.` and `..` parts in `scan_root`
+    and every `original_path`, split as written in the manifest's flavour (no schema version
+    change: the desktop never wrote such paths).
+  - Placement: `mirror` into a chosen folder (the folder takes the place of the scan root, so
+    the original relative folders and file names are kept), `flat`, `flat_with_folders` and
+    custom work from the relative paths; `next_to_media` is refused (plan error
+    `no_local_sources`), since the originals are on another computer. In the custom plan,
+    `source_path` is the manifest's `original_path` and `original_folder` its parent in the
+    uploader's path flavour; they identify the file and are not checked on this computer.
+  - Not available for such a batch: retry (the uploader decides) and the "audio" cleanup
+    (`adopted_batch`, and not in its `actions`); it has no subtitles extracted from inside video
+    files (they are made and kept only on the uploading computer, §3.3).
   - The manifest keeps each file's absolute original path, as the requirements ("UI app:
     conversion and upload") ask, so every bucket user can read the uploader's paths (A22,
     decided: kept; no contract change). Other computers derive the relative paths locally and
-    refuse unsafe parts (above); leftover recognition stays on `created_at` and `scan_root`.
+    refuse unsafe parts (above).
 - **Downloading twice.** Results leave R2 only through `cleanup_cloud` (manual; `everything`
   asks a second time while this database has a job without a placement outcome; an unknown
   batch's `everything` asks once, with no download check). Nothing deletes results on its own,
   so both installations can download in any order and as often as they like. The remaining
   risk is a manual "everything" on one computer before the other one downloaded (Q35):
-  - Installation id: a random id (a ULID, not hardware-based) from a dedicated injected port
-    (not the shared id source, so goldens and M6.11's id-draw matching do not shift), created
-    on first use under the writer lock and written atomically (temp file, fsync, then
-    `os.replace`) as the file `installation_id` in the data dir; the same write replaces an
-    invalid file with a new id; the only cost is the stronger warning
-    below for this installation's earlier uploads. The architect
-    asked for a machine ID; an id per installation identifies the uploader without hardware
-    access, and two installations on one machine are distinct uploaders.
-  - Every upload writes it into the manifest as the optional field `uploaded_by` (the worker
-    ignores it, and older readers ignore unknown fields). M6.13's two contract additions, the
-    run lease and `uploaded_by`, share one bump to 1.1; `SCHEMA_VERSION` is one constant, so the
-    worker's results are written as 1.1 too.
-  - The "delete everything" confirmation (its own confirmation code) is the plain one when this
-    installation uploaded the job: a known batch that was not adopted (the database proves it,
-    also for a repeated cleanup after the manifest is gone), or an adopted batch whose
-    `uploaded_by`, stored at adoption, equals this installation's id. Otherwise (an adopted
-    batch of another computer or without the field, or an unknown batch, whose manifest
-    `cleanup/unknown.py` already reads) it adds: "Another computer uploaded this job; it may
-    still need to download the subtitles." It is a warning, never a refusal.
+  - Installation id (`state/installation.py`): a random ULID, not hardware-based, from its own
+    injected port (`Ports.installation`, not the shared id source, so goldens and M6.11's
+    id-draw matching do not shift), kept as the file `installation_id` in the data dir. It is
+    created on first use and written atomically (a temporary file, fsync, then `os.replace`); a
+    file that does not hold a valid id is replaced the same way (the only cost: this
+    installation's earlier uploads then get the stronger warning). The requests that use it
+    have opened the database, so the process holds the writer lock; a lock in the object
+    serialises its threads. The architect asked for a machine ID; an id per installation
+    identifies the uploader without hardware access, and two installations on one machine are
+    distinct uploaders.
+  - Every manifest the manifest step builds names it as `uploaded_by` (the worker ignores it,
+    and older readers ignore unknown fields). The run lease and `uploaded_by` share one bump to
+    1.1; `SCHEMA_VERSION` is one constant, so the worker's results are written as 1.1 too.
+  - The "delete everything" confirmation has two forms (two codes). The plain one
+    (`cleanup_everything`, `cleanup_unknown_batch`) when this installation uploaded the job: a
+    known batch that was not adopted (the database proves it, also for a repeated cleanup
+    after the manifest is gone), an adopted batch whose `uploaded_by`, stored at adoption, is
+    this installation's id, or an unknown batch whose manifest names it. Otherwise (an adopted
+    batch of another computer or without the field, an unknown batch of another computer or
+    without the field) the stronger form (`cleanup_everything_uploaded_elsewhere`,
+    `cleanup_unknown_batch_uploaded_elsewhere`) adds: "Another computer uploaded this job; it
+    may still need to download the subtitles." It is a warning, never a refusal; the GUI shows
+    it emphasised (`gui/cleanup/constants.py` `WARNING_CONFIRMATIONS`).
 - **Batch ids.** Ids are unique only per database; an upload already checks that nothing exists
   under its id in R2 before its first object (§3.3 upload), so two computers creating a batch in
   the same second do not mix.
@@ -2485,16 +2591,18 @@ batch_metadata/<batch_id>.json            manifest, written by desktop only, las
 <batch_id>/results/<ulid>.<lang>.json     job result (= done marker): status ok|no_speech|failed, error, timings,
                                           engine settings, aligned
 <batch_id>/_done.json                     batch summary, written by worker after the last job
+<batch_id>/_deleting.json                 marker of a desktop's cleanup of a batch it does not know: written first, deleted last
 runs/<run_id>/status.json                 heartbeat + progress, overwritten by the worker every ~30 s
 runs/<run_id>/worker.log                  worker log, uploaded periodically and before terminate
-runs/<run_id>/launch.json                 planned for 1.1 (M6.13): the run's lease, written by the launching desktop
+runs/<run_id>/launch.json                 the run's lease (1.1): the batches it may process, written by the launching desktop
 ```
 
 - Single-writer rule: every object has exactly one writer (desktop or worker), so no
-  read-modify-write races exist. `runs/<run_id>/` is worker-written except `launch.json`
-  (planned, M6.13), which only the launching desktop writes; collection deletes both.
-- Versioning of the planned 1.1 additions (the lease, `uploaded_by`): no major bump; §3.9
-  "Run scope" gives the reason.
+  read-modify-write races exist. `runs/<run_id>/` is worker-written except `launch.json`, which
+  only the launching desktop writes (and deletes once the run is final); collection deletes
+  both.
+- Versioning of the 1.1 additions (the lease, `uploaded_by`): no major bump; §3.9 "Run scope"
+  gives the reason.
 - Result write order: `.srt` first, then `.json` with `If-None-Match: *` (R2 conditional PUT),
   so the JSON is the "done" marker and an existing result is never overwritten, even if two
   workers overlapped.
@@ -2507,13 +2615,17 @@ Manifest: `schema_version`, `batch_id`, `created_at`, `scan_root` (+ `path_flavo
 `windows|posix`), `items[]`. Item: `item_id` (ULID), `original_path` (absolute), `source_size`,
 `source_mtime_ns`, `media_kind`, `audio[]` (`object_key`, `track_index` (null for an audio
 file), `extension`, `codec`, `duration_s`, `size_bytes`), `jobs[]` (`language`, `mode`,
-`audio_object_key`). Planned for 1.1 (M6.13, Q35): the optional `uploaded_by`, the uploading
-installation's id (§3.9).
+`audio_object_key`); from 1.1 the optional `uploaded_by`, the uploading installation's id
+(§3.9, Q35). `scan_root` and every `original_path` have no `.` or `..` part, split as written in
+the manifest's flavour.
+
+Run lease (1.1, `RunLease`): `schema_version`, `run_id`, `batch_ids` (at least one, each once),
+`deadline_at` (the pod name deadline).
 
 Implementation: `packages/contracts` (`classes.py` models, `layout.py` key builders/parsers,
-`reading.py`). Readers always go through `reading.read_*(key, body)`: it refuses another major
-version before validation (`UnsupportedSchemaError`) and checks that the object's batch / item /
-language / run id matches its key. Stored objects accept any well-formed language code (forward
+`reading.py`). Readers always go through `reading.read_*(key, body)` (`read_run_lease` for the
+lease): it refuses another major version before validation (`UnsupportedSchemaError`) and checks
+that the object's batch / item / language / run id matches its key. Stored objects accept any well-formed language code (forward
 compatibility); the Whisper language set is enforced where the desktop app builds requests.
 
 Paths are stored as text exactly as the OS reported them (no case or Unicode normalisation),
@@ -2641,9 +2753,11 @@ pods-only key is passed as a Runpod secret.
 
 ### 5.3 Pipeline
 
-- Discover: list `batch_metadata/`, load manifests, skip batches with `_done.json`. From M6.13
-  (A21, §3.9 "Run scope"): only the batches listed in `runs/<run_id>/launch.json`; nothing
-  without that file; a listed batch whose manifest is gone is skipped.
+- Discover (A21, §3.9 "Run scope"): read `runs/<run_id>/launch.json` and load the manifests of
+  the batches it lists, skipping those with `_done.json` (`pipeline/plan.py`). Without a
+  readable lease the run processes nothing and fails (`RunLeaseError`; the entry then ends the
+  pod); a listed batch whose manifest is gone is skipped. Backups are restored only for the
+  listed batches' pending jobs.
 - Order: all pending jobs of the run are sorted by language, then batch, then item, so the
   per-language alignment model is loaded once per language (the previous one is released and
   the CUDA cache emptied first); the Whisper model stays loaded.
@@ -3029,7 +3143,7 @@ next step are in `docs/ai/status.md`.
 - **M5** (built; planned in `plans/m5.md`): Desktop backend: façade,
   discovery and selection, batches, conversion and resumable R2 upload, credentials, worker
   launch and monitoring, download and placement, retry and cloud cleanup (§3.1-3.7).
-- **M6** (planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
+- **M6** (built; planned in `plans/m6.md`): Desktop frontends: GUI and CLI over the same requests
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four

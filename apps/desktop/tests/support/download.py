@@ -96,7 +96,6 @@ def seed_download_batch(
             BatchRow(
                 batch_id=FIRST_BATCH_ID,
                 phase=phase,
-                manifest_held=False,
                 audio_deleted=False,
                 hidden=False,
                 created_at=FIXED_NOW,

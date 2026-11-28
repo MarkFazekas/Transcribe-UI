@@ -5,13 +5,13 @@ import math
 import struct
 import threading
 import wave
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from typing import TYPE_CHECKING, override
 
 from transcribe_contracts import layout
-from transcribe_contracts.classes import AudioObject, Manifest, ManifestItem, TranscribeJob
+from transcribe_contracts.classes import AudioObject, Manifest, ManifestItem, RunLease, TranscribeJob
 
 if TYPE_CHECKING:
     from types_boto3_s3.client import S3Client
@@ -113,8 +113,8 @@ def _sample(phase: float) -> int:
     return int(AMPLITUDE * math.sin(phase))
 
 
-def upload_batch(client: "S3Client") -> None:
-    """Create the bucket and upload one audio file and its manifest (last)."""
+def upload_batch(client: "S3Client", run_id: str) -> None:
+    """Create the bucket, upload one audio file and its manifest (last), and the run's lease listing it."""
     audio = tone_wav()
     key = layout.audio_key(BATCH_ID, ITEM_ID, "wav", None)
     audio_object = AudioObject(
@@ -145,3 +145,7 @@ def upload_batch(client: "S3Client") -> None:
     client.put_object(Bucket=BUCKET, Key=key, Body=audio)
     body = manifest.model_dump_json().encode()
     client.put_object(Bucket=BUCKET, Key=layout.manifest_key(BATCH_ID), Body=body)
+    deadline = datetime.now(UTC) + timedelta(days=1)
+    lease = RunLease(run_id=run_id, batch_ids=(BATCH_ID,), deadline_at=deadline)
+    lease_body = lease.model_dump_json().encode()
+    client.put_object(Bucket=BUCKET, Key=layout.run_lease_key(run_id), Body=lease_body)

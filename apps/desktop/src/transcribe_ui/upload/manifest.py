@@ -28,8 +28,8 @@ from transcribe_ui.upload.payloads import AudioObjectPayload
 type ItemAudio = Mapping[int | None, AudioObject]
 
 
-def build_manifest(session: Session, batch_id: str) -> Manifest:
-    """Return the batch's manifest as the database describes it now.
+def build_manifest(session: Session, batch_id: str, *, uploaded_by: str | None) -> Manifest:
+    """Return the batch's manifest as the database describes it now, naming the uploading installation.
 
     Raises:
         BatchNotFoundError: If there is no such batch.
@@ -51,6 +51,7 @@ def build_manifest(session: Session, batch_id: str) -> Manifest:
         scan_root=payload.scan_root,
         path_flavor=payload.path_flavor,
         items=tuple(entries),
+        uploaded_by=uploaded_by,
     )
 
 
@@ -72,13 +73,6 @@ def withdrawing_batch_ids(session: Session) -> list[str]:
     """Return the ids of the `uploading` batches with a pending withdrawal of a leftover manifest, sorted."""
     pending = (BatchRow.phase == "uploading", BatchRow.pending_withdrawal.is_not(None))
     query = select(BatchRow.batch_id).where(*pending)
-    return list(session.scalars(query.order_by(BatchRow.batch_id)))
-
-
-def held_batch_ids(session: Session) -> list[str]:
-    """Return the ids of the batches whose manifest is held back (`uploading` with `manifest_held`), sorted."""
-    is_held = (BatchRow.phase == "uploading", BatchRow.manifest_held.is_(True))
-    query = select(BatchRow.batch_id).where(*is_held)
     return list(session.scalars(query.order_by(BatchRow.batch_id)))
 
 

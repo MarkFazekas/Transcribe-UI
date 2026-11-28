@@ -14,7 +14,7 @@ from support.batches import FIRST_BATCH_ID
 from support.credentials import TEST_BUCKET
 from support.launch import launch_run, set_up_cloud
 from support.monitor import job_statuses, refresh, write_done, write_result
-from support.runs import READY, RunsWorld, batch_state, seed_uploaded
+from support.runs import READY, RunsWorld, batch_state, seed_ready
 from support.storage import store_client
 from transcribe_contracts.layout import result_json_key, results_prefix
 from transcribe_ui.batches.payloads import JobPayload
@@ -32,9 +32,9 @@ from transcribe_ui.storage.r2 import ObjectInfo, R2ObjectStore
 FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
 PODCAST_ID = "01JDZZZZZZZZZZZZZZZZZZZZ02"
 # Batch state of a batch that has its `_done.json`.
-TRANSCRIBED = ("transcribed", False, True)
+TRANSCRIBED = ("transcribed", True)
 # Batch state of a batch with `_done.json` whose every job failed (none blocks `downloaded`).
-DOWNLOADED = ("downloaded", False, True)
+DOWNLOADED = ("downloaded", True)
 
 
 class WorkerFinishingStore(R2ObjectStore):
@@ -57,9 +57,9 @@ class WorkerFinishingStore(R2ObjectStore):
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

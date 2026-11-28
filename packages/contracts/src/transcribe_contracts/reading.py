@@ -5,7 +5,7 @@ from typing import Any, NoReturn
 
 from pydantic import BaseModel, ValidationError
 
-from transcribe_contracts.classes import BatchSummary, JobResult, Manifest, RunStatus, schema_major
+from transcribe_contracts.classes import BatchSummary, JobResult, Manifest, RunLease, RunStatus, schema_major
 from transcribe_contracts.constants import JSON_SUFFIX, SCHEMA_MAJOR
 from transcribe_contracts.errors import ContractError, UnsupportedSchemaError
 from transcribe_contracts.layout import (
@@ -13,6 +13,7 @@ from transcribe_contracts.layout import (
     done_key,
     parse_result_key,
     result_json_key,
+    run_lease_key,
     run_status_key,
 )
 
@@ -69,6 +70,19 @@ def read_run_status(key: str, body: bytes | str) -> RunStatus:
     if key != run_status_key(status.run_id):
         _mismatch(key, status.run_id)
     return status
+
+
+def read_run_lease(key: str, body: bytes | str) -> RunLease:
+    """Read `runs/<run_id>/launch.json`; its run id must match the key.
+
+    Raises:
+        UnsupportedSchemaError: The object has another schema major version.
+        ContractError: The object is invalid or does not match its key.
+    """
+    lease = _validate(RunLease, body)
+    if key != run_lease_key(lease.run_id):
+        _mismatch(key, lease.run_id)
+    return lease
 
 
 def _validate[ModelT: BaseModel](model: type[ModelT], body: bytes | str) -> ModelT:

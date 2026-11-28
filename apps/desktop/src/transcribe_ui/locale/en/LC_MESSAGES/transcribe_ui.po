@@ -75,6 +75,11 @@ msgid ""
 "cloud instead."
 msgstr ""
 
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid "A job with the id {batch_id} is already on this computer."
+msgstr ""
+
 #: src/transcribe_ui/i18n/credential_texts.py
 #, python-brace-format
 msgid ""
@@ -120,6 +125,17 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Add the cloud job {batch_id} ({files} file), uploaded from another "
+"computer, to this computer's jobs?"
+msgid_plural ""
+"Add the cloud job {batch_id} ({files} files), uploaded from another "
+"computer, to this computer's jobs?"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/cloud/start_view.py
 msgid "Advanced"
 msgstr ""
@@ -146,12 +162,26 @@ msgid ""
 "and its description."
 msgstr ""
 
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"All of the job's data will be deleted from the cloud: audio, subtitles "
+"and its description. Another computer uploaded this job; it may still "
+"need to download the subtitles."
+msgstr ""
+
 #: src/transcribe_ui/gui/download/panels.py
 msgid "Also place empty subtitles (no speech was found)"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "An audio file is uploaded as it is; it takes no track choice."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"An interrupted cleanup left data of the job {batch_id} in the cloud; the "
+"rest will be deleted."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -167,6 +197,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Another computer"
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "Another computer has already deleted this job from the cloud."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -186,6 +220,7 @@ msgid "Apply or discard your changes before changing the filters or uploading."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_table.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr ""
@@ -608,6 +643,10 @@ msgstr ""
 msgid "Download subtitles of job {batch_id}"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Download..."
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Downloaded"
 msgstr ""
@@ -708,8 +747,9 @@ msgstr ""
 msgid "File types"
 msgstr ""
 
-#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_table.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr ""
 
@@ -739,6 +779,15 @@ msgstr ""
 #: src/transcribe_ui/gui/texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Finished"
 msgstr ""
+
+#: src/transcribe_ui/gui/cloud/poll.py
+#, python-brace-format
+msgid "Finished an interrupted cloud cleanup of another computer's job."
+msgid_plural ""
+"Finished the interrupted cloud cleanups of {count} jobs of other "
+"computers."
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/transcribe_ui/gui/cloud/display.py
 msgid "Finishing"
@@ -845,7 +894,9 @@ msgid "JSON files (*.json)"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_table.py
+#: src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr ""
 
@@ -868,6 +919,16 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Jobs"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Jobs of other computers"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid ""
+"Jobs uploaded to the same cloud storage from another computer. Download "
+"adds one to this computer's jobs and downloads its subtitles here."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
@@ -952,6 +1013,14 @@ msgstr ""
 msgid "Log folder: {folder}"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Look in the cloud"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Looking in the cloud..."
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Machine"
 msgstr ""
@@ -965,6 +1034,10 @@ msgstr ""
 #: src/transcribe_ui/gui/selection/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Name"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/key.py
+msgid "Needs a Runpod API key on this computer."
 msgstr ""
 
 #: src/transcribe_ui/gui/review/display.py
@@ -1033,6 +1106,7 @@ msgid "Not checked yet"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/download/others_view.py
 #: src/transcribe_ui/gui/review/index.py
 msgid "Not checked yet."
 msgstr ""
@@ -1271,6 +1345,10 @@ msgstr ""
 msgid "Remove ticked files from the job"
 msgstr ""
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Removed from the cloud by another computer"
+msgstr ""
+
 #: src/transcribe_ui/gui/review/display.py
 msgid "Removed from the job"
 msgstr ""
@@ -1481,6 +1559,10 @@ msgstr ""
 msgid "See the log for what went wrong."
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Select a job in the list first."
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Selected"
 msgstr ""
@@ -1621,8 +1703,9 @@ msgid "State"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/table.py
+#: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/download/others_table.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr ""
 
@@ -1840,6 +1923,17 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/poll.py
 msgid "The cloud could not be checked; retrying at the next check."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "The cloud holds no job of another computer."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+#, python-brace-format
+msgid ""
+"The cloud job {batch_id} lists a file path that cannot be used safely on "
+"this computer, so it was not added."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/display.py
@@ -2097,6 +2191,12 @@ msgstr ""
 msgid "The job is uploading; its review waits until the upload stops."
 msgstr ""
 
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"The job was uploaded from another computer, so its media files are not on"
+" this one; choose another placement."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "The job {batch_id} does not exist."
@@ -2110,6 +2210,19 @@ msgid ""
 msgid_plural ""
 "The job {batch_id} is not known on this computer; all its data ({files} "
 "files) will be deleted from the cloud."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"file) will be deleted from the cloud. Another computer uploaded this job;"
+" it may still need to download the subtitles."
+msgid_plural ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"files) will be deleted from the cloud. Another computer uploaded this "
+"job; it may still need to download the subtitles."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -2291,6 +2404,14 @@ msgstr ""
 msgid "This computer"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/key.py
+msgid ""
+"This computer has no Runpod API key, so it cannot start or stop "
+"transcription or list the cloud machines. Another computer with a Runpod "
+"key starts the transcription of every uploaded job; this computer still "
+"uploads, checks for results and downloads the subtitles."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "This could not be read."
 msgstr ""
@@ -2309,6 +2430,14 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "This is not possible at the job's current step."
+msgstr ""
+
+#: src/transcribe_ui/i18n/error_texts.py
+msgid "This is not possible for a job uploaded from another computer."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "This job is being added to this computer's jobs."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -2374,6 +2503,7 @@ msgstr ""
 msgid "Transcribe-UI is busy in another window"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_display.py
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribed"
 msgstr ""
@@ -2384,6 +2514,11 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribing"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_display.py
+#, python-brace-format
+msgid "Transcribing: {done} of {total} done"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -2464,7 +2599,11 @@ msgid "Uploaded"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
-msgid "Uploaded; the transcription starts with the next run"
+msgid "Uploaded from another computer"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Uploaded; waits for the current cloud run"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py src/transcribe_ui/i18n/state_texts.py
@@ -2520,6 +2659,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Waiting for a machine"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_display.py
+msgid "Waiting for transcription"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/poll.py

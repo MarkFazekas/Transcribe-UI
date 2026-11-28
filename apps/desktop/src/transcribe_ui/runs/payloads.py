@@ -56,6 +56,10 @@ class RunPayload(FrozenModel):
     name_deadline: AwareDatetime
     # Batches whose manifest the run covers (the confirmed launch scope).
     covered_batch_ids: tuple[str, ...]
+    # The covered batches this database knew at the launch: their progress is followed from the
+    # database, the others' (another computer's, adopted later too) from R2, as the launch counted
+    # them. None for a run launched before it was kept: the covered batches the database has.
+    known_batch_ids: tuple[str, ...] | None = None
     # Fingerprint of the confirmed launch scope.
     fingerprint: str
     # Pending audio of the confirmed scope (seconds) and the confirmed cost estimate.

@@ -18,6 +18,7 @@ from transcribe_ui.runs.classes import ReconcileCloudRequest
 from transcribe_ui.runs.cloud import open_runpod
 from transcribe_ui.runs.entries import live_entries, needs_attention
 from transcribe_ui.runs.errors import runpod_call
+from transcribe_ui.runs.lease_release import releasing_leases
 from transcribe_ui.runs.records import open_runs, read_run, reopen_collection, run_statuses
 from transcribe_ui.runs.responses import CloudEntry, ReconcileCloudResponse, RunInfo
 from transcribe_ui.runs.settling import Listed, resolve_launching
@@ -32,7 +33,8 @@ def reconcile_cloud(_request: ReconcileCloudRequest, context: RequestContext) ->
     """
     ports = context.ports
     state = ports.state
-    with state.locks.runs(context.cancel.is_cancelled), open_runpod(context) as client:
+    runs_lock = state.locks.runs(context.cancel.is_cancelled)
+    with runs_lock, open_runpod(context) as client, releasing_leases(context):
         listed = runpod_call(lambda: Listed.read(client.pods))
         now = ports.clock.now()
         runs = _resolve_runs(state, listed, now)

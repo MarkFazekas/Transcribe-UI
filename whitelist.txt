@@ -284,6 +284,7 @@ rdwr
 readline
 readouterr
 recv
+rect
 removeprefix
 removesuffix
 repo
@@ -372,6 +373,7 @@ vads
 validator
 validators
 viewmodel
+viewport
 virama
 vkkhrdisplay
 vob

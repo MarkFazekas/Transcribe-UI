@@ -15,7 +15,8 @@ from support.runpod import Cloud
 from support.runs import JSON_TYPE
 from transcribe_contracts.classes import JobRef, JobResult, TranscriptionMode
 from transcribe_contracts.classes import JobStatus as ResultStatus
-from transcribe_contracts.layout import result_json_key, result_srt_key
+from transcribe_contracts.layout import result_json_key, result_srt_key, run_lease_key
+from transcribe_contracts.reading import read_run_lease
 from transcribe_ui.storage.r2 import R2ObjectStore
 
 # Seconds the simulated worker transcribes before the next refresh.
@@ -86,3 +87,10 @@ def finished(cloud: Cloud, store: R2ObjectStore, run_id: str, batch_id: str, job
     cloud.api.pods.records.clear()
     cloud.api.queued_pods.records.clear()
     cloud.clock.advance(timedelta(minutes=1))
+
+
+def leased_batches(store: R2ObjectStore, run_id: str) -> tuple[str, ...]:
+    """Return the batches the run's worker processes: those its lease lists, as the worker reads it (none without one)."""
+    key = run_lease_key(run_id)
+    body = store.read(key)
+    return () if body is None else read_run_lease(key, body).batch_ids

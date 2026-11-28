@@ -71,10 +71,14 @@ TEMPLATE = "template"
 
 
 def _template(tmp_path: Path) -> Path:
-    """Build the reviewed batch once (inside `moto_bucket()`); return its root, its state closed."""
+    """Build the reviewed batch once (inside `moto_bucket()`); return its root, its state closed.
+
+    Its installation id is created now, so every copy of the state uploads as the same installation.
+    """
     create_bucket(TEMPLATE)
     with upload_world(tmp_path / TEMPLATE, TEMPLATE) as world:
         review(world)
+        world.ports.installation.current()
     return tmp_path / TEMPLATE
 
 

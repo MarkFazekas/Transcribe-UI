@@ -25,7 +25,7 @@ from support.launch import (
 )
 from support.monitor import LIST_RUNS, refreshed_run, write_status
 from support.runpod_api import Failure, Record
-from support.runs import RunsWorld, seed_uploaded
+from support.runs import RunsWorld, seed_ready
 from support.stops import forget_queued_on_cancel, queued_run
 from transcribe_ui.runpod.constants import POD_TERMINATED, QUEUED_POD_EXPIRED
 from transcribe_ui.runs.constants import ERROR_STOP_UNVERIFIED
@@ -49,9 +49,9 @@ BAD_REQUEST = 400
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

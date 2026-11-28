@@ -18,27 +18,12 @@ from transcribe_ui.api.classes import ErrorResponse, NeedsConfirmation, Request,
 from transcribe_ui.api.constants import ERROR_CANCELLED
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.executor import ExclusiveChannel, Executor
-from transcribe_ui.gui.feedback import (
-    ConfirmationItem,
-    ConfirmationView,
-    Details,
-    confirmation_mismatch,
-    confirmation_view,
-    confirmed_request,
-    error_view,
-)
+from transcribe_ui.gui.feedback import confirmation_mismatch, confirmation_view, confirmed_request, error_view
 
 logger = logging.getLogger(__name__)
 
 # Called with the final answer of a request: its success, or its error.
 type Finished = Callable[[Response], None]
-
-
-def _question(response: NeedsConfirmation) -> ConfirmationView:
-    """Return the confirmation without its details table: each question names what it stops (and why it is safe)."""
-    no_details = Details((), ())
-    asked = [ConfirmationItem(question.message, no_details) for question in confirmation_view(response).confirmations]
-    return ConfirmationView(tuple(asked))
 
 
 class CloudCommands:
@@ -62,7 +47,8 @@ class CloudCommands:
     def _answered(self, key: Hashable, request: Request, on_finished: Finished, response: Response) -> None:
         if isinstance(response, NeedsConfirmation):
             confirmed = partial(self._confirmed, key, request, response, on_finished)
-            self._outlet.confirm(_question(response), confirmed)
+            # Each question names what it stops (and why it is safe).
+            self._outlet.confirm(confirmation_view(response, with_details=False), confirmed)
         elif not isinstance(response, ErrorResponse):
             on_finished(response)
         elif response.error.code != ERROR_CANCELLED:

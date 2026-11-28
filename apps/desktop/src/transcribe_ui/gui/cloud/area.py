@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from transcribe_ui.gui.cloud.key import RunpodKey
 from transcribe_ui.gui.cloud.machines import MachinesModel
 from transcribe_ui.gui.cloud.poll import CloudPoll
 from transcribe_ui.gui.cloud.ports import CloudOutlet, TimerFactory
@@ -9,6 +10,7 @@ from transcribe_ui.gui.cloud.run_actions import RunActions
 from transcribe_ui.gui.cloud.runs import RunList
 from transcribe_ui.gui.cloud.start import StartModel
 from transcribe_ui.gui.executor import Executor
+from transcribe_ui.gui.feedback import ErrorView
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,12 @@ class CloudModels:
     actions: RunActions
     machines: MachinesModel
     start: StartModel
+    # Whether a Runpod key is set: without one, start, stop and the machines list are unavailable.
+    key: RunpodKey
+
+    def machines_error(self) -> ErrorView | None:
+        """Return the machines check's error, unless no Runpod key is set (then no check applies)."""
+        return None if self.key.missing else self.machines.error
 
 
 def build_models(executor: Executor, outlet: CloudOutlet, timers: TimerFactory) -> CloudModels:
@@ -31,4 +39,4 @@ def build_models(executor: Executor, outlet: CloudOutlet, timers: TimerFactory) 
     start = StartModel(executor, outlet, actions.launched, runs.run_active)
     # Start follows whether a run is active.
     runs.subscribe(start.changed)
-    return CloudModels(runs, poll, actions, machines, start)
+    return CloudModels(runs, poll, actions, machines, start, RunpodKey(executor))

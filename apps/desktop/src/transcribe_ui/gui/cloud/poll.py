@@ -1,12 +1,19 @@
-"""The checks of the cloud: the poll while a run is not final, Refresh now, the start-up check (§3.1 "GUI").
+"""The checks of the cloud: the poll, Refresh now, the start-up check (§3.1 "GUI"; §3.9 "Results poll").
 
-Qt-free. While the run list holds a run that is not final (or right after a launch), the page
-sends `refresh_status` every `REFRESH_INTERVAL_S` on a single-flight channel: a tick is skipped
-while the previous one is queued or running, and the timer stops once the list holds only
-final runs. A check's `runs_busy`, `state_busy` or `cloud_unreachable` shows as "retrying" (the
+Qt-free. While the run list holds a run that is not final (or right after a launch), or the last
+check said that results are still awaited (`awaiting_results`, with or without a Runpod key), the
+page sends `refresh_status` every `REFRESH_INTERVAL_S` on a single-flight channel: a tick is
+skipped while the previous one is queued or running, and the timer stops once neither holds (the
+GUI does not derive the condition itself). A change of jobs elsewhere (an upload, an adoption)
+starts the timer again if it stopped, so the next tick asks the backend whether something is
+awaited now. A check's `runs_busy`, `state_busy` or `cloud_unreachable` shows as "retrying" (the
 next tick tries again), never as an error dialog; another error shows in the page. Each check
 reloads the run list (what the page shows), even a failed one, and reloads the jobs it reported.
-The timer is injected, so the poll's timing is tested without sleeping.
+Refresh now asked while a check is in flight checks once more after it, so a job added meanwhile
+is covered. The start-up check and Refresh now also look again for the jobs marked removed from
+the cloud (`recheck`, architecture §3.9): one that is back (the right bucket again, or
+published again) is followed again; the timer's checks do not, so they stay cheap. The timer is
+injected, so the poll's timing is tested without sleeping.
 """
 
 from collections.abc import Callable
@@ -21,7 +28,8 @@ from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL, CALL_QUEUED, CAL
 from transcribe_ui.gui.executor import Executor, SingleFlightChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.viewmodel import ViewModel
-from transcribe_ui.i18n.catalog import tr
+from transcribe_ui.i18n.catalog import ntr, tr
+from transcribe_ui.i18n.formats import format_number
 from transcribe_ui.runs.classes import RefreshStatusRequest
 from transcribe_ui.runs.responses import RefreshStatusResponse
 
@@ -41,8 +49,20 @@ class CloudPoll(ViewModel):
         self._timer = timer(REFRESH_INTERVAL_MS, self._timed)
         # The error of the last check (None after one that succeeded).
         self.error: ErrorView | None = None
+        # Whether the last check said that some uploaded job still waits for its results.
+        self.awaiting = False
+        # How many interrupted cleanups of other computers' jobs the last check finished (a notice).
+        self.finished_cleanups = 0
+        # Jobs changed since the last check that answered: only a check's answer may stop the poll.
+        self._owed = False
+        # Count of job changes (`start` with ids), and its value when the check in flight was sent:
+        # a check answers only for the changes made before it was sent.
+        self._changes = 0
+        self._sent_changes = 0
         # `proceed` of the start-up step waiting for the check in flight.
         self._waiting: list[Proceed] = []
+        # Refresh now was asked while a check was in flight: check again once that one answers.
+        self._again = False
         runs.subscribe(self.follow)
 
     @property
@@ -51,32 +71,46 @@ class CloudPoll(ViewModel):
         return self._channel.state is not None
 
     def follow(self) -> None:
-        """Poll while a listed run is not final; stop once every run is final."""
-        if not self._runs.run_active():
+        """Poll while a listed run is not final, results are awaited or a check is owed; stop once none holds."""
+        if not self._runs.run_active() and not self.awaiting and not self._owed:
             self._timer.stop()
         elif not self._timer.active:
             self._timer.start()
 
-    def start(self) -> None:
-        """Poll from now on (a run was launched; its list entry may not be loaded yet)."""
+    def start(self, *batch_ids: object) -> None:
+        """Poll from now on, if stopped: a run was launched (its list entry may not be loaded yet), or jobs changed.
+
+        After a change of jobs elsewhere (`batches_changed`, which passes the job ids), the next check tells whether
+        results are awaited now; until it answers, a load of the run list does not stop the poll. The area's own
+        signals for its runs (launched, stopped, ended) owe no check.
+        """
+        if batch_ids and not self._runs.announcing_end:
+            self._owed = True
+            self._changes += 1
         if not self._timer.active:
             self._timer.start()
 
-    def tick(self, proceed: Proceed | None = None) -> bool:
-        """Check the cloud unless the previous check is still queued or running; return whether one was sent."""
+    def tick(self, proceed: Proceed | None = None, *, recheck: bool = False) -> bool:
+        """Check the cloud unless the previous check is still queued or running; return whether one was sent.
+
+        `recheck`: also look again for the jobs marked removed from the cloud.
+        """
         if self.checking:
             return False
         if proceed is not None:
             # Before the send: an executor may answer inside it.
             self._waiting.append(proceed)
-        request = RefreshStatusRequest(action="refresh_status")
+        request = RefreshStatusRequest(action="refresh_status", recheck=recheck)
+        self._sent_changes = self._changes
         self._channel.send(request, self._answered, self.changed)
         self.changed()
         return True
 
     def refresh_now(self) -> None:
-        """Check the cloud now ("Refresh now"); the next automatic check comes a whole interval later."""
-        if self.tick() and self._timer.active:
+        """Check the cloud now ("Refresh now"; after the check in flight, if any); the next automatic one waits an interval."""
+        if self.checking:
+            self._again = True
+        elif self.tick(recheck=True) and self._timer.active:
             self._timer.start()
 
     def note(self) -> str:
@@ -87,7 +121,7 @@ class CloudPoll(ViewModel):
         if state == CALL_QUEUED:
             return tr("Waiting to check the cloud...")
         if self.error is None or self.error.code not in RETRYING_CODES:
-            return ""
+            return _finished_text(self.finished_cleanups) if self.error is None else ""
         current = self._runs.current
         refreshed = None if current is None else current.refreshed_at
         if refreshed is None:
@@ -104,19 +138,54 @@ class CloudPoll(ViewModel):
         self.tick()
 
     def _answered(self, response: Response) -> None:
+        # Before this check's own signal below: it answers for the changes made before it was sent.
+        settled = _final(response) and self._changes == self._sent_changes
         reported: tuple[str, ...] = ()
         if isinstance(response, RefreshStatusResponse):
             self.error = None
-            found = (*(batch.batch_id for batch in response.batches), *response.published)
-            reported = tuple(dict.fromkeys(found))
+            self.awaiting = response.awaiting_results
+            self.finished_cleanups = len(response.finished_cleanups)
+            reported = tuple(batch.batch_id for batch in response.batches)
         elif isinstance(response, ErrorResponse) and response.error.code != ERROR_CANCELLED:
             self.error = error_view(response)
         # Even a failed check may have changed a run before it failed: the list shows what is stored.
         self._runs.announce()
         if reported:
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, reported)
+        if settled:
+            # After the signal: this check has answered for the jobs it reported, and for the changes before it.
+            self._owed = False
+        self.follow()
         self.changed()
         waiting = self._waiting
         self._waiting = []
         for proceed in waiting:
             proceed()
+        if self._again:
+            self._again = False
+            self.refresh_now()
+
+
+def _final(response: Response) -> bool:
+    """Return whether a check's answer settles what it was sent for: a success, or an error the next tick would only repeat.
+
+    A retrying error (`RETRYING_CODES`) or a cancel settles nothing; a lasting one (R2 missing, a
+    revoked key) settles it, so the poll does not go on owing a check that keeps failing.
+    """
+    if isinstance(response, RefreshStatusResponse):
+        return True
+    if isinstance(response, ErrorResponse):
+        return response.error.code not in RETRYING_CODES and response.error.code != ERROR_CANCELLED
+    return False
+
+
+def _finished_text(count: int) -> str:
+    """Return the notice of the interrupted cleanups the last check finished, or ""."""
+    if not count:
+        return ""
+    text = ntr(
+        "Finished an interrupted cloud cleanup of another computer's job.",
+        "Finished the interrupted cloud cleanups of {count} jobs of other computers.",
+        count,
+    )
+    return text.format(count=format_number(count))

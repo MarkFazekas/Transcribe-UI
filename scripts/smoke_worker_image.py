@@ -3,7 +3,7 @@
 Usage: `uv run scripts/smoke_worker_image.py <image>`
 
 Starts an S3 server (moto, in Docker) and a fake Runpod API on localhost, uploads one batch
-with a short tone, and runs the image as a pod would (entry → worker → self-termination) with
+with a short tone and the run's lease listing it, and runs the image as a pod would (entry → worker → self-termination) with
 `TRANSCRIBE_ENGINE=fake`. Checks: the container exited 0 and the pod was deleted through the
 API; the job result and `_done.json` exist and the run status is "finished". Then, inside the
 image: the CUDA libraries of the torch wheels load (no GPU needed), and without any network the
@@ -187,7 +187,7 @@ def smoke(image: str) -> None:
         cleanup.callback(docker, "rm", "-f", WORKER_CONTAINER, quiet=True)
         wait_for_s3()
         client = s3_client()
-        upload_batch(client)
+        upload_batch(client, RUN_ID)
         check_outputs(client, api, run_worker(image, api))
     check_image_contents(image)
 

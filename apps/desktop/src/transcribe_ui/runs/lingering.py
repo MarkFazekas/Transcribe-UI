@@ -20,7 +20,8 @@ from transcribe_ui.runpod.access import api_failure
 from transcribe_ui.runpod.constants import POD_TERMINATED
 from transcribe_ui.runpod.errors import RunpodApiError
 from transcribe_ui.runpod.pods import PodsApi
-from transcribe_ui.runs.collect import StragglerCheck
+from transcribe_ui.runs.cloud import CloudAccess
+from transcribe_ui.runs.collect import StragglerCheck, collect_run_objects
 from transcribe_ui.runs.errors import runpod_call
 from transcribe_ui.runs.payloads import RunPayload
 from transcribe_ui.runs.pods import queued_pod_active
@@ -81,3 +82,14 @@ def _straggler_listed(listed: Listed, pods: PodsApi, now: datetime, name: str, p
         failure = api_failure(error).code
     logger.warning("A straggler lookup failed (%s); the run's objects are collected later", failure)
     return True
+
+
+def collect_settled(state: LocalState, cloud: CloudAccess, listed: Listed | None, now: datetime) -> None:
+    """Collect the objects of the final runs no live straggler carries the name of (nothing without lists).
+
+    Without lists no final run waits for collection, or they could not be read (logged): either
+    way nothing is collected this time.
+    """
+    if listed is None:
+        return
+    collect_run_objects(state, cloud.store, now, straggler_check(listed, cloud.pods, now))

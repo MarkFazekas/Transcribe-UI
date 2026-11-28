@@ -2,8 +2,7 @@
 
 Every seeded scenario of `support/actions.py` (each phase, hidden, audio deleted, a pending
 cleanup of either scope, flagged and extracted jobs, retry batches) is listed and its stage and
-labels compared with the expected ones; the flag no scenario seeds (a held manifest) is checked
-on the facts directly.
+labels compared with the expected ones; an `uploading` batch is also checked on its facts directly.
 """
 
 import json
@@ -17,9 +16,11 @@ import pytest
 from sqlalchemy import select
 
 from support.actions import (
+    ADOPTED,
     COPIED_SOURCE,
     COPYING_RETRY,
     PAST_RETRY,
+    REMOVED,
     RETRIED_SOURCE,
     SCENARIOS,
     scenario_batch_id,
@@ -67,6 +68,8 @@ EXPECTED = MappingProxyType(
         COPYING_RETRY: (REVIEW_UPLOAD, (UNFINISHED,)),
         RETRIED_SOURCE: (DONE, (FLAGGED, AUDIO_DELETED)),
         PAST_RETRY: (TRANSCRIPTION, ()),
+        ADOPTED: (DOWNLOAD, (READY, FLAGGED, "adopted")),
+        REMOVED: ("done", ("removed_from_cloud",)),
     },
 )
 
@@ -103,12 +106,12 @@ def test_every_phase_has_a_stage() -> None:
     assert set(PHASE_STAGES) == set(get_args(BatchPhase.__value__))
 
 
-def _facts(phase: str, *, held: bool) -> BatchFacts:
+def _facts(phase: str) -> BatchFacts:
     return BatchFacts(
         phase=phase,
         audio_deleted=False,
         hidden=False,
-        manifest_held=held,
+        adopted=False,
         cleanup_pending=None,
         item_counts=ItemCounts(total=1),
         job_counts=JobCounts(pending_results=1, flagged=0, extract=0),
@@ -116,11 +119,9 @@ def _facts(phase: str, *, held: bool) -> BatchFacts:
     )
 
 
-def test_a_held_manifest_is_at_the_transcription_step() -> None:
-    """A complete upload whose manifest waits for the active run is at the transcription step, labelled held."""
-    held = _facts("uploading", held=True)
-    assert (batch_stage(held), batch_labels(held)) == (TRANSCRIPTION, ("manifest_held",))
-    unfinished = _facts("uploading", held=False)
+def test_an_upload_is_at_the_review_upload_step() -> None:
+    """An `uploading` batch is at the review and upload step until its manifest is published."""
+    unfinished = _facts("uploading")
     assert (batch_stage(unfinished), batch_labels(unfinished)) == (REVIEW_UPLOAD, (UNFINISHED,))
 
 
@@ -130,7 +131,7 @@ def test_the_labels_are_shown_in_order() -> None:
         phase="transcribed",
         audio_deleted=True,
         hidden=True,
-        manifest_held=False,
+        adopted=False,
         cleanup_pending="audio",
         item_counts=ItemCounts(total=2),
         job_counts=JobCounts(pending_results=0, flagged=1, extract=0, subtitles=1),

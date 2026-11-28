@@ -6,18 +6,20 @@ on its own, so the CLI could replay it. Which choices a request needs is the req
 rule: a form it refuses makes no request, and `form_hint` tells the user what is missing.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TypedDict
 
 from pydantic import ValidationError
 
-from transcribe_ui.api.classes import PlacementDefaults
+from transcribe_ui.api.classes import GetSettingsResponse, PlacementDefaults, Response
+from transcribe_ui.batches.responses import GetBatchResponse
 from transcribe_ui.gui.download.constants import (
     CUSTOM,
     FLAT_WITH_FOLDERS,
     FOLDER_COUNT_MODE,
     FOLDER_LEVELS_MODE,
     MAX_FOLDER_COUNT,
+    MIRROR,
     NEXT_TO_MEDIA,
     FolderMode,
     StrategyChoice,
@@ -73,6 +75,21 @@ def form_from_settings(defaults: PlacementDefaults) -> DownloadForm:
         folder_count=min(defaults.folder_count, MAX_FOLDER_COUNT),
         overwrite=defaults.overwrite,
     )
+
+
+def first_choices(settings: Response, batch: Response) -> DownloadForm:
+    """Return the first opening's choices from the answers of `get_settings` and `get_batch` (either may have failed).
+
+    The settings' placement defaults (the request's defaults without them), with `mirror` for a job
+    uploaded from another computer: its originals are there, so next to the media is refused for
+    it (`no_local_sources`), and `mirror` keeps its original folders below the output folder.
+    """
+    form = DownloadForm()
+    if isinstance(settings, GetSettingsResponse):
+        form = form_from_settings(settings.settings.placement)
+    if isinstance(batch, GetBatchResponse) and batch.batch.summary.adopted:
+        return replace(form, strategy=MIRROR)
+    return form
 
 
 def _levels_chosen(form: DownloadForm) -> bool:

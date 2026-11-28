@@ -17,7 +17,7 @@ from support.launch import (
     send,
     set_up_cloud,
 )
-from support.runs import RUN_ID, RunsWorld, app_pod_name, seed_uploaded
+from support.runs import RUN_ID, RunsWorld, app_pod_name, seed_ready
 from transcribe_ui.runpod.constants import QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import ERROR_NOT_APP_POD, ERROR_POD_NOT_FOUND
 from transcribe_ui.runs.responses import (
@@ -58,7 +58,7 @@ def test_cancel_a_straggler_queued_pod(runs_world: RunsWorld) -> None:
 def test_cancel_the_queued_pod_of_a_local_run(runs_world: RunsWorld, *, deploy: bool) -> None:
     """The run's queued pod (deploying during the cancel or not) is stopped; the run becomes `cancelled`."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     runs_world.cloud.settings.capacity = False
     run = launch_run(runs_world)
     queued_id = str(run.queued_pod_id)
@@ -83,7 +83,7 @@ def test_stopping_refuses_foreign_and_unknown_pods(runs_world: RunsWorld) -> Non
 def test_stray_pod_with_run_name_keeps_the_run(runs_world: RunsWorld) -> None:
     """Terminating a pod the run did not record leaves the run as it is."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     run = launch_run(runs_world)
     stray_id = str(runs_world.cloud.api.pods.add(run.pod_name)["id"])
     stopped = ok_as(send(runs_world, TERMINATE, pod_id=stray_id, confirm=True), TerminatePodResponse)
@@ -97,7 +97,7 @@ def test_stray_pod_with_run_name_keeps_the_run(runs_world: RunsWorld) -> None:
 def test_terminated_run_lists_up_to_its_end(runs_world: RunsWorld) -> None:
     """Refreshed, then terminated 50 minutes later: the run ends then, and its time and cost stop there."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     run = launch_run(runs_world)
     refreshed = ok_as(send(runs_world, "refresh_status"), RefreshStatusResponse).runs[0]
     assert refreshed.elapsed_s is not None

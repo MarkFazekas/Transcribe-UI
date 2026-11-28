@@ -188,6 +188,13 @@ def _cloud_errors() -> CodeTable:
             "This job's description in the cloud cannot be read (another app version, or damaged), so nothing "
             "was deleted.",
         ),
+        "batch_exists": tr("A job with the id {batch_id} is already on this computer."),
+        "manifest_path_invalid": tr(
+            "The cloud job {batch_id} lists a file path that cannot be used safely on this computer, so it was "
+            "not added.",
+        ),
+        "adopted_batch": tr("This is not possible for a job uploaded from another computer."),
+        "batch_removed_from_cloud": tr("Another computer has already deleted this job from the cloud."),
     }
 
 

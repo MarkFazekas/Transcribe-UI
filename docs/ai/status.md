@@ -26,19 +26,11 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress;
-  M6's only open part.
-- M8.2 (bundled static LGPL ffmpeg: `scripts/build_ffmpeg*.py`, the `ffmpeg` job and its
-  cache, `cli-probe`, the media tests on the built ffmpeg) on `feat/m8.2-ffmpeg`: built; the
-  Linux and the cross-built Windows ffmpeg were built and checked locally, the PR's
-  `release-desktop.yml` run proves the four legs (the macOS builds first run there; their
-  ffmpeg and ffprobe must pass the macOS floor's `minos` rule) and a second run must hit the
-  cache.
+- None besides this branch; M8.1 (#53) and M8.2 (#56) are merged.
 
 ## Waiting on humans
 
-- Questions: A23, A24 (architect) and Q36 (product), all for M8; none blocks M6. M5 is built
-  and M6 is planned.
+- Questions: A23, A24 (architect) and Q36 (product), all for M8. M5 and M6 are built.
 
 ## Next
 
@@ -46,16 +38,15 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `runpod-reaper` environment (deployment branch policy: `main` only); its first real run on
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
-2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Merged: M6.1, M6.2, M6.14
-   (#40), M6.12 (#41), M6.7 (#42), M6.5, M6.3 (#45), M6.4 (#46), M6.6 (#47), M6.9 (#48,
-   ebae048), M6.10 (a022e03), M6.8 (#50, 6ad5b0f), M6.11 (#52, db1810c). Open: M6.13
-   (several installations on one bucket, Q28, with its GUI), M6's only open part; its merge
-   marks M6 **(built)** in architecture §10. The M4
-   Runpod trial run is deferred until everything else works (architect); nothing waits on it,
-   and it still needs the architect present and their go.
+2. M6 (desktop frontends, `docs/ai/plans/m6.md`) is built (architecture §10); M6.13 (several
+   installations on one bucket) was its last part. Its worker reads the run lease (contracts
+   1.1): no Runpod run before the new `schema-1` worker image is pushed (`release-worker.yml`
+   pushes it on `main`; an older image ignores the lease). The M4 Runpod trial run is deferred
+   until everything else works (architect); nothing waits on it, and it still needs the
+   architect present and their go.
 3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is merged
-   (#53, c43bf73), M8.2 is on `feat/m8.2-ffmpeg`, and M8 does not wait for M7. M8.3 and M8.5
-   take the FFmpeg and zlib sources, licences and configure lines from
+   (#53, c43bf73), M8.2 (bundled ffmpeg) is merged (#56, c63861e), and M8 does not wait for M7.
+   M8.3 and M8.5 take the FFmpeg and zlib sources, licences and configure lines from
    `scripts/build_ffmpeg_pins.py` (`build_info`) or `ffmpeg-build.json` of the build. M8.6
    (README for users, screenshots script, `docs/cli.md`) follows M8.5 (which marks M8 built),
    and M7 if M7 is done by then, and comes before MCP (architect).

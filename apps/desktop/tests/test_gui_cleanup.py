@@ -177,8 +177,12 @@ def test_deleting_an_unknown_job_plans_again(world: CloudWorld, area: CleanupAre
     question = only(area.outlet.asked)
     heading = f"Delete another computer's job {FOREIGN_BATCH_ID} from the cloud?"
     assert (question.heading, question.accept_label) == (heading, "Delete from the cloud")
-    unknown = f"The job {FOREIGN_BATCH_ID} is not known on this computer; all its data (1 file) will be deleted from the cloud."
-    assert _texts(area) == [(unknown, False), (UNDONE, False)]
+    unknown = (
+        f"The job {FOREIGN_BATCH_ID} is not known on this computer; all its data (1 file) will be deleted from the "
+        "cloud. Another computer uploaded this job; it may still need to download the subtitles."
+    )
+    # Its manifest does not say who uploaded it: the stronger form, shown as a warning (architecture §3.9).
+    assert _texts(area) == [(unknown, True), (UNDONE, False)]
     assert (area.outlet.signals("plan_invalidated"), len(area.outlet.signals(CHANGED_SIGNAL))) == ([()], 0)
     assert not keys_under(world.store, FOREIGN_BATCH_ID)
     assert_golden("gui_cleanup_unknown.json", documents(area.runner.requests))

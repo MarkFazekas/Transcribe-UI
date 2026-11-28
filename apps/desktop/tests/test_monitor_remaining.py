@@ -27,7 +27,7 @@ from support.launch import (
     write_foreign,
 )
 from support.monitor import ENGINE, LIST_RUNS, REFRESH, WORKER_POD_ID, end_pod, refreshed_run, write_done, write_result
-from support.runs import JSON_TYPE, OTHER_RUN_ID, RunsWorld, seed_uploaded
+from support.runs import JSON_TYPE, OTHER_RUN_ID, RunsWorld, make_careful, seed_ready
 from transcribe_contracts.classes import JobRef, JobResult, RunState, RunStatus
 from transcribe_contracts.classes import JobStatus as ResultStatus
 from transcribe_contracts.layout import result_json_key, run_status_key
@@ -41,7 +41,7 @@ from transcribe_ui.runs.constants import (
 )
 from transcribe_ui.runs.remaining import done_share
 from transcribe_ui.runs.responses import CancelWorkerResponse, ListRunsResponse, RunProgress
-from transcribe_ui.state.models import JobRow, RunRow
+from transcribe_ui.state.models import RunRow
 
 # Length of `PODCAST` (the fake's default probe).
 PODCAST_SECONDS = FAKE_DEFAULT_DURATION_S
@@ -72,17 +72,10 @@ SEEDED_IDS = MappingProxyType({FILM: "01JDZZZZZZZZZZZZZZZZZZZZ01", PODCAST: "01J
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
-
-
-def _make_careful(world: RunsWorld, item_id: str) -> None:
-    """Switch the item's job to `careful` (before the launch)."""
-    with world.ports.state.session() as session:
-        row = session.query(JobRow).filter(JobRow.item_id == item_id).one()
-        row.payload = {**row.payload, "mode": "careful"}
 
 
 @dataclass(frozen=True)
@@ -264,7 +257,7 @@ def test_another_runs_result(world: RunsWorld, worker: Worker) -> None:
 
 def test_careful_jobs_count_twice(world: RunsWorld) -> None:
     """A `careful` job weighs twice in the followed audio, the done share, the launch factors and the pace."""
-    _make_careful(world, SEEDED_IDS[FILM])
+    make_careful(world, SEEDED_IDS[FILM])
     run_id = launch_run(world).run_id
     worker = Worker(world, run_id)
     film_s = FILM_SECONDS * CAREFUL_WEIGHT
@@ -285,6 +278,18 @@ def test_another_computers_batch(world: RunsWorld) -> None:
     foreign_s = _job_runtime_s(FOREIGN_SECONDS)
     assert run_row(world, run_id)[1].unknown_runtime_s == foreign_s
     assert _reported(Worker(world, run_id)).remaining_estimate_s == round(SEEDED_RUNTIME_S + foreign_s)
+
+
+def test_another_computers_batch_after_the_pace(world: RunsWorld) -> None:
+    """Once the pace is measured, another computer's covered batch is followed by its pending jobs in R2 (the lease lists it)."""
+    write_foreign(world.store)
+    worker = Worker(world, launch_run(world).run_id)
+    worker.report()
+    world.cloud.clock.advance(timedelta(seconds=FILM_SECONDS * WORKER_FACTOR))
+    worker.done(FILM, FILM_SECONDS * WORKER_FACTOR)
+    worker.report()
+    remaining = round(WORKER_FACTOR * (PODCAST_SECONDS + FOREIGN_SECONDS))
+    assert refreshed_run(world, worker.run_id).remaining_estimate_s == remaining
 
 
 def test_all_done(world: RunsWorld, run_id: str, worker: Worker) -> None:
@@ -348,3 +353,21 @@ def test_done_share_is_rounded_down() -> None:
     """With one second of a long run pending, the done share stays below 1 (1 means all done)."""
     assert done_share(LAST_SECOND_S, LONG_RUN_S) == 1 - 10**-PROGRESS_FRACTION_DECIMALS
     assert done_share(0, LONG_RUN_S) == 1
+
+
+def test_a_batch_adopted_mid_run_keeps_its_count(world: RunsWorld) -> None:
+    """Another computer's covered batch adopted mid-run stays counted as at the launch: the progress does not jump."""
+    write_foreign(world.store)
+    worker = Worker(world, launch_run(world).run_id)
+    worker.report()
+    world.cloud.clock.advance(timedelta(seconds=FILM_SECONDS * WORKER_FACTOR))
+    worker.done(FILM, FILM_SECONDS * WORKER_FACTOR)
+    worker.report()
+    before = _progress(refreshed_run(world, worker.run_id))
+    covered = run_row(world, worker.run_id)[1].covered_batch_ids
+    foreign = next(batch_id for batch_id in covered if batch_id != FIRST_BATCH_ID)
+    assert send(world, "adopt_cloud_batch", batch_id=foreign, confirm=True).status != "error"
+    assert (run_row(world, worker.run_id)[1].known_batch_ids, _estimate(world, worker.run_id)) == (
+        (FIRST_BATCH_ID,),
+        before,
+    )

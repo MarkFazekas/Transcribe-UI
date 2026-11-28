@@ -80,8 +80,9 @@ class BatchRow(Base):
 
     batch_id: Mapped[str] = mapped_column(String(BATCH_ID_LENGTH), primary_key=True)
     phase: Mapped[str] = mapped_column(String(STATUS_LENGTH), index=True)
-    # Upload complete, manifest kept back while a run is active (plan m5 §1, requirements "Runpod control").
-    manifest_held: Mapped[bool] = mapped_column(default=False)
+    # A `ready` batch whose manifest and `_done.json` another computer deleted from the cloud
+    # (architecture §3.9): no longer followed, its history kept.
+    removed_from_cloud: Mapped[bool] = mapped_column(default=False)
     # The audio objects were cleaned up; results stay downloadable, retry is refused.
     audio_deleted: Mapped[bool] = mapped_column(default=False)
     # A leftover manifest of this batch still to be withdrawn from R2 (`PendingWithdrawal`), or None.
@@ -164,6 +165,37 @@ class RunRow(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
     payload: Mapped[Payload] = mapped_column(JSON)
+
+
+class PendingCleanupRow(Base):
+    """This computer's cleanup of another computer's batch that has started and not ended (architecture §3.3).
+
+    Written before the cleanup's marker, removed after it; the refresh with `recheck` finishes
+    or undoes what an interruption left (`cleanup/pending.py`).
+    """
+
+    __tablename__ = "pending_cleanups"
+
+    # The bucket it was started in: the R2 endpoint and bucket name (`cleanup/pending.py`).
+    bucket: Mapped[str] = mapped_column(String, primary_key=True)
+    batch_id: Mapped[str] = mapped_column(String(BATCH_ID_LENGTH), primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class LeaseRow(Base):
+    """A live run lease the last `refresh_status` read (any computer's run; architecture §3.9 "Run scope").
+
+    The rows are replaced as a whole at each refresh, so every request, of any frontend or
+    process, sees the same run scope (`waits_for_current_run`).
+    """
+
+    __tablename__ = "known_leases"
+
+    run_id: Mapped[str] = mapped_column(String, primary_key=True)
+    # The listed batch ids; None for a lease that cannot be read (it lists every batch).
+    batch_ids: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    # The moment it stops counting (its deadline, capped at its write time + the longest span).
+    until: Mapped[datetime] = mapped_column(UtcDateTime)
 
 
 class PlacementRow(Base):

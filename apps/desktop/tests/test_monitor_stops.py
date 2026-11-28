@@ -14,7 +14,7 @@ import pytest
 from support.launch import launch_run, pods_of, queued_of, run_row, set_up_cloud
 from support.monitor import refreshed_run
 from support.runpod_api import Record
-from support.runs import RunsWorld, seed_uploaded
+from support.runs import RunsWorld, seed_ready
 from transcribe_ui.runs.constants import DEPLOY_SETTLE_S, ERROR_STOP_UNVERIFIED, WAIT_MIN_S
 
 # Two hours of waiting for a machine.
@@ -25,9 +25,9 @@ SECOND = timedelta(seconds=1)
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

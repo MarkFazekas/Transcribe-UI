@@ -26,7 +26,7 @@ from support.launch import (
     set_up_cloud,
 )
 from support.runpod_api import Failure
-from support.runs import OUTAGE, RUN_ID, RunsWorld, app_pod_name, batch_state, seed_run, seed_uploaded
+from support.runs import OUTAGE, RUN_ID, RunsWorld, app_pod_name, batch_state, seed_ready, seed_run
 from transcribe_ui.runpod.constants import (
     ERROR_CLOUD_NOT_SET_UP,
     ERROR_CLOUD_UNREACHABLE,
@@ -49,9 +49,9 @@ LIST_LAG = timedelta(days=1)
 
 @pytest.fixture
 def ready(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 
@@ -95,7 +95,7 @@ def test_terminal_entries_do_not_refuse(ready: RunsWorld) -> None:
 
 def test_launch_needs_the_cloud_setup(runs_world: RunsWorld) -> None:
     """Without the template and volume: `cloud_not_set_up`, nothing recorded or requested."""
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     refused = launch_confirmed(runs_world)
     assert (error_code(refused), run_ids(runs_world), posts(runs_world)) == (ERROR_CLOUD_NOT_SET_UP, [], 0)
 

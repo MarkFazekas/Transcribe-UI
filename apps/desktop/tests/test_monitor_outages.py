@@ -12,7 +12,7 @@ import pytest
 from support.credentials import store_request
 from support.launch import PODS, error_code, launch_run, pods_of, run_row, send, set_up_cloud
 from support.monitor import REFRESH, end_pod, refresh
-from support.runs import OUTAGE, RUN_ID, RunsWorld, app_pod_name, seed_uploaded
+from support.runs import OUTAGE, RUN_ID, RunsWorld, app_pod_name, seed_ready
 from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE
 from transcribe_ui.runs.records import insert_run, update_run
 from transcribe_ui.storage.constants import ERROR_R2_BUCKET_NOT_FOUND
@@ -23,9 +23,9 @@ MISSING_BUCKET = "no-such-bucket"
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

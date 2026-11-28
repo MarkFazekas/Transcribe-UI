@@ -130,6 +130,19 @@
     "cloud_unreachable.r2": {
       "part": "r2",
       "cause": "r2_unreachable"
+    },
+    "batch_exists": {
+      "batch_id": "batch_20261127_130000"
+    },
+    "manifest_path_invalid": {
+      "batch_id": "batch_20261127_130000",
+      "item_id": "01JDZZZZZZZZZZZZZZZZZZZZ01"
+    },
+    "adopted_batch": {
+      "batch_id": "batch_20261127_130000"
+    },
+    "batch_removed_from_cloud": {
+      "batch_id": "batch_20261127_130000"
     }
   },
   "confirmation": {
@@ -209,6 +222,24 @@
       "run_id": "01JDQ0000000000000000000R1",
       "stage": "transcribing",
       "run_status": "running"
+    },
+    "adopt_cloud_batch": {
+      "batch_id": "batch_20261127_130000",
+      "files": 2
+    },
+    "cleanup_unknown_batch_uploaded_elsewhere": {
+      "batch_id": "batch_20261127_120000",
+      "files": 4,
+      "known": false
+    },
+    "cleanup_unknown_leftover": {
+      "batch_id": "batch_20261127_120000",
+      "known": false
+    },
+    "cleanup_everything_uploaded_elsewhere": {
+      "batch_id": "batch_20261127_120000",
+      "scope": "everything",
+      "phase": "ready"
     }
   },
   "plan_error": {

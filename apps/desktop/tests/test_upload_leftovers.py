@@ -7,6 +7,7 @@ are seeded directly, with the batch put into `uploading` after its review.
 
 import hashlib
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -14,13 +15,13 @@ import pytest
 from support.batch_backend import error_code, run_ok
 from support.batches import FILM, FIRST_BATCH_ID, MEDIA_ROOT, SILENT, batch_request, create_request
 from support.credentials import moto_bucket
-from support.runs import JSON_TYPE, RUN_ID, RunsWorld, app_pod_name, seed_run
+from support.runs import JSON_TYPE, RUN_ID, RunsWorld
 from support.upload import HU, extracted_count, outcome_of, phase_of, review, set_phase, upload, upload_world
 from support.withdrawal import all_present, none_present, pending_of, result_keys
-from transcribe_contracts.layout import audio_key, done_key, manifest_key
+from transcribe_contracts.layout import audio_key, done_key, manifest_key, run_lease_key
 from transcribe_contracts.reading import read_manifest
 from transcribe_ui.batches.payloads import PendingWithdrawal
-from transcribe_ui.runpod.constants import POD_TERMINATED
+from transcribe_ui.runs.leases import write_lease
 from transcribe_ui.state.models import BatchRow
 
 # Files of the batch with `transcribe` jobs (the silent video only extracts).
@@ -87,11 +88,16 @@ def test_extract_only_finishes_pending_withdrawal(world: RunsWorld) -> None:
     assert (none_present(world, *seeded), pending_of(world)) == (True, None)
 
 
+def _lease(world: RunsWorld) -> None:
+    """Write the live lease of a run listing the batch (its leftover is in that run's scope)."""
+    write_lease(world.store, RUN_ID, (FIRST_BATCH_ID,), world.now() + timedelta(hours=1))
+
+
 def test_extract_only_waits_for_a_run_to_withdraw(world: RunsWorld) -> None:
-    """During a run the leftover cannot be withdrawn: `run_active`, the batch stays `uploading`, R2 untouched."""
+    """While a run's lease lists the batch the leftover cannot be withdrawn: `run_active`, nothing changes."""
     ids = review(world, *SILENT_ONLY)
     seeded = _seed_leftover(world, ids[SILENT])
-    seed_run(world, "running")
+    _lease(world)
     assert error_code(upload(world)) == "run_active"
     assert (phase_of(world), all_present(world, *seeded), pending_of(world) is not None) == ("uploading", True, True)
 
@@ -112,16 +118,14 @@ def test_sweep_withdraws_first_then_deletes_orphans(world: RunsWorld) -> None:
 
 
 def test_sweep_put_off_during_a_run(world: RunsWorld) -> None:
-    """With a pending withdrawal and a live pod the orphans stay (the manifest is held); after the run they go."""
+    """With a pending withdrawal and a lease listing the batch the orphans stay and nothing is published; after the run they go."""
     ids = review(world)
     seeded = _seed_leftover(world, GONE_ITEM)
     orphans = _seed_orphans(world, ids[FILM])
-    pod = world.cloud.api.pods.add(app_pod_name(RUN_ID, world.now()))
-    held = upload(world)
-    document = held.model_dump(mode="json")
-    assert (outcome_of(held), document["sweep_skipped"], document["deleted_objects"]) == ("held", True, 0)
+    _lease(world)
+    assert error_code(upload(world)) == "run_active"
     assert all_present(world, *orphans, *seeded)
-    pod["status"] = POD_TERMINATED
+    world.store.delete(run_lease_key(RUN_ID))
     done = upload(world)
     assert (outcome_of(done), done.model_dump(mode="json")["deleted_objects"]) == ("ready", 2)
     assert none_present(world, *orphans, *seeded[1:])

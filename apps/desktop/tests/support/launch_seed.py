@@ -46,7 +46,6 @@ def seed_audio_batch(world: RunsWorld, batch_id: str, item_id: str) -> None:
             BatchRow(
                 batch_id=batch_id,
                 phase="uploading",
-                manifest_held=False,
                 audio_deleted=False,
                 hidden=False,
                 created_at=now,

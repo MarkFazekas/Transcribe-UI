@@ -1,4 +1,4 @@
-"""The manifest step interrupted: an R2 failure, a crash before the phase change, a misplaced runs lock (M5.9)."""
+"""The manifest step interrupted: an R2 failure, a crash before the phase change, a misplaced runs lock (M5.9, M6.13)."""
 
 from typing import override
 
@@ -6,9 +6,8 @@ import pytest
 
 from support.batches import FIRST_BATCH_ID
 from support.credentials import TEST_BUCKET
-from support.runs import HELD, READY, UPLOADING, RunsWorld, batch_state, read_back, seed_uploaded
+from support.runs import READY, UPLOADING, RunsWorld, batch_state, read_back, seed_uploaded
 from support.storage import store_client
-from transcribe_ui.runs.cloud import CloudAccess
 from transcribe_ui.state.errors import LockOrderError
 from transcribe_ui.storage.constants import ERROR_R2_UNREACHABLE
 from transcribe_ui.storage.errors import StorageError
@@ -36,16 +35,15 @@ def _crash(*_args: object, **_kwargs: object) -> None:
     raise Crash
 
 
-def test_a_failed_manifest_write_holds_the_manifest(runs_world: RunsWorld) -> None:
-    """When the manifest cannot be written, the batch is held and the error raised; publishing resumes it."""
+def test_a_failed_manifest_write_is_resumed(runs_world: RunsWorld) -> None:
+    """When the manifest cannot be written, the error is raised and the batch stays `uploading`; the next step publishes."""
     seed_uploaded(runs_world)
     state = runs_world.ports.state
-    with state.locks.batch(FIRST_BATCH_ID), runs_world.access() as cloud:
-        broken = CloudAccess(UnwritableStore(), cloud.pods)
-        with pytest.raises(StorageError):
-            manifest_step(runs_world.context(), broken, FIRST_BATCH_ID)
-    assert batch_state(runs_world) == HELD
-    assert (runs_world.publish_held().published, batch_state(runs_world)) == ((FIRST_BATCH_ID,), READY)
+    with state.locks.batch(FIRST_BATCH_ID), pytest.raises(StorageError):
+        manifest_step(runs_world.context(), UnwritableStore(), FIRST_BATCH_ID)
+    assert batch_state(runs_world) == UPLOADING
+    runs_world.step()
+    assert batch_state(runs_world) == READY
 
 
 def test_a_crash_after_the_write_is_resumed(runs_world: RunsWorld, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -56,14 +54,15 @@ def test_a_crash_after_the_write_is_resumed(runs_world: RunsWorld, monkeypatch: 
         with pytest.raises(Crash):
             runs_world.step()
     written = read_back(runs_world)
-    assert batch_state(runs_world) == (*UPLOADING[:2], True)
-    assert (runs_world.step().outcome, batch_state(runs_world), read_back(runs_world)) == ("published", READY, written)
+    assert batch_state(runs_world) == ("uploading", True)
+    runs_world.step()
+    assert (batch_state(runs_world), read_back(runs_world)) == (READY, written)
 
 
 def test_the_step_refuses_a_held_runs_lock(runs_world: RunsWorld) -> None:
-    """Under the runs lock (launch, refresh), the step would wait for itself: a programming error."""
+    """The step takes the runs lock itself (lock order runs → batch): holding it already is a programming error."""
     seed_uploaded(runs_world)
     state = runs_world.ports.state
-    with state.locks.runs(), runs_world.access() as cloud, pytest.raises(LockOrderError):
-        manifest_step(runs_world.context(), cloud, FIRST_BATCH_ID)
+    with state.locks.runs(), pytest.raises(LockOrderError):
+        manifest_step(runs_world.context(), runs_world.store, FIRST_BATCH_ID)
     assert batch_state(runs_world) == UPLOADING

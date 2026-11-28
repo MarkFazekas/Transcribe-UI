@@ -21,7 +21,7 @@ from support.launch import (
     TERMINATE,
     document,
 )
-from support.launch_legs import LaunchLegs, seed_held_leg
+from support.launch_legs import LaunchLegs, seed_ready_leg
 from support.parity import Exchange, Template, run_parity
 from support.runpod import Cloud
 from support.runs import OTHER_RUN_ID, RUN_ID, app_pod_name
@@ -76,7 +76,7 @@ def test_launch_flow(tmp_path: Path) -> None:
         _cancel_launched,
         document(RECONCILE),
     ]
-    legs = LaunchLegs(seed=seed_held_leg)
+    legs = LaunchLegs(seed=seed_ready_leg)
     with moto_bucket():
         exchanges = run_parity(tmp_path, templates, prepare=build_batch_tree, ports=legs)
     statuses = [json.loads(exchange.response)["status"] for exchange in exchanges]

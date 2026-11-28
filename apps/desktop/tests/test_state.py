@@ -42,7 +42,7 @@ GET_APP_INFO_JSON = '{"action": "get_app_info"}'
 BATCH_ID = "batch_20261127_120000"
 COMPOSING: Final = "composing"
 REVIEWING: Final = "reviewing"
-HEAD = "609bed4e68d4"
+HEAD = "8e5b2d7c1f40"
 UNKNOWN_REVISION = "ffffffffffff"
 EXPECTED_TABLES = frozenset(
     (
@@ -52,6 +52,8 @@ EXPECTED_TABLES = frozenset(
         "extracted_subtitles",
         "items",
         "jobs",
+        "known_leases",
+        "pending_cleanups",
         "placements",
         "probe_cache",
         "runs",

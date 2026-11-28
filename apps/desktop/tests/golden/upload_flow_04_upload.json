@@ -15,8 +15,8 @@
         "hu"
       ],
       "hidden": false,
-      "manifest_held": false,
       "audio_deleted": false,
+      "adopted": false,
       "cleanup_pending": null,
       "extract_only": false,
       "stage": "transcription",
@@ -36,8 +36,7 @@
     "uploaded_objects": 4,
     "extracted_subtitles": 1,
     "deleted_objects": 0,
-    "sweep_skipped": false,
-    "activity": []
+    "sweep_skipped": false
   },
   "events": [
     {

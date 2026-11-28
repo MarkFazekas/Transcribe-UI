@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from pydantic import ValidationError
+from pydantic import AwareDatetime, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ from transcribe_ui.batches.choices import choice_problem
 from transcribe_ui.batches.constants import ITEM_REVIEW_PHASES
 from transcribe_ui.batches.payloads import BatchPayload, ItemPayload, ItemPhase, JobKind, JobPayload, StoredComposition
 from transcribe_ui.batches.responses import BatchDetail, BatchItem, BatchSelection, BatchSummary, JobView
+from transcribe_ui.batches.run_scope import RunScope, run_scope
 from transcribe_ui.state.models import (
     AudioObjectRow,
     BatchPhase,
@@ -174,15 +175,23 @@ def batch_item(member: StoredItem) -> BatchItem:
     )
 
 
-def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], *, copying: bool) -> BatchSummary:
+def batch_summary(
+    row: BatchRow,
+    item_counts: ItemCounts,
+    jobs: Sequence[JobKey],
+    *,
+    copying: bool,
+    scope: RunScope,
+) -> BatchSummary:
     """Return a batch as the batch list shows it.
 
     From its item counts, its jobs' keys (language, kind, status, and whether a download recorded
     the job's placement outcome: `placed`, which `subtitles_ready` reads) and whether a retry
-    batch still copies its audio (`actions.copying_sources`).
+    batch still copies its audio (`actions.copying_sources`), and the known run scope
+    (`batches/run_scope.py`, for `waits_for_current_run`).
     """
     languages = sorted({job.language for job in jobs})
-    facts = batch_facts(row, item_counts, jobs, copying=copying)
+    facts = batch_facts(row, item_counts, jobs, copying=copying, scope=scope)
     return BatchSummary(
         batch_id=row.batch_id,
         phase=cast("BatchPhase", row.phase),
@@ -192,8 +201,8 @@ def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey]
         jobs=len(jobs),
         languages=tuple(languages),
         hidden=row.hidden,
-        manifest_held=row.manifest_held,
         audio_deleted=row.audio_deleted,
+        adopted=facts.adopted,
         cleanup_pending=stored_cleanup_pending(row),
         extract_only=_extract_only(jobs),
         stage=batch_stage(facts),
@@ -207,21 +216,21 @@ def _extract_only(jobs: Sequence[JobKey]) -> bool:
     return kinds == {"extract"}
 
 
-def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchSummary:
-    """Return the summary of a batch whose items are read (in the session that read them)."""
+def summary_of(session: Session, row: BatchRow, members: Sequence[StoredItem], *, now: AwareDatetime) -> BatchSummary:
+    """Return the summary of a batch whose items are read (in the session that read them), its run scope as of `now`."""
     stored = [job.row for member in members for job in member.jobs]
     placed = placed_job_ids(session, PlacementRow.batch_id == row.batch_id)
     jobs = [JobKey.of_row(job_row, placed) for job_row in stored]
     item_counts = ItemCounts.of_phases([member.phase for member in members])
     copying = row.batch_id in copying_sources(session)
-    return batch_summary(row, item_counts, jobs, copying=copying)
+    return batch_summary(row, item_counts, jobs, copying=copying, scope=run_scope(session, now))
 
 
-def batch_detail(session: Session, row: BatchRow, members: Sequence[StoredItem]) -> BatchDetail:
-    """Return a batch with its items and jobs."""
+def batch_detail(session: Session, row: BatchRow, members: Sequence[StoredItem], *, now: AwareDatetime) -> BatchDetail:
+    """Return a batch with its items and jobs (its run scope as of `now`)."""
     payload = BatchPayload.model_validate(row.payload)
     return BatchDetail(
-        summary=summary_of(session, row, members),
+        summary=summary_of(session, row, members, now=now),
         scan_root=payload.scan_root,
         path_flavor=payload.path_flavor,
         composition=_selection(row.batch_id, payload.composition),
@@ -240,6 +249,6 @@ def _selection(batch_id: str, stored: StoredComposition | None) -> BatchSelectio
         return None
 
 
-def load_detail(session: Session, row: BatchRow) -> BatchDetail:
-    """Read the batch's items and return the batch with them."""
-    return batch_detail(session, row, stored_items(session, row.batch_id))
+def load_detail(session: Session, row: BatchRow, *, now: AwareDatetime) -> BatchDetail:
+    """Read the batch's items and return the batch with them (its run scope as of `now`)."""
+    return batch_detail(session, row, stored_items(session, row.batch_id), now=now)

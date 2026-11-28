@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from transcribe_ui.batches.actions import flagged_job
+from transcribe_ui.batches.actions import flagged_job, stored_adopted
 from transcribe_ui.batches.payloads import BatchPayload, RetryJob, RetryOrigin
-from transcribe_ui.batches.phases import load_batch, require_phase
+from transcribe_ui.batches.phases import load_batch, require_not_adopted, require_phase
 from transcribe_ui.batches.records import StoredItem, StoredJob, stored_items
 from transcribe_ui.cleanup.classes import CreateRetryBatchRequest
 from transcribe_ui.cleanup.constants import (
@@ -64,12 +64,14 @@ def plan_retry(session: Session, origin: RetryOrigin, request: CreateRetryBatchR
 
     Raises:
         BatchNotFoundError: There is no source batch.
+        AdoptedBatchError: The source is another computer's job (its uploader retries it).
         AudioDeletedError: The source's audio was cleaned up.
         WrongPhaseError: The source has no results yet (not `transcribed` or `downloaded`).
         RetryJobInvalidError: A job is not a failed or no-speech transcribe job of the source.
         CopySourceMissingError: The source has no verified audio object for a job's track.
     """
     row = load_batch(session, origin.source_batch_id)
+    require_not_adopted(row.batch_id, adopted=stored_adopted(row))
     if row.audio_deleted:
         raise AudioDeletedError(row.batch_id)
     require_phase(row, RETRY_SOURCE_PHASES)

@@ -25,6 +25,7 @@ from transcribe_ui.placement.classes import (
 from transcribe_ui.placement.constants import (
     ERROR_DUPLICATE_TARGET,
     ERROR_NAME_TOO_LONG,
+    ERROR_NO_LOCAL_SOURCES,
     ERROR_OUTPUT_NOT_ABSOLUTE,
     ERROR_OUTSIDE_SCAN_ROOT,
     ERROR_PATH_TOO_LONG,
@@ -38,7 +39,7 @@ from transcribe_ui.placement.constants import (
     WRITING_OUTCOMES,
 )
 from transcribe_ui.placement.drafts import Draft, Source, closest_levels, resolve_collisions, source_of
-from transcribe_ui.placement.naming import TargetNames, is_clean_absolute
+from transcribe_ui.placement.naming import TargetNames, is_clean_absolute, source_pure, target_names
 from transcribe_ui.placement.probe import PlacementProbe
 
 if TYPE_CHECKING:
@@ -192,7 +193,7 @@ def _entry(draft: Draft, options: PlacementOptions, names: TargetNames, probe: P
 def _entry_errors(draft: Draft, entry: PlannedPlacement, names: TargetNames, probe: PlacementProbe) -> list[PlanError]:
     job = draft.source.job
     if not draft.source.valid:
-        message = "the source path is not absolute or contains '..'"
+        message = "the source path is not absolute, or a part below the scan root is no single name"
         return [job_error(ERROR_SOURCE_PATH_INVALID, message, job)]
     if draft.folder is None:
         return [job_error(ERROR_OUTSIDE_SCAN_ROOT, "the file is not below the scan root", job)]
@@ -236,13 +237,17 @@ def plan_placement(
     jobs: Sequence[PlacementJob],
     scan_root: str,
     options: PlacementOptions,
-    rules: PathRules,
+    rules: PathRules | TargetNames,
     probe: PlacementProbe,
 ) -> PlacementPlan:
-    """Return the plan of placing the jobs' subtitles with a strategy of §3.5 (one entry per job, in order)."""
-    names = TargetNames(rules)
+    """Return the plan of placing the jobs' subtitles with a strategy of §3.5 (one entry per job, in order).
+
+    `rules` are the target OS's; a `TargetNames` also gives the batch's own path flavour, in which
+    the sources and the scan root are split (the OS that scanned it; else the target's).
+    """
+    names = target_names(rules)
     output = _output(options, names)
-    root = names.pure(scan_root)
+    root = source_pure(names, scan_root)
     setup_error = _setup_error(output, root)
     if setup_error is not None:
         return PlacementPlan(entries=(), errors=(setup_error,))
@@ -252,3 +257,9 @@ def plan_placement(
     entries = [_entry(draft, options, names, probe) for draft in drafts]
     errors = _plan_errors(drafts, entries, names, probe)
     return PlacementPlan(entries=tuple(entries), errors=errors)
+
+
+def refuse_next_to_media() -> PlacementPlan:
+    """Return the plan of `next_to_media` for another computer's batch: refused, its media are on that computer."""
+    message = "The job was uploaded from another computer: its media files are not on this one."
+    return PlacementPlan(entries=(), errors=(PlanError(code=ERROR_NO_LOCAL_SOURCES, message=message),))

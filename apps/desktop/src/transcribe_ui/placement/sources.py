@@ -11,13 +11,16 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
+from transcribe_contracts.classes import PathFlavor
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.payloads import BatchPayload, JobKind
 from transcribe_ui.batches.phases import load_batch, require_phase
 from transcribe_ui.batches.records import StoredItem, StoredJob, stored_items, summary_of
 from transcribe_ui.batches.responses import BatchSummary
+from transcribe_ui.discovery.rules import PathRules
 from transcribe_ui.placement.classes import PlacementJob, SubtitleState
 from transcribe_ui.placement.constants import CLEANED_PHASE, DOWNLOAD_PHASES, EXTRACT_KIND, TRANSCRIBE_SUBTITLES
+from transcribe_ui.placement.naming import TargetNames
 from transcribe_ui.state.models import ExtractedSubtitleRow, JobRow
 
 # A job's identity in a plan: its item and language.
@@ -45,11 +48,19 @@ class DownloadSource:
     batch_id: str
     summary: BatchSummary
     scan_root: str
+    # The path flavour of the OS that scanned the batch (the sources and the scan root are split in it).
+    path_flavor: PathFlavor
+    # Another computer's batch (`adopt_cloud_batch`): its originals are not on this computer.
+    adopted: bool
     jobs: tuple[DownloadJob, ...]
 
     def placement_jobs(self) -> list[PlacementJob]:
         """Return the planner's input: every job, items in selection order, jobs by language."""
         return [each.job for each in self.jobs]
+
+    def names(self, rules: PathRules) -> TargetNames:
+        """Return the target's names (its `rules`) with the sources split in the batch's own path flavour."""
+        return TargetNames(rules, self.path_flavor)
 
     def by_key(self) -> dict[JobKey, DownloadJob]:
         """Return the jobs by item and language."""
@@ -70,11 +81,19 @@ def load_source(context: RequestContext, batch_id: str) -> DownloadSource:
         stored = select(ExtractedSubtitleRow.job_id).join(JobRow)
         of_batch = JobRow.batch_id == batch_id
         extracted = frozenset(session.scalars(stored.where(of_batch)))
-        summary = summary_of(session, row, members)
-        scan_root = BatchPayload.model_validate(row.payload).scan_root
-        cleaned = row.phase == CLEANED_PHASE
+        summary = summary_of(session, row, members, now=context.ports.clock.now())
+        payload = BatchPayload.model_validate(row.payload)
+        # Nothing of a cleaned batch, or one another computer removed, is left in the cloud.
+        cleaned = row.phase == CLEANED_PHASE or row.removed_from_cloud
     jobs = _download_jobs(members, extracted, cleaned=cleaned)
-    return DownloadSource(batch_id=batch_id, summary=summary, scan_root=scan_root, jobs=tuple(jobs))
+    return DownloadSource(
+        batch_id=batch_id,
+        summary=summary,
+        scan_root=payload.scan_root,
+        path_flavor=payload.path_flavor,
+        adopted=payload.adopted is not None,
+        jobs=tuple(jobs),
+    )
 
 
 def _download_jobs(members: Sequence[StoredItem], extracted: frozenset[int], *, cleaned: bool) -> list[DownloadJob]:

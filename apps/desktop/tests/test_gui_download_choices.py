@@ -1,9 +1,10 @@
 """The download dialog's view-model while choices change and loads are on their way (plan m6 M6.9).
 
 The folder count and level ticks wait for the delay; a plan of choices changed since is cancelled
-and ignored; a late settings answer keeps the user's choices; failures show the dialog every
-time; the dialog's own `batches_changed` reloads it once; the export has its own Retry; a
-plan stops when cancelled; a checked import runs on the short pool.
+and ignored; a late settings answer keeps the user's choices; a change of the batch before the
+pre-fill loads it again then; failures show the dialog every time; the dialog's own
+`batches_changed` reloads it once; the export has its own Retry; a plan stops when cancelled; a
+checked import runs on the short pool.
 """
 
 import json
@@ -91,6 +92,25 @@ def test_late_settings_keep_the_users_choices(world: RunsWorld) -> None:
     model.edit(strategy="flat", output_folder=str(world.leg.root / OUT))
     executor.release()
     assert (model.form.strategy, model.form.output_folder) == ("flat", str(world.leg.root / OUT))
+
+
+def test_a_change_before_the_pre_fill_reloads(world: RunsWorld) -> None:
+    """`batches_changed` before the pre-fill is kept: the pre-fill loads the batch again with its plan."""
+    model, executor = held_model(world.leg)
+    model.on_open()
+    model.on_batches_changed((FIRST_BATCH_ID,))
+    assert [request.action for request in executor.sent] == ["get_settings", GET_BATCH]
+    executor.release()
+    assert [request.action for request in executor.sent[2:]] == [GET_BATCH, PLAN]
+
+
+def test_a_reopen_before_the_pre_fill_reloads(world: RunsWorld) -> None:
+    """Reopened before the pre-fill (a change while hidden is not heard): the pre-fill loads the batch again."""
+    model, executor = held_model(world.leg)
+    model.on_open()
+    model.on_open()
+    executor.release()
+    assert [request.action for request in executor.sent[2:]] == [GET_BATCH, PLAN]
 
 
 def test_a_large_folder_count_is_clamped() -> None:

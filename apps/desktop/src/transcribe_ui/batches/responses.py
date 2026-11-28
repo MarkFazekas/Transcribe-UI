@@ -42,10 +42,12 @@ type BatchStage = Literal["files", "review_upload", "transcription", "download",
 type BatchLabel = Literal[
     "cleanup_pending",
     "upload_unfinished",
-    "manifest_held",
+    "waits_for_current_run",
+    "removed_from_cloud",
     "subtitles_ready",
     "flagged_jobs",
     "audio_deleted",
+    "adopted",
     "hidden",
 ]
 
@@ -104,9 +106,10 @@ class BatchSummary(FrozenModel):
     # Every target language of the batch, sorted.
     languages: tuple[str, ...]
     hidden: bool
-    # Upload complete, manifest kept back while a run is active.
-    manifest_held: bool
     audio_deleted: bool
+    # Uploaded from another computer and added here (`adopt_cloud_batch`): its originals are
+    # there, so `next_to_media` is refused for it and `mirror` keeps its original folders.
+    adopted: bool
     # A cloud cleanup of this scope was interrupted: repeat it (no worker starts meanwhile).
     cleanup_pending: CleanupScope | None
     # Only `extract` jobs: the batch needs no upload and no cloud run.
@@ -243,7 +246,7 @@ class ExcludeItemsResponse(OkResponse):
     # Audio objects found under the excluded items' prefixes and deleted.
     deleted_objects: NonNegativeInt
     # A leftover manifest could not be withdrawn yet (R2 failed after the exclusion was saved);
-    # the next manifest publish of the batch, or the next launch, finishes it.
+    # the next exclusion, re-review, `run_upload` or manifest step of the batch finishes it.
     withdrawal_pending: bool = False
 
 

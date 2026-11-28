@@ -23,9 +23,19 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import PurePath
 
+from transcribe_contracts.classes import PathFlavor, has_dot_part
 from transcribe_ui.placement.classes import PlacementJob, RenameReason
 from transcribe_ui.placement.constants import MAX_COLLISION_ROUNDS, NAME_JOINER
-from transcribe_ui.placement.naming import PathKey, TargetNames, is_clean_absolute, split_name, subtitle_name
+from transcribe_ui.placement.naming import (
+    PathKey,
+    TargetNames,
+    is_clean_absolute,
+    source_pure,
+    sources_flavor,
+    split_name,
+    subtitle_name,
+    unsafe_in,
+)
 
 # Rule keys of a target folder and a file name: equal keys are the same target.
 type TargetKey = tuple[PathKey, str]
@@ -36,14 +46,16 @@ class Source:
     """A job's media file split into the parts naming needs."""
 
     job: PlacementJob
-    # The media file's folder.
+    # The media file's folder (a target path: where `next_to_media` places).
     folder: PurePath
     stem: str
     # Without the dot; empty when the file has none.
     extension: str
     # Folder names from the scan root down to the file's folder; None when outside the root.
     relative: tuple[str, ...] | None = None
-    # Whether the source path is absolute without `..` parts (else nothing is placed for it).
+    # Whether the source path is absolute, and every part below the scan root a single name in the
+    # batch's path flavour (not empty, `.` or `..`, no separator, drive or anchor; else nothing is
+    # placed for it).
     valid: bool = False
 
     @property
@@ -53,14 +65,29 @@ class Source:
 
 
 def source_of(job: PlacementJob, scan_root: PurePath, names: TargetNames) -> Source:
-    """Return a job's source, with its folders below the scan root."""
-    path = names.pure(job.source_path)
-    folder = path.parent
+    """Return a job's source, with its folders below the scan root (split in the batch's path flavour)."""
+    path = source_pure(names, job.source_path)
     stem, extension = split_name(path.name)
+    folder = names.pure(str(path.parent))
     source = Source(job=job, folder=folder, stem=stem, extension=extension)
-    if not is_clean_absolute(path):
+    if not _safe_source(job.source_path, path, names):
         return source
-    return replace(source, relative=_below(folder, scan_root, names), valid=True)
+    relative = _below(path.parent, scan_root, names)
+    if relative is not None and _any_unsafe(relative, sources_flavor(names)):
+        return source
+    return replace(source, relative=relative, valid=True)
+
+
+def _any_unsafe(parts: tuple[str, ...], flavor: PathFlavor) -> bool:
+    return any(unsafe_in(part, flavor) for part in parts)
+
+
+def _safe_source(text: str, path: PurePath, names: TargetNames) -> bool:
+    """Return whether the source is absolute, has no `.` or `..` part as written, and a usable file name."""
+    flavor = sources_flavor(names)
+    if not is_clean_absolute(path) or has_dot_part(text, flavor):
+        return False
+    return not unsafe_in(path.name, flavor)
 
 
 def _below(folder: PurePath, scan_root: PurePath, names: TargetNames) -> tuple[str, ...] | None:

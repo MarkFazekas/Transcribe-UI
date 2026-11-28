@@ -8,12 +8,11 @@ from transcribe_contracts.classes import BatchId
 from transcribe_ui.api.base import FrozenModel, check_distinct
 from transcribe_ui.batches.payloads import CleanupScope, RetryJob
 from transcribe_ui.batches.responses import BatchSummary, OkResponse
-from transcribe_ui.runs.classes import ActivitySource
 from transcribe_ui.upload.responses import UploadOutcome
 
 # The jobs of a retry: at least one, each once.
 type RetryJobs = Annotated[tuple[RetryJob, ...], Field(min_length=1), AfterValidator(check_distinct)]
-# Where `create_retry_batch` left the retry batch: as `run_upload` (`ready`, or `held` during a run),
+# Where `create_retry_batch` left the retry batch: as `run_upload` (`ready`),
 # or `past_upload` when the existing retry batch had already left `uploading` (nothing was done).
 type RetryOutcome = UploadOutcome | Literal["past_upload"]
 
@@ -38,7 +37,9 @@ class CleanupCloudRequest(FrozenModel):
 
     `everything` on a batch whose results may not be downloaded yet also needs
     `confirm_not_downloaded`. A batch this database does not know (another computer's, Q28)
-    can be cleaned up with `everything` once its manifest reads.
+    can be cleaned up with `everything` once its manifest reads. When the cloud holds another
+    computer's batch under the id of one this database knows, deleting it also needs
+    `confirm_unknown`: the confirmation of the known batch does not cover it.
     """
 
     action: Literal["cleanup_cloud"]
@@ -46,6 +47,7 @@ class CleanupCloudRequest(FrozenModel):
     scope: CleanupScope
     confirm: bool = False
     confirm_not_downloaded: bool = False
+    confirm_unknown: bool = False
 
 
 # Responses
@@ -66,8 +68,6 @@ class CreateRetryBatchResponse(OkResponse):
     deleted_objects: NonNegativeInt
     # The sweep of those objects was put off (see `run_upload`).
     sweep_skipped: bool
-    # The signs of the run that holds the manifest back (`held`; empty otherwise).
-    activity: tuple[ActivitySource, ...] = ()
 
 
 class CleanupCloudResponse(OkResponse):

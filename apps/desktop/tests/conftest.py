@@ -14,7 +14,7 @@ from support.credentials import NEVER_SHOWN, TEST_BUCKET, TEST_ENDPOINT, moto_bu
 from support.discovery import large_tree_names, media_dir
 from support.parity import Leg
 from support.runpod import Cloud, ManualClock
-from support.runs import RunsWorld, runs_ports
+from support.runs import RunsWorld, installation, runs_ports
 from support.storage import PART_BYTES, store_client
 from support.trees import build_tree
 from transcribe_ui.i18n import system
@@ -96,3 +96,17 @@ def runs_world(tmp_path: Path) -> Iterator[RunsWorld]:
         stored = created.backend.execute_json(store_request())
         assert stored.status == "ok"
         yield RunsWorld(created, cloud, R2ObjectStore(store_client(), TEST_BUCKET))
+
+
+@pytest.fixture
+def r2_only_world(runs_world: RunsWorld, tmp_path: Path) -> Iterator[RunsWorld]:
+    """Return another installation over the same bucket and fake Runpod account, without a Runpod key."""
+    with installation(runs_world.cloud, tmp_path / "r2_only", runpod_key=False) as world:
+        yield world
+
+
+@pytest.fixture
+def keyed_world(runs_world: RunsWorld, tmp_path: Path) -> Iterator[RunsWorld]:
+    """Return another installation over the same bucket and fake Runpod account, with every credential."""
+    with installation(runs_world.cloud, tmp_path / "keyed", runpod_key=True) as world:
+        yield world

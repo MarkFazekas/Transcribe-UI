@@ -53,7 +53,8 @@ def _job_items(activity: Activity) -> list[StatusItem]:
 def status_items(models: CloudModels, activity: Activity, now: datetime) -> tuple[StatusItem, ...]:
     """Return the status bar's items: the run, the machines' attention, a failed check, the busy jobs.
 
-    A failed check is one of the machines, or one of the runs that the next check does not simply retry.
+    A failed check is one of the machines (only with a Runpod key), or one of the runs that the next
+    check does not simply retry.
     """
     machines = models.machines
     found: list[StatusItem] = []
@@ -62,7 +63,7 @@ def status_items(models: CloudModels, activity: Activity, now: datetime) -> tupl
         found.append(run)
     if machines.attention:
         found.append(StatusItem(tr("A cloud machine needs attention"), "machines"))
-    if machines.error is not None or models.poll.shown_error() is not None:
+    if models.machines_error() is not None or models.poll.shown_error() is not None:
         found.append(StatusItem(tr("The cloud could not be checked"), "cloud"))
     found.extend(_job_items(activity))
     return tuple(found)

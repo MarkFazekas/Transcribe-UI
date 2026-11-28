@@ -6,7 +6,7 @@ from types import MappingProxyType
 from typing import Final
 
 # Version of the data contract written into every JSON object; readers refuse another major.
-SCHEMA_VERSION: Final = "1.0"
+SCHEMA_VERSION: Final = "1.1"
 # Major part of SCHEMA_VERSION; a new major means an incompatible change.
 SCHEMA_MAJOR: Final = 1
 # Shape of a schema version string ("<major>.<minor>").
@@ -24,12 +24,21 @@ AUDIO_FOLDER: Final = "audio"
 RESULTS_FOLDER: Final = "results"
 # Object name of the batch summary written by the worker after the last job.
 DONE_OBJECT_NAME: Final = "_done.json"
+# Object name of the marker a desktop writes in a batch's prefix before it deletes a batch it does
+# not know, and deletes last: a cleanup interrupted after the manifest delete is resumed by it.
+DELETING_OBJECT_NAME: Final = "_deleting.json"
 # Key prefix of per-run objects written by the worker.
 RUNS_PREFIX: Final = "runs/"
 # Object name of a run's heartbeat and progress.
 RUN_STATUS_OBJECT_NAME: Final = "status.json"
 # Object name of a run's log.
 RUN_LOG_OBJECT_NAME: Final = "worker.log"
+# Object name of a run's lease: the batches the run may process, written by the launching desktop.
+RUN_LEASE_OBJECT_NAME: Final = "launch.json"
+# Path parts that name the folder itself or its parent; a stored path never contains them.
+DOT_PARTS: Final = frozenset((".", ".."))
+# Separators of a stored path's parts, by path flavour (Windows also accepts "/").
+PATH_SEPARATORS: Final = MappingProxyType({"windows": r"[\\/]", "posix": "/"})
 # Characters that would split a key segment into folders (S3 uses "/"; "\\" is refused too).
 KEY_SEPARATORS: Final = frozenset("/\\")
 # Prefix of the audio track marker in an audio object name ("<ulid>.a<track>.<ext>").

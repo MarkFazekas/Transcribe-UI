@@ -1,12 +1,11 @@
-"""Races of `launch_worker` with the manifest step and `publish_held_manifests` (threads; plan m5 M5.11).
+"""Races of `launch_worker` with the manifest step (threads; plan m5 M5.11, A21).
 
-The launch holds the runs lock from its activity check to its pod request, so a manifest
-published concurrently is either in the scope the launch confirmed or held back until the run
-ends: never a `ready` batch outside the run's scope.
+A manifest is published without an activity check, so one published while a launch is under
+way is `ready` outside the run's scope; the run's lease, written before the pod request, does not
+list it, so the run never processes it (the worker reads only the lease's batches).
 """
 
 import threading
-from collections.abc import Callable
 
 import httpx
 import pytest
@@ -21,9 +20,9 @@ from support.launch import (
     set_up_cloud,
 )
 from support.launch_seed import seed_audio_batch
-from support.runs import HELD, READY, RunsWorld, batch_state, seed_uploaded
+from support.runs import READY, RunsWorld, batch_state, seed_ready
+from support.worker_sim import leased_batches
 from transcribe_ui.runs.responses import LaunchWorkerResponse
-from transcribe_ui.state.errors import RunsBusyError
 
 # Item of the second batch.
 SECOND_ITEM = "01JDZZZZZZZZZZZZZZZZZZZZ31"
@@ -68,49 +67,35 @@ class Launch:
         threading.Event().wait(PAUSE_S)
 
 
-def _while_launching[ResultT](launch: Launch, compete: Callable[[], ResultT]) -> ResultT:
-    """Run `compete` while the launch is paused; after `runs_busy`, again once the launch is done."""
-    launch.start()
-    try:
-        return compete()
-    except RunsBusyError:
-        launch.join()
-    return compete()
-
-
-def _ready_outside_scope(world: RunsWorld, launched: LaunchWorkerResponse) -> list[str]:
-    covered = set(launched.run.covered_batch_ids)
-    states = {batch_id: batch_state(world, batch_id) for batch_id in (FIRST_BATCH_ID, SECOND_BATCH_ID)}
-    return [batch_id for batch_id, state in states.items() if state[0] == "ready" and batch_id not in covered]
-
-
 @pytest.fixture
 def two_batches(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up, the first batch held and a second one uploaded without its manifest step yet."""
+    """The cloud set up, the first batch published and a second one uploaded without its manifest step yet."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     seed_audio_batch(runs_world, SECOND_BATCH_ID, SECOND_ITEM)
     return runs_world
 
 
-def test_manifest_step_during_the_pod_request_is_held(two_batches: RunsWorld) -> None:
-    """A manifest step racing the launch's POST waits for the runs lock, then sees the run: held."""
+def test_published_during_launch_not_processed(two_batches: RunsWorld) -> None:
+    """A manifest step racing the launch's POST publishes, but the run's lease lists only the confirmed scope."""
     launch = Launch(two_batches, "POST", PODS)
-    step = _while_launching(launch, lambda: two_batches.step(SECOND_BATCH_ID))
+    launch.start()
+    two_batches.step(SECOND_BATCH_ID)
     launched = launch.join()
-    assert (launched.run.covered_batch_ids, step.outcome) == ((FIRST_BATCH_ID,), "held")
-    assert (batch_state(two_batches), batch_state(two_batches, SECOND_BATCH_ID)) == (READY, HELD)
-    assert not _ready_outside_scope(two_batches, launched)
-
-
-def test_publish_during_activity_check_adds_nothing(two_batches: RunsWorld) -> None:
-    """`publish_held_manifests` racing the launch's activity check: the launch publishes its own scope."""
-    assert two_batches.step(SECOND_BATCH_ID).outcome == "published"
-    launch = Launch(two_batches, "GET", PODS)
-    published = _while_launching(launch, two_batches.publish_held)
-    launched = launch.join()
-    assert (launched.published, launched.run.covered_batch_ids) == (
+    run_id = launched.run.run_id
+    assert (launched.run.covered_batch_ids, leased_batches(two_batches.store, run_id)) == (
         (FIRST_BATCH_ID,),
-        (FIRST_BATCH_ID, SECOND_BATCH_ID),
+        (FIRST_BATCH_ID,),
     )
-    assert (published.published, _ready_outside_scope(two_batches, launched)) == ((), [])
+    assert (batch_state(two_batches), batch_state(two_batches, SECOND_BATCH_ID)) == (READY, READY)
+
+
+def test_published_before_the_check_is_covered(two_batches: RunsWorld) -> None:
+    """A manifest published before the launch reads its scope is in the scope and in the lease."""
+    two_batches.step(SECOND_BATCH_ID)
+    launch = Launch(two_batches, "GET", PODS)
+    launch.start()
+    launched = launch.join()
+    covered = (FIRST_BATCH_ID, SECOND_BATCH_ID)
+    lease = leased_batches(two_batches.store, launched.run.run_id)
+    assert (launched.run.covered_batch_ids, lease) == (covered, covered)

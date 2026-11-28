@@ -38,7 +38,7 @@ from transcribe_ui.placement.constants import (
     ERROR_CUSTOM_UNKNOWN_JOB,
 )
 from transcribe_ui.placement.drafts import Draft, resolve_collisions, source_of
-from transcribe_ui.placement.naming import PathKey, TargetNames, has_subtitle_extension
+from transcribe_ui.placement.naming import PathKey, TargetNames, has_subtitle_extension, source_pure, target_names
 from transcribe_ui.placement.planner import (
     duplicate_errors,
     job_error,
@@ -57,10 +57,10 @@ if TYPE_CHECKING:
 type JobKey = tuple[str, str]
 
 
-def export_custom_plan(jobs: Sequence[PlacementJob], scan_root: str, rules: PathRules) -> CustomPlan:
+def export_custom_plan(jobs: Sequence[PlacementJob], scan_root: str, rules: PathRules | TargetNames) -> CustomPlan:
     """Return the custom plan of the jobs, pre-filled with the mirror strategy's folders and names."""
-    names = TargetNames(rules)
-    root = names.pure(scan_root)
+    names = target_names(rules)
+    root = source_pure(names, scan_root)
     drafts = [_export_draft(job, root, names) for job in jobs]
     resolve_collisions(drafts, names, by_folders=False)
     return CustomPlan(entries=tuple(_export_entry(draft, names) for draft in drafts))
@@ -80,7 +80,7 @@ def _export_entry(draft: Draft, names: TargetNames) -> CustomPlanEntry:
         item_id=job.item_id,
         language=job.language,
         source_path=job.source_path,
-        original_folder=str(draft.source.folder),
+        original_folder=str(source_pure(names, job.source_path).parent),
         output_folder=str(folder) if folder.parts else "",
         output_file_name=draft.name(names),
     )
@@ -113,7 +113,7 @@ def _unknown_error(entry: CustomPlanEntry) -> PlanError:
 
 
 def _source_unchanged(entry: CustomPlanEntry, job: PlacementJob, names: TargetNames) -> bool:
-    folder = str(names.pure(job.source_path).parent)
+    folder = str(source_pure(names, job.source_path).parent)
     return entry.source_path == job.source_path and entry.original_folder == folder
 
 
@@ -222,7 +222,7 @@ def import_custom_plan(
     document: str | bytes,
     jobs: Sequence[PlacementJob],
     options: CustomPlacementOptions,
-    rules: PathRules,
+    rules: PathRules | TargetNames,
     probe: PlacementProbe,
 ) -> PlacementPlan:
     """Return the plan of an edited custom plan, validated against the jobs and the output folder.
@@ -235,7 +235,7 @@ def import_custom_plan(
         plan = CustomPlan.model_validate_json(unmarked)
     except ValidationError as error:
         return PlacementPlan(entries=(), errors=(_schema_error(error),))
-    names = TargetNames(rules)
+    names = target_names(rules)
     if not names.pure(options.output_folder).is_absolute():
         return PlacementPlan(entries=(), errors=(output_error(),))
     by_key = {(job.item_id, job.language): job for job in jobs}

@@ -210,6 +210,12 @@ class CredentialsStatusResponse(FrozenModel):
     action: Literal["credentials_status"] = "credentials_status"
     keyring: KeyringState
     credentials: tuple[CredentialStatus, ...]
+    # Whether the Runpod key counts as set: found, or the keyring failed while reading (it may
+    # hold the key; the Runpod steps then report the error of the keyring instead of being skipped).
+    runpod_key_set: bool
+    # Whether every R2 credential counts as set (found, or the keyring failed while reading): without
+    # them nothing in the cloud can be checked, so the GUI's start-up sends no cloud check.
+    r2_set: bool
 
 
 class ServiceCheck(FrozenModel):

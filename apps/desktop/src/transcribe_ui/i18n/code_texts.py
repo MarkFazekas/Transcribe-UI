@@ -64,6 +64,24 @@ def _launch_plan(details: Details) -> str:
     return " ".join(parts)
 
 
+def _unknown_batch_elsewhere(details: Details) -> str:
+    return ntr(
+        "The job {batch_id} is not known on this computer; all its data ({files} file) will be deleted from the "
+        "cloud. Another computer uploaded this job; it may still need to download the subtitles.",
+        "The job {batch_id} is not known on this computer; all its data ({files} files) will be deleted from the "
+        "cloud. Another computer uploaded this job; it may still need to download the subtitles.",
+        count_of(details, "files"),
+    )
+
+
+def _adopt_batch(details: Details) -> str:
+    return ntr(
+        "Add the cloud job {batch_id} ({files} file), uploaded from another computer, to this computer's jobs?",
+        "Add the cloud job {batch_id} ({files} files), uploaded from another computer, to this computer's jobs?",
+        count_of(details, "files"),
+    )
+
+
 def _unknown_batch(details: Details) -> str:
     return ntr(
         "The job {batch_id} is not known on this computer; all its data ({files} file) will be deleted from the cloud.",
@@ -111,6 +129,15 @@ def confirmation_texts() -> CodeTable:
             "keeps them.",
         ),
         "cleanup_unknown_batch": _unknown_batch,
+        "cleanup_unknown_batch_uploaded_elsewhere": _unknown_batch_elsewhere,
+        "cleanup_unknown_leftover": tr(
+            "An interrupted cleanup left data of the job {batch_id} in the cloud; the rest will be deleted.",
+        ),
+        "cleanup_everything_uploaded_elsewhere": tr(
+            "All of the job's data will be deleted from the cloud: audio, subtitles and its description. "
+            "Another computer uploaded this job; it may still need to download the subtitles.",
+        ),
+        "adopt_cloud_batch": _adopt_batch,
         "overwrite_targets": _overwrite_targets,
         "terminate_pod": tr(
             "Terminate the cloud machine {name} ({status})? Its work stops at once; finished results stay in "
@@ -139,6 +166,10 @@ def plan_error_texts() -> CodeTable:
         "target_not_a_file": tr("{file} ({language}): the target exists and is not a file."),
         "outside_scan_root": tr("{file} ({language}): the file is not inside the scanned folder."),
         "output_not_absolute": tr("The output folder is not an absolute path."),
+        "no_local_sources": tr(
+            "The job was uploaded from another computer, so its media files are not on this one; choose another "
+            "placement.",
+        ),
         "custom_plan_schema": tr("The custom plan does not match its format: {problems}"),
         "custom_plan_duplicate_job": tr("{file} ({language}) is listed more than once in the plan."),
         "custom_plan_unknown_job": tr("The plan lists {item_id} ({language}), which is not part of this download."),

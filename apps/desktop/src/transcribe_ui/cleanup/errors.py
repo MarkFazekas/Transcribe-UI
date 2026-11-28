@@ -4,6 +4,7 @@ from transcribe_ui.api.errors import DomainError
 from transcribe_ui.cleanup.constants import (
     ERROR_AUDIO_DELETED,
     ERROR_MANIFEST_UNREADABLE,
+    ERROR_REMOVED_FROM_CLOUD,
     ERROR_RESULTS_PENDING,
     ERROR_RETRY_COPYING,
     ERROR_RETRY_JOB_INVALID,
@@ -68,5 +69,17 @@ class ManifestUnreadableError(DomainError):
             ERROR_MANIFEST_UNREADABLE,
             "This batch's description in the cloud cannot be read (another app version, or damaged), "
             "so nothing was deleted.",
+            {"batch_id": batch_id},
+        )
+
+
+class RemovedFromCloudError(DomainError):
+    """Another computer removed the batch from the cloud; its cleanup has nothing to delete (nothing was changed)."""
+
+    def __init__(self, batch_id: str) -> None:
+        """Name the batch."""
+        super().__init__(
+            ERROR_REMOVED_FROM_CLOUD,
+            "Another computer has already deleted this batch from the cloud.",
             {"batch_id": batch_id},
         )

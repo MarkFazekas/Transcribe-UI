@@ -79,3 +79,5 @@ R2_ERROR_MESSAGES: Final[Mapping[str, str]] = MappingProxyType(
         ERROR_R2_FAILED: "The R2 request failed; the details are in the log.",
     },
 )
+# Default port of each endpoint scheme, dropped when a bucket's identity is built.
+DEFAULT_PORTS: Final = MappingProxyType({"https": 443, "http": 80})

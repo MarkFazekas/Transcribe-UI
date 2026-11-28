@@ -12,15 +12,18 @@ from transcribe_contracts.constants import (
     AUDIO_FOLDER,
     BATCH_ID_PATTERN,
     BATCH_METADATA_PREFIX,
+    DELETING_OBJECT_NAME,
     DONE_OBJECT_NAME,
     JSON_SUFFIX,
     KEY_SEPARATORS,
     RESULTS_FOLDER,
+    RUN_LEASE_OBJECT_NAME,
     RUN_LOG_OBJECT_NAME,
     RUN_STATUS_OBJECT_NAME,
     RUNS_PREFIX,
     SRT_SUFFIX,
     TRACK_MARKER,
+    ULID_PATTERN,
 )
 
 
@@ -104,6 +107,11 @@ def done_key(batch_id: str) -> str:
     return f"{batch_prefix(batch_id)}{DONE_OBJECT_NAME}"
 
 
+def deleting_key(batch_id: str) -> str:
+    """Return the key of the marker of a cleanup in progress (written first, deleted last; never a worker's)."""
+    return f"{batch_prefix(batch_id)}{DELETING_OBJECT_NAME}"
+
+
 def run_status_key(run_id: str) -> str:
     """Return the key of a worker run's heartbeat and progress object."""
     return f"{RUNS_PREFIX}{_segment(run_id)}/{RUN_STATUS_OBJECT_NAME}"
@@ -112,6 +120,22 @@ def run_status_key(run_id: str) -> str:
 def run_log_key(run_id: str) -> str:
     """Return the key of a worker run's log."""
     return f"{RUNS_PREFIX}{_segment(run_id)}/{RUN_LOG_OBJECT_NAME}"
+
+
+def run_lease_key(run_id: str) -> str:
+    """Return the key of a run's lease (the batches it may process; written by the launching desktop)."""
+    return f"{RUNS_PREFIX}{_segment(run_id)}/{RUN_LEASE_OBJECT_NAME}"
+
+
+def run_id_from_lease_key(key: str) -> str | None:
+    """Return the run id encoded in a lease key, or None if the key is not a run lease."""
+    suffix = f"/{RUN_LEASE_OBJECT_NAME}"
+    if not key.startswith(RUNS_PREFIX) or not key.endswith(suffix):
+        return None
+    run_id = key.removeprefix(RUNS_PREFIX).removesuffix(suffix)
+    if re.fullmatch(ULID_PATTERN, run_id) is None:
+        return None
+    return run_id
 
 
 def _result_base(batch_id: str, item_id: str, language: str) -> str:

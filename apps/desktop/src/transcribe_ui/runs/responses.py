@@ -62,15 +62,13 @@ class PlanLaunchResponse(OkResponse):
 
 
 class LaunchWorkerResponse(OkResponse):
-    """The run started (or whose outcome is still unknown), and the held manifests published first."""
+    """The run started (or whose outcome is still unknown)."""
 
     action: Literal["launch_worker"] = "launch_worker"
     outcome: LaunchOutcome
     # Whether the pod or queued pod was found by its name after the request's answer was lost.
     adopted: bool = False
     run: RunInfo
-    # Held manifests published before the launch, by batch id.
-    published: tuple[str, ...] = ()
 
 
 class CancelWorkerResponse(OkResponse):
@@ -215,7 +213,7 @@ class BatchResults(FrozenModel):
 
 
 class RefreshStatusResponse(OkResponse):
-    """The runs that were not final, the `ready` batches' results, and the held manifests published."""
+    """The runs that were not final, the `ready` batches' results, and whether results are still awaited."""
 
     action: Literal["refresh_status"] = "refresh_status"
     # Every run that was not final before the refresh, as it is now, oldest first.
@@ -224,7 +222,8 @@ class RefreshStatusResponse(OkResponse):
     batches: tuple[BatchResults, ...]
     # `ready` batches skipped because another request holds their lock (checked next time).
     busy: tuple[str, ...] = ()
-    # Held manifests published now that no run is active, by batch id.
-    published: tuple[str, ...] = ()
-    # Held manifests still held (a run is active, or their batch was busy or incomplete).
-    held: tuple[str, ...] = ()
+    # Whether some `ready` batch still waits for its results (the GUI keeps polling while it does,
+    # with or without a Runpod key; architecture §3.9 "Results poll").
+    awaiting_results: bool
+    # Other computers' jobs whose interrupted cleanup this refresh finished (`recheck`; architecture §3.3).
+    finished_cleanups: tuple[str, ...] = ()

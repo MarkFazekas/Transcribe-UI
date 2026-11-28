@@ -14,6 +14,7 @@ from transcribe_ui.batches.constants import ALL_PHASES, FINISHED_PHASES, ITEM_RE
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.batches.records import batch_summary, load_detail, stored_items, summary_of
 from transcribe_ui.batches.responses import BatchSummary, GetBatchResponse, ListBatchesResponse, SetBatchHiddenResponse
+from transcribe_ui.batches.run_scope import RunScope, run_scope
 from transcribe_ui.state.models import BatchRow, ItemRow, JobRow, PlacementRow
 from transcribe_ui.upload.constants import ITEM_REVIEWED
 
@@ -70,7 +71,8 @@ def list_batches(request: ListBatchesRequest, context: RequestContext) -> ListBa
         counts = _item_counts(session, listed)
         jobs = _job_keys(session, listed)
         copying = copying_sources(session)
-    summaries = [_summary(row, counts, jobs, copying) for row in rows]
+        scope = run_scope(session, context.ports.clock.now())
+    summaries = [_summary(row, counts, jobs, (copying, scope)) for row in rows]
     return ListBatchesResponse(batches=tuple(summaries))
 
 
@@ -78,30 +80,39 @@ def _summary(
     row: BatchRow,
     counts: Mapping[str, ItemCounts],
     jobs: Mapping[str, list[JobKey]],
-    copying: frozenset[str],
+    shared: tuple[frozenset[str], RunScope],
 ) -> BatchSummary:
+    """Return one listed batch's summary; `shared` is what every summary reads: the copying sources and the run scope."""
     batch_id = row.batch_id
-    retry_copying = batch_id in copying
+    copying, scope = shared
     item_counts = counts.get(batch_id, ItemCounts())
-    return batch_summary(row, item_counts, jobs.get(batch_id, []), copying=retry_copying)
+    batch_jobs = jobs.get(batch_id, [])
+    return batch_summary(row, item_counts, batch_jobs, copying=batch_id in copying, scope=scope)
 
 
 def get_batch(request: GetBatchRequest, context: RequestContext) -> GetBatchResponse:
     """Return one batch with its items and jobs."""
     with context.ports.state.session() as session:
-        detail = load_detail(session, load_batch(session, request.batch_id))
+        now = context.ports.clock.now()
+        detail = load_detail(session, load_batch(session, request.batch_id), now=now)
     return GetBatchResponse(batch=detail)
+
+
+def _hide_phases(row: BatchRow) -> frozenset[str]:
+    """Return the phases a batch can be hidden in: finished, or any once another computer removed it from the cloud."""
+    return FINISHED_PHASES | {row.phase} if row.removed_from_cloud else FINISHED_PHASES
 
 
 def set_batch_hidden(request: SetBatchHiddenRequest, context: RequestContext) -> SetBatchHiddenResponse:
     """Hide a finished (`downloaded` or `cleaned`) batch from the default list, or show any batch again."""
     state = context.ports.state
     batch_id = request.batch_id
-    allowed = FINISHED_PHASES if request.hidden else ALL_PHASES
     now = context.ports.clock.now()
     with state.locks.batch(batch_id), state.session() as session:
-        require_phase(load_batch(session, batch_id), allowed)
+        row = load_batch(session, batch_id)
+        allowed = _hide_phases(row) if request.hidden else ALL_PHASES
+        require_phase(row, allowed)
         touch_batch(session, batch_id, allowed, now=now, also_set={"hidden": request.hidden})
         row = load_batch(session, batch_id)
-        summary = summary_of(session, row, stored_items(session, batch_id))
+        summary = summary_of(session, row, stored_items(session, batch_id), now=now)
     return SetBatchHiddenResponse(batch=summary)

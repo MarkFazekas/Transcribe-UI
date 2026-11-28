@@ -20,6 +20,10 @@ ROOT_LOG_FOLDER: Final = "log"
 DATABASE_FILE_NAME: Final = "state.sqlite3"
 # File name of the writer lock next to the database (held while a process uses it).
 WRITER_LOCK_FILE_NAME: Final = "state.lock"
+# File in the data dir holding this installation's id (who uploaded a job, architecture §3.9).
+INSTALLATION_ID_FILE_NAME: Final = "installation_id"
+# Suffix of the temp file the installation id is written to before it replaces the file.
+INSTALLATION_ID_TEMP_SUFFIX: Final = ".part"
 # Permission bits of the lock file when it is created (POSIX).
 WRITER_LOCK_FILE_MODE: Final = 0o600
 # errno values of a failed lock meaning "another process holds it" (POSIX flock, Windows `_locking`).

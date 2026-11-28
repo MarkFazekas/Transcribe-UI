@@ -12,6 +12,7 @@ from transcribe_ui.media.fake import FakeMediaTools
 from transcribe_ui.media.ports import MediaTools
 from transcribe_ui.runpod.access import RunpodAccess
 from transcribe_ui.runpod.timing import Stopped
+from transcribe_ui.state.installation import InstallationIdFile
 from transcribe_ui.state.paths import AppPaths
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.client import r2_client
@@ -69,6 +70,11 @@ def seeded_ports(
         r2_clients=r2_client,
         # Never the real Runpod API: a fake account that accepts the test key.
         runpod=RunpodAccess(transport=FakeRunpodApi(clock.now).transport(), wait=skip_wait),
+        # Its own seeded source per root: two test installations get two ids, the same each run.
+        installation=InstallationIdFile(
+            state.paths.installation_id_file,
+            UlidSource(clock, random.Random(str(root)).getrandbits).new_id,  # noqa: S311 -- reproducible test ids
+        ),
         local_zone=local_zone,
     )
 

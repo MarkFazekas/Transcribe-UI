@@ -20,7 +20,7 @@ from support.launch import (
     set_up_cloud,
 )
 from support.runpod_api import Failure, Record
-from support.runs import OUTAGE, RunsWorld, seed_uploaded, set_run_status
+from support.runs import OUTAGE, RunsWorld, seed_ready, set_run_status
 from transcribe_ui.api.classes import NeedsConfirmation
 from transcribe_ui.runpod.constants import ERROR_CLOUD_UNREACHABLE, QUEUED_POD_CANCELLED
 from transcribe_ui.runs.constants import (
@@ -44,14 +44,14 @@ SETTLED = timedelta(seconds=DEPLOY_SETTLE_S)
 
 @pytest.fixture
 def ready(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 
 def _launch(world: RunsWorld, *, capacity: bool) -> str:
-    """Launch on the seeded held batch; return the run id."""
+    """Launch on the seeded published batch; return the run id."""
     world.cloud.settings.capacity = capacity
     return launch_run(world).run_id
 

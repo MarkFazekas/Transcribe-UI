@@ -10,19 +10,22 @@ source cannot run meanwhile:
    `uploading` under an id R2 holds nothing under (`cleanup/retry.py`);
 3. under the retry batch's lock it then runs the resumable upload path of `run_upload`
    (`upload/services.py` `continue_upload`): the copy variant copies each audio object server
-   side and verifies it, and the manifest step publishes the manifest (or holds it during a run).
+   side and verifies it, and the manifest step publishes the manifest.
 
 The retry batch is committed before anything is copied, so an interruption at any point leaves a
 retry batch that repeating the request (or `run_upload` on the retry batch) resumes; no second
 retry batch is created for the same source and job set.
 
 `cleanup_cloud` takes the runs lock (bounded wait), then the batch's lock (never waited for; lock
-order runs → batch). A batch this database knows is checked (`cleanup/targets.py`) and cleaned up
-(`cleanup/known.py`): the runs lock is held through the checks and the transaction that records
+order runs → batch). A batch whose id this database knows is checked (`cleanup/targets.py`),
+confirmed and then, when R2 holds no manifest under the id or one recognised as this database's
+(architecture §3.9 "Known batches"), cleaned up (`cleanup/known.py`): the runs lock is held through the checks and the transaction that records
 the cleanup with its `cleanup_pending` marker, then released before the deletes (the marker keeps
 every launch out, the batch lock and the phase the manifest steps); the batch lock is held to the
-end. A batch it does not know goes to `cleanup/unknown.py` (Q28) and keeps both locks to the end,
-since nothing local would keep a launch out. No R2 or Runpod call is made inside a database transaction.
+end. A batch it does not know (another computer's, possibly under an id this database also uses)
+goes to `cleanup/unknown.py` (Q28) and keeps both locks to the end, since nothing local would
+keep a launch out. Only R2 is needed (no Runpod key), and no R2 call is made inside a database
+transaction.
 """
 
 from contextlib import ExitStack
@@ -35,13 +38,15 @@ from transcribe_ui.cleanup.classes import (
     CreateRetryBatchRequest,
     CreateRetryBatchResponse,
 )
+from transcribe_ui.cleanup.confirmations import missing_confirmations
 from transcribe_ui.cleanup.known import cleanup_known
+from transcribe_ui.cleanup.manifests import known_in_cloud
 from transcribe_ui.cleanup.origins import ExistingRetry, retry_target
 from transcribe_ui.cleanup.planning import origin_of
 from transcribe_ui.cleanup.retry import retry_batch_id, retry_response, still_uploading
-from transcribe_ui.cleanup.targets import check_target, load_target, missing_confirmations
+from transcribe_ui.cleanup.targets import check_target, load_target
 from transcribe_ui.cleanup.unknown import cleanup_unknown
-from transcribe_ui.runs.cloud import open_cloud
+from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.upload.services import continue_upload
 
 
@@ -54,8 +59,8 @@ def create_retry_batch(request: CreateRetryBatchRequest, context: RequestContext
         AudioDeletedError: The source's audio was cleaned up (only when a retry batch is to be created).
         WrongPhaseError: The source has no results yet.
         RetryJobInvalidError: A job is not a failed or no-speech transcribe job of the source.
-        DomainError: R2, Runpod or the database failed, or the request was cancelled; repeating
-            the request resumes the retry batch.
+        DomainError: R2 or the database failed, or the request was cancelled; repeating the
+            request resumes the retry batch.
     """
     state = context.ports.state
     origin = origin_of(request)
@@ -65,12 +70,12 @@ def create_retry_batch(request: CreateRetryBatchRequest, context: RequestContext
         created = not isinstance(target, ExistingRetry)
         if isinstance(target, ExistingRetry) and not target.uploading:
             return retry_response(context, request, target.batch_id, None, created=created)
-        with open_cloud(context) as cloud:
-            retry_id = retry_batch_id(context, cloud.store, target)
-            with state.locks.batch(retry_id):
-                if not still_uploading(context, retry_id):
-                    return retry_response(context, request, retry_id, None, created=created)
-                report = continue_upload(context, cloud, retry_id, request.action)
+        store = open_store(context)
+        retry_id = retry_batch_id(context, store, target)
+        with state.locks.batch(retry_id):
+            if not still_uploading(context, retry_id):
+                return retry_response(context, request, retry_id, None, created=created)
+            report = continue_upload(context, store, retry_id, request.action)
     return retry_response(context, request, retry_id, report, created=created)
 
 
@@ -84,8 +89,7 @@ def cleanup_cloud(request: CleanupCloudRequest, context: RequestContext) -> Clea
         RetryCopyingError: A retry batch of the batch still copies its audio.
         ResultsPendingError: `audio` while a job has no result.
         ManifestUnreadableError: An unknown batch's manifest cannot be read.
-        RunActiveError: A run is active and the batch may be visible to it (nothing changed).
-        ActivityUnknownError: The run activity cannot be checked (nothing changed).
+        RunActiveError: A live run lease lists the batch (nothing changed).
         DomainError: R2 failed or the request was cancelled; repeating it resumes.
     """
     state = context.ports.state
@@ -98,7 +102,9 @@ def cleanup_cloud(request: CleanupCloudRequest, context: RequestContext) -> Clea
             if target is None:
                 return cleanup_unknown(request, context)
             check_target(request, target)
-            needed = missing_confirmations(request, target)
+            needed = missing_confirmations(request, target, context.ports.installation.current())
             if needed:
                 return NeedsConfirmation(action=request.action, confirmations=needed)
+            if not known_in_cloud(state, open_store(context), request.batch_id):
+                return cleanup_unknown(request, context, diverted=True)
             return cleanup_known(request, context, target, runs_held.close)

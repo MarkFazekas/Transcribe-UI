@@ -58,8 +58,8 @@
       }
     ],
     "busy": [],
-    "published": [],
-    "held": []
+    "awaiting_results": false,
+    "finished_cleanups": []
   },
   "events": []
 }

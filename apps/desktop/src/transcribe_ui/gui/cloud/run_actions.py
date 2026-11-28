@@ -14,8 +14,7 @@ from transcribe_ui.gui.cloud.commands import CloudCommands
 from transcribe_ui.gui.cloud.display import is_final
 from transcribe_ui.gui.cloud.poll import CloudPoll
 from transcribe_ui.gui.cloud.ports import CloudOutlet
-from transcribe_ui.gui.cloud.runs import RunList
-from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
+from transcribe_ui.gui.cloud.runs import RunList, emit_ended
 from transcribe_ui.gui.executor import Executor
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.runs.classes import CancelWorkerRequest
@@ -54,11 +53,10 @@ class RunActions(ViewModel):
         """Follow a run the start dialog launched: poll from now on, show it, reload the jobs it covers."""
         self._poll.start()
         self._runs.announce()
-        covered = (*response.run.covered_batch_ids, *response.published)
-        self._outlet.emit(BATCHES_CHANGED_SIGNAL, tuple(dict.fromkeys(covered)))
+        emit_ended(self._runs, self._outlet, response.run.covered_batch_ids)
 
     def _stopped(self, covered: tuple[str, ...], response: Response) -> None:
         # A failed stop may have recorded a pod or ended the run before it failed: reload either way.
         self._runs.announce()
         if isinstance(response, CancelWorkerResponse):
-            self._outlet.emit(BATCHES_CHANGED_SIGNAL, covered)
+            emit_ended(self._runs, self._outlet, covered)

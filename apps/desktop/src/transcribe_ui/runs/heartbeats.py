@@ -41,12 +41,12 @@ def heartbeat_sources(store: ObjectStore, now: datetime) -> list[ActivitySource]
     """
     listed = store.list_objects(RUNS_PREFIX)
     heartbeats = [found for found in listed if found.key.endswith(STATUS_KEY_SUFFIX)]
-    recent = [found for found in heartbeats if _recent(found, now)]
+    recent = [found for found in heartbeats if recently_written(found, now)]
     sources = [_heartbeat(store, found, now) for found in recent]
     return [source for source in sources if source is not None]
 
 
-def _recent(found: ObjectInfo, now: datetime) -> bool:
+def recently_written(found: ObjectInfo, now: datetime) -> bool:
     """Return whether the object was written recently enough to be a live worker's (unknown: yes)."""
     written = found.modified
     return written is None or now - written <= STALE + MARGIN

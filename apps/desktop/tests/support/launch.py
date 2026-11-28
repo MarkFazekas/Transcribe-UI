@@ -1,7 +1,7 @@
 """Launch, cancel and reconcile helpers over moto and the fake Runpod API (plan m5 M5.11).
 
-Batches are seeded through the state store (the upload is M5.10): a held batch has its audio in
-the bucket, a ready one also its manifest. Parity legs each get their own bucket and fake API.
+Batches are seeded through the state store (the upload is M5.10): an uploading batch has its audio
+in the bucket, a ready one also its manifest. Parity legs each get their own bucket and fake API.
 """
 
 import json
@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import JsonValue
 
 from support.batch_backend import run
-from support.runs import JSON_TYPE, RunsWorld, seed_uploaded
+from support.runs import JSON_TYPE, RunsWorld
 from transcribe_contracts.classes import AudioObject, Manifest, ManifestItem, TranscribeJob
 from transcribe_contracts.layout import audio_key, manifest_key
 from transcribe_ui.api.classes import ErrorResponse, Response
@@ -70,13 +70,6 @@ def set_up_cloud(world: RunsWorld) -> None:
     """Create the template, secrets and Global Volume in the world's fake Runpod API."""
     response = world.leg.backend.execute(SetupCloudRequest(action="setup_cloud"))
     assert response.status == "ok", response
-
-
-def seed_ready(world: RunsWorld) -> dict[str, str]:
-    """Seed the batch uploaded and published (`ready`, manifest in R2); return file name -> item id."""
-    ids = seed_uploaded(world)
-    assert world.step().outcome == "published"
-    return ids
 
 
 def foreign_manifest(batch_id: str = FOREIGN_BATCH_ID) -> Manifest:

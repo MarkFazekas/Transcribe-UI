@@ -2,9 +2,9 @@
 
 In an `uploading` batch the object store is opened first, so a credentials error changes
 nothing; a leftover manifest of ours (an interrupted manifest step) is then withdrawn under the
-runs lock while no run is active (`upload/withdraw.py`), else the request is refused with
-nothing changed. Then one transaction clears `manifest_held` (recording the pending withdrawal)
-and deletes the items with their
+runs lock while no live run lease lists the batch (`upload/withdraw.py`), else the request is
+refused with nothing changed. Then one transaction records the pending withdrawal and deletes
+the items with their
 `audio_objects` and `extracted_subtitles` rows: from then on nothing lists their audio, and
 the intent to exclude cannot be lost. Only then are the objects under each item's audio prefix
 deleted (only an `uploading` batch has any), with the item's open multipart uploads aborted.
@@ -56,14 +56,14 @@ def _checked_phase(request: ExcludeItemsRequest, context: RequestContext) -> str
 def _remove_items(
     request: ExcludeItemsRequest, context: RequestContext, phase: str, leftover: str | None
 ) -> BatchDetail:
-    """Clear `manifest_held` and delete the items with their upload rows, in one transaction; return the batch.
+    """Delete the items with their upload rows, in one transaction; return the batch.
 
     With a leftover manifest (its digest), the same transaction records the pending withdrawal.
     """
     batch_id = request.batch_id
     with context.ports.state.session() as session:
         now = context.ports.clock.now()
-        changes: dict[str, object] = {"manifest_held": False}
+        changes: dict[str, object] = {}
         if leftover is not None:
             changes["pending_withdrawal"] = recorded_withdrawal(session, batch_id, leftover, request.item_ids)
         touch_batch(session, batch_id, (phase,), now=now, also_set=changes)
@@ -71,7 +71,7 @@ def _remove_items(
         excluded = ItemRow.item_id.in_(request.item_ids)
         of_batch = ItemRow.batch_id == batch_id
         session.execute(delete(ItemRow).where(of_batch, excluded))
-        return load_detail(session, load_batch(session, batch_id))
+        return load_detail(session, load_batch(session, batch_id), now=now)
 
 
 def _has_uploaded_audio(request: ExcludeItemsRequest, context: RequestContext) -> bool:

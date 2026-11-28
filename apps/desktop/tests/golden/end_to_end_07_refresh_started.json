@@ -50,8 +50,8 @@
       }
     ],
     "busy": [],
-    "published": [],
-    "held": []
+    "awaiting_results": true,
+    "finished_cleanups": []
   },
   "events": []
 }

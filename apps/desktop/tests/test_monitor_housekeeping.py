@@ -9,7 +9,7 @@ import pytest
 from support.batches import FIRST_BATCH_ID
 from support.launch import PODS, launch_run, run_row, set_up_cloud
 from support.monitor import job_statuses, refresh, run_objects, write_log, write_result, write_status
-from support.runs import OUTAGE, RunsWorld, seed_uploaded, set_run_status
+from support.runs import OUTAGE, RunsWorld, seed_ready, set_run_status
 
 # Item id of the seeded film.
 FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
@@ -17,9 +17,9 @@ FILM_ID = "01JDZZZZZZZZZZZZZZZZZZZZ01"
 
 @pytest.fixture
 def world(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held (the launch publishes it)."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 

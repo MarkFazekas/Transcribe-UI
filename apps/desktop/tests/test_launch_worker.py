@@ -29,7 +29,7 @@ from support.launch import (
     set_up_cloud,
     write_foreign,
 )
-from support.runs import READY, RunsWorld, app_pod_name, batch_state, seed_uploaded
+from support.runs import READY, RunsWorld, app_pod_name, batch_state, seed_ready
 from transcribe_ui.runs.constants import NAME_DEADLINE_MARGIN_S, TEST_MODE_RUNTIME_S, WAIT_DEFAULT_S
 from transcribe_ui.runs.responses import LaunchWorkerResponse
 
@@ -43,22 +43,17 @@ NAME_DEADLINE = timedelta(hours=3)
 
 @pytest.fixture
 def ready(runs_world: RunsWorld) -> RunsWorld:
-    """The cloud set up and the seeded batch uploaded, its manifest held."""
+    """The cloud set up and the seeded batch uploaded, its manifest published."""
     set_up_cloud(runs_world)
-    seed_uploaded(runs_world, held=True)
+    seed_ready(runs_world)
     return runs_world
 
 
 def test_launch_direct(ready: RunsWorld) -> None:
-    """With capacity: the held manifest is published first, then one pod is created; the run follows it."""
+    """With capacity: one pod is created on the published batch; the run follows it."""
     launched = launch(ready, wait_s=TWO_HOURS_S)
     run = launched.run
-    assert (launched.outcome, run.status, launched.published, run.covered_batch_ids) == (
-        "pod",
-        "running",
-        (FIRST_BATCH_ID,),
-        (FIRST_BATCH_ID,),
-    )
+    assert (launched.outcome, run.status, run.covered_batch_ids) == ("pod", "running", (FIRST_BATCH_ID,))
     assert (batch_state(ready), posts(ready), [run.pod_id]) == (READY, 1, [pod_id for pod_id, _ in pods_of(ready)])
 
 

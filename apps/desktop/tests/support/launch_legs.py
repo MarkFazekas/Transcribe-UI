@@ -6,7 +6,7 @@ from pathlib import Path
 
 import boto3
 
-from support.batches import SEEDED_OBJECT_BYTES, batch_ports, seed_uploading_batch, seeded_keys
+from support.batches import FIRST_BATCH_ID, SEEDED_OBJECT_BYTES, batch_ports, seed_uploading_batch, seeded_keys
 from support.credentials import TEST_ACCESS_KEY_ID, TEST_ENDPOINT, TEST_SECRET
 from support.launch import write_foreign
 from support.runpod import Cloud, credential_store
@@ -15,9 +15,11 @@ from support.storage import r2_credentials
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.runpod.classes import SetupCloudRequest
+from transcribe_ui.state.models import BatchRow
 from transcribe_ui.state.store import LocalState
 from transcribe_ui.storage.client import r2_client
 from transcribe_ui.storage.r2 import R2ObjectStore
+from transcribe_ui.upload.manifest import build_manifest, write_manifest
 
 # Seeds one parity leg: its ports, its bucket and its fake Runpod API.
 type LegSeed = Callable[[Ports, Path, R2ObjectStore, Cloud], None]
@@ -38,11 +40,16 @@ def create_bucket(name: str) -> None:
     setup.create_bucket(Bucket=name)
 
 
-def seed_held(state: LocalState, root: Path, store: R2ObjectStore) -> None:
-    """Seed the held batch (upload complete, manifest held) with its audio in the bucket."""
-    seed_uploading_batch(state, root, manifest_held=True)
+def seed_published(state: LocalState, root: Path, store: R2ObjectStore) -> None:
+    """Seed the published batch (upload complete, manifest in the bucket, `ready`) with its audio in the bucket."""
+    seed_uploading_batch(state, root)
     for key in seeded_keys(state):
         store.write(key, b"a" * SEEDED_OBJECT_BYTES, "audio/x-matroska")
+    with state.session() as session:
+        write_manifest(store, build_manifest(session, FIRST_BATCH_ID, uploaded_by=None))
+        row = session.get(BatchRow, FIRST_BATCH_ID)
+        assert row is not None
+        row.phase = "ready"
 
 
 @dataclass
@@ -85,7 +92,7 @@ class LaunchLegs:
         return ports
 
 
-def seed_held_leg(ports: Ports, root: Path, store: R2ObjectStore, _cloud: Cloud) -> None:
-    """Seed a parity leg with the held batch and another computer's manifest."""
-    seed_held(ports.state, root, store)
+def seed_ready_leg(ports: Ports, root: Path, store: R2ObjectStore, _cloud: Cloud) -> None:
+    """Seed a parity leg with the published batch and another computer's manifest."""
+    seed_published(ports.state, root, store)
     write_foreign(store)

@@ -35,13 +35,14 @@ def _read_back(world: RunsWorld) -> Manifest:
 
 def _built(world: RunsWorld) -> Manifest:
     with world.ports.state.session() as session:
-        return build_manifest(session, FIRST_BATCH_ID)
+        return build_manifest(session, FIRST_BATCH_ID, uploaded_by=world.ports.installation.current())
 
 
 def test_published_manifest_reads_back(runs_world: RunsWorld) -> None:
     """With no run active, the manifest is uploaded and the batch is `ready`; the worker's reader accepts it."""
     ids = seed_uploaded(runs_world)
-    assert (runs_world.step().outcome, batch_state(runs_world)) == ("published", READY)
+    runs_world.step()
+    assert batch_state(runs_world) == READY
     manifest = _read_back(runs_world)
     media = runs_world.leg.root / "media"
     film, podcast = manifest.items
