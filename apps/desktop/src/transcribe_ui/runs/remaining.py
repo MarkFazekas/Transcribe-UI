@@ -30,6 +30,7 @@ The finish is `refreshed_at` plus the remaining time.
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+from fractions import Fraction
 from typing import NamedTuple
 
 from transcribe_contracts.classes import RunStatus as WorkerStatus
@@ -87,8 +88,14 @@ def estimate_progress(work: RunWork, worker: WorkerReport | None) -> RunEstimate
     finish = None
     if remaining is not None and refreshed_at is not None:
         finish = refreshed_at + timedelta(seconds=remaining)
-    fraction = round((total - pending_s) / total, PROGRESS_FRACTION_DECIMALS)
-    return RunEstimate(fraction, remaining, finish)
+    return RunEstimate(done_share(pending_s, total), remaining, finish)
+
+
+def done_share(pending_s: float, total_s: float) -> float:
+    """Return the done share of `total_s`, rounded down exactly to its decimals, so 1 means nothing is pending."""
+    scale = 10**PROGRESS_FRACTION_DECIMALS
+    done = 1 - Fraction(pending_s) / Fraction(total_s)
+    return int(done * scale) / scale  # not negative, so truncating rounds down
 
 
 def _remaining_s(work: RunWork, worker: WorkerReport | None, pending_s: float) -> int | None:

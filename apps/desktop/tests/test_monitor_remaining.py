@@ -39,6 +39,7 @@ from transcribe_ui.runs.constants import (
     RUNTIME_REAL_TIME_FACTOR,
     STARTUP_ALLOWANCE_S,
 )
+from transcribe_ui.runs.remaining import done_share
 from transcribe_ui.runs.responses import CancelWorkerResponse, ListRunsResponse, RunProgress
 from transcribe_ui.state.models import JobRow, RunRow
 
@@ -60,6 +61,9 @@ WORKER_OFFSET = timedelta(hours=1)
 OFFSETS = (NO_MOVE, WORKER_OFFSET)
 # How long ago another run worked on a job (by the worker's clock).
 LONG_AGO = timedelta(hours=9)
+# Followed audio of a long run, and the audio still pending at its very end (seconds).
+LONG_RUN_S = 1_000_000
+LAST_SECOND_S = 1
 # Worker state while it transcribes.
 TRANSCRIBING: RunState = "transcribing"
 # Item ids of the seeded batch, by file name (as `seed_uploading_batch` stores them).
@@ -151,7 +155,9 @@ def _progress(run: RunProgress) -> tuple[float | None, int | None, datetime | No
 
 
 def _fraction(done_s: float, total_s: float) -> float:
-    return round(done_s / total_s, PROGRESS_FRACTION_DECIMALS)
+    """Return the done share as the backend shows it: rounded down to its decimals."""
+    scale = 10**PROGRESS_FRACTION_DECIMALS
+    return int(done_s * scale / total_s) / scale
 
 
 def _later(world: RunsWorld, seconds: float) -> datetime:
@@ -336,3 +342,9 @@ def test_failed_refresh_leaves_no_stale_estimate(world: RunsWorld, worker: Worke
     assert (broken.status, send(world, REFRESH).status) == ("ok", "error")
     listed = _listed(world)
     assert (listed.refreshed_at, _progress(listed)) == (world.now(), (0, None, None))
+
+
+def test_done_share_is_rounded_down() -> None:
+    """With one second of a long run pending, the done share stays below 1 (1 means all done)."""
+    assert done_share(LAST_SECOND_S, LONG_RUN_S) == 1 - 10**-PROGRESS_FRACTION_DECIMALS
+    assert done_share(0, LONG_RUN_S) == 1
