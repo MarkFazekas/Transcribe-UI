@@ -21,6 +21,10 @@
       "audio_deleted": true,
       "cleanup_pending": null,
       "extract_only": false,
+      "stage": "done",
+      "labels": [
+        "flagged_jobs"
+      ],
       "actions": [
         "plan_download",
         "run_download",

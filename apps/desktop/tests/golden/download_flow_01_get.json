@@ -20,6 +20,11 @@
         "audio_deleted": false,
         "cleanup_pending": null,
         "extract_only": false,
+        "stage": "download",
+        "labels": [
+          "subtitles_ready",
+          "flagged_jobs"
+        ],
         "actions": [
           "plan_download",
           "run_download",

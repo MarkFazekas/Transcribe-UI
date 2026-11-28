@@ -15,6 +15,8 @@ from transcribe_ui.batches.actions import (
     JobKey,
     allowed_actions,
     batch_facts,
+    batch_labels,
+    batch_stage,
     copying_sources,
     stored_cleanup_pending,
 )
@@ -182,6 +184,8 @@ def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey]
         audio_deleted=row.audio_deleted,
         cleanup_pending=stored_cleanup_pending(row),
         extract_only=_extract_only(jobs),
+        stage=batch_stage(facts),
+        labels=batch_labels(facts),
         actions=allowed_actions(facts),
     )
 
