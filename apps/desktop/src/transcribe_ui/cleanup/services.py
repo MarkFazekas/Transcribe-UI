@@ -102,7 +102,7 @@ def cleanup_cloud(request: CleanupCloudRequest, context: RequestContext) -> Clea
             if target is None:
                 return cleanup_unknown(request, context)
             check_target(request, target)
-            needed = missing_confirmations(request, target)
+            needed = missing_confirmations(request, target, context.ports.installation.current())
             if needed:
                 return NeedsConfirmation(action=request.action, confirmations=needed)
             if not known_in_cloud(state, open_store(context), request.batch_id):

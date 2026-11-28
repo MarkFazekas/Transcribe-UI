@@ -223,6 +223,16 @@
     "adopt_cloud_batch": {
       "batch_id": "batch_20261127_130000",
       "files": 2
+    },
+    "cleanup_unknown_batch_uploaded_elsewhere": {
+      "batch_id": "batch_20261127_120000",
+      "files": 4,
+      "known": false
+    },
+    "cleanup_everything_uploaded_elsewhere": {
+      "batch_id": "batch_20261127_120000",
+      "scope": "everything",
+      "phase": "ready"
     }
   },
   "plan_error": {

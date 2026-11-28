@@ -14,9 +14,11 @@ from transcribe_ui.cleanup.constants import (
     CONFIRM_FIELD,
     CONFIRM_NOT_DOWNLOADED_FIELD,
     CONFIRMATION_CLEANUP_AUDIO,
+    CONFIRMATION_CLEANUP_ELSEWHERE,
     CONFIRMATION_CLEANUP_EVERYTHING,
     CONFIRMATION_NOT_DOWNLOADED,
     NOT_DOWNLOADED_PHASES,
+    UPLOADED_ELSEWHERE,
 )
 from transcribe_ui.cleanup.targets import CleanupTarget
 
@@ -24,13 +26,22 @@ if TYPE_CHECKING:
     from pydantic import JsonValue
 
 
-def missing_confirmations(request: CleanupCloudRequest, target: CleanupTarget) -> tuple[Confirmation, ...]:
-    """Return the confirmations the request still lacks (empty: it may go ahead)."""
+def missing_confirmations(
+    request: CleanupCloudRequest,
+    target: CleanupTarget,
+    installation_id: str,
+) -> tuple[Confirmation, ...]:
+    """Return the confirmations the request still lacks (empty: it may go ahead).
+
+    `everything` asks the plain question when this installation uploaded the batch (the database
+    proves it, or the adopted manifest's `uploaded_by` is this installation's id); else the stronger
+    one: another computer may still need the subtitles (Q35).
+    """
     details: dict[str, JsonValue] = {"batch_id": target.batch_id, "scope": request.scope, "phase": target.phase}
     needed: list[Confirmation] = []
     if not request.confirm:
-        code = CONFIRMATION_CLEANUP_AUDIO if request.scope == "audio" else CONFIRMATION_CLEANUP_EVERYTHING
-        message = _message(request)
+        code = _code(request, uploaded_here=target.uploaded_by_installation(installation_id))
+        message = _message(code)
         confirm = Confirmation(
             code=code,
             field=CONFIRM_FIELD,
@@ -56,7 +67,16 @@ def _not_downloaded(target: CleanupTarget) -> bool:
     return target.phase in NOT_DOWNLOADED_PHASES and target.jobs_not_downloaded > 0
 
 
-def _message(request: CleanupCloudRequest) -> str:
+def _code(request: CleanupCloudRequest, *, uploaded_here: bool) -> str:
     if request.scope == "audio":
+        return CONFIRMATION_CLEANUP_AUDIO
+    return CONFIRMATION_CLEANUP_EVERYTHING if uploaded_here else CONFIRMATION_CLEANUP_ELSEWHERE
+
+
+def _message(code: str) -> str:
+    if code == CONFIRMATION_CLEANUP_AUDIO:
         return "The batch's audio will be deleted from the cloud; its subtitles stay, but it can no longer be retried."
-    return "All of the batch's data will be deleted from the cloud: audio, subtitles and its description."
+    everything = "All of the batch's data will be deleted from the cloud: audio, subtitles and its description."
+    if code == CONFIRMATION_CLEANUP_ELSEWHERE:
+        return f"{everything} {UPLOADED_ELSEWHERE}"
+    return everything

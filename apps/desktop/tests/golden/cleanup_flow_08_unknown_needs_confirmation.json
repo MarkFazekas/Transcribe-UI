@@ -5,10 +5,10 @@
     "action": "cleanup_cloud",
     "confirmations": [
       {
-        "code": "cleanup_unknown_batch",
+        "code": "cleanup_unknown_batch_uploaded_elsewhere",
         "field": "confirm",
         "set_to": true,
-        "message": "This batch is not known on this computer; all its data will be deleted from the cloud.",
+        "message": "This batch is not known on this computer; all its data will be deleted from the cloud. Another computer uploaded this batch; it may still need to download the subtitles.",
         "details": {
           "batch_id": "batch_20260101_090000",
           "files": 1,

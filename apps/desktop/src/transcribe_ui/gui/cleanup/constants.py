@@ -7,9 +7,11 @@ from typing import Final, Literal
 from transcribe_ui.batches.payloads import CleanupScope
 from transcribe_ui.cleanup.constants import (
     CONFIRMATION_CLEANUP_AUDIO,
+    CONFIRMATION_CLEANUP_ELSEWHERE,
     CONFIRMATION_CLEANUP_EVERYTHING,
     CONFIRMATION_NOT_DOWNLOADED,
     CONFIRMATION_UNKNOWN_BATCH,
+    CONFIRMATION_UNKNOWN_ELSEWHERE,
 )
 
 # What a cleanup deletes: a job's audio, all of a job's cloud data, or another computer's job.
@@ -19,16 +21,24 @@ type CleanupKind = Literal["audio", "everything", "unknown"]
 SCOPES: Final[Mapping[str, CleanupScope]] = MappingProxyType({"audio": "audio", "everything": "everything"})
 # The scope of every cleanup of another computer's job (Q28: only everything).
 UNKNOWN_SCOPE: Final[CleanupScope] = "everything"
+# What a question that deletes all of a job's cloud data deletes (both forms of the question).
+EVERYTHING_KIND: Final[CleanupKind] = "everything"
+# What a question about another computer's job deletes (both forms of the question).
+UNKNOWN_KIND: Final[CleanupKind] = "unknown"
 # First part of the activity key of a job's retry or cleanup (one cloud step per job at a time).
 ACTIVITY_KEY: Final = "cleanup"
-# Confirmation codes shown as a warning (the subtitles may not be downloaded yet). M6.13 adds its
-# stronger warning here (plan m6: another computer deleting a job's subtitles).
-WARNING_CONFIRMATIONS: Final = frozenset((CONFIRMATION_NOT_DOWNLOADED,))
+# Confirmation codes shown as a warning: the subtitles may not be downloaded yet, or another
+# computer uploaded the job and may still need them (architecture §3.9).
+WARNING_CONFIRMATIONS: Final = frozenset(
+    (CONFIRMATION_NOT_DOWNLOADED, CONFIRMATION_CLEANUP_ELSEWHERE, CONFIRMATION_UNKNOWN_ELSEWHERE),
+)
 # What the question deletes, by the confirmation code that says so (the first one found wins).
 CONFIRMATION_KINDS: Final[Mapping[str, CleanupKind]] = MappingProxyType(
     {
-        CONFIRMATION_UNKNOWN_BATCH: "unknown",
-        CONFIRMATION_CLEANUP_EVERYTHING: "everything",
+        CONFIRMATION_UNKNOWN_BATCH: UNKNOWN_KIND,
+        CONFIRMATION_UNKNOWN_ELSEWHERE: UNKNOWN_KIND,
+        CONFIRMATION_CLEANUP_EVERYTHING: EVERYTHING_KIND,
+        CONFIRMATION_CLEANUP_ELSEWHERE: EVERYTHING_KIND,
         CONFIRMATION_CLEANUP_AUDIO: "audio",
     },
 )

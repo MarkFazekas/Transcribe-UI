@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from transcribe_ui.batches.actions import stored_adopted
 from transcribe_ui.batches.constants import JOB_PENDING
+from transcribe_ui.batches.payloads import BatchPayload
 from transcribe_ui.batches.phases import require_not_adopted, require_phase_name
 from transcribe_ui.cleanup.classes import CleanupCloudRequest
 from transcribe_ui.cleanup.constants import AUDIO_PHASES, EVERYTHING_PHASES
@@ -40,6 +40,13 @@ class CleanupTarget:
     copying_retry: str | None
     # Another computer's batch (`adopt_cloud_batch`): its audio is not this computer's to delete.
     adopted: bool = False
+    # The installation that uploaded an adopted batch (its manifest's `uploaded_by`); None for a
+    # batch uploaded here, or an adopted one whose manifest did not say.
+    uploaded_by: str | None = None
+
+    def uploaded_by_installation(self, installation_id: str) -> bool:
+        """Return whether this installation uploaded the batch: not adopted, or adopted with its id (Q35)."""
+        return not self.adopted or self.uploaded_by == installation_id
 
 
 def load_target(session: Session, batch_id: str) -> CleanupTarget | None:
@@ -47,6 +54,7 @@ def load_target(session: Session, batch_id: str) -> CleanupTarget | None:
     row = session.get(BatchRow, batch_id)
     if row is None:
         return None
+    adopted = BatchPayload.model_validate(row.payload).adopted
     transcribing = (JobRow.batch_id == batch_id, JobRow.kind == "transcribe")
     query = select(JobRow.status).where(*transcribing)
     statuses = list(session.scalars(query))
@@ -56,7 +64,8 @@ def load_target(session: Session, batch_id: str) -> CleanupTarget | None:
         pending_jobs=statuses.count(JOB_PENDING),
         jobs_not_downloaded=_not_downloaded_jobs(session, batch_id),
         copying_retry=copying_retry(session, batch_id),
-        adopted=stored_adopted(row),
+        adopted=adopted is not None,
+        uploaded_by=None if adopted is None else adopted.uploaded_by,
     )
 
 

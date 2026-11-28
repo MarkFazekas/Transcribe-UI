@@ -15,7 +15,12 @@ from transcribe_contracts.classes import Manifest
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.cleanup.classes import CleanupCloudRequest, CleanupCloudResponse
-from transcribe_ui.cleanup.constants import CONFIRM_FIELD, CONFIRMATION_UNKNOWN_BATCH
+from transcribe_ui.cleanup.constants import (
+    CONFIRM_FIELD,
+    CONFIRMATION_UNKNOWN_BATCH,
+    CONFIRMATION_UNKNOWN_ELSEWHERE,
+    UPLOADED_ELSEWHERE,
+)
 from transcribe_ui.cleanup.manifests import read_unknown_manifest
 from transcribe_ui.cleanup.stages import Purge, delete_unknown
 from transcribe_ui.runs.cloud import open_store
@@ -43,7 +48,7 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
     store = open_store(context)
     manifest = read_unknown_manifest(store, batch_id)
     if not request.confirm:
-        return _confirmation(request, manifest)
+        return _confirmation(request, manifest, context.ports.installation.current())
     refuse_if_leased(store, batch_id, context.ports.clock.now())
     purge = Purge(store, context, request.action)
     aborted = delete_unknown(purge, batch_id)
@@ -56,11 +61,16 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
     )
 
 
-def _confirmation(request: CleanupCloudRequest, manifest: Manifest) -> NeedsConfirmation:
+def _confirmation(request: CleanupCloudRequest, manifest: Manifest, installation_id: str) -> NeedsConfirmation:
+    """Ask once; the stronger form unless the manifest names this installation as its uploader (Q35)."""
     message = "This batch is not known on this computer; all its data will be deleted from the cloud."
+    code = CONFIRMATION_UNKNOWN_BATCH
+    if manifest.uploaded_by != installation_id:
+        code = CONFIRMATION_UNKNOWN_ELSEWHERE
+        message = f"{message} {UPLOADED_ELSEWHERE}"
     details: dict[str, JsonValue] = {"batch_id": manifest.batch_id, "files": len(manifest.items), "known": False}
     confirmation = Confirmation(
-        code=CONFIRMATION_UNKNOWN_BATCH,
+        code=code,
         field=CONFIRM_FIELD,
         set_to=True,
         message=message,

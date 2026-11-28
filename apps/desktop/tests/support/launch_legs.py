@@ -46,7 +46,7 @@ def seed_published(state: LocalState, root: Path, store: R2ObjectStore) -> None:
     for key in seeded_keys(state):
         store.write(key, b"a" * SEEDED_OBJECT_BYTES, "audio/x-matroska")
     with state.session() as session:
-        write_manifest(store, build_manifest(session, FIRST_BATCH_ID))
+        write_manifest(store, build_manifest(session, FIRST_BATCH_ID, uploaded_by=None))
         row = session.get(BatchRow, FIRST_BATCH_ID)
         assert row is not None
         row.phase = "ready"

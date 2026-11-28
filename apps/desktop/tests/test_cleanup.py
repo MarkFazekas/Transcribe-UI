@@ -147,7 +147,7 @@ def test_uploading_batch_is_cleaned_up_during_a_run(uploading: RunsWorld) -> Non
 def test_leftover_manifest_waits_for_the_run(uploading: RunsWorld) -> None:
     """A manifest left in R2 by an interrupted manifest step that a run's lease lists: `run_active`."""
     with uploading.ports.state.session() as session:
-        write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID))
+        write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID, uploaded_by=None))
     _lease(uploading, FIRST_BATCH_ID)
     assert error_code(send(uploading, cleanup_document(EVERYTHING, confirm=True))) == "run_active"
     assert (flags(uploading), open_uploads()) == (("uploading", False), 1)
@@ -156,7 +156,7 @@ def test_leftover_manifest_waits_for_the_run(uploading: RunsWorld) -> None:
 def test_cleaned_batch_with_a_leftover_manifest_waits(uploading: RunsWorld) -> None:
     """A batch already `cleaned` whose manifest is still in R2 (an interrupted cleanup), listed by a run: `run_active`."""
     with uploading.ports.state.session() as session:
-        write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID))
+        write_manifest(uploading.store, build_manifest(session, FIRST_BATCH_ID, uploaded_by=None))
     _lease(uploading, FIRST_BATCH_ID)
     set_phase(uploading, "cleaned")
     assert error_code(send(uploading, confirmed(EVERYTHING))) == "run_active"

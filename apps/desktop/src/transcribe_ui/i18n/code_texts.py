@@ -64,6 +64,16 @@ def _launch_plan(details: Details) -> str:
     return " ".join(parts)
 
 
+def _unknown_batch_elsewhere(details: Details) -> str:
+    return ntr(
+        "The job {batch_id} is not known on this computer; all its data ({files} file) will be deleted from the "
+        "cloud. Another computer uploaded this job; it may still need to download the subtitles.",
+        "The job {batch_id} is not known on this computer; all its data ({files} files) will be deleted from the "
+        "cloud. Another computer uploaded this job; it may still need to download the subtitles.",
+        count_of(details, "files"),
+    )
+
+
 def _adopt_batch(details: Details) -> str:
     return ntr(
         "Add the cloud job {batch_id} ({files} file), uploaded from another computer, to this computer's jobs?",
@@ -119,6 +129,11 @@ def confirmation_texts() -> CodeTable:
             "keeps them.",
         ),
         "cleanup_unknown_batch": _unknown_batch,
+        "cleanup_unknown_batch_uploaded_elsewhere": _unknown_batch_elsewhere,
+        "cleanup_everything_uploaded_elsewhere": tr(
+            "All of the job's data will be deleted from the cloud: audio, subtitles and its description. "
+            "Another computer uploaded this job; it may still need to download the subtitles.",
+        ),
         "adopt_cloud_batch": _adopt_batch,
         "overwrite_targets": _overwrite_targets,
         "terminate_pod": tr(

@@ -53,7 +53,7 @@ def seed_transcribed(
     for key in seeded_keys(state):
         store.write(key, b"a" * SEEDED_OBJECT_BYTES, "audio/x-matroska")
     with state.session() as session:
-        write_manifest(store, build_manifest(session, FIRST_BATCH_ID))
+        write_manifest(store, build_manifest(session, FIRST_BATCH_ID, uploaded_by=None))
     write_result(store, FIRST_BATCH_ID, FILM_ID, RUN_ID, FIXED_NOW, status="failed")
     write_result(store, FIRST_BATCH_ID, PODCAST_ID, RUN_ID, FIXED_NOW, status=podcast)
     write_done(store, FIRST_BATCH_ID, RUN_ID, FIXED_NOW)

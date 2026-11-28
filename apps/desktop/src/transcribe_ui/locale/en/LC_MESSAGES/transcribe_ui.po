@@ -162,6 +162,13 @@ msgid ""
 "and its description."
 msgstr ""
 
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"All of the job's data will be deleted from the cloud: audio, subtitles "
+"and its description. Another computer uploaded this job; it may still "
+"need to download the subtitles."
+msgstr ""
+
 #: src/transcribe_ui/gui/download/panels.py
 msgid "Also place empty subtitles (no speech was found)"
 msgstr ""
@@ -2139,6 +2146,19 @@ msgid ""
 msgid_plural ""
 "The job {batch_id} is not known on this computer; all its data ({files} "
 "files) will be deleted from the cloud."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"file) will be deleted from the cloud. Another computer uploaded this job;"
+" it may still need to download the subtitles."
+msgid_plural ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"files) will be deleted from the cloud. Another computer uploaded this "
+"job; it may still need to download the subtitles."
 msgstr[0] ""
 msgstr[1] ""
 

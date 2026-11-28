@@ -35,7 +35,7 @@ def _read_back(world: RunsWorld) -> Manifest:
 
 def _built(world: RunsWorld) -> Manifest:
     with world.ports.state.session() as session:
-        return build_manifest(session, FIRST_BATCH_ID)
+        return build_manifest(session, FIRST_BATCH_ID, uploaded_by=world.ports.installation.current())
 
 
 def test_published_manifest_reads_back(runs_world: RunsWorld) -> None:

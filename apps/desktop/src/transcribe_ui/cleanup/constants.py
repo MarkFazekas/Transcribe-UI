@@ -33,6 +33,15 @@ CONFIRMATION_CLEANUP_EVERYTHING: Final = "cleanup_everything"
 CONFIRMATION_NOT_DOWNLOADED: Final = "cleanup_not_downloaded"
 # Confirmation code: all cloud data of a batch this computer does not know is deleted.
 CONFIRMATION_UNKNOWN_BATCH: Final = "cleanup_unknown_batch"
+# The warning a deletion of another computer's job adds (architecture §3.9 "Downloading twice").
+UPLOADED_ELSEWHERE: Final = "Another computer uploaded this batch; it may still need to download the subtitles."
+# Confirmation code: all of a batch's cloud data is deleted, and another computer uploaded it (or
+# its manifest does not say who did), so that computer may still need its subtitles (architecture §3.9; a
+# warning, never a refusal).
+CONFIRMATION_CLEANUP_ELSEWHERE: Final = "cleanup_everything_uploaded_elsewhere"
+# Confirmation code: a batch this computer does not know, uploaded by another computer (or by an
+# unknown one), is deleted from the cloud (architecture §3.9; the stronger form of `cleanup_unknown_batch`).
+CONFIRMATION_UNKNOWN_ELSEWHERE: Final = "cleanup_unknown_batch_uploaded_elsewhere"
 # Progress stage of `cleanup_cloud`: objects deleted so far.
 CLEANUP_STAGE: Final = "delete_objects"
 

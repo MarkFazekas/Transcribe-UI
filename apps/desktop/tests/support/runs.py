@@ -163,7 +163,7 @@ def make_careful(world: RunsWorld, item_id: str) -> None:
     with world.ports.state.session() as session:
         row = session.query(JobRow).filter(JobRow.item_id == item_id).one()
         row.payload = {**row.payload, "mode": "careful"}
-        manifest = build_manifest(session, row.batch_id)
+        manifest = build_manifest(session, row.batch_id, uploaded_by=None)
     write_manifest(world.store, manifest)
 
 

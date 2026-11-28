@@ -45,7 +45,7 @@ def manifest_step(context: RequestContext, store: ObjectStore, batch_id: str) ->
         row = load_batch(session, batch_id)
         require_phase(row, UPLOADING_PHASES)
         pending = row.pending_withdrawal is not None
-        manifest = build_manifest(session, batch_id)
+        manifest = build_manifest(session, batch_id, uploaded_by=context.ports.installation.current())
     if pending:
         with state.locks.runs(context.cancel.is_cancelled):
             refuse_if_leased(store, batch_id, context.ports.clock.now())

@@ -35,7 +35,7 @@ def seed_leftover(world: RunsWorld) -> dict[str, str]:
     """Seed the batch with a leftover manifest of ours, `_done.json`, both items' results and a neighbour batch."""
     ids = seed_uploaded(world)
     with world.ports.state.session() as session:
-        body = manifest_body(build_manifest(session, FIRST_BATCH_ID))
+        body = manifest_body(build_manifest(session, FIRST_BATCH_ID, uploaded_by=None))
     world.store.write(MANIFEST, body, JSON_TYPE)
     worker_keys = [done_key(FIRST_BATCH_ID), done_key(SECOND_BATCH_ID), manifest_key(SECOND_BATCH_ID)]
     for item_id in ids.values():

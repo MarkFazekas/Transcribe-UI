@@ -58,6 +58,13 @@ class CancelToken(Protocol):
         ...
 
 
+class InstallationPort(Protocol):
+    """This installation's id (`state/installation.py`)."""
+
+    def current(self) -> str:
+        """Return the id, creating it on first use."""
+
+
 class SystemClock:
     """The real clock, in UTC."""
 
@@ -118,6 +125,9 @@ class Ports:
     r2_clients: "R2ClientsPort"
     # Runpod API: transport, retry waits and clock (tests: the fake API, never the real one).
     runpod: "RunpodPort"
+    # This installation's id, written into the manifests it uploads (architecture §3.9); its own id source, so
+    # the shared `ids` draw the same ids in every test and frontend.
+    installation: InstallationPort
     # How the host's file system compares names; tests inject the Windows or macOS rule.
     path_rules: PathRules = field(default_factory=host_rules)
     # The latest scans, reused by `preview_selection` (process-local).

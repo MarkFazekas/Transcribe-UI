@@ -192,6 +192,16 @@ msgstr ""
 "A feladat minden adata törlődik a felhőből: a hang, a feliratok és a "
 "feladat leírása."
 
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"All of the job's data will be deleted from the cloud: audio, subtitles "
+"and its description. Another computer uploaded this job; it may still "
+"need to download the subtitles."
+msgstr ""
+"A feladat minden adata törlődik a felhőből: a hang, a feliratok és a "
+"feladat leírása. Ezt a feladatot egy másik számítógép töltötte fel; "
+"lehet, hogy annak még le kell töltenie a feliratokat."
+
 #: src/transcribe_ui/gui/download/panels.py
 msgid "Also place empty subtitles (no speech was found)"
 msgstr "Az üres feliratokat is elhelyezi (ahol nem volt beszéd)"
@@ -2312,6 +2322,25 @@ msgstr[0] ""
 msgstr[1] ""
 "Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
 "({files} fájl) törlődik a felhőből."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"file) will be deleted from the cloud. Another computer uploaded this job;"
+" it may still need to download the subtitles."
+msgid_plural ""
+"The job {batch_id} is not known on this computer; all its data ({files} "
+"files) will be deleted from the cloud. Another computer uploaded this "
+"job; it may still need to download the subtitles."
+msgstr[0] ""
+"Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
+"({files} fájl) törlődik a felhőből. Ezt a feladatot egy másik számítógép "
+"töltötte fel; lehet, hogy annak még le kell töltenie a feliratokat."
+msgstr[1] ""
+"Ezt a feladatot ez a számítógép nem ismeri: {batch_id}; minden adata "
+"({files} fájl) törlődik a felhőből. Ezt a feladatot egy másik számítógép "
+"töltötte fel; lehet, hogy annak még le kell töltenie a feliratokat."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
