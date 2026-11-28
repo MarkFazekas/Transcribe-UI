@@ -81,11 +81,10 @@ class Container:
         return [check_cli_version(in_floor), check_cli_database(in_floor), gui]
 
 
-def _start(docker: Docker, smoke: Smoke, image: str) -> tuple[RunResult, Container]:
-    container = Container(docker, f"transcribe-ui-floor-{os.getpid()}")
+def _start(container: Container, smoke: Smoke, image: str) -> RunResult:
     mounts = [_mount(smoke.cli, FLOOR_CLI), _mount(smoke.gui, FLOOR_GUI)]
     command = [*DETACHED, container.name, *mounts, image, *KEEP_RUNNING]
-    return docker.run(command, START_TIMEOUT_S), container
+    return container.docker.run(command, START_TIMEOUT_S)
 
 
 def _mount(source: str, target: str) -> str:
@@ -114,10 +113,12 @@ def check_linux_floor(smoke: Smoke, image: str | None) -> Outcome:
     if image is None or executable is None:
         return failed(FLOOR_CHECK, "needs --floor-image and docker on PATH")
     docker = Docker(executable, HostLauncher(dict(os.environ)))
-    start, container = _start(docker, smoke, image)
-    if start.returncode != 0:
-        return judged(FLOOR_CHECK, start, "the container did not start")
+    container = Container(docker, f"transcribe-ui-floor-{os.getpid()}")
     with ExitStack() as cleanup:
-        # Also ends whatever a timed-out `docker exec` left running inside.
+        # Registered first: also removes a container whose start timed out (a slow pull), and
+        # ends whatever a timed-out `docker exec` left running inside.
         cleanup.callback(docker.run, ["rm", "--force", container.name], CLEANUP_TIMEOUT_S)
+        start = _start(container, smoke, image)
+        if start.returncode != 0:
+            return judged(FLOOR_CHECK, start, "the container did not start")
         return _inside(container, smoke)

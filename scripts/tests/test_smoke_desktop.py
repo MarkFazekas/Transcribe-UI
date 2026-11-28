@@ -32,6 +32,8 @@ PARENT_SCRIPT = (
     "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)']); "
     "print(child.pid, flush=True); time.sleep(600)"
 )
+# Seconds the parent runs before it is killed: ample time to start its child and print the id.
+PARENT_TIMEOUT_S = 5
 # Seconds between two looks at whether a killed process is gone.
 POLL_S = 0.1
 # A command that would run far longer than the timeout of the kill test.
@@ -130,7 +132,9 @@ def _gone(pid: int) -> bool:
 def test_a_timeout_kills_the_grandchildren_too() -> None:
     """A process that started a child of its own: both are gone after the timeout (one session)."""
     parent = (sys.executable, "-c", PARENT_SCRIPT)
-    run = run_process(parent, os.environ, 2)
+    run = run_process(parent, os.environ, PARENT_TIMEOUT_S)
+    # The parent has printed its child's id long before its timeout (a slow machine included).
+    assert run.stdout.strip(), run.text()
     grandchild = int(run.stdout.split()[0])
     deadline = time.monotonic() + KILL_LIMIT_S
     while not _gone(grandchild) and time.monotonic() < deadline:

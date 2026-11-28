@@ -5,9 +5,11 @@ Usage, from the repository root, in the build environment (PyInstaller lists the
     uv run --no-sync python scripts/smoke_desktop_build.py <cli> <gui> --version <expected>
         [--floor-image <ubuntu:22.04 image>] [--skip <check> ...]
 
-The checks run in order on fresh per-user state (a temporary folder; nothing of the machine's
-own state is read or changed) and with `PATH` stripped of every folder holding ffmpeg or
-ffprobe. Each prints one line; a summary (sizes, the CLI's cold start) follows and is appended
+The checks run in order on fresh per-user state (a temporary folder for the app's data,
+settings, cache and logs, so none of the machine's own is read or changed) and with `PATH`
+stripped of every folder holding ffmpeg or ffprobe. The exception is the OS keyring:
+`credentials_status` reads the real Windows Credential Manager or macOS Keychain (read only;
+nothing is stored), which has no override. Each prints one line; a summary (sizes, the CLI's cold start) follows and is appended
 to the job summary (`GITHUB_STEP_SUMMARY`). A failing check prints the process output and the
 app's log files. Every process has a timeout, after which it is killed with everything it
 started. `linux-floor` runs only on Linux and needs `--floor-image`; `--skip` leaves a check out
