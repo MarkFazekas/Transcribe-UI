@@ -110,6 +110,18 @@ ERROR_CUSTOM_MISSING_JOB: Final = "custom_plan_missing_job"
 ERROR_CUSTOM_SOURCE_CHANGED: Final = "custom_plan_source_changed"
 # Custom plan error: an output file or folder name is not valid on this OS.
 ERROR_CUSTOM_INVALID_NAME: Final = "custom_plan_invalid_name"
+# Why a custom plan's name is not valid (`details.problem` of `custom_plan_invalid_name`): empty, `.` or `..`.
+NAME_PROBLEM_NOT_A_NAME: Final = "not_a_name"
+# Name problem: a `:` on Windows (read as `name:stream`, an alternate data stream).
+NAME_PROBLEM_STREAM: Final = "alternate_data_stream"
+# Name problem: characters a name cannot hold on the target (`details.characters`).
+NAME_PROBLEM_CHARACTERS: Final = "forbidden_characters"
+# Name problem: longer than the target allows (`details.max_length`).
+NAME_PROBLEM_TOO_LONG: Final = "too_long"
+# Name problem: ends with a dot or a space (Windows drops them).
+NAME_PROBLEM_TRAILING: Final = "trailing_dot_or_space"
+# Name problem: a device name Windows reserves (`NUL`, `CON`, ...).
+NAME_PROBLEM_RESERVED: Final = "reserved_device_name"
 # Custom plan error: an output file name does not end with `.srt`.
 ERROR_CUSTOM_NOT_SRT: Final = "custom_plan_not_srt"
 # Custom plan error: a target is outside the chosen output folder after resolving `..` and links.

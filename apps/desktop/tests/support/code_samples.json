@@ -119,6 +119,17 @@
     },
     "custom_plan_unwritable": {
       "reason": "PermissionError"
+    },
+    "cloud_unreachable": {
+      "cause": "HTTP 503"
+    },
+    "cloud_unreachable.runpod": {
+      "part": "runpod",
+      "cause": "cloud_unreachable"
+    },
+    "cloud_unreachable.r2": {
+      "part": "r2",
+      "cause": "r2_unreachable"
     }
   },
   "confirmation": {
@@ -215,7 +226,47 @@
       "file": "film.mkv",
       "language": "hu",
       "name": "a:b.srt",
-      "problem": "contains ':'"
+      "problem": "other"
+    },
+    "custom_plan_invalid_name.not_a_name": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "..",
+      "problem": "not_a_name"
+    },
+    "custom_plan_invalid_name.alternate_data_stream": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "a:b.srt",
+      "problem": "alternate_data_stream"
+    },
+    "custom_plan_invalid_name.forbidden_characters": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "what?.srt",
+      "problem": "forbidden_characters",
+      "characters": [
+        "?"
+      ]
+    },
+    "custom_plan_invalid_name.too_long": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "a:b.srt",
+      "problem": "too_long",
+      "max_length": 255
+    },
+    "custom_plan_invalid_name.trailing_dot_or_space": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "x.",
+      "problem": "trailing_dot_or_space"
+    },
+    "custom_plan_invalid_name.reserved_device_name": {
+      "file": "film.mkv",
+      "language": "hu",
+      "name": "NUL",
+      "problem": "reserved_device_name"
     }
   }
 }

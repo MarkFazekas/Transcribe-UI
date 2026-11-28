@@ -81,3 +81,5 @@ ERROR_VARIANTS: Final[Mapping[str, str]] = MappingProxyType(
         "credentials_missing": "keyring",
     },
 )
+# Plan error codes whose wording depends on one detail, and that detail's key.
+PLAN_ERROR_VARIANTS: Final[Mapping[str, str]] = MappingProxyType({"custom_plan_invalid_name": "problem"})

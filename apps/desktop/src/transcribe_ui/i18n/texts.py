@@ -21,7 +21,7 @@ from transcribe_ui.i18n.code_texts import (
     stage_texts,
 )
 from transcribe_ui.i18n.codes import CodeTable, Details, render_code
-from transcribe_ui.i18n.constants import ERROR_VARIANTS, TextKind
+from transcribe_ui.i18n.constants import ERROR_VARIANTS, PLAN_ERROR_VARIANTS, TextKind
 from transcribe_ui.i18n.error_texts import error_texts
 
 
@@ -45,8 +45,10 @@ TABLES: Mapping[TextKind, Callable[[], CodeTable]] = MappingProxyType(
         "stage": stage_texts,
     },
 )
-# The kinds whose codes are error codes (with their variants).
-ERROR_KINDS = frozenset(("error", "check"))
+# The variant keys of the kinds that have variants (a check's codes are error codes).
+VARIANTS: Mapping[TextKind, Mapping[str, str]] = MappingProxyType(
+    {"error": ERROR_VARIANTS, "check": ERROR_VARIANTS, "plan_error": PLAN_ERROR_VARIANTS},
+)
 
 
 def code_text(
@@ -56,7 +58,7 @@ def code_text(
     fallback: str | None = None,
 ) -> str:
     """Return the text of a code of `kind`, formatted with its details; `fallback` (else the code) without an entry."""
-    variants = ERROR_VARIANTS if kind in ERROR_KINDS else {}
+    variants = VARIANTS.get(kind, {})
     shown = {} if details is None else details
     english = code if fallback is None else fallback
     return render_code(TABLES[kind](), code, shown, english, variants)

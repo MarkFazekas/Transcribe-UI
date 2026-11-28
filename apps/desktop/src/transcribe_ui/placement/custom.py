@@ -145,8 +145,8 @@ def _entry_name_errors(entry: CustomPlanEntry, job: PlacementJob, names: TargetN
     for name in checked:
         problem = names.problem(name)
         if problem is not None:
-            shown: Details = {"name": name, "problem": problem}
-            message = f"the name {name!r} {problem}"
+            shown: Details = {"name": name, "problem": problem.code, **problem.details}
+            message = f"the name {name!r} {problem.text}"
             errors.append(job_error(ERROR_CUSTOM_INVALID_NAME, message, job, shown))
     if not has_subtitle_extension(entry.output_file_name):
         errors.append(job_error(ERROR_CUSTOM_NOT_SRT, "output_file_name does not end with .srt", job))

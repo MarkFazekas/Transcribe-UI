@@ -43,11 +43,11 @@ def load_translations(language: Language) -> gettext.NullTranslations:
     name = f"{DOMAIN}{COMPILED_SUFFIX}"
     resource = files(LOCALE_PACKAGE).joinpath(LOCALE_FOLDER, language, MESSAGES_FOLDER, name)
     try:
-        compiled = resource.read_bytes()
-    except OSError:
+        return gettext.GNUTranslations(io.BytesIO(resource.read_bytes()))
+    except (OSError, UnicodeDecodeError):
+        # `GNUTranslations` raises OSError for a damaged catalog, too.
         logger.warning("The %s catalog cannot be read; the English texts are shown", language, exc_info=True)
         return gettext.NullTranslations()
-    return gettext.GNUTranslations(io.BytesIO(compiled))
 
 
 def activate(language: Language) -> None:

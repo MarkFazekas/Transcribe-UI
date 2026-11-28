@@ -132,6 +132,24 @@ def plan_error_texts() -> CodeTable:
             "{file} ({language}): source_path or original_folder was changed in the plan.",
         ),
         "custom_plan_invalid_name": tr("{file} ({language}): the name {name} cannot be used on the target."),
+        "custom_plan_invalid_name.not_a_name": tr(
+            "{file} ({language}): the plan gives no file or folder name ({name})."
+        ),
+        "custom_plan_invalid_name.alternate_data_stream": tr(
+            "{file} ({language}): the name {name} contains ':' (Windows reads it as an alternate data stream).",
+        ),
+        "custom_plan_invalid_name.forbidden_characters": tr(
+            "{file} ({language}): the name {name} contains characters a name cannot hold: {characters}",
+        ),
+        "custom_plan_invalid_name.too_long": tr(
+            "{file} ({language}): the name {name} is longer than {max_length} characters.",
+        ),
+        "custom_plan_invalid_name.trailing_dot_or_space": tr(
+            "{file} ({language}): the name {name} ends with a dot or a space.",
+        ),
+        "custom_plan_invalid_name.reserved_device_name": tr(
+            "{file} ({language}): {name} is a name Windows reserves for a device.",
+        ),
         "custom_plan_not_srt": tr("{file} ({language}): output_file_name does not end with .srt."),
         "custom_plan_outside_root": tr("{file} ({language}): the target is outside the output folder."),
     }

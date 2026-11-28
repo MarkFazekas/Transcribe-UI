@@ -107,7 +107,7 @@ def _cloud_errors() -> CodeTable:
         "runpod_key_missing_scope": tr(
             "The Runpod API key lacks the permission {scope}. Create a key with the permissions the app lists.",
         ),
-        "cloud_unreachable": tr("Runpod cannot be reached or answered unexpectedly. Try again later."),
+        "cloud_unreachable": tr("Runpod cannot be reached or answered unexpectedly ({cause}). Try again later."),
         "cloud_unreachable.runpod": tr(
             "Whether a cloud run is active cannot be checked, so nothing was started or published; try again later.",
         ),

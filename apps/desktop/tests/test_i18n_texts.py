@@ -28,8 +28,8 @@ from transcribe_ui.batches.payloads import ProblemCode, ResultErrorCode
 from transcribe_ui.cli.run_command import read_request
 from transcribe_ui.discovery.classes import ScanWarningCode
 from transcribe_ui.i18n.catalog import activate
-from transcribe_ui.i18n.constants import ERROR_VARIANTS, VARIANT_SEPARATOR, Language, TextKind
-from transcribe_ui.i18n.texts import TABLES, code_text
+from transcribe_ui.i18n.constants import VARIANT_SEPARATOR, Language, TextKind
+from transcribe_ui.i18n.texts import TABLES, VARIANTS, code_text
 from transcribe_ui.media.invoke import tool_failed
 from transcribe_ui.media.runner import ProcessResult
 from transcribe_ui.media.tools import ToolLocator, ToolOverrides
@@ -129,10 +129,16 @@ def test_every_code_has_an_entry(kind: TextKind) -> None:
     assert {_base(key) for key in _own_keys(kind)} == _codes()[kind]
 
 
-def test_variants_belong_to_variant_codes() -> None:
-    """An entry `<code>.<value>` exists only for an error code whose wording depends on a detail."""
-    variants = {_base(key) for key in TABLES[ERROR]() if VARIANT_SEPARATOR in key}
-    assert variants == set(ERROR_VARIANTS)
+@pytest.mark.parametrize("kind", sorted(TABLES))
+def test_variants_belong_to_variant_codes(kind: TextKind) -> None:
+    """An entry `<code>.<value>` exists only for a code whose wording depends on a detail."""
+    variants = {_base(key) for key in _own_keys(kind) if VARIANT_SEPARATOR in key}
+    assert variants == set(VARIANTS.get(kind, {})) - _check_shared(kind)
+
+
+def _check_shared(kind: TextKind) -> set[str]:
+    """Return the variant codes a check shares with the errors (its own table has none)."""
+    return set(VARIANTS[ERROR]) if kind == "check" else set()
 
 
 def _details(kind: TextKind, key: str) -> Mapping[str, JsonValue]:
@@ -141,7 +147,7 @@ def _details(kind: TextKind, key: str) -> Mapping[str, JsonValue]:
         return sample
     if kind in JOB_KINDS:
         return JOB_DETAILS
-    variant_of = ERROR_VARIANTS.get(_base(key))
+    variant_of = VARIANTS.get(kind, {}).get(_base(key))
     if variant_of is not None and VARIANT_SEPARATOR in key:
         return {variant_of: key.split(VARIANT_SEPARATOR, maxsplit=1)[1]}
     return {}
