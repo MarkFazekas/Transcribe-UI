@@ -41,7 +41,10 @@
         "ended_at": "2026-11-27T12:32:00Z",
         "end_reason": "worker_finished",
         "stop_error": null,
-        "worker_log": "<root>/app/log/worker-01M8EE0VG08BW9FC8PBW4Q3DY4.log"
+        "worker_log": "<root>/app/log/worker-01M8EE0VG08BW9FC8PBW4Q3DY4.log",
+        "progress_fraction": 1.0,
+        "remaining_estimate_s": null,
+        "estimated_finish_at": null
       }
     ]
   },

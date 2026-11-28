@@ -41,6 +41,8 @@ type EndReason = Literal[
     "cancelled",
     "launch_failed",
 ]
+# Share of a run's followed audio that is done (0 to 1; `runs/remaining.py`).
+type ProgressFraction = Annotated[float, Field(ge=0, le=1)]
 
 
 class ActivitySource(FrozenModel):

@@ -34,7 +34,10 @@
         "ended_at": null,
         "end_reason": null,
         "stop_error": null,
-        "worker_log": null
+        "worker_log": null,
+        "progress_fraction": null,
+        "remaining_estimate_s": null,
+        "estimated_finish_at": null
       }
     ]
   },

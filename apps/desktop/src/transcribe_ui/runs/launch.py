@@ -80,6 +80,8 @@ def _launch(
         fingerprint=plan.scope.fingerprint,
         pending_duration_s=plan.scope.pending_duration_s,
         estimate=plan.cost,
+        weighted_known_duration_s=decided.followed_duration_s(),
+        unknown_runtime_s=decided.unknown_runtime_s(),
     )
     run = NewRun(run_id, named.pod_name, payload)
     insert_run(ports.state, run_id, named.pod_name, now, payload)

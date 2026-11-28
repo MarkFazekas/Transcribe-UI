@@ -2683,6 +2683,11 @@
       ],
       "type": "string"
     },
+    "ProgressFraction": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
     "QueuedStop": {
       "enum": [
         "cancelled",
@@ -3068,7 +3073,7 @@
     },
     "RunProgress": {
       "additionalProperties": false,
-      "description": "A run as the last `refresh_status` left it, with what the app shows while it runs.\n\nBuilt from the stored run only: elapsed time and cost are measured to `elapsed_until` (the\nrun's end, else its last refresh), never to the moment of the request.",
+      "description": "A run as the last `refresh_status` left it, with what the app shows while it runs.\n\nBuilt from the stored run only: elapsed time and cost are measured to `elapsed_until` (the\nrun's end, else its last refresh), never to the moment of the request; the progress fields\nare as the last refresh computed them.",
       "properties": {
         "cost_so_far_usd": {
           "anyOf": [
@@ -3134,6 +3139,19 @@
           ],
           "title": "Ended At"
         },
+        "estimated_finish_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Finish At"
+        },
         "first_running_at": {
           "anyOf": [
             {
@@ -3169,6 +3187,17 @@
           ],
           "title": "Price Per Hour Usd"
         },
+        "progress_fraction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProgressFraction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "refreshed_at": {
           "anyOf": [
             {
@@ -3181,6 +3210,19 @@
           ],
           "default": null,
           "title": "Refreshed At"
+        },
+        "remaining_estimate_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remaining Estimate S"
         },
         "run": {
           "$ref": "#/$defs/RunInfo"
@@ -3237,7 +3279,10 @@
         "ended_at",
         "end_reason",
         "stop_error",
-        "worker_log"
+        "worker_log",
+        "progress_fraction",
+        "remaining_estimate_s",
+        "estimated_finish_at"
       ],
       "title": "RunProgress",
       "type": "object"

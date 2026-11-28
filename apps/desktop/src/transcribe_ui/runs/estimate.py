@@ -42,6 +42,11 @@ def weighted_duration(jobs: Iterable[PendingJob]) -> float:
     return total_duration(job.duration_s * job_weight(job) for job in jobs)
 
 
+def job_runtime_s(job: PendingJob, margin: float = 1) -> float:
+    """Return a job's expected processing time: (audio x real-time factor x margin + overhead) per pass."""
+    return (job.duration_s * RUNTIME_REAL_TIME_FACTOR * margin + RUNTIME_JOB_OVERHEAD_S) * job_weight(job)
+
+
 def max_runtime_s(jobs: Iterable[PendingJob], *, test_mode: bool) -> int:
     """Return `MAX_RUNTIME_S`: start-up allowance + per job (audio x factor x margin + overhead), capped.
 
@@ -49,10 +54,7 @@ def max_runtime_s(jobs: Iterable[PendingJob], *, test_mode: bool) -> int:
     """
     if test_mode:
         return TEST_MODE_RUNTIME_S
-    per_job = [
-        (job.duration_s * RUNTIME_REAL_TIME_FACTOR * RUNTIME_MARGIN + RUNTIME_JOB_OVERHEAD_S) * job_weight(job)
-        for job in jobs
-    ]
+    per_job = [job_runtime_s(job, RUNTIME_MARGIN) for job in jobs]
     seconds = math.ceil(STARTUP_ALLOWANCE_S + total_duration(per_job))
     return min(seconds, MAX_RUNTIME_CAP_S)
 

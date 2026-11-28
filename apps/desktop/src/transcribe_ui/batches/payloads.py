@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, JsonValue, NonNegativeInt
+from pydantic import AwareDatetime, BaseModel, ConfigDict, JsonValue, NonNegativeInt
 
 from transcribe_contracts.classes import BatchId, MediaKind, TranscriptionMode, Ulid
 from transcribe_ui.api.base import FrozenModel
@@ -132,3 +132,9 @@ class JobPayload(FrozenModel):
     # The code of a failure the desktop decided (`result_error` is then its English text); None
     # for the worker's own errors, which are not translated.
     result_error_code: ResultErrorCode | None = None
+    # The run that wrote the job's result and when it worked on the job (the result JSON's
+    # `run_id`, `started_at`, `finished_at`, on the worker's clock); None without a readable result.
+    # The remaining-time estimate measures the worker's pace from them (`runs/remaining.py`).
+    result_run_id: str | None = None
+    result_started_at: AwareDatetime | None = None
+    result_finished_at: AwareDatetime | None = None

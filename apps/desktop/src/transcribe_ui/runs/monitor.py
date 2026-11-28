@@ -11,7 +11,8 @@ the runs lock, and no database transaction is open across a Runpod or R2 call. I
    does. Only the Runpod key is needed up to here: R2 is opened on first use (`LazyStore`), and
    an R2 error is raised once every run was handled.
 2. Every `ready` batch gets its job results and, with `_done.json`, moves to `transcribed`
-   (`runs/results.py`).
+   (`runs/results.py`); then each followed run's progress and remaining time are computed from
+   the jobs done and stored (`runs/remaining.py`).
 3. The objects of final runs are kept locally and deleted (`runs/collect.py`), except while a
    live straggler carries a run's name (`runs/lingering.py`). The Runpod lists are read once,
    when a run is open or a final run waits for collection.
@@ -27,6 +28,7 @@ from transcribe_ui.runs.lingering import read_lists, straggler_check
 from transcribe_ui.runs.progress import runs_progress
 from transcribe_ui.runs.records import open_runs
 from transcribe_ui.runs.refreshing import refresh_open_runs
+from transcribe_ui.runs.remaining import record_progress
 from transcribe_ui.runs.responses import RefreshStatusResponse
 from transcribe_ui.runs.results import check_ready_batches
 from transcribe_ui.runs.settling import Listed
@@ -51,6 +53,7 @@ def refresh_status(_request: RefreshStatusRequest, context: RequestContext) -> R
         refreshed = refresh_open_runs(context, client.pods, store, listed)
         cloud = CloudAccess(store.get(), client.pods)
         checked = check_ready_batches(context, cloud.store)
+        record_progress(context, refreshed)
         _collect(context, cloud, listed)
         published = _publish(context, cloud)
         runs = runs_progress(state, [each.run_id for each in refreshed])

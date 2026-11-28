@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import AwareDatetime, NonNegativeFloat, NonNegativeInt, PositiveInt
 
 from transcribe_ui.api.base import FrozenModel, LocalPath
-from transcribe_ui.runs.classes import EndReason, LaunchPlan, RunpodKind
+from transcribe_ui.runs.classes import EndReason, LaunchPlan, ProgressFraction, RunpodKind
 from transcribe_ui.state.models import BatchPhase, RunStatus
 
 # How `launch_worker` ended: a pod (direct start), a queued pod, an unknown outcome (the run
@@ -162,7 +162,8 @@ class RunProgress(FrozenModel):
     """A run as the last `refresh_status` left it, with what the app shows while it runs.
 
     Built from the stored run only: elapsed time and cost are measured to `elapsed_until` (the
-    run's end, else its last refresh), never to the moment of the request.
+    run's end, else its last refresh), never to the moment of the request; the progress fields
+    are as the last refresh computed them.
     """
 
     run: RunInfo
@@ -188,6 +189,11 @@ class RunProgress(FrozenModel):
     stop_error: str | None = None
     # The worker's log, kept in the user log dir once the run's objects were collected.
     worker_log: LocalPath | None = None
+    # Weighted audio of the run's followed jobs that is done (failed and no-speech jobs count as done).
+    progress_fraction: ProgressFraction | None = None
+    # Processing time left as of `refreshed_at`, and that time plus it (UTC); None when unknown or final.
+    remaining_estimate_s: NonNegativeInt | None = None
+    estimated_finish_at: AwareDatetime | None = None
 
 
 class ListRunsResponse(OkResponse):
