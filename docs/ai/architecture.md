@@ -2967,8 +2967,10 @@ Few unit tests; mostly regression and flow tests:
   into `transcribe-ui-macos-<arch>-gui.dmg` (HFS+, `ULFO`: lzfse, smaller than `UDZO` at its
   default zlib level and faster to open, readable since macOS 10.11; tried three times with a
   300 s limit each, since `hdiutil` sometimes reports "Resource busy" on hosted runners, and
-  between two tries a device that try left attached, found through `hdiutil info`, is detached
-  as far as that works). The build runs in an environment without dev tools, with the app
+  between two tries a device that try left attached is detached as far as that works: only an
+  image new in `hdiutil info` since the try started, so a volume attached earlier, such as a
+  downloaded release image with the app running from it, is never touched; each try's duration
+  is logged). The build runs in an environment without dev tools, with the app
   installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
   own OS on fresh per-user state, with every check under a timeout that kills the process
   tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic
@@ -2980,7 +2982,8 @@ Few unit tests; mostly regression and flow tests:
   attached read-only and hidden from Finder, it must hold exactly the app and the
   `Applications` link, the GUI checks run the app's main executable, `gui-bundle` lists the
   app's files by their bundled names, `gui-signature` verifies the app's signature in the
-  image with `codesign --verify --deep --strict`, which also shows that packing kept it, and
+  image with `codesign --verify --all-architectures --deep --strict` (PyInstaller's own
+  build-time options), which also shows that packing kept it, and
   the image is detached however the run ends), and on Linux the same CLI and
   offscreen checks in an `ubuntu:22.04` container with only the libraries of
   `apps/desktop/packaging/linux-packages.txt`. Each leg uploads only its two files

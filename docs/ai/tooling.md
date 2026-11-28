@@ -249,8 +249,10 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   `BUNDLE` as `info_plist`, and the build compares the written `Info.plist` with them. The
   build then moves the app into `<work>/gui/image/` next to an `Applications` link and packs
   that folder (`hdiutil create -fs HFS+ -format ULFO`, 300 s per try, three tries; between
-  tries `hdiutil info -plist` finds a device the failed try left, the image itself or a volume
-  named `Transcribe-UI`, and `hdiutil detach -force` detaches it, best effort) into `dist/`.
+  tries `hdiutil info -plist`, compared with its listing from before the try, finds a device
+  the failed try attached, the image itself or a volume named `Transcribe-UI`, and `hdiutil
+  detach -force` detaches it, best effort; an image attached before the try is never touched;
+  the build log gives each try's duration) into `dist/`.
   The floor check of the app reads `BUNDLE-00.toc`, the one-file builds' `PKG-00.toc`.
 - `hook-transcribe_ui.py` collects every submodule of `transcribe_ui` (the GUI entry imports
   `gui.app` through `importlib`; the Alembic environment and revisions are analysed for their
