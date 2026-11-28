@@ -8,7 +8,9 @@ arrives, a row the user just clicked shows what the click asked for (ticked for 
 unticked for `exclude`), so a second click on it undoes the first instead of repeating it.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from functools import partial
+from types import MappingProxyType
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
@@ -18,7 +20,8 @@ from transcribe_ui.discovery.classes import (
     SelectionCounts,
     SelectionOperation,
 )
-from transcribe_ui.gui.executor import Executor, LatestChannel
+from transcribe_ui.gui.constants import CALL_DONE
+from transcribe_ui.gui.executor import CallHandle, Executor, LatestChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
 from transcribe_ui.gui.selection.constants import CHECKED, PREVIEW_KEY, UNCHECKED, CheckMark
 from transcribe_ui.gui.selection.marks import Marks
@@ -36,7 +39,7 @@ class TickModel:
         self.marks = Marks()
         # Totals of the latest preview (None before the first answer on this scan).
         self.counts: SelectionCounts | None = None
-        # Operations whose path holds no media file (the latest preview's warnings).
+        # The latest preview's warnings: the scan's own, then operations whose path holds no media file.
         self.warnings: tuple[ScanWarning, ...] = ()
         # The error of the latest preview, or None.
         self.error: ErrorView | None = None
@@ -45,9 +48,25 @@ class TickModel:
         # What each row clicked since the latest answer asked for.
         self._pending: dict[str, CheckMark] = {}
         self._scanned: Scanned | None = None
+        # The preview in flight (None: none), and the number of the latest send; older answers do not count.
+        self._call: CallHandle | None = None
+        self._generation = 0
+
+    @property
+    def busy(self) -> bool:
+        """Return whether a preview is in flight (the tick boxes and totals may still change)."""
+        return self._call is not None
+
+    @property
+    def pending(self) -> Mapping[str, CheckMark]:
+        """Return what each row clicked since the latest answer asked for (a copy)."""
+        return MappingProxyType(dict(self._pending))
 
     def start(self, scanned: Scanned | None, operations: tuple[SelectionOperation, ...]) -> None:
-        """Use these operations on a scan (a new scan, or a reopened job) and preview them."""
+        """Use these operations on a scan (a new scan, or a reopened job) and preview them.
+
+        Without a scan (one is on its way) the preview in flight for the previous scan is dropped.
+        """
         self._scanned = scanned
         self.operations = operations
         self.marks = Marks()
@@ -77,12 +96,22 @@ class TickModel:
         """Send the preview of the operations on the scan (the previous one in flight is cancelled)."""
         self.error = None
         self.version += 1
-        self._notify()
+        self._generation += 1
+        if self._call is not None:
+            self._call.cancel()
+            self._call = None
         if self._scanned is not None:
             request = self._scanned.preview_request(self.operations)
-            self._channel.send(PREVIEW_KEY, request, self._previewed)
+            answered = partial(self._previewed, self._generation)
+            call = self._channel.send(PREVIEW_KEY, request, answered)
+            # `SyncExecutor` has answered already.
+            self._call = None if call.state == CALL_DONE else call
+        self._notify()
 
-    def _previewed(self, response: Response) -> None:
+    def _previewed(self, generation: int, response: Response) -> None:
+        if generation != self._generation:
+            return
+        self._call = None
         if isinstance(response, PreviewSelectionResponse):
             self.marks = Marks.of(response)
             self.counts = response.counts

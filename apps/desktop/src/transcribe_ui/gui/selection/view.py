@@ -13,8 +13,8 @@ from PySide6.QtWidgets import QFileDialog, QHeaderView, QLabel, QPushButton, QTr
 
 from transcribe_ui.gui.dialogs import wrapped_label
 from transcribe_ui.gui.jobs.widgets import ErrorBanner
-from transcribe_ui.gui.selection.constants import NAME_COLUMN
-from transcribe_ui.gui.selection.display import save_hint, scan_text, totals_text, warning_rows
+from transcribe_ui.gui.selection.constants import NAME_COLUMN, NAME_COLUMN_WIDTH
+from transcribe_ui.gui.selection.display import save_hint, scan_text, shown_warnings, totals_text
 from transcribe_ui.gui.selection.models import SelectionTreeModel
 from transcribe_ui.gui.selection.viewmodel import NewJobModel
 from transcribe_ui.gui.selection.widgets import (
@@ -31,9 +31,6 @@ from transcribe_ui.i18n.catalog import tr
 
 # Asks the user for a folder (the parent of the dialog, the folder it starts in); "" when cancelled.
 type ChooseFolder = Callable[[QWidget, str], str]
-
-# Width of the tree's name column, in pixels.
-NAME_COLUMN_WIDTH = 360
 
 
 def choose_folder_dialog(parent: QWidget, start: str) -> str:
@@ -134,7 +131,7 @@ class TreeArea(QWidget):
         self.tree = self._tree()
         self.file_languages = FileLanguages(self._own_languages, self)
         self.warnings = WarningsBox(self)
-        self.error = ErrorBanner(model.ticks.preview, self)
+        self.error = ErrorBanner(self._retry, self)
         rows = plain_box(self, QVBoxLayout)
         add_all(rows, (self.tree, self.file_languages, self.warnings, self.error))
         rows.setStretch(0, 1)
@@ -142,13 +139,18 @@ class TreeArea(QWidget):
     def refresh(self) -> None:
         """Show the warnings, the selection's error and the current file's languages."""
         model = self._model
-        scanned = model.scan.scanned
-        found = () if scanned is None else scanned.index.tree.warnings
-        warnings = (*found, *model.ticks.warnings)
-        self.warnings.show_rows(warning_rows(warnings))
+        self.warnings.show_rows(shown_warnings(model))
         self.error.show_error(model.ticks.error or model.filters.error)
         self.file_languages.use_job_languages(model.targets.languages)
         self._show_file(self.tree.currentIndex())
+
+    def _retry(self) -> None:
+        """Send again what failed: the selection's preview, else the filters' match preview."""
+        model = self._model
+        if model.ticks.error is not None:
+            model.ticks.preview()
+        elif model.filters.error is not None:
+            model.filters.refresh(model.scan.scanned)
 
     def _tree(self) -> QTreeView:
         tree = QTreeView(self)
@@ -171,12 +173,12 @@ class TreeArea(QWidget):
         if scan_index is not None and current.isValid():
             scanned = scan_index.media_file(current.internalId())
         if scanned is None or scanned.path not in model.ticks.marks.files:
-            self.file_languages.show_file(None, (), None)
+            self.file_languages.show_file(None, "", (), None)
             return
         own = model.targets.own(scanned.path)
         shown = model.targets.languages + (own or ())
         offered = model.settings.languages(shown)
-        self.file_languages.show_file(scanned.name, offered, own)
+        self.file_languages.show_file(scanned.path, scanned.name, offered, own)
 
     def _own_languages(self, languages: tuple[str, ...] | None) -> None:
         scan_index = self.tree_model.scan_index

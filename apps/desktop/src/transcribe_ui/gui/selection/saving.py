@@ -4,7 +4,8 @@ Qt-free. `create_batch` (or `edit_batch` for a job reopened with "Edit selection
 at a time. When a selected file already has a subtitle in a target language, the backend asks
 first (`existing_languages`); Confirm re-sends the same request with the confirmation's
 `set_to`. An error opens the window's error dialog; a saved job emits `batches_changed` and
-opens its job page.
+opens its job page. An answer about a job the page no longer shows (the user started a new job,
+or edits another one) only emits `batches_changed`.
 """
 
 import logging
@@ -88,13 +89,28 @@ def _internal_error(request: Request) -> ErrorView:
 class SaveCommands:
     """Sends `create_batch` or `edit_batch`, one at a time, through the backend's confirmation."""
 
-    def __init__(self, executor: Executor, outlet: SelectionOutlet, on_saved: Callable[[], None]) -> None:
-        """Send through `executor`; signals, questions and errors go to `outlet`; `on_saved` follows a save."""
+    def __init__(
+        self,
+        executor: Executor,
+        outlet: SelectionOutlet,
+        on_saved: Callable[[], None],
+        on_leave: Callable[[], None],
+    ) -> None:
+        """Send through `executor`; signals, questions and errors go to `outlet`.
+
+        `on_saved` follows a save of what the page shows; `on_leave` follows leaving a job's edit.
+        """
         self._channel = ExclusiveChannel(executor)
         self._outlet = outlet
         self._on_saved = on_saved
+        self._on_leave = on_leave
         # The job being edited; None for a new job.
         self.editing: EditTarget | None = None
+
+    def leave(self) -> None:
+        """Stop editing a job: a load of it still on its way is dropped, a save of it answered later no longer counts."""
+        self.editing = None
+        self._on_leave()
 
     def busy(self) -> bool:
         """Return whether a save is in flight."""
@@ -104,14 +120,22 @@ class SaveCommands:
         """Send the save (refused while one is in flight: a double click)."""
         self._channel.send(SAVE_KEY, request, partial(self._answered, request))
 
+    def _current(self, request: SaveRequest) -> bool:
+        """Return whether the page still shows what `request` saves (the same edited job, or a new job)."""
+        edited = request.batch_id if isinstance(request, EditBatchRequest) else None
+        shown = None if self.editing is None else self.editing.batch_id
+        return edited == shown
+
     def _answered(self, request: SaveRequest, response: Response) -> None:
+        current = self._current(request)
         if isinstance(response, NeedsConfirmation):
-            confirmed = partial(self._confirmed, request, response)
-            self._outlet.confirm(confirmation_view(response), confirmed)
+            if current:
+                confirmed = partial(self._confirmed, request, response)
+                self._outlet.confirm(confirmation_view(response), confirmed)
         elif isinstance(response, ErrorResponse):
             self._outlet.show_error(error_view(response), partial(self.send, request))
         elif isinstance(response, CreateBatchResponse | EditBatchResponse):
-            self._saved(response.batch)
+            self._saved(response.batch, current=current)
 
     def _confirmed(self, request: SaveRequest, asked: NeedsConfirmation) -> None:
         try:
@@ -123,9 +147,12 @@ class SaveCommands:
         if isinstance(confirmed, CreateBatchRequest | EditBatchRequest):
             self.send(confirmed)
 
-    def _saved(self, detail: BatchDetail) -> None:
+    def _saved(self, detail: BatchDetail, *, current: bool) -> None:
+        """Tell the pages; when the page still shows this job, start a new one and open the job's page."""
         batch_id = detail.summary.batch_id
-        self.editing = None
-        self._on_saved()
+        if current:
+            self.editing = None
+            self._on_saved()
         self._outlet.emit(BATCHES_CHANGED_SIGNAL, (batch_id,))
-        self._outlet.emit(OPEN_JOB_SIGNAL, batch_id)
+        if current:
+            self._outlet.emit(OPEN_JOB_SIGNAL, batch_id)

@@ -1,7 +1,9 @@
 """The New job page in the window and the selection tree's item model (pytest-qt, offscreen; plan m6 M6.4).
 
-The tree model passes Qt's `QAbstractItemModelTester` on a 20 000-file scan, also while ticks
-change it. In the window, Choose folder scans, a tick box click previews, a language and
+The tree model passes Qt's `QAbstractItemModelTester` on a 20 000-file scan (its structure:
+the tester walks the whole model at each signal) and while ticks, filters, languages and a new
+scan change it on the small media tree; a tick tells the view only about the rows it changed.
+In the window, Choose folder scans, a tick box click previews, a language and
 Create job create the job and open its page; "Edit selection" on a job page reopens it; and a
 new job is scanned and previewed while the long pool is full of uploads.
 """
@@ -14,13 +16,13 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QMessageLogContext, QModelIndex, QPersistentModelIndex, Qt, QtMsgType, qInstallMessageHandler
 from PySide6.QtTest import QAbstractItemModelTester
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QWidget
 from pytestqt.qtbot import QtBot
 
 from support.discovery import FILM, PODCAST, media_dir
 from support.gated import wait_for
-from support.gui import window_over
 from support.selection import HeldUploads, media_path, media_ports, selection_area
+from support.selection_window import ChangedSpans, drained_window, released
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.ports import Ports
 from transcribe_ui.batches.classes import CreateBatchRequest
@@ -28,9 +30,11 @@ from transcribe_ui.batches.responses import CreateBatchResponse
 from transcribe_ui.discovery.classes import ScanSpec, SelectionOperation
 from transcribe_ui.gui.constants import LONG_POOL_THREADS, PAGE_JOBS, PAGE_NEW_JOB
 from transcribe_ui.gui.dialogs import ConfirmationDialog
+from transcribe_ui.gui.selection.choices import LanguageChoice
 from transcribe_ui.gui.selection.filters import FilterInput
 from transcribe_ui.gui.selection.models import SelectionTreeModel
 from transcribe_ui.gui.selection.view import NewJobPage
+from transcribe_ui.gui.selection.widgets import FileLanguages
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.upload.classes import RunUploadRequest
 
@@ -50,6 +54,11 @@ LARGE_CLIP_ROW = 3
 AUDIO_FILES = 2
 # Media files directly in the Movies folder.
 MOVIES_FILES = 4
+# Most `dataChanged` signals a tick may send (the click's row, then up to three ranges of the answer).
+TICK_SIGNALS = 4
+# The tree's last column, and the column of the target languages.
+LAST_COLUMN = 4
+TARGETS_COLUMN = 4
 
 
 @pytest.fixture
@@ -60,19 +69,12 @@ def ports(tmp_path: Path) -> Iterator[Ports]:
         yield created
 
 
-def _drained(qtbot: QtBot, window: MainWindow) -> None:
-    wait_for(qtbot, lambda: not window.busy())
-    # Answers still on their way must not reach the widgets pytest-qt deletes next.
-    window.context.executor.close()
-
-
 @pytest.fixture
-def window(qtbot: QtBot, ports: Ports, tmp_path: Path) -> Iterator[MainWindow]:
-    """Return the window over the seeded backend, its start-up steps run; drained afterwards."""
-    created = window_over(qtbot, Backend(ports), tmp_path)
+def window(qtbot: QtBot, ports: Ports, tmp_path: Path) -> MainWindow:
+    """Return the window over the seeded backend, its start-up steps run."""
+    created = drained_window(qtbot, Backend(ports), tmp_path)
     created.context.hooks.run()
-    yield created
-    _drained(qtbot, created)
+    return created
 
 
 def _page(window: MainWindow) -> NewJobPage:
@@ -196,8 +198,6 @@ def test_choose_tick_and_create(
     assert opened.args == [BATCH_ID]
     wait_for(qtbot, lambda: window.pages.current_page() == PAGE_JOBS)
     wait_for(qtbot, lambda: footer.totals.text() == "Nothing is selected.")
-    # pytest-qt deletes the window before the fixture drains it: settle here.
-    _drained(qtbot, window)
 
 
 def _job_of_movies(ports: Ports, root: Path) -> None:
@@ -241,27 +241,72 @@ def test_edit_selection_reopens_the_job(qtbot: QtBot, window: MainWindow, ports:
     # The other films have an English subtitle: the backend asks first.
     assert _confirm(qtbot, window) == [BATCH_ID]
     wait_for(qtbot, lambda: page.header.title.text() == "New job")
-    # pytest-qt deletes the window before the fixture drains it: settle here.
-    _drained(qtbot, window)
+
+
+def _held_uploads(window: MainWindow) -> list[object]:
+    """Send uploads that fill the long pool (one more waits); return the list their answers go to."""
+    answered: list[object] = []
+    for index in range(UPLOADS):
+        request = RunUploadRequest(action="run_upload", batch_id=f"batch_20261127_1200{index:02d}")
+        window.context.executor.submit(request, answered.append)
+    return answered
 
 
 def test_a_new_job_while_uploads_run(qtbot: QtBot, ports: Ports, tmp_path: Path) -> None:
     """With the long pool full of uploads (and one waiting), New job still scans and previews."""
     runner = HeldUploads(Backend(ports))
-    window = window_over(qtbot, runner, tmp_path)
-    executor = window.context.executor
-    uploads = [
-        RunUploadRequest(action="run_upload", batch_id=f"batch_20261127_1200{index:02d}") for index in range(UPLOADS)
-    ]
-    answered: list[object] = []
-    for request in uploads:
-        executor.submit(request, answered.append)
-    wait_for(qtbot, lambda: runner.held == LONG_POOL_THREADS)
-    model = _page(window).model
-    model.choose_folder(media_path(tmp_path))
-    wait_for(qtbot, lambda: model.ticks.counts is not None)
-    model.tick(media_path(tmp_path, "Audio"), folder=True)
-    wait_for(qtbot, lambda: model.ticks.counts is not None and model.ticks.counts.files == AUDIO_FILES)
-    assert (runner.held, answered) == (LONG_POOL_THREADS, [])
-    runner.release()
-    _drained(qtbot, window)
+    window = drained_window(qtbot, runner, tmp_path)
+    with released(runner):
+        answered = _held_uploads(window)
+        wait_for(qtbot, lambda: runner.held == LONG_POOL_THREADS)
+        model = _page(window).model
+        model.choose_folder(media_path(tmp_path))
+        wait_for(qtbot, lambda: model.ticks.counts is not None)
+        model.tick(media_path(tmp_path, "Audio"), folder=True)
+        wait_for(qtbot, lambda: model.ticks.counts is not None and model.ticks.counts.files == AUDIO_FILES)
+        assert (runner.held, answered) == (LONG_POOL_THREADS, [])
+
+
+@pytest.mark.usefixtures("qapp")
+def test_a_tick_repaints_only_what_it_changed(large_tree: Path, tmp_path: Path) -> None:
+    """On the 200-folder tree a tick sends a few `dataChanged` for the rows it changed, not one per folder."""
+    ports = media_ports(tmp_path / "state")
+    with closing(ports.state):
+        model = selection_area(Backend(ports)).model
+        model.choose_folder(str(large_tree))
+        tree = SelectionTreeModel(model)
+        recorder = ChangedSpans()
+        tree.dataChanged.connect(recorder)
+        spans = recorder.spans
+        layouts: list[bool] = []
+        tree.layoutChanged.connect(lambda: layouts.append(True))
+        model.tick(str(large_tree / LARGE_FOLDER), folder=True)
+        ticked = list(spans)
+        spans.clear()
+        model.targets.use_languages((ENGLISH,))
+        languages = list(spans)
+        model.change_filters(FilterInput(media_kind="audio"))
+    # The click's row, then the answer: the folder's clips, the folder's row, the root's row.
+    assert len(ticked) <= TICK_SIGNALS < LARGE_FOLDERS
+    assert (LARGE_CLIPS, 0, LAST_COLUMN) in ticked
+    assert languages == [(LARGE_CLIPS, TARGETS_COLUMN, TARGETS_COLUMN)]
+    assert layouts == [True], "turning a filter on may dim any row: one layout change"
+
+
+@pytest.mark.usefixtures("qapp")
+def test_own_languages_without_job_languages() -> None:
+    """With no job language ticked, unticking "Same as the job" stays unticked until a language is ticked."""
+    received: list[object] = []
+    holder = QWidget()
+    panel = FileLanguages(received.append, holder)
+    offered = (LanguageChoice(ENGLISH, "English (en)"),)
+    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    assert (panel.same.isChecked(), panel.checks.isEnabled()) == (True, False)
+    panel.same.setChecked(False)
+    # The page repaints from the model, which still has no own languages for the file.
+    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    assert (panel.same.isChecked(), panel.checks.isEnabled(), received) == (False, True, [None])
+    panel.checks.boxes[ENGLISH].click()
+    assert received == [None, (ENGLISH,)]
+    panel.show_file("/media/other.mkv", "other.mkv", offered, None)
+    assert panel.same.isChecked()

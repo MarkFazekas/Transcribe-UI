@@ -11,10 +11,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from transcribe_ui.discovery.classes import FolderState, PreviewSelectionResponse
-from transcribe_ui.gui.selection.constants import CHECKED, PARTIAL, UNCHECKED, CheckMark
-
-# The tick box of each folder state of a preview.
-FOLDER_MARKS: Mapping[FolderState, CheckMark] = MappingProxyType({"all": CHECKED, "partial": PARTIAL})
+from transcribe_ui.gui.selection.constants import CHECKED, FOLDER_MARKS, UNCHECKED, CheckMark
 
 
 @dataclass(frozen=True)

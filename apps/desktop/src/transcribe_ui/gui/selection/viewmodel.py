@@ -11,7 +11,7 @@ operations, languages) when it has one, else an empty selection on its scan root
 from transcribe_ui.discovery.classes import SelectionFilter, SelectionOperation
 from transcribe_ui.gui.executor import Executor
 from transcribe_ui.gui.selection.choices import SettingsSource
-from transcribe_ui.gui.selection.constants import CHECKED
+from transcribe_ui.gui.selection.constants import UNCHECKED
 from transcribe_ui.gui.selection.display import save_hint
 from transcribe_ui.gui.selection.editing import JobLoader, Reopened
 from transcribe_ui.gui.selection.filters import FilterInput, FilterModel
@@ -34,26 +34,35 @@ class NewJobModel(ViewModel):
         self.ticks = TickModel(executor, self.changed)
         self.filters = FilterModel(executor, self.changed)
         self.targets = TargetModel(self.changed)
-        self.saver = SaveCommands(executor, outlet, self.start_new)
         self._loader = JobLoader(executor, outlet, self.settings.spec, self._reopen)
+        self.saver = SaveCommands(executor, outlet, self.start_new, self._loader.forget)
 
     def choose_folder(self, root: str) -> None:
-        """Scan a folder with the settings' options; another folder than the one shown starts an empty selection."""
+        """Scan a folder with the settings' options.
+
+        Another folder than the one shown, or any folder while a job is edited, starts a new job
+        with an empty selection (the job's languages kept); the same folder keeps the selection.
+        """
         scanned = self.scan.scanned
-        if scanned is None or scanned.index.tree.root != root:
+        editing = self.saver.editing is not None
+        self.saver.leave()
+        if editing or scanned is None or scanned.index.tree.root != root:
             self.ticks.start(None, ())
             self.targets.reset(self.targets.languages)
         self.scan.start(self.settings.spec(root))
 
     def tick(self, path: str, *, folder: bool) -> None:
-        """Tick or untick a row: a ticked one is excluded, any other included (a folder with the active filters)."""
+        """Tick or untick a row: a row with nothing selected is included, any other (ticked or partly) excluded.
+
+        A folder's operation carries the active filters, a file's none.
+        """
         if self.scan.scanned is None:
             return
         chosen = self.filters.current() if folder else SelectionFilter()
         if chosen is None:
             return
-        ticked = self.ticks.mark(path, folder=folder) == CHECKED
-        operation = SelectionOperation(operation="exclude" if ticked else "include", path=path, filters=chosen)
+        empty = self.ticks.mark(path, folder=folder) == UNCHECKED
+        operation = SelectionOperation(operation="include" if empty else "exclude", path=path, filters=chosen)
         self.ticks.add(operation)
 
     def change_filters(self, picked: FilterInput) -> None:
@@ -77,7 +86,7 @@ class NewJobModel(ViewModel):
 
     def start_new(self) -> None:
         """Start a new job on the folder shown: an empty selection, the job's languages kept."""
-        self.saver.editing = None
+        self.saver.leave()
         self.ticks.start(self.scan.scanned, ())
         self.targets.reset(self.targets.languages)
 

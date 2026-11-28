@@ -8,8 +8,11 @@ costs two short loops. Under a folder its child folders come first, then its fil
 the scan's order.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import repeat
+from types import MappingProxyType
 
 from transcribe_ui.discovery.classes import (
     PreviewSelectionRequest,
@@ -104,6 +107,16 @@ class ScanIndex:
         holder = found.folder
         position = node - self.folder_count - self.first_files[holder]
         return len(self.child_folders[holder]) + position
+
+    @cached_property
+    def nodes(self) -> Mapping[str, int]:
+        """Return the node of every path (built once, when first needed)."""
+        nodes: dict[str, int] = {}
+        for number, folder in enumerate(self.tree.folders):
+            nodes[folder.path] = number
+        for number, found in enumerate(self.tree.files, start=self.folder_count):
+            nodes[found.path] = number
+        return MappingProxyType(nodes)
 
     def is_folder(self, node: int) -> bool:
         """Return whether a node is a folder."""

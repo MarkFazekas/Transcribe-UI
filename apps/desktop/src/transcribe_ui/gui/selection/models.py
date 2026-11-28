@@ -13,7 +13,15 @@ from typing import TYPE_CHECKING, overload, override
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QPersistentModelIndex, Qt
 from PySide6.QtGui import QGuiApplication, QPalette
 
-from transcribe_ui.gui.selection.constants import CHECKED, COLUMN_COUNT, NAME_COLUMN, PARTIAL, CheckMark
+from transcribe_ui.gui.selection.changes import Changed, RowRange, changed_cells, row_ranges, shown_of
+from transcribe_ui.gui.selection.constants import (
+    CHECKED,
+    COLUMN_COUNT,
+    NAME_COLUMN,
+    PARTIAL,
+    TARGETS_COLUMN,
+    CheckMark,
+)
 from transcribe_ui.gui.selection.rows import cell_text, cell_tooltip, row_dimmed, row_mark, tick_row
 from transcribe_ui.gui.selection.viewmodel import NewJobModel
 from transcribe_ui.i18n.catalog import tr
@@ -125,24 +133,29 @@ class SelectionTreeModel(_TreeShape):
         super().__init__(parent)
         self._model = model
         self._scan_version = -1
-        self._marks: tuple[int, int, int] = (-1, -1, -1)
+        self._versions: tuple[int, int, int] = (-1, -1, -1)
+        self._shown = shown_of(model)
         model.subscribe(self.refresh)
         self.refresh()
 
     def refresh(self) -> None:
-        """Reset for a new scan; tell the view about changed cells after a preview, a match or new languages."""
+        """Reset for a new scan; after a preview, a match or new languages tell the view only the rows that changed."""
         model = self._model
         scan = model.scan
-        marks = (model.ticks.version, model.filters.version, model.targets.version)
+        versions = (model.ticks.version, model.filters.version, model.targets.version)
         if scan.version != self._scan_version:
             self.beginResetModel()
             self._scan_version = scan.version
-            self._marks = marks
+            self._versions = versions
+            self._shown = shown_of(model)
             self.scan_index = None if scan.scanned is None else scan.scanned.index
             self.endResetModel()
-        elif marks != self._marks:
-            self._marks = marks
-            _cells_changed(self)
+        elif versions != self._versions:
+            self._versions = versions
+            shown = shown_of(model)
+            changed = changed_cells(self._shown, shown)
+            self._shown = shown
+            _cells_changed(self, changed)
 
     @override
     def data(self, index: ModelIndex, /, role: int = DISPLAY_ROLE) -> object:
@@ -171,18 +184,28 @@ class SelectionTreeModel(_TreeShape):
         return True
 
 
-def _cells_changed(model: SelectionTreeModel) -> None:
-    """Tell the view that every cell may have changed, one folder's rows at a time (Qt's ranges share a parent)."""
+def _emit(model: SelectionTreeModel, span: RowRange, first_column: int, last_column: int) -> None:
     scan_index = model.scan_index
-    if scan_index is None or not scan_index.folder_count:
+    holder = QModelIndex()
+    if scan_index is not None and span.holder is not None:
+        holder = model.createIndex(scan_index.row(span.holder), 0, span.holder)
+    first = model.index(span.first, first_column, holder)
+    model.dataChanged.emit(first, model.index(span.last, last_column, holder))
+
+
+def _cells_changed(model: SelectionTreeModel, changed: Changed) -> None:
+    """Tell the view which rows changed: one range per folder holding a changed row (Qt's ranges share a parent).
+
+    Turning the filters on or off may change the dimming of any row: then the view repaints all.
+    """
+    scan_index = model.scan_index
+    if scan_index is None or not changed:
         return
-    last = COLUMN_COUNT - 1
-    root = model.index(0, 0)
-    model.dataChanged.emit(root, root.siblingAtColumn(last))
-    for folder, rows in enumerate(scan_index.child_folders):
-        count = len(rows) + scan_index.file_counts[folder]
-        if count:
-            holder = model.createIndex(scan_index.row(folder), 0, folder)
-            first = model.index(0, 0, holder)
-            final = model.index(count - 1, last, holder)
-            model.dataChanged.emit(first, final)
+    if changed.everything:
+        model.layoutAboutToBeChanged.emit()
+        model.layoutChanged.emit()
+        return
+    for span in row_ranges(scan_index, changed.rows):
+        _emit(model, span, 0, COLUMN_COUNT - 1)
+    for span in row_ranges(scan_index, changed.targets):
+        _emit(model, span, TARGETS_COLUMN, TARGETS_COLUMN)

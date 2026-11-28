@@ -6,9 +6,11 @@ brings them back, but a request names only the files the latest preview selected
 backend refuses an entry for a file outside the selection).
 """
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
+from types import MappingProxyType
 
 from transcribe_ui.batches.classes import ItemLanguages
+from transcribe_ui.gui.selection.constants import Languages
 
 
 class TargetModel:
@@ -38,6 +40,10 @@ class TargetModel:
     def own(self, path: str) -> tuple[str, ...] | None:
         """Return a file's own languages, or None when it takes the job's."""
         return self._own.get(path)
+
+    def own_map(self) -> Mapping[str, Languages]:
+        """Return every file's own languages (a copy)."""
+        return MappingProxyType(dict(self._own))
 
     def of(self, path: str) -> tuple[str, ...]:
         """Return the languages a file is transcribed into."""

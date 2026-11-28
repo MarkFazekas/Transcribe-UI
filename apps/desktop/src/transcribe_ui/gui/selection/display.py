@@ -15,6 +15,7 @@ from transcribe_ui.i18n.formats import format_number
 from transcribe_ui.i18n.texts import code_text
 
 if TYPE_CHECKING:
+    from transcribe_ui.gui.selection.ticks import TickModel
     from transcribe_ui.gui.selection.viewmodel import NewJobModel
 
 # A warning as the page lists it: its text and its path.
@@ -135,16 +136,34 @@ def warning_rows(warnings: tuple[ScanWarning, ...]) -> tuple[WarningRow, ...]:
     return tuple(rows)
 
 
+def shown_warnings(model: "NewJobModel") -> tuple[WarningRow, ...]:
+    """Return the warnings to list: the latest preview's (they start with the scan's), the scan's before it answered."""
+    ticks = model.ticks
+    scanned = model.scan.scanned
+    if ticks.counts is not None:
+        return warning_rows(ticks.warnings)
+    return () if scanned is None else warning_rows(scanned.index.tree.warnings)
+
+
+def _selection_hint(ticks: "TickModel") -> str | None:
+    """Return why the selection cannot be saved: a preview on its way or failed, or nothing selected."""
+    counts = ticks.counts
+    if ticks.busy:
+        return tr("Updating the selection…")
+    if ticks.error is not None:
+        return tr("The selection could not be updated; retry it.")
+    if not ticks.operations or (counts is not None and not counts.files):
+        return tr("Tick the files to transcribe.")
+    return None
+
+
 def save_hint(model: "NewJobModel") -> str | None:
     """Return why the job cannot be created (or saved) now, or None when it can."""
-    counts = model.ticks.counts
-    nothing = counts is not None and not counts.files
     if model.scan.scanned is None:
         return tr("Choose a folder, then tick the files to transcribe.")
-    if nothing or not model.ticks.operations:
-        return tr("Tick the files to transcribe.")
+    hint = _selection_hint(model.ticks)
+    if hint is not None:
+        return hint
     if not model.targets.languages:
         return tr("Choose at least one language to transcribe into.")
-    if model.saver.busy():
-        return tr("Saving…")
-    return None
+    return tr("Saving…") if model.saver.busy() else None

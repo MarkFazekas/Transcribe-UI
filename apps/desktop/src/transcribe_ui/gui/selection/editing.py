@@ -59,13 +59,23 @@ class JobLoader:
         self._outlet = outlet
         self._spec_for = spec_for
         self._on_loaded = on_loaded
+        # Numbers the loads: the answer of a load forgotten or replaced does not count.
+        self._generation = 0
 
     def load(self, batch_id: str) -> None:
         """Load a job's selection."""
+        self._generation += 1
         request = GetBatchRequest(action="get_batch", batch_id=batch_id)
-        self._channel.send(EDIT_KEY, request, partial(self._loaded, batch_id))
+        loaded = partial(self._loaded, self._generation, batch_id)
+        self._channel.send(EDIT_KEY, request, loaded)
 
-    def _loaded(self, batch_id: str, response: Response) -> None:
+    def forget(self) -> None:
+        """Drop the load in flight (the user started a new job meanwhile)."""
+        self._generation += 1
+
+    def _loaded(self, generation: int, batch_id: str, response: Response) -> None:
+        if generation != self._generation:
+            return
         if isinstance(response, GetBatchResponse):
             self._on_loaded(reopened(response.batch, self._spec_for))
         elif isinstance(response, ErrorResponse):

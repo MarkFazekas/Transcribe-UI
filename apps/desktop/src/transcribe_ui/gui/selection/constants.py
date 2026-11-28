@@ -1,6 +1,10 @@
 """Constants of the New job page: folder, tree, filters, selection and languages (architecture §3.1 "GUI")."""
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Final, Literal
+
+from transcribe_ui.discovery.classes import FolderState
 
 # How a row of the tree is ticked: every media file at or below it selected, some of them, or none.
 type CheckMark = Literal["checked", "partial", "unchecked"]
@@ -17,6 +21,9 @@ CHECKED: Final[CheckMark] = "checked"
 PARTIAL: Final[CheckMark] = "partial"
 # A row with nothing selected at or below it.
 UNCHECKED: Final[CheckMark] = "unchecked"
+
+# The tick box of each folder state of a preview.
+FOLDER_MARKS: Final[Mapping[FolderState, CheckMark]] = MappingProxyType({"all": CHECKED, "partial": PARTIAL})
 
 # Channel key of the folder scans (a new folder replaces the scan in flight).
 SCAN_KEY: Final = "new_job_scan"
@@ -49,6 +56,8 @@ TARGETS_COLUMN: Final = 4
 # Number of columns of the tree.
 COLUMN_COUNT: Final = 5
 
+# Width of the tree's name column, in pixels.
+NAME_COLUMN_WIDTH: Final = 360
 # Separator of the languages in one cell.
 LANGUAGE_SEPARATOR: Final = ", "
 # Bytes in one step of the size units (decimal units: kB, MB, GB, TB).

@@ -31,8 +31,10 @@ from transcribe_ui.i18n.catalog import tr
 
 # Told the languages ticked, in the order offered.
 type OnLanguages = Callable[[Languages], None]
-# Told a file's own languages (None: the job's).
-type OnOwnLanguages = Callable[[Languages | None], None]
+# A file's own languages (None: the job's).
+type OwnLanguages = Languages | None
+# Told a file's own languages.
+type OnOwnLanguages = Callable[[OwnLanguages], None]
 # The languages a chooser offers.
 type Offered = tuple[LanguageChoice, ...]
 # The choices of a combo box: the value it stands for and its label.
@@ -276,7 +278,11 @@ class FilterBar(QWidget):
 
 
 class FileLanguages(QWidget):
-    """The languages of the file selected in the tree: the job's, or its own."""
+    """The languages of the file selected in the tree: the job's, or its own.
+
+    Unticking "Same as the job" lets the user tick the file's own languages; until one is
+    ticked the file keeps the job's, and the box stays unticked (even when the job has none).
+    """
 
     def __init__(self, on_change: OnOwnLanguages, parent: QWidget) -> None:
         """Hidden until a selected file is shown; a change calls `on_change` (None: the job's languages)."""
@@ -289,28 +295,40 @@ class FileLanguages(QWidget):
         layout = plain_box(self)
         add_all(layout, (self.title, self.same, self.checks))
         layout.addStretch()
-        self._job: tuple[str, ...] = ()
+        self._job: Languages = ()
+        # The file shown, and whether its own languages are being chosen (none ticked yet).
+        self._path: str | None = None
+        self._choosing = False
         self.setVisible(False)
 
-    def use_job_languages(self, job: tuple[str, ...]) -> None:
+    def use_job_languages(self, job: Languages) -> None:
         """Take the job's languages, which a file without its own is transcribed into."""
         self._job = job
 
-    def show_file(self, name: str | None, offered: Offered, own: Languages | None) -> None:
-        """Show a selected file's languages (`own` None: the job's), or hide the panel (`name` None)."""
-        self.setVisible(name is not None)
-        if name is None:
+    def show_file(self, path: str | None, name: str, offered: Offered, own: OwnLanguages) -> None:
+        """Show a selected file's languages (`own` None: the job's), or hide the panel (`path` None)."""
+        if path != self._path or own is not None:
+            self._choosing = False
+        self._path = path
+        self.setVisible(path is not None)
+        if path is None:
             return
         self.title.setText(tr("Languages of {name}:").format(name=name))
+        same = own is None and not self._choosing
         with QSignalBlocker(self.same):
-            self.same.setChecked(own is None)
-        self.checks.show_languages(offered, self._job if own is None else own)
-        self.checks.setEnabled(own is not None)
+            self.same.setChecked(same)
+        ticked = self._job if same else own or ()
+        self.checks.show_languages(offered, ticked)
+        self.checks.setEnabled(not same)
 
     def _same_toggled(self, same: bool) -> None:  # noqa: FBT001 -- a Qt slot gets the state positionally
-        self._on_change(None if same else self._job)
+        self._choosing = not same and not self._job
+        self.checks.setEnabled(not same)
+        job = self._job or None
+        self._on_change(None if same else job)
 
-    def _picked(self, languages: tuple[str, ...]) -> None:
+    def _picked(self, languages: Languages) -> None:
+        self._choosing = not languages
         self._on_change(languages or None)
 
 

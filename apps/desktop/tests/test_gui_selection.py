@@ -68,6 +68,7 @@ SMALL_SIZE = 999
 LARGER_SIZE = 1_234_567
 # The Qt-free modules of the New job page.
 QT_FREE_MODULES = (
+    "transcribe_ui.gui.selection.changes",
     "transcribe_ui.gui.selection.choices",
     "transcribe_ui.gui.selection.constants",
     "transcribe_ui.gui.selection.display",

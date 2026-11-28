@@ -1478,6 +1478,10 @@ msgstr ""
 msgid "The selection contains no media file."
 msgstr ""
 
+#: src/transcribe_ui/gui/selection/display.py
+msgid "The selection could not be updated; retry it."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The settings cannot be saved; the details are in the log."
 msgstr ""
@@ -1605,6 +1609,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Update"
+msgstr ""
+
+#: src/transcribe_ui/gui/selection/display.py
+msgid "Updating the selection…"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
