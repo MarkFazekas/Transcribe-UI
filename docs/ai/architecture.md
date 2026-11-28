@@ -479,10 +479,16 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     for the batches it reported. A run that turns final flashes the window in the task bar
     (`QApplication.alert`) and emits `batches_changed` for its covered batches. The timer is a
     port (`QtTimer`; tests fire a manual one), so no test sleeps.
-  - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set; with one
-    (or when that is not known) `reconcile_cloud` (slot `reconcile`) and `refresh_status`
-    (slot `refresh`) run, without one both are left out (M6.13 adds those screens). The
-    settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
+  - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set
+    (`key.py`, `RunpodKey`; asked again each time the page is shown); with one (or when that
+    is not known, or the keyring failed while reading) `reconcile_cloud` runs (slot
+    `reconcile`); `refresh_status` (slot `refresh`) runs with or without it (§3.9 "Roles").
+    Without the key (R2-only) the page shows a banner with the reason and "Open accounts";
+    Start transcription, Stop and Cancel and the machines check are disabled with the hint
+    "Needs a Runpod API key on this computer." The poll also runs while the last check's
+    `awaiting_results` is true, without a run of this computer; `batches_changed` (an upload,
+    an adoption) starts a stopped poll, and Refresh now during a check checks once more after
+    it. The settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
     before the machines check. The cloud area asks `credentials_status` itself (a local read)
     instead of reading the settings area's view-model, so the areas stay independent.
   - Stop and Cancel (Q34; `run_actions.py`): "Stop waiting" (Q34's Cancel, named apart from
@@ -548,9 +554,20 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   opens the job's download dialog, step 4 of the step header: non-modal and one per job,
   kept while the window lives, so it reopens with the user's choices and the window stays
   usable while it is open.
-  - The first opening pre-fills the choices from `get_settings` (the placement defaults:
-    strategy, output folder, folder count, overwrite); every opening loads `get_batch` (the
-    stage) and the plan. A settings answer that arrives after the user changed a choice
+  - Jobs of other computers (`others.py`, `others_display.py`, `others_view.py`; §3.9
+    "Adoption"): a section of the Cloud page, below the current run, added by the download
+    area through `CloudPage.add_section`. "Look in the cloud" sends `list_cloud_batches`
+    (latest wins; only when asked) and lists the jobs with `known` false (files, audio length,
+    state); Download sends `adopt_cloud_batch` (exclusive per job), whose confirmation the
+    generic dialog shows without its details table. Once adopted, the jobs reload
+    (`batches_changed`), its download dialog opens (`open_download`), the Cloud page checks
+    the cloud (`check_now`) and the list loads again; an error opens the error dialog (Retry
+    re-sends) and also reloads the list.
+  - The first opening loads `get_settings` and `get_batch` side by side and, once both
+    answered, pre-fills the choices from the placement defaults (strategy, output folder,
+    folder count, overwrite), with `mirror` for a job labelled `adopted` (its originals are on
+    another computer, so `next_to_media` is refused); only then does it plan. Every later
+    opening loads `get_batch` (the stage) and the plan. A settings answer that arrives after the user changed a choice
     pre-fills nothing. Each change of a choice sends the plan again on a `latest` channel:
     `plan_download` for a strategy, the `check_only` import for a custom plan (on the `short`
     pool: the bridge picks a pool by request, `pool_for`); folder count steps and level ticks
