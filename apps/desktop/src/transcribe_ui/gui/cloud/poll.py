@@ -13,14 +13,13 @@ from collections.abc import Callable
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
-from transcribe_ui.gui.cloud.constants import REFRESH_INTERVAL_MS, RETRYING_CODES
+from transcribe_ui.gui.cloud.constants import BATCHES_CHANGED_SIGNAL, REFRESH_INTERVAL_MS, RETRYING_CODES
 from transcribe_ui.gui.cloud.display import local_time
 from transcribe_ui.gui.cloud.ports import CloudOutlet, TimerFactory
 from transcribe_ui.gui.cloud.runs import RunList
 from transcribe_ui.gui.constants import CALL_QUEUED, CALL_RUNNING
 from transcribe_ui.gui.executor import Executor, SingleFlightChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
-from transcribe_ui.gui.jobs.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.i18n.catalog import tr
 from transcribe_ui.runs.classes import RefreshStatusRequest

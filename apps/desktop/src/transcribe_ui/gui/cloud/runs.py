@@ -13,12 +13,11 @@ from contextlib import ExitStack
 
 from transcribe_ui.api.classes import ErrorResponse, Response
 from transcribe_ui.api.constants import ERROR_CANCELLED
-from transcribe_ui.gui.cloud.constants import LIST_KEY, RUN_HISTORY_LIMIT, RUNS_CHANGED_SIGNAL
+from transcribe_ui.gui.cloud.constants import BATCHES_CHANGED_SIGNAL, LIST_KEY, RUN_HISTORY_LIMIT, RUNS_CHANGED_SIGNAL
 from transcribe_ui.gui.cloud.display import is_final
 from transcribe_ui.gui.cloud.ports import CloudOutlet
 from transcribe_ui.gui.executor import Executor, LatestChannel
 from transcribe_ui.gui.feedback import ErrorView, error_view
-from transcribe_ui.gui.jobs.constants import BATCHES_CHANGED_SIGNAL
 from transcribe_ui.gui.viewmodel import ViewModel
 from transcribe_ui.runs.classes import ListRunsRequest
 from transcribe_ui.runs.responses import ListRunsResponse, RunProgress
