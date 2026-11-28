@@ -2931,7 +2931,7 @@ Few unit tests; mostly regression and flow tests:
   commit, which is not in the branch's history. Only uv's own CPython builds
   (`UV_PYTHON_PREFERENCE=only-managed`), never a Python found on the runner; on macOS the build
   fails when a bundled binary needs a newer macOS than 14 (`scripts/build_desktop_macos.py`,
-  `otool -l` on every binary PyInstaller bundled). The build runs in an environment without dev tools, with the app
+  `otool -arch all -l` on every binary PyInstaller bundled). The build runs in an environment without dev tools, with the app
   installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
   own OS on fresh per-user state, with every check under a timeout that kills the process
   tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic

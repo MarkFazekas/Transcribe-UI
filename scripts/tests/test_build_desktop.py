@@ -141,14 +141,24 @@ def test_windows_version_resource_describes_the_file() -> None:
 
 
 def test_minimum_versions_of_each_architecture() -> None:
-    """`minos` of LC_BUILD_VERSION and `version` of LC_VERSION_MIN_MACOSX; other commands are ignored."""
+    """`otool -arch all -l` of a universal file: the minimum macOS of each slice, nothing else."""
     otool = (
-        "x (architecture x86_64):\nLoad command 9\n      cmd LC_VERSION_MIN_MACOSX\n  cmdsize 16\n"
-        "  version 10.13\n      sdk 10.15\nLoad command 10\n      cmd LC_SOURCE_VERSION\n  version 0.0\n"
-        "x (architecture arm64):\nLoad command 9\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform 1\n"
-        "    minos 15.0\n      sdk 15.2\n"
+        "/py/lib/_ssl.so (architecture x86_64):\n"
+        "Load command 9\n      cmd LC_VERSION_MIN_MACOSX\n  cmdsize 16\n  version 10.13\n      sdk 10.15\n"
+        "Load command 10\n      cmd LC_SOURCE_VERSION\n  cmdsize 16\n  version 0.0\n"
+        "/py/lib/_ssl.so (architecture arm64):\n"
+        "Load command 9\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform 1\n    minos 14.0\n"
+        "      sdk 15.2\n   ntools 1\n     tool 3\n  version 1053.12\n"
     )
-    assert minimum_versions(otool) == [(10, 13), (15, 0)]
+    assert minimum_versions(otool) == [(10, 13), (14, 0)]
+
+
+def test_only_minos_counts_in_the_build_version() -> None:
+    """The linker's `version` in the build version command is never read as a minimum macOS."""
+    tools_first = "Load command 9\n      cmd LC_BUILD_VERSION\n     tool 3\n  version 1053.12\n    minos 14.0\n"
+    without_minos = "Load command 9\n      cmd LC_BUILD_VERSION\n     tool 3\n  version 1053.12\n"
+    assert minimum_versions(tools_first) == [(14, 0)]
+    assert not minimum_versions(without_minos)
 
 
 def test_bundled_binaries_from_the_table_of_contents(tmp_path: Path) -> None:

@@ -346,10 +346,10 @@ def _build(variants: Sequence[Variant], version: str, dist: Path, work: Path) ->
         paths = BuildPaths(dist.resolve(), work.resolve() / variant)
         try:
             executable = build_variant(variant, version, paths)
-        except (RuntimeError, OSError) as error:
+            problems = _macos_floor_problems(variant, paths) if sys.platform == "darwin" else []
+        except (RuntimeError, OSError, subprocess.SubprocessError) as error:
             sys.stderr.write(f"{error}\n")
             return 1
-        problems = _macos_floor_problems(variant, paths) if sys.platform == "darwin" else []
         if problems:
             report = "\n".join(problems)
             sys.stderr.write(f"{report}\n")
