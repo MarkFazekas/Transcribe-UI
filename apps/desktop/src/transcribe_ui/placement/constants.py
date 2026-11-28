@@ -56,6 +56,8 @@ FLAT_STRATEGIES: Final = frozenset(("flat", "flat_with_folders"))
 DEFAULT_FOLDER_COUNT: Final = 1
 # Version of the exported custom plan format.
 CUSTOM_PLAN_VERSION: Final = 1
+# Folder names `plan_download` shows per folder level (`FolderLevel.names`); the level counts all of them.
+FOLDER_LEVEL_NAMES: Final = 3
 
 # Characters Windows does not allow in a name besides the control characters (`:` would also
 # open an alternate data stream, `name:stream`).

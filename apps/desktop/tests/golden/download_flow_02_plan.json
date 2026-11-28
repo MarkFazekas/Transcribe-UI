@@ -70,7 +70,17 @@
         }
       ],
       "errors": []
-    }
+    },
+    "folder_levels": [
+      {
+        "level": 1,
+        "names": [
+          "Audio",
+          "Movies"
+        ],
+        "folders": 2
+      }
+    ]
   },
   "events": []
 }
