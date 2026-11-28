@@ -55,6 +55,11 @@ def _actions(manual: ManualExecutor) -> list[str]:
     return [held.request.action for held in manual.held]
 
 
+def _rechecks(manual: ManualExecutor) -> list[bool | None]:
+    """Return `recheck_removed` of each held check of the cloud."""
+    return [getattr(held.request, "recheck_removed", None) for held in manual.held if held.request.action == REFRESH]
+
+
 def test_no_key_still_checks_the_results(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
     """A missing key leaves out only `reconcile_cloud`; `refresh_status` checks the results, and the poll follows them."""
     area, manual = manual_area
@@ -65,6 +70,7 @@ def test_no_key_still_checks_the_results(manual_area: tuple[CloudArea, ManualExe
     manual.answer(LIST)
     manual.answer(CREDENTIALS, _credentials(key_set=False))
     assert (area.models.key.missing, _actions(manual)) == (True, [LIST, CREDENTIALS, REFRESH])
+    assert _rechecks(manual) == [True], "the start-up check looks again for jobs marked removed"
     # The world's published batch waits for its results.
     manual.answer(REFRESH)
     assert (done, area.models.poll.awaiting, area.timers.poll.active) == ([True], True, True)
@@ -178,5 +184,33 @@ def test_removed_jobs_are_rechecked_on_demand(manual_area: tuple[CloudArea, Manu
     manual_area[0].models.poll.refresh_now()
     manual.answer(REFRESH, _refreshed(awaiting=True))
     manual_area[0].timers.poll.fire()
-    sent = [getattr(held.request, "recheck_removed", None) for held in manual.held if held.request.action == REFRESH]
-    assert sent == [True, False]
+    assert _rechecks(manual) == [True, False]
+
+
+def test_a_check_in_flight_at_start_up_rechecks_after(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
+    """A timer's check in flight when the start-up reaches its check: the start-up goes on, a recheck follows it."""
+    area = manual_area[0]
+    manual = manual_area[1]
+    area.models.poll.tick()
+    hooks = StartupHooks()
+    register_startup(hooks, area.models)
+    done: list[bool] = []
+    hooks.run(lambda: done.append(True))
+    manual.answer(LIST)
+    manual.answer(CREDENTIALS, _credentials(key_set=False))
+    assert (done, _rechecks(manual)) == ([True], [False])
+    manual.answer(REFRESH, _refreshed(awaiting=False))
+    assert _rechecks(manual) == [False, True]
+
+
+def test_a_change_of_jobs_owes_a_check(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
+    """After `batches_changed` only a check's answer may stop the poll; a load of the run list does not."""
+    area = manual_area[0]
+    manual = manual_area[1]
+    area.models.poll.start((FIRST_JOB,))
+    area.models.runs.announce()
+    manual.answer(LIST)
+    assert area.timers.poll.active
+    area.timers.poll.fire()
+    manual.answer(REFRESH, _refreshed(awaiting=False))
+    assert not area.timers.poll.active

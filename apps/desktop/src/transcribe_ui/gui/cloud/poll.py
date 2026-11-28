@@ -50,6 +50,8 @@ class CloudPoll(ViewModel):
         self.error: ErrorView | None = None
         # Whether the last check said that some uploaded job still waits for its results.
         self.awaiting = False
+        # Jobs changed since the last check that answered: only a check's answer may stop the poll.
+        self._owed = False
         # `proceed` of the start-up step waiting for the check in flight.
         self._waiting: list[Proceed] = []
         # Refresh now was asked while a check was in flight: check again once that one answers.
@@ -62,8 +64,8 @@ class CloudPoll(ViewModel):
         return self._channel.state is not None
 
     def follow(self) -> None:
-        """Poll while a listed run is not final or results are awaited; stop once neither holds."""
-        if not self._runs.run_active() and not self.awaiting:
+        """Poll while a listed run is not final, results are awaited or a check is owed; stop once none holds."""
+        if not self._runs.run_active() and not self.awaiting and not self._owed:
             self._timer.stop()
         elif not self._timer.active:
             self._timer.start()
@@ -71,8 +73,12 @@ class CloudPoll(ViewModel):
     def start(self, *_batch_ids: object) -> None:
         """Poll from now on, if stopped: a run was launched (its list entry may not be loaded yet), or jobs changed.
 
-        After a change of jobs elsewhere (`batches_changed`), the next check tells whether results are awaited now.
+        After a change of jobs elsewhere (`batches_changed`), the next check tells whether results are awaited now;
+        until it answers, a load of the run list does not stop the poll.
         """
+        if not self._runs.announcing_end:
+            # A run's end announced by the run list was read by the check that loaded the list.
+            self._owed = True
         if not self._timer.active:
             self._timer.start()
 
@@ -134,7 +140,9 @@ class CloudPoll(ViewModel):
         self._runs.announce()
         if reported:
             self._outlet.emit(BATCHES_CHANGED_SIGNAL, reported)
-        # After the signal: this check has answered for the jobs it reported.
+        if isinstance(response, RefreshStatusResponse):
+            # After the signal: this check has answered for the jobs it reported, and for any change before it.
+            self._owed = False
         self.follow()
         self.changed()
         waiting = self._waiting

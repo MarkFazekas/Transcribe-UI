@@ -494,8 +494,10 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     "Needs a Runpod API key on this computer."; a machines check's error is not shown while
     the key is known to be missing (`CloudModels.machines_error`). The poll also runs while the last check's
     `awaiting_results` is true, without a run of this computer; `batches_changed` (an upload,
-    an adoption) starts a stopped poll, and Refresh now during a check checks once more after
-    it. The settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
+    an adoption) starts a stopped poll and owes it a check, so until a check answers a load of
+    the run list does not stop it (the run list's own signal for an ended run owes none: the
+    check that loaded it has read the results); Refresh now during a check checks once more
+    after it. The settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes
     before the machines check. The cloud area asks `credentials_status` itself (a local read)
     instead of reading the settings area's view-model, so the areas stay independent.
   - Stop and Cancel (Q34; `run_actions.py`): "Stop waiting" (Q34's Cancel, named apart from
