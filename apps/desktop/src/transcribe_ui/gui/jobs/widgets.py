@@ -54,9 +54,24 @@ class ButtonRow(QWidget):
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.buttons: dict[JobButtonKey, QPushButton] = {}
+        # The job and the buttons shown, so a reload that changes neither keeps the same widgets.
+        self._shown: tuple[str | None, tuple[JobButton, ...]] | None = None
 
-    def show_buttons(self, buttons: tuple[JobButton, ...], on_press: OnPress) -> None:
-        """Replace the buttons; a click calls `on_press` with its button."""
+    def show_buttons(
+        self,
+        job: str | None,
+        buttons: tuple[JobButton, ...],
+        on_press: OnPress,
+    ) -> None:
+        """Show the buttons of `job`; a click calls `on_press` with its button.
+
+        Nothing is rebuilt while the job and its buttons stay the same, so a click that lands
+        during a reload still reaches its button.
+        """
+        shown = (job, buttons)
+        if shown == self._shown:
+            return
+        self._shown = shown
         for old in self.buttons.values():
             self._layout.removeWidget(old)
             old.deleteLater()

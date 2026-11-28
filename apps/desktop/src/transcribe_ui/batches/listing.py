@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.batches.actions import ItemCounts, JobKey, copying_sources, placed_job_ids
 from transcribe_ui.batches.classes import GetBatchRequest, ListBatchesRequest, SetBatchHiddenRequest
-from transcribe_ui.batches.constants import ALL_PHASES, FINISHED_PHASES, ITEM_REVIEW_PHASES
+from transcribe_ui.batches.constants import ALL_PHASES, FINISHED_PHASES, ITEM_REVIEW_PHASES, RESULT_PHASES
 from transcribe_ui.batches.phases import load_batch, require_phase, touch_batch
 from transcribe_ui.batches.records import batch_summary, load_detail, stored_items, summary_of
 from transcribe_ui.batches.responses import BatchSummary, GetBatchResponse, ListBatchesResponse, SetBatchHiddenResponse
@@ -43,12 +43,19 @@ def _item_counts(session: Session, listed: Listing) -> dict[str, ItemCounts]:
     return counts
 
 
+def _placed(session: Session, listed: Listing) -> frozenset[int]:
+    """Return the listed jobs with a placement outcome; only batches with results can have placed subtitles."""
+    phases = BatchRow.phase.in_(RESULT_PHASES)
+    with_results = select(BatchRow.batch_id).where(*listed, phases)
+    return placed_job_ids(session, PlacementRow.batch_id.in_(with_results))
+
+
 def _job_keys(session: Session, listed: Listing) -> defaultdict[str, list[JobKey]]:
     jobs: defaultdict[str, list[JobKey]] = defaultdict(list)
-    listed_ids = select(BatchRow.batch_id).where(*listed)
-    placed = placed_job_ids(session, PlacementRow.batch_id.in_(listed_ids))
-    joined = select(JobRow).join(BatchRow).where(*listed)
-    for job in session.scalars(joined):
+    placed = _placed(session, listed)
+    keyed = (JobRow.language, JobRow.kind, JobRow.status)
+    columns = select(JobRow.batch_id, JobRow.job_id, *keyed)
+    for job in session.execute(columns.join(BatchRow).where(*listed)):
         jobs[job.batch_id].append(JobKey.of_row(job, placed))
     return jobs
 

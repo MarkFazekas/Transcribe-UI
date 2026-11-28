@@ -15,7 +15,7 @@ interrupted cleanup) come from the same facts, so no frontend derives them from 
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import NamedTuple, cast
+from typing import NamedTuple, Protocol, cast
 
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
@@ -25,8 +25,28 @@ from transcribe_ui.batches.payloads import CleanupScope
 from transcribe_ui.batches.responses import BatchAction, BatchLabel, BatchStage
 from transcribe_ui.cleanup.constants import CLEANED, FLAGGED_STATUSES, RETRY_SOURCE_PATH
 from transcribe_ui.placement.constants import RECORDED_OUTCOMES
-from transcribe_ui.state.models import BatchRow, ItemRow, JobRow, PlacementRow
+from transcribe_ui.state.models import BatchRow, ItemRow, PlacementRow
 from transcribe_ui.upload.constants import ITEM_REVIEWED, ITEM_UPLOADED, REVIEWED_BATCH, UPLOADING_BATCH
+
+
+class JobFields(Protocol):
+    """What a job's key is read from: its row, or a query of its columns."""
+
+    @property
+    def job_id(self) -> int:
+        """Return the job's id."""
+
+    @property
+    def language(self) -> str:
+        """Return the job's language."""
+
+    @property
+    def kind(self) -> str:
+        """Return the job's kind."""
+
+    @property
+    def status(self) -> str:
+        """Return the job's status."""
 
 
 class JobKey(NamedTuple):
@@ -39,8 +59,8 @@ class JobKey(NamedTuple):
     placed: bool = False
 
     @classmethod
-    def of_row(cls, job: JobRow, placed: frozenset[int]) -> "JobKey":
-        """Return a job row's key; `placed` holds the ids of the jobs with a placement outcome."""
+    def of_row(cls, job: "JobFields", placed: frozenset[int]) -> "JobKey":
+        """Return a job's key (a row, or its columns); `placed` holds the ids of the jobs with a placement outcome."""
         recorded = job.job_id in placed
         return cls(job.language, job.kind, job.status, placed=recorded)
 

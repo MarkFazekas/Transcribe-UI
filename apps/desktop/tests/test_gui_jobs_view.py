@@ -139,6 +139,35 @@ def test_clearing_the_last_tick_disables_retry(qtbot: QtBot, window: MainWindow)
     assert [step.state for step in view.steps.steps] == ["done", "done", "done", "current"]
 
 
+def test_an_equal_reload_keeps_the_table_and_the_ticks(qtbot: QtBot, window: MainWindow) -> None:
+    """A reload that returns the same rows neither rebuilds the table nor brings a cleared tick back."""
+    jobs = _open(qtbot, window, "transcribed_flagged")
+    view = jobs.page_view
+    tick = _cell(view.table, 1, 0)
+    tick.setCheckState(Qt.CheckState.Unchecked)
+    retry = view.button_row.buttons["retry"]
+    loads: list[bool] = []
+    view.model.subscribe(lambda: loads.append(True))
+    view.model.reload()
+    wait_for(qtbot, lambda: bool(loads))
+    kept = (_cell(view.table, 1, 0) is tick, tick.checkState(), view.button_row.buttons["retry"] is retry)
+    assert kept == (True, Qt.CheckState.Unchecked, True)
+    assert not retry.isEnabled()
+
+
+def test_an_equal_reload_keeps_the_list_buttons(qtbot: QtBot, window: MainWindow) -> None:
+    """A reload that changes neither the selected job nor its buttons keeps the same button widgets."""
+    view = _jobs(window).list_view
+    wait_for(qtbot, lambda: view.table.rowCount() == SHOWN)
+    view.table.selectRow([row.batch_id for row in view.model.rows].index(scenario_batch_id("cleaned")))
+    hide = view.button_row.buttons["hide"]
+    loads: list[bool] = []
+    view.model.subscribe(lambda: loads.append(True))
+    view.model.reload()
+    wait_for(qtbot, lambda: bool(loads))
+    assert view.button_row.buttons["hide"] is hide
+
+
 def test_delete_asks_and_returns_to_the_list(qtbot: QtBot, window: MainWindow) -> None:
     """Delete opens the backend's confirmation; Confirm deletes the job and shows the list without it."""
     jobs = _open(qtbot, window, "composing")

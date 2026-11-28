@@ -139,7 +139,7 @@ class JobsListView(QWidget):
         batch_id = self.selected()
         self.open_button.setEnabled(batch_id is not None)
         buttons = () if batch_id is None else self.model.buttons(batch_id)
-        self.button_row.show_buttons(buttons, partial(self._press, batch_id))
+        self.button_row.show_buttons(batch_id, buttons, partial(self._press, batch_id))
 
     def _press(self, batch_id: str | None, button: JobButton) -> None:
         if batch_id is not None:
@@ -251,7 +251,7 @@ class JobPageView(QWidget):
             with QSignalBlocker(self.table):
                 self._fill_rows()
             self.table.resizeColumnsToContents()
-        self.button_row.show_buttons(model.buttons, self._press)
+        self.button_row.show_buttons(model.batch_id, model.buttons, self._press)
 
     def _fill_rows(self) -> None:
         rows = self.model.rows

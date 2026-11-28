@@ -177,8 +177,9 @@ def batch_item(member: StoredItem) -> BatchItem:
 def batch_summary(row: BatchRow, item_counts: ItemCounts, jobs: Sequence[JobKey], *, copying: bool) -> BatchSummary:
     """Return a batch as the batch list shows it.
 
-    From its item counts, its jobs' (language, kind, status) and whether a retry batch still
-    copies its audio (`actions.copying_sources`).
+    From its item counts, its jobs' keys (language, kind, status, and whether a download recorded
+    the job's placement outcome: `placed`, which `subtitles_ready` reads) and whether a retry
+    batch still copies its audio (`actions.copying_sources`).
     """
     languages = sorted({job.language for job in jobs})
     facts = batch_facts(row, item_counts, jobs, copying=copying)
