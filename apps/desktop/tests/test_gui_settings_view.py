@@ -37,6 +37,7 @@ from transcribe_ui.gui.settings.accounts import AccountsViewModel
 from transcribe_ui.gui.settings.accounts_view import AccountsView
 from transcribe_ui.gui.settings.cloud_setup import CloudSetupViewModel
 from transcribe_ui.gui.settings.hooks import AreaHooks
+from transcribe_ui.gui.settings.install import install_settings
 from transcribe_ui.gui.settings.notice_view import NoticeBar, RestartQuestion
 from transcribe_ui.gui.settings.texts import settings_hint
 from transcribe_ui.gui.settings.view import SettingsPage
@@ -362,3 +363,17 @@ def test_a_form_problem_shows_in_the_message_line(qtbot: QtBot, backend: Backend
     accounts.changed()
     shown = view.controls.message_label.text()
     assert shown == "Fix the marked fields, then save again. This value is not valid."
+
+
+def test_the_wizard_is_opened_again_not_rebuilt(qtbot: QtBot, tmp_path: Path, backend: Backend) -> None:
+    """Opening the wizard a second time reuses it: one wizard, one set of views following the view-models."""
+    window = window_over(qtbot, backend, tmp_path)
+    area = install_settings(window)
+    area.open_wizard("accounts")
+    first = area.wizard
+    assert first is not None
+    first.reject()
+    area.open_wizard("accounts")
+    # The window's own area opened none (its start-up steps did not run): one wizard in all.
+    reused = (area.wizard is first, first.isVisible(), len(window.findChildren(SetupWizard)))
+    assert reused == (True, True, 1)

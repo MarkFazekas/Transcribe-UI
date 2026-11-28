@@ -44,13 +44,19 @@ class SetupWizard(QDialog):
         self.back_button = QPushButton(tr("Back"), self)
         self.next_button = QPushButton(self)
         self._lay_out()
-        # Values typed elsewhere and not stored would make Save look enabled over empty fields; so
-        # would values typed here once the wizard is closed.
-        accounts.discard_typed()
+        # Values typed here and not stored would make Save look enabled over empty fields once the
+        # wizard is closed (and `start` forgets what was typed elsewhere).
         self.finished.connect(self._close)
         self.finished.connect(accounts.discard_typed)
         accounts.subscribe(self._repaint)
         self._repaint()
+
+    def start(self, step: WizardStep) -> None:
+        """Open the wizard (window-modal) at `step`; what was typed elsewhere and not stored is forgotten."""
+        self._closed = False
+        self._accounts.discard_typed()
+        self.show_step(step)
+        self.open()
 
     def show_step(self, step: WizardStep) -> None:
         """Show a step; the cloud setup is checked when it has not been yet."""

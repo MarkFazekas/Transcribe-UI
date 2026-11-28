@@ -269,7 +269,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   the window (`deleteLater` would never run without a loop) and closes the backend's local
   state last (`Backend.close`). However the window is deleted, its executor closes with it
   (`build_shell` connects the window's `destroyed`), so an answer still on its way never
-  reaches a deleted view.
+  reaches the window's deleted views. A view deleted while its window lives must call the
+  function its view-model's `subscribe` returned (none is today: pages and the set-up wizard
+  live as long as the window).
 - **Package**: Qt-free modules `executor.py` (the `Executor` port, call handles, channels,
   `SyncExecutor`), `viewmodel.py` (the view-model base: an injected `Executor` and change
   listeners), `activity.py` (the activity panel's view-model), `feedback.py` (error and

@@ -48,11 +48,12 @@ class SettingsArea:
 
     def open_wizard(self, step: WizardStep) -> None:
         """Open the set-up wizard at `step` (window-modal; it can be closed)."""
-        models = self.models
-        wizard = SetupWizard(models.accounts, models.cloud, self._window.show_error, self._window)
-        wizard.show_step(step)
-        self.wizard = wizard
-        wizard.open()
+        if self.wizard is None:
+            # One wizard per window: its views follow the view-models for as long as the window lives.
+            models = self.models
+            window = self._window
+            self.wizard = SetupWizard(models.accounts, models.cloud, window.show_error, window)
+        self.wizard.start(step)
 
     def ask_restart(self) -> None:
         """Ask to restart now so the saved language applies (Q32); Restart now closes through Q30."""
