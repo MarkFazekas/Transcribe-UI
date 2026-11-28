@@ -63,10 +63,22 @@ class FollowedJobs(NamedTuple):
         return self._replace(others=tuple(pending_of_batches(store, self.unknown_batch_ids)))
 
 
-def followed_jobs(session: Session, batch_ids: Sequence[str], run_id: str) -> FollowedJobs:
-    """Return the pending transcribe jobs of these batches and those whose result the run wrote."""
-    durations = _durations(session, batch_ids)
-    of_batches = JobRow.batch_id.in_(batch_ids)
+def followed_jobs(
+    session: Session,
+    covered: Sequence[str],
+    known: Sequence[str] | None,
+    run_id: str,
+) -> FollowedJobs:
+    """Return the pending transcribe jobs of the run's known covered batches and those whose result the run wrote.
+
+    `known`: the covered batches the database knew at the launch (`RunPayload.known_batch_ids`),
+    so a batch adopted during the run stays counted from R2, as the launch counted it; None for a
+    run launched before they were kept: the covered batches the database has.
+    """
+    if known is None:
+        known = _in_database(session, covered)
+    durations = _durations(session, known)
+    of_batches = JobRow.batch_id.in_(known)
     query = select(JobRow).where(of_batches, JobRow.kind == TRANSCRIBE_KIND)
     pending: list[PendingJob] = []
     worked: list[WorkedJob] = []
@@ -79,14 +91,19 @@ def followed_jobs(session: Session, batch_ids: Sequence[str], run_id: str) -> Fo
             done = _worked_job(job, stored, paced=row.status in PACED_JOB_STATUSES)
             if done is not None:
                 worked.append(done)
-    return FollowedJobs(tuple(pending), tuple(worked), _unknown(session, batch_ids))
+    return FollowedJobs(tuple(pending), tuple(worked), _others(covered, known))
 
 
-def _unknown(session: Session, batch_ids: Sequence[str]) -> tuple[str, ...]:
-    """Return the batches this database does not know, in order."""
-    known = select(BatchRow.batch_id).where(BatchRow.batch_id.in_(batch_ids))
-    here = frozenset(session.scalars(known))
-    return tuple(batch_id for batch_id in batch_ids if batch_id not in here)
+def _in_database(session: Session, batch_ids: Sequence[str]) -> tuple[str, ...]:
+    """Return the batches the database has."""
+    query = select(BatchRow.batch_id).where(BatchRow.batch_id.in_(batch_ids))
+    return tuple(session.scalars(query))
+
+
+def _others(covered: Sequence[str], known: Sequence[str]) -> tuple[str, ...]:
+    """Return the covered batches not known, in order."""
+    here = frozenset(known)
+    return tuple(batch_id for batch_id in covered if batch_id not in here)
 
 
 def _job(row: JobRow, stored: JobPayload, durations: AudioDurations) -> PendingJob:

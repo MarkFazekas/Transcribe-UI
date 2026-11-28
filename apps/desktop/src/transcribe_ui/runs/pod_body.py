@@ -36,6 +36,7 @@ class Decided:
             queue_expires_at=named.expires_at,
             name_deadline=named.deadline,
             covered_batch_ids=self.covered(),
+            known_batch_ids=tuple(batch.batch_id for batch in self._covered_batches(known=True)),
             fingerprint=scope.fingerprint,
             pending_duration_s=scope.pending_duration_s,
             estimate=plan.cost,

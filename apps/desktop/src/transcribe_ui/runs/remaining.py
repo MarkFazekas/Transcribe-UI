@@ -177,7 +177,7 @@ def _run_work(context: RequestContext, run_id: str, store: ObjectStore) -> RunWo
     with context.ports.state.session() as session:
         row = load_run(session, run_id)
         payload = payload_of(row)
-        jobs = followed_jobs(session, payload.covered_batch_ids, run_id)
+        jobs = followed_jobs(session, payload.covered_batch_ids, payload.known_batch_ids, run_id)
         status = row.status
     if status == "running":
         jobs = jobs.with_others(store)

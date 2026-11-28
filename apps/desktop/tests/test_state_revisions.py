@@ -173,6 +173,8 @@ def test_old_payloads_get_the_new_keys(upgraded: tuple[Backend, Path]) -> None:
     run = json.loads(_stored(database_file, "SELECT payload FROM runs"))
     assert batch == {**OLD_BATCH_PAYLOAD, "composition": None, "adopted": None}
     added = {"worker": None, "stop_error": None, "refreshed_at": None, "cancel_acknowledged_at": None}
+    # M6.13 (`shared_bucket`): the covered batches known at the launch.
+    added["known_batch_ids"] = None
     assert run == {**OLD_RUN_PAYLOAD, **added, **PROGRESS_KEYS}
 
 

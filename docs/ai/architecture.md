@@ -2184,6 +2184,10 @@ database):
     - Another computer's covered batches count in the remaining time only (their audio is not
       in `progress_fraction`): by `unknown_runtime_s` until the pace is measured, then by their
       pending jobs in R2, so the remaining time does not drop when the first file is done.
+      "Another computer's" is as at the launch: the run payload keeps the covered batches this
+      database knew then (`known_batch_ids`), so a batch adopted during the run stays counted
+      from R2 and the progress does not jump (a run launched before the field: the covered
+      batches the database has).
   - `estimated_finish_at`: the refresh time (`refreshed_at`) plus `remaining_estimate_s` (UTC),
     null when the estimate is. All three are as of the refresh and never extrapolate against
     now; the clock is the injected one, so the parity goldens are stable.

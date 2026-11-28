@@ -353,3 +353,21 @@ def test_done_share_is_rounded_down() -> None:
     """With one second of a long run pending, the done share stays below 1 (1 means all done)."""
     assert done_share(LAST_SECOND_S, LONG_RUN_S) == 1 - 10**-PROGRESS_FRACTION_DECIMALS
     assert done_share(0, LONG_RUN_S) == 1
+
+
+def test_a_batch_adopted_mid_run_keeps_its_count(world: RunsWorld) -> None:
+    """Another computer's covered batch adopted mid-run stays counted as at the launch: the progress does not jump."""
+    write_foreign(world.store)
+    worker = Worker(world, launch_run(world).run_id)
+    worker.report()
+    world.cloud.clock.advance(timedelta(seconds=FILM_SECONDS * WORKER_FACTOR))
+    worker.done(FILM, FILM_SECONDS * WORKER_FACTOR)
+    worker.report()
+    before = _progress(refreshed_run(world, worker.run_id))
+    covered = run_row(world, worker.run_id)[1].covered_batch_ids
+    foreign = next(batch_id for batch_id in covered if batch_id != FIRST_BATCH_ID)
+    assert send(world, "adopt_cloud_batch", batch_id=foreign, confirm=True).status != "error"
+    assert (run_row(world, worker.run_id)[1].known_batch_ids, _estimate(world, worker.run_id)) == (
+        (FIRST_BATCH_ID,),
+        before,
+    )
