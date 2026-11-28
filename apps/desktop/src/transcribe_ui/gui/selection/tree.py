@@ -8,6 +8,7 @@ costs two short loops. Under a folder its child folders come first, then its fil
 the scan's order.
 """
 
+from bisect import bisect_left, bisect_right
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property
@@ -21,6 +22,11 @@ from transcribe_ui.discovery.classes import (
     ScanTreeResponse,
     SelectionOperation,
 )
+
+
+def _folder_of(found: ScanFile) -> int:
+    return found.folder
+
 
 # Numbers of nodes, one per folder (each folder's first file, row, ...).
 type PerFolder = tuple[int, ...]
@@ -117,6 +123,16 @@ class ScanIndex:
         for number, found in enumerate(self.tree.files, start=self.folder_count):
             nodes[found.path] = number
         return MappingProxyType(nodes)
+
+    def files_below(self, node: int) -> tuple[ScanFile, ...]:
+        """Return the files at or below a folder (folders are depth first, so their files follow one another)."""
+        last = node
+        while self.child_folders[last]:
+            last = self.child_folders[last][-1]
+        files = self.tree.files
+        first = bisect_left(files, node, key=_folder_of)
+        end = bisect_right(files, last, key=_folder_of)
+        return files[first:end]
 
     def is_folder(self, node: int) -> bool:
         """Return whether a node is a folder."""

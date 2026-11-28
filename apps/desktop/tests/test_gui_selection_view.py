@@ -293,11 +293,11 @@ def test_a_tick_repaints_only_what_it_changed(large_tree: Path, tmp_path: Path) 
     assert layouts == [True], "turning a filter on may dim any row: one layout change"
 
 
-@pytest.mark.usefixtures("qapp")
-def test_own_languages_without_job_languages() -> None:
+def test_own_languages_without_job_languages(qtbot: QtBot) -> None:
     """With no job language ticked, unticking "Same as the job" stays unticked until a language is ticked."""
     received: list[object] = []
     holder = QWidget()
+    qtbot.addWidget(holder)
     panel = FileLanguages(received.append, holder)
     offered = (LanguageChoice(ENGLISH, "English (en)"),)
     panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
@@ -310,3 +310,16 @@ def test_own_languages_without_job_languages() -> None:
     assert received == [None, (ENGLISH,)]
     panel.show_file("/media/other.mkv", "other.mkv", offered, None)
     assert panel.same.isChecked()
+
+
+def test_same_as_the_job_returns_with_a_language(qtbot: QtBot) -> None:
+    """Choosing own languages with no job language, then giving the job one, shows "Same as the job" again."""
+    holder = QWidget()
+    qtbot.addWidget(holder)
+    panel = FileLanguages(lambda _languages: None, holder)
+    offered = (LanguageChoice(ENGLISH, "English (en)"),)
+    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    panel.same.setChecked(False)
+    panel.use_job_languages((ENGLISH,))
+    panel.show_file("/media/clip.mkv", "clip.mkv", offered, None)
+    assert (panel.same.isChecked(), panel.checks.ticked(), panel.checks.isEnabled()) == (True, (ENGLISH,), False)

@@ -52,7 +52,7 @@ class NewJobModel(ViewModel):
         self.scan.start(self.settings.spec(root))
 
     def tick(self, path: str, *, folder: bool) -> None:
-        """Tick or untick a row: a row with nothing selected is included, any other (ticked or partly) excluded.
+        """Tick or untick a row: include it, or exclude it when it is selected (`includes`).
 
         A folder's operation carries the active filters, a file's none.
         """
@@ -61,8 +61,8 @@ class NewJobModel(ViewModel):
         chosen = self.filters.current() if folder else SelectionFilter()
         if chosen is None:
             return
-        empty = self.ticks.mark(path, folder=folder) == UNCHECKED
-        operation = SelectionOperation(operation="include" if empty else "exclude", path=path, filters=chosen)
+        include = includes(self, path, folder=folder)
+        operation = SelectionOperation(operation="include" if include else "exclude", path=path, filters=chosen)
         self.ticks.add(operation)
 
     def change_filters(self, picked: FilterInput) -> None:
@@ -103,3 +103,36 @@ class NewJobModel(ViewModel):
     def _scanned(self, scanned: Scanned) -> None:
         self.ticks.start(scanned, self.ticks.operations)
         self.filters.refresh(scanned)
+
+
+def _matching_selected(model: NewJobModel, path: str) -> bool | None:
+    """Return whether every file below a folder the active filters match is selected (None: unknown)."""
+    scanned = model.scan.scanned
+    matches = model.filters.matches
+    active = model.filters.picked.active()
+    if scanned is None or matches is None or not active:
+        return None
+    index = scanned.index
+    node = index.nodes.get(path)
+    if node is None:
+        return None
+    below = {found.path for found in index.files_below(node)}
+    matching = below & matches.files
+    return bool(matching) and matching <= model.ticks.marks.files
+
+
+def includes(model: NewJobModel, path: str, *, folder: bool) -> bool:
+    """Return whether a click on a row includes it (else it excludes it).
+
+    A click still waiting for its answer decides by what it asked for, so a fast second click
+    toggles. Under active filters a folder click decides by the files below it the filters
+    match: exclude when all of them are selected, else include (an exclude of a folder's other
+    files would change nothing). Otherwise a row with nothing selected is included, any other
+    (ticked or partly) excluded.
+    """
+    pending = model.ticks.pending.get(path)
+    if folder and pending is None:
+        selected = _matching_selected(model, path)
+        if selected is not None:
+            return not selected
+    return model.ticks.mark(path, folder=folder) == UNCHECKED

@@ -106,10 +106,17 @@ class SaveCommands:
         self._on_leave = on_leave
         # The job being edited; None for a new job.
         self.editing: EditTarget | None = None
+        # Counts the times the page left what it showed: a save sent before no longer counts.
+        self._generation = 0
 
     def leave(self) -> None:
-        """Stop editing a job: a load of it still on its way is dropped, a save of it answered later no longer counts."""
+        """Leave what the page shows (an edited job, or a new job's selection).
+
+        A load of the edited job still on its way is dropped, and a save sent before, answered
+        later, no longer changes the page.
+        """
         self.editing = None
+        self._generation += 1
         self._on_leave()
 
     def busy(self) -> bool:
@@ -118,16 +125,17 @@ class SaveCommands:
 
     def send(self, request: SaveRequest) -> None:
         """Send the save (refused while one is in flight: a double click)."""
-        self._channel.send(SAVE_KEY, request, partial(self._answered, request))
+        answered = partial(self._answered, request, self._generation)
+        self._channel.send(SAVE_KEY, request, answered)
 
-    def _current(self, request: SaveRequest) -> bool:
-        """Return whether the page still shows what `request` saves (the same edited job, or a new job)."""
+    def _current(self, request: SaveRequest, generation: int) -> bool:
+        """Return whether the page still shows what `request` saves (the same edited job, or the same new job)."""
         edited = request.batch_id if isinstance(request, EditBatchRequest) else None
         shown = None if self.editing is None else self.editing.batch_id
-        return edited == shown
+        return generation == self._generation and edited == shown
 
-    def _answered(self, request: SaveRequest, response: Response) -> None:
-        current = self._current(request)
+    def _answered(self, request: SaveRequest, generation: int, response: Response) -> None:
+        current = self._current(request, generation)
         if isinstance(response, NeedsConfirmation):
             if current:
                 confirmed = partial(self._confirmed, request, response)

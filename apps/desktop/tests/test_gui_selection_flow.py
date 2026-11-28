@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from support.discovery import PODCAST
+from support.discovery import FILM, FILM_SEQUEL, PODCAST
 from support.selection import (
     DeferredExecutor,
     SelectionArea,
@@ -192,3 +192,47 @@ def test_each_warning_is_listed_once(tmp_path: Path) -> None:
         after = [row[0] for row in shown_warnings(model)]
     unicode = "The name is not valid Unicode; rename it to include it."
     assert (before, after) == ([unicode], [unicode, "No media file is at or below this path."])
+
+
+def test_a_filtered_click_on_the_root_undoes_itself(area: SelectionArea, tmp_path: Path) -> None:
+    """Everything ticked, then "Audio only": a root click drops the audio files, a second brings them back."""
+    page = scanned_page(area, tmp_path)
+    page.tick()
+    page.model.change_filters(FilterInput(media_kind="audio"))
+    page.tick()
+    dropped = (page.mark(), page.mark(AUDIO))
+    page.tick()
+    kinds = [operation.operation for operation in page.model.ticks.operations]
+    assert (dropped, kinds, page.mark()) == (("partial", "unchecked"), ["include", "exclude", "include"], "checked")
+
+
+def test_a_filtered_click_adds_the_matching_files(area: SelectionArea, tmp_path: Path) -> None:
+    """One film ticked, then "missing English": a Movies click adds the matching films, a second drops them."""
+    page = scanned_page(area, tmp_path)
+    page.tick(MOVIES, FILM, folder=False)
+    page.model.change_filters(FilterInput(subtitle_languages=(ENGLISH,), subtitle_rule="missing_one"))
+    page.tick(MOVIES)
+    added = (page.mark(MOVIES, FILM_SEQUEL), page.mark(MOVIES, FILM), totals_text(page.model.ticks.counts))
+    page.tick(MOVIES)
+    assert added == ("checked", "checked", "3 files selected (3 video, 0 audio), 0 B.")
+    assert (page.mark(MOVIES, FILM_SEQUEL), page.mark(MOVIES, FILM)) == ("unchecked", "checked")
+
+
+def test_a_create_after_another_folder_only_reloads(
+    deferred: tuple[DeferredExecutor, NewJobModel],
+    area: SelectionArea,
+    tmp_path: Path,
+) -> None:
+    """A job created after the user chose another folder changes the lists, not the new selection."""
+    executor, model = deferred
+    model.tick(media_path(tmp_path, AUDIO, PODCAST), folder=False)
+    model.targets.use_languages((ENGLISH,))
+    executor.answer_all()
+    model.save()
+    model.choose_folder(media_path(tmp_path, MOVIES))
+    executor.answer_all()
+    model.tick(media_path(tmp_path, MOVIES), folder=True)
+    executor.answer_all()
+    assert "create_batch" in [call.request.action for call in executor.calls]
+    assert area.outlet.emitted == [("batches_changed", ((BATCH_ID,),))]
+    assert len(model.ticks.operations) == 1
