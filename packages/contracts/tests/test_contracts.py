@@ -17,11 +17,17 @@ import pytest
 from pydantic import BaseModel
 
 from transcribe_contracts import layout
-from transcribe_contracts.classes import BatchSummary, JobResult, Manifest, RunStatus
+from transcribe_contracts.classes import BatchSummary, JobResult, Manifest, RunLease, RunStatus
 from transcribe_contracts.constants import ULID_PATTERN, ULID_RANDOM_BITS
 from transcribe_contracts.errors import ContractError, UnsupportedSchemaError
 from transcribe_contracts.ids import new_ulid
-from transcribe_contracts.reading import read_batch_summary, read_job_result, read_manifest, read_run_status
+from transcribe_contracts.reading import (
+    read_batch_summary,
+    read_job_result,
+    read_manifest,
+    read_run_lease,
+    read_run_status,
+)
 
 TESTS_DIR = Path(__file__).parent
 FIXTURES_DIR = TESTS_DIR / "fixtures"
@@ -35,6 +41,9 @@ MANIFEST_KEY = layout.manifest_key(BATCH_ID)
 RESULT_KEY = layout.result_json_key(BATCH_ID, ITEM_ID, HUNGARIAN)
 SUMMARY_KEY = layout.done_key(BATCH_ID)
 STATUS_KEY = layout.run_status_key(RUN_ID)
+LEASE_KEY = layout.run_lease_key(RUN_ID)
+MANIFEST_FIXTURE = "manifest.json"
+DOT_PART_MESSAGE = r"has a '\.' or '\.\.' part"
 FOREIGN_KEY = f"other_batch/audio/{ITEM_ID}.a0.mka"
 # The ULID spec's example time (1469918176385 ms) and its ULID with zero randomness.
 ULID_SPEC_MOMENT = datetime.fromisoformat("2016-07-30T22:36:16.385+00:00")
@@ -43,10 +52,11 @@ ULID_SPEC_ZERO_RANDOM = "01ARYZ6S410000000000000000"
 type Reader = Callable[[str, bytes | str], BaseModel]
 
 READERS: tuple[tuple[Reader, str, str], ...] = (
-    (read_manifest, "manifest.json", MANIFEST_KEY),
+    (read_manifest, MANIFEST_FIXTURE, MANIFEST_KEY),
     (read_job_result, "job_result.json", RESULT_KEY),
     (read_batch_summary, "batch_summary.json", SUMMARY_KEY),
     (read_run_status, "run_status.json", STATUS_KEY),
+    (read_run_lease, "run_lease.json", LEASE_KEY),
 )
 READER_PARAMETERS = ("reader", "fixture", "key")
 
@@ -73,7 +83,7 @@ def _changed(name: str, changes: dict[str, object]) -> str:
     return json.dumps(document)
 
 
-@pytest.mark.parametrize("model", [Manifest, JobResult, BatchSummary, RunStatus])
+@pytest.mark.parametrize("model", [Manifest, JobResult, BatchSummary, RunStatus, RunLease])
 def test_json_schema_matches_snapshot(model: type[BaseModel]) -> None:
     """The JSON Schema of each stored object equals the committed snapshot."""
     snapshot = SNAPSHOTS_DIR / f"{model.__name__}.schema.json"
@@ -126,11 +136,12 @@ def test_malformed_object_is_refused(body: str, message: str) -> None:
 @pytest.mark.parametrize(
     READER_PARAMETERS,
     [
-        (read_manifest, "manifest.json", layout.manifest_key("batch_20261126_143006")),
+        (read_manifest, MANIFEST_FIXTURE, layout.manifest_key("batch_20261126_143006")),
         (read_job_result, "job_result.json", layout.result_json_key(BATCH_ID, ITEM_ID, "en")),
         (read_job_result, "job_result.json", layout.result_srt_key(BATCH_ID, ITEM_ID, HUNGARIAN)),
         (read_batch_summary, "batch_summary.json", layout.done_key("batch_20261126_143006")),
         (read_run_status, "run_status.json", layout.run_status_key(ITEM_ID)),
+        (read_run_lease, "run_lease.json", layout.run_lease_key(ITEM_ID)),
     ],
 )
 def test_object_under_a_foreign_key_is_refused(reader: Reader, fixture: str, key: str) -> None:
@@ -139,7 +150,7 @@ def test_object_under_a_foreign_key_is_refused(reader: Reader, fixture: str, key
         reader(key, json.dumps(_load(fixture)))
 
 
-DUPLICATE_AUDIO = _load("manifest.json")["items"][0]["audio"][0]
+DUPLICATE_AUDIO = _load(MANIFEST_FIXTURE)["items"][0]["audio"][0]
 
 
 @pytest.mark.parametrize(
@@ -159,12 +170,17 @@ DUPLICATE_AUDIO = _load("manifest.json")["items"][0]["audio"][0]
         ({"created_at": "2026-11-26T14:30:05"}, "timezone"),
         ({"scan_root": "Media"}, "not an absolute windows path"),
         ({"items.1.original_path": r"E:\Other\Ep 12.mp3"}, "not under scan_root"),
+        ({"items.1.original_path": r"D:\Media\..\Other\Ep 12.mp3"}, DOT_PART_MESSAGE),
+        ({"items.1.original_path": r"D:\Media\Podcasts/../../Ep 12.mp3"}, DOT_PART_MESSAGE),
+        ({"items.1.original_path": r"D:\Media\.\Ep 12.mp3"}, DOT_PART_MESSAGE),
+        ({"scan_root": r"D:\Media\.."}, DOT_PART_MESSAGE),
+        ({"uploaded_by": ""}, "at least 1 character"),
     ],
 )
 def test_invalid_manifest_is_refused(changes: dict[str, object], message: str) -> None:
     """The worker never processes a manifest that breaks the contract."""
     with pytest.raises(ContractError, match=message):
-        read_manifest(MANIFEST_KEY, _changed("manifest.json", changes))
+        read_manifest(MANIFEST_KEY, _changed(MANIFEST_FIXTURE, changes))
 
 
 @pytest.mark.parametrize(
@@ -208,6 +224,54 @@ def test_inconsistent_run_status_is_refused(changes: dict[str, object], message:
         read_run_status(STATUS_KEY, _changed("run_status.json", changes))
 
 
+@pytest.mark.parametrize(
+    ("original_path", "refused"),
+    [
+        ("/media/../etc/x.mkv", True),
+        ("/media/./x.mkv", True),
+        ("/media/..x/x.mkv", False),
+        ("/media/x..mkv", False),
+        (r"/media/..\x.mkv", False),
+    ],
+)
+def test_posix_manifest_dot_parts(original_path: str, *, refused: bool) -> None:
+    r"""A POSIX path splits only at `/`: `..\x` is a name there (the desktop's adoption refuses it)."""
+    changes: dict[str, object] = {
+        "scan_root": "/media",
+        "path_flavor": "posix",
+        "items.0.original_path": original_path,
+        "items.1.original_path": "/media/ep.mp3",
+    }
+    body = _changed(MANIFEST_FIXTURE, changes)
+    if refused:
+        with pytest.raises(ContractError, match=DOT_PART_MESSAGE):
+            read_manifest(MANIFEST_KEY, body)
+    else:
+        assert read_manifest(MANIFEST_KEY, body).items[0].original_path == original_path
+
+
+def test_manifest_without_installation_id_reads() -> None:
+    """A 1.0 manifest has no `uploaded_by`; it reads as None."""
+    document = {key: field for key, field in _load(MANIFEST_FIXTURE).items() if key != "uploaded_by"}
+    document["schema_version"] = "1.0"
+    assert read_manifest(MANIFEST_KEY, json.dumps(document)).uploaded_by is None
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"batch_ids": []}, "at least 1 item"),
+        ({"batch_ids.1": BATCH_ID}, "batch ids are not unique"),
+        ({"batch_ids.0": "batch_x"}, "should match pattern"),
+        ({"deadline_at": "2026-11-27T17:00:00"}, "timezone"),
+    ],
+)
+def test_invalid_run_lease_is_refused(changes: dict[str, object], message: str) -> None:
+    """A lease the worker cannot trust is refused (the worker then processes nothing)."""
+    with pytest.raises(ContractError, match=message):
+        read_run_lease(LEASE_KEY, _changed("run_lease.json", changes))
+
+
 def test_object_keys_follow_the_layout() -> None:
     """Every key of architecture §4, and the round trips of the parsers."""
     keys = [
@@ -220,6 +284,7 @@ def test_object_keys_follow_the_layout() -> None:
         layout.done_key(BATCH_ID),
         layout.run_status_key(RUN_ID),
         layout.run_log_key(RUN_ID),
+        layout.run_lease_key(RUN_ID),
     ]
     assert keys == [
         f"batch_metadata/{BATCH_ID}.json",
@@ -231,7 +296,9 @@ def test_object_keys_follow_the_layout() -> None:
         f"{BATCH_ID}/_done.json",
         f"runs/{RUN_ID}/status.json",
         f"runs/{RUN_ID}/worker.log",
+        f"runs/{RUN_ID}/launch.json",
     ]
+    assert layout.run_id_from_lease_key(keys[-1]) == RUN_ID
     assert layout.batch_id_from_manifest_key(keys[0]) == BATCH_ID
     assert layout.parse_result_key(keys[5]) == (BATCH_ID, ITEM_ID, "haw", ".json")
 
@@ -251,6 +318,21 @@ def test_object_keys_follow_the_layout() -> None:
 def test_malformed_manifest_keys_are_ignored(key: str) -> None:
     """Listing `batch_metadata/` only yields well-formed batch ids."""
     assert layout.batch_id_from_manifest_key(key) is None
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "runs/launch.json",
+        f"runs/{RUN_ID}/status.json",
+        f"runs/{RUN_ID.lower()}/launch.json",
+        f"runs/a/{RUN_ID}/launch.json",
+        f"other/{RUN_ID}/launch.json",
+    ],
+)
+def test_malformed_lease_keys_are_ignored(key: str) -> None:
+    """Listing `runs/` only yields leases of well-formed run ids."""
+    assert layout.run_id_from_lease_key(key) is None
 
 
 @pytest.mark.parametrize(

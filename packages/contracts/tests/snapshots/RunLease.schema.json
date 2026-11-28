@@ -1,0 +1,46 @@
+{
+  "$defs": {
+    "BatchId": {
+      "pattern": "^batch_[0-9]{8}_[0-9]{6}(?:_[2-9]|_[1-9][0-9]+)?$",
+      "type": "string"
+    },
+    "SchemaVersion": {
+      "type": "string"
+    },
+    "Ulid": {
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "type": "string"
+    }
+  },
+  "description": "Run lease `runs/<run_id>/launch.json` (1.1): the batches the run may process, written by the launching desktop.\n\nThe worker processes only the batches listed here; without the object it processes nothing.\nOther desktops read it to know which batches a live run covers (until `deadline_at`).",
+  "properties": {
+    "batch_ids": {
+      "items": {
+        "$ref": "#/$defs/BatchId"
+      },
+      "minItems": 1,
+      "title": "Batch Ids",
+      "type": "array"
+    },
+    "deadline_at": {
+      "description": "The pod name deadline: no worker of the run runs after it.",
+      "format": "date-time",
+      "title": "Deadline At",
+      "type": "string"
+    },
+    "run_id": {
+      "$ref": "#/$defs/Ulid"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion",
+      "default": "1.1"
+    }
+  },
+  "required": [
+    "run_id",
+    "batch_ids",
+    "deadline_at"
+  ],
+  "title": "RunLease",
+  "type": "object"
+}

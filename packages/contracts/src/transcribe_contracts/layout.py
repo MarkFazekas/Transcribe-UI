@@ -16,11 +16,13 @@ from transcribe_contracts.constants import (
     JSON_SUFFIX,
     KEY_SEPARATORS,
     RESULTS_FOLDER,
+    RUN_LEASE_OBJECT_NAME,
     RUN_LOG_OBJECT_NAME,
     RUN_STATUS_OBJECT_NAME,
     RUNS_PREFIX,
     SRT_SUFFIX,
     TRACK_MARKER,
+    ULID_PATTERN,
 )
 
 
@@ -112,6 +114,22 @@ def run_status_key(run_id: str) -> str:
 def run_log_key(run_id: str) -> str:
     """Return the key of a worker run's log."""
     return f"{RUNS_PREFIX}{_segment(run_id)}/{RUN_LOG_OBJECT_NAME}"
+
+
+def run_lease_key(run_id: str) -> str:
+    """Return the key of a run's lease (the batches it may process; written by the launching desktop)."""
+    return f"{RUNS_PREFIX}{_segment(run_id)}/{RUN_LEASE_OBJECT_NAME}"
+
+
+def run_id_from_lease_key(key: str) -> str | None:
+    """Return the run id encoded in a lease key, or None if the key is not a run lease."""
+    suffix = f"/{RUN_LEASE_OBJECT_NAME}"
+    if not key.startswith(RUNS_PREFIX) or not key.endswith(suffix):
+        return None
+    run_id = key.removeprefix(RUNS_PREFIX).removesuffix(suffix)
+    if re.fullmatch(ULID_PATTERN, run_id) is None:
+        return None
+    return run_id
 
 
 def _result_base(batch_id: str, item_id: str, language: str) -> str:

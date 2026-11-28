@@ -57,7 +57,7 @@
     },
     "schema_version": {
       "$ref": "#/$defs/SchemaVersion",
-      "default": "1.0"
+      "default": "1.1"
     }
   },
   "required": [

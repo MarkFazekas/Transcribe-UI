@@ -191,7 +191,19 @@
     },
     "schema_version": {
       "$ref": "#/$defs/SchemaVersion",
-      "default": "1.0"
+      "default": "1.1"
+    },
+    "uploaded_by": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonEmptyText"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the installation that uploaded the batch (1.1); None when not recorded."
     }
   },
   "required": [
