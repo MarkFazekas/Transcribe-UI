@@ -81,6 +81,42 @@ def test_a_key_also_checks_the_machines(manual_area: tuple[CloudArea, ManualExec
     assert (area.models.key.missing, _actions(manual)[-2:]) == (False, [LIST, REFRESH])
 
 
+def test_a_check_on_show_answers_for_the_start_up(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
+    """The start-up waits for the key check the page's showing sent: without a key, no machines check follows."""
+    models = manual_area[0].models
+    manual = manual_area[1]
+    hooks = StartupHooks()
+    register_startup(hooks, models)
+    # The Cloud page was shown before the start-up reached its key check.
+    models.key.check()
+    done: list[bool] = []
+    hooks.run(lambda: done.append(True))
+    manual.answer(LIST)
+    assert _actions(manual) == [CREDENTIALS, LIST], "the check in flight answers for the start-up"
+    manual.answer(CREDENTIALS, _credentials("missing"))
+    manual.answer(REFRESH)
+    sent = _actions(manual)
+    assert (done, models.key.missing, sent[:3], "reconcile_cloud" in sent) == (
+        [True],
+        True,
+        [CREDENTIALS, LIST, REFRESH],
+        False,
+    )
+
+
+def test_no_machines_error_shows_without_a_key(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
+    """A machines check that failed before the key was known shows no error once the key is known missing."""
+    models = manual_area[0].models
+    manual = manual_area[1]
+    models.machines.check()
+    missing = ErrorResponse(action="reconcile_cloud", error=ErrorBody(code="credentials_missing", message="No key."))
+    manual.answer("reconcile_cloud", missing)
+    assert models.machines_error() is not None
+    models.key.check()
+    manual.answer(CREDENTIALS, _credentials("missing"))
+    assert (models.machines_error(), models.key.missing) == (None, True)
+
+
 def test_a_failed_keyring_may_hold_the_key(manual_area: tuple[CloudArea, ManualExecutor]) -> None:
     """A keyring that failed while reading counts as holding the key: the backend's error says what is wrong."""
     key = manual_area[0].models.key

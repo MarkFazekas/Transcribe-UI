@@ -3,12 +3,14 @@
 Two installations share one bucket: `runs_world` (with the Runpod key) uploads the job and
 transcribes it; the window runs over `r2_only_world` through `QtExecutor`. Without the key the
 Cloud page shows start, stop and the machines list unavailable with the reason, and the
-start-up still checks the runs and results. "Jobs of other computers" lists the job; Download
-adopts it through the confirmation dialog, opens its download dialog with `mirror` pre-selected
-and checks the cloud, and the subtitles are mirrored into a chosen folder. The poll goes on only
-while the check says that results are awaited.
+start-up still checks the runs and results; a key stored in Settings meanwhile counts once
+the page shows again. "Jobs of other computers" lists the job; Download adopts it through the
+confirmation dialog, opens its download dialog with `mirror` pre-selected and checks the cloud,
+and the subtitles are mirrored into a chosen folder. The poll goes on only while the check says
+that results are awaited.
 """
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -34,6 +36,8 @@ from transcribe_ui.gui.download.view import DownloadDialog
 from transcribe_ui.gui.jobs.view import JobsPage
 from transcribe_ui.gui.shell import MainWindow
 
+# A Runpod key stored in Settings while the window is open.
+KEY = "rp-stored-meanwhile"
 # The hint of an action that needs the Runpod key.
 NEEDS_KEY = "Needs a Runpod API key on this computer."
 
@@ -104,6 +108,27 @@ def test_without_a_key_the_cloud_page_says_why(window: MainWindow, runner: Recor
     assert shown == (False, NEEDS_KEY, False, NEEDS_KEY, False)
     banner.accounts_button.click()
     assert window.pages.current_page() == PAGE_SETTINGS
+
+
+def test_a_key_stored_meanwhile_counts_on_show(
+    qtbot: QtBot,
+    r2_only_world: RunsWorld,
+    window: MainWindow,
+) -> None:
+    """The Cloud page asks again each time it shows: a key stored in Settings meanwhile enables Start."""
+    page = _page(window)
+    window.pages.show_page(PAGE_CLOUD)
+    start = page.run_panel.buttons.start_button
+    wait_for(qtbot, lambda: not window.busy())
+    assert not start.isEnabled()
+    stored = r2_only_world.leg.backend.execute_json(json.dumps({"action": "store_credentials", "runpod_api_key": KEY}))
+    assert stored.status == "ok", stored
+    window.pages.show_page(PAGE_JOBS)
+    window.pages.show_page(PAGE_CLOUD)
+    wait_for(qtbot, lambda: start.isEnabled() and not window.busy())
+    banner = page.findChild(KeyBanner)
+    assert isinstance(banner, KeyBanner)
+    assert (banner.isHidden(), start.toolTip(), page.machines.check_button.isEnabled()) == (True, "", True)
 
 
 def test_another_computers_job_is_adopted_and_mirrored(

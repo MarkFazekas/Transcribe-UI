@@ -480,12 +480,14 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     (`QApplication.alert`) and emits `batches_changed` for its covered batches. The timer is a
     port (`QtTimer`; tests fire a manual one), so no test sleeps.
   - Start-up (`startup.py`): `credentials_status` tells whether a Runpod key is set
-    (`key.py`, `RunpodKey`; asked again each time the page is shown); with one (or when that
-    is not known, or the keyring failed while reading) `reconcile_cloud` runs (slot
+    (`key.py`, `RunpodKey`; asked again each time the page is shown; a check in flight, such
+    as the page's, answers for the start-up step too, which waits for it); with one (or when
+    that is not known, or the keyring failed while reading) `reconcile_cloud` runs (slot
     `reconcile`); `refresh_status` (slot `refresh`) runs with or without it (§3.9 "Roles").
     Without the key (R2-only) the page shows a banner with the reason and "Open accounts";
     Start transcription, Stop and Cancel and the machines check are disabled with the hint
-    "Needs a Runpod API key on this computer." The poll also runs while the last check's
+    "Needs a Runpod API key on this computer."; a machines check's error is not shown while
+    the key is known to be missing (`CloudModels.machines_error`). The poll also runs while the last check's
     `awaiting_results` is true, without a run of this computer; `batches_changed` (an upload,
     an adoption) starts a stopped poll, and Refresh now during a check checks once more after
     it. The settings area registers first, so in the slot `reconcile` its `cloud_setup_status` comes

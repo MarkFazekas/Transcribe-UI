@@ -86,11 +86,10 @@ class CloudPage(QScrollArea):
     def refresh(self) -> None:
         """Show the banners: the failed check (the machines' check first), the missing key, the machines' attention."""
         models = self._models
-        machines = models.machines
-        error = machines.error or models.poll.shown_error()
+        error = models.machines_error() or models.poll.shown_error()
         self.check_banner.show_error(error)
         self._key_banner.setVisible(models.key.missing)
-        self.attention.setVisible(machines.attention)
+        self.attention.setVisible(models.machines.attention)
 
     def add_section(self, section: QWidget) -> None:
         """Show another area's section below the current run."""

@@ -9,7 +9,6 @@ Settings meanwhile takes effect there.
 """
 
 from collections.abc import Callable
-from functools import partial
 
 from transcribe_ui.api.classes import Response
 from transcribe_ui.credentials.classes import CredentialsStatusRequest, CredentialsStatusResponse
@@ -45,6 +44,8 @@ class RunpodKey(ViewModel):
         super().__init__(executor)
         self._channel = ExclusiveChannel(executor)
         self.present: bool | None = None
+        # `proceed` of each start-up step waiting for the check in flight.
+        self._waiting: list[Proceed] = []
 
     @property
     def missing(self) -> bool:
@@ -52,20 +53,26 @@ class RunpodKey(ViewModel):
         return self.present is False
 
     def check(self, proceed: Proceed | None = None) -> None:
-        """Ask whether the key is set; `proceed` once answered (an error keeps the last answer)."""
-        request = CredentialsStatusRequest(action="credentials_status")
-        answered = partial(self._answered, proceed)
-        sent = self._channel.send(CREDENTIALS_KEY, request, answered)
-        if sent is None and proceed is not None:
-            # A check is in flight (the page was shown): go on without waiting for it.
-            proceed()
+        """Ask whether the key is set (a check in flight answers for both); `proceed` once answered.
 
-    def _answered(self, proceed: Proceed | None, response: Response) -> None:
+        An error keeps the last answer.
+        """
+        if proceed is not None:
+            # Before the send: an executor may answer inside it.
+            self._waiting.append(proceed)
+        if self._channel.busy(CREDENTIALS_KEY):
+            return
+        request = CredentialsStatusRequest(action="credentials_status")
+        self._channel.send(CREDENTIALS_KEY, request, self._answered)
+
+    def _answered(self, response: Response) -> None:
         if isinstance(response, CredentialsStatusResponse):
             sources = {credential.name: credential.source for credential in response.credentials}
             stored = sources.get(RUNPOD_KEY_NAME, CREDENTIAL_MISSING) != CREDENTIAL_MISSING
             # A keyring that failed while reading may hold the key (the backend reports its error).
             self.present = stored or response.keyring == KEYRING_FAILED
         self.changed()
-        if proceed is not None:
+        waiting = self._waiting
+        self._waiting = []
+        for proceed in waiting:
             proceed()
