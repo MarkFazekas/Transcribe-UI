@@ -1,0 +1,18 @@
+[
+  {
+    "action": "reconcile_cloud"
+  },
+  {
+    "action": "terminate_pod",
+    "pod_id": "pod7919",
+    "confirm": false
+  },
+  {
+    "action": "terminate_pod",
+    "pod_id": "pod7919",
+    "confirm": true
+  },
+  {
+    "action": "reconcile_cloud"
+  }
+]

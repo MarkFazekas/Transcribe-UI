@@ -1,0 +1,16 @@
+[
+  {
+    "action": "plan_launch",
+    "test_mode": false
+  },
+  {
+    "action": "plan_launch",
+    "test_mode": true
+  },
+  {
+    "action": "launch_worker",
+    "wait_s": 7200,
+    "test_mode": true,
+    "confirm_fingerprint": "437849ac97a8f5cb548197cf9086e5dcd6041426bc36553e5dd24dbe31c683e6"
+  }
+]

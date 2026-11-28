@@ -34,7 +34,7 @@ ERROR_RUN_ACTIVE: Final = "run_active"
 
 # Request field that confirms a launch (set to the plan's fingerprint).
 CONFIRM_FINGERPRINT_FIELD: Final = "confirm_fingerprint"
-# Request field that confirms stopping a straggler (`terminate_pod`, `cancel_queued_pod`).
+# Request field that confirms a stop (`cancel_worker`, `terminate_pod`, `cancel_queued_pod`).
 CONFIRM_STOP_FIELD: Final = "confirm"
 # Confirmation code: a worker is started on the launch plan.
 CONFIRMATION_LAUNCH: Final = "launch_plan"
@@ -42,6 +42,10 @@ CONFIRMATION_LAUNCH: Final = "launch_plan"
 CONFIRMATION_TERMINATE_POD: Final = "terminate_pod"
 # Confirmation code: a queued pod is cancelled.
 CONFIRMATION_CANCEL_QUEUED_POD: Final = "cancel_queued_pod"
+# Run stages before a cloud machine works on the run: stopping it then only ends the wait for a machine.
+WAITING_RUN_STAGES: Final = frozenset(("launching", "waiting"))
+# Confirmation code: a run is stopped (`cancel_worker`; details: the run and its stage).
+CONFIRMATION_CANCEL_WORKER: Final = "cancel_worker"
 
 # Launch (plan m5 §1 "Run deadline and wait", "Cost estimate", "Pod create body"). The runtime and
 # cost factors are placeholders until M7 measures a real run.

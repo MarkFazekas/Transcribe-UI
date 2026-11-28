@@ -32,6 +32,9 @@ from transcribe_ui.i18n.state_texts import (
     item_phase_texts,
     job_kind_texts,
     job_status_texts,
+    run_end_reason_texts,
+    run_stage_texts,
+    worker_state_texts,
 )
 
 
@@ -59,6 +62,9 @@ TABLES: Mapping[TextKind, Callable[[], CodeTable]] = MappingProxyType(
         "item_phase": item_phase_texts,
         "job_status": job_status_texts,
         "job_kind": job_kind_texts,
+        "run_stage": run_stage_texts,
+        "run_end_reason": run_end_reason_texts,
+        "worker_state": worker_state_texts,
     },
 )
 # The variant keys of the kinds that have variants (a check's codes are error codes).

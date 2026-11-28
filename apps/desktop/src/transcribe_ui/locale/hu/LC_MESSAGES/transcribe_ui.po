@@ -32,6 +32,18 @@ msgstr ""
 "Egy felhőtakarítás megszakadt; felhőgép indítása előtt ismételje meg "
 "ezeknek a feladatoknak a takarítását: {batch_ids}."
 
+#: src/transcribe_ui/gui/cloud/view.py
+msgid ""
+"A cloud machine is left over or past its time limit and may still cost "
+"money."
+msgstr ""
+"Egy felhőgép megmaradt vagy túllépte az időkorlátját, és még pénzbe "
+"kerülhet."
+
+#: src/transcribe_ui/gui/cloud/status.py
+msgid "A cloud machine needs attention"
+msgstr "Egy felhőgép figyelmet igényel"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A cloud run is active; nothing was changed. Try again once it has ended."
 msgstr ""
@@ -79,6 +91,14 @@ msgstr ""
 "nélkül, legfeljebb {max_length} karakter hosszú lehet, és nem állhat "
 "csupa „*” karakterből."
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid ""
+"A machine is left over or past its time limit: stop it, so it costs no "
+"more."
+msgstr ""
+"Egy gép megmaradt vagy túllépte az időkorlátját: állítsa le, hogy ne "
+"kerüljön több pénzbe."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A retried file has no audio to copy for one of its transcriptions."
 msgstr "Egy újrapróbált fájl egyik átírásához nincs átmásolható hang."
@@ -95,6 +115,18 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr "Egy kijelölt útvonal nincs a beolvasott mappán belül."
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"A transcription is running: Start waits until it ends or is stopped on "
+"the Cloud page."
+msgstr ""
+"Átírás fut: az Indítás megvárja, amíg befejeződik, vagy amíg a Felhő "
+"oldalon leállítja."
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "A transcription is running; it ends by itself, or stop it first."
+msgstr "Egy átírás fut; magától befejeződik, vagy előbb állítsa le."
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "About"
 msgstr "Névjegy"
@@ -102,6 +134,10 @@ msgstr "Névjegy"
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Accounts"
 msgstr "Fiókok"
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Advanced"
+msgstr "Speciális"
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "All in one output folder"
@@ -144,6 +180,10 @@ msgstr ""
 "felhőbeállítás továbbra is használhatók; zárja be a másikat, majd "
 "kattintson az Újra gombra."
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Another computer"
+msgstr "Másik számítógép"
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Another task is working on the cloud runs; try again to continue."
 msgstr ""
@@ -154,6 +194,7 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr "Egy másik művelet ezen a feladaton dolgozik; próbálja újra, ha végzett."
 
+#: src/transcribe_ui/gui/cloud/start_view.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr "Hang"
@@ -190,15 +231,7 @@ msgstr "Tallózás..."
 msgid "Cancel"
 msgstr "Megszakítás"
 
-#: src/transcribe_ui/i18n/code_texts.py
-#, python-brace-format
-msgid ""
-"Cancel the queued cloud machine {name} ({status})? Its work stops at "
-"once; finished results stay in the cloud."
-msgstr ""
-"Visszavonja ezt a sorban álló felhőgépet: {name} ({status})? A munkája "
-"azonnal leáll; a kész eredmények a felhőben maradnak."
-
+#: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Check"
 msgstr "Ellenőrzés"
@@ -217,9 +250,21 @@ msgstr ""
 msgid "Checking files"
 msgstr "Fájlok ellenőrzése"
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Checking the cloud machines..."
+msgstr "A felhőgépek ellenőrzése..."
+
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Checking the cloud setup..."
 msgstr "A felhőbeállítás ellenőrzése..."
+
+#: src/transcribe_ui/gui/cloud/poll.py
+msgid "Checking the cloud..."
+msgstr "A felhő ellenőrzése..."
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Checking what is waiting for transcription..."
+msgstr "Annak ellenőrzése, mi vár átírásra..."
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Choose a folder (a full path), or leave it empty."
@@ -297,6 +342,14 @@ msgstr "Felhő"
 msgid "Cloud cleanup interrupted; repeat it"
 msgstr "A felhőtakarítás megszakadt; ismételje meg"
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Cloud machine (Runpod)"
+msgstr "Felhőgép (Runpod)"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Cloud machines"
+msgstr "Felhőgépek"
+
 #: src/transcribe_ui/gui/settings/cloud_setup.py
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Cloud setup"
@@ -310,6 +363,16 @@ msgid ""
 msgstr ""
 "A felhőbeállítás kész: {created} létrehozva, {updated} frissítve, "
 "{unchanged} változatlan."
+
+#: src/transcribe_ui/gui/cloud/status.py
+#, python-brace-format
+msgid "Cloud: {stage}"
+msgstr "Felhő: {stage}"
+
+#: src/transcribe_ui/gui/cloud/status.py
+#, python-brace-format
+msgid "Cloud: {stage}, {remaining}"
+msgstr "Felhő: {stage}, {remaining}"
 
 #: src/transcribe_ui/gui/settings/languages_view.py
 msgid "Code"
@@ -327,6 +390,18 @@ msgstr "Megerősítés"
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Continue to review"
 msgstr "Tovább az ellenőrzéshez"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Cost"
+msgstr "Költség"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Cost so far"
+msgstr "Eddigi költség"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Could not be started"
+msgstr "Nem sikerült elindítani"
 
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Create job"
@@ -347,6 +422,10 @@ msgstr ""
 "lehet, hogy már létezik. Egy perc múlva futtassa újra a felhőbeállítást; "
 "az átveszi, ami létrejött."
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Current run"
+msgstr "Jelenlegi futás"
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete"
 msgstr "Törlés"
@@ -358,6 +437,10 @@ msgstr "Hang törlése a felhőből"
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete everything from the cloud"
 msgstr "Minden törlése a felhőből"
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Delete from cloud"
+msgstr "Törlés a felhőből"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Deleted from the cloud"
@@ -383,6 +466,10 @@ msgstr "Elrejtés"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Done"
 msgstr "Kész"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Done; the cloud machine is stopping"
+msgstr "Kész; a felhőgép leáll"
 
 #: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/i18n/state_texts.py
 msgid "Download"
@@ -413,6 +500,11 @@ msgstr "Kijelölés szerkesztése"
 msgid "Editing the selection of job {batch_id}"
 msgstr "Feladat kijelölésének szerkesztése: {batch_id}"
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Elapsed"
+msgstr "Eltelt idő"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Embedded subtitle"
 msgstr "Beágyazott felirat"
@@ -429,6 +521,11 @@ msgstr "A kezdéshez adja meg az R2-tárhely adatait a Beállítások, Fiókok o
 msgid "Enter the value"
 msgstr "Adja meg az értéket"
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "Estimated cost: {low} to {high} ({price} per hour)."
+msgstr "Becsült költség: {low}–{high} (óránként {price})."
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Extensions without the dot, separated by spaces."
 msgstr "Kiterjesztések pont nélkül, szóközzel elválasztva."
@@ -442,7 +539,7 @@ msgstr "Kinyerve"
 msgid "Failed"
 msgstr "Sikertelen"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py src/transcribe_ui/gui/jobs/view.py
 msgid "File"
 msgstr "Fájl"
 
@@ -458,7 +555,8 @@ msgstr "Fájl állapota"
 msgid "File types"
 msgstr "Fájltípusok"
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr "Fájlok"
 
@@ -482,9 +580,13 @@ msgstr "Szűrők:"
 msgid "Finish"
 msgstr "Befejezés"
 
-#: src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Finished"
 msgstr "Kész"
+
+#: src/transcribe_ui/gui/cloud/display.py
+msgid "Finishing"
+msgstr "Befejeződik"
 
 #: src/transcribe_ui/gui/closing.py
 msgid "Finishing the current step..."
@@ -516,6 +618,10 @@ msgid_plural "Found {count} media files ({video} video, {audio} audio)."
 msgstr[0] "{count} médiafájl található ({video} videó, {audio} hang)."
 msgstr[1] "{count} médiafájl található ({video} videó, {audio} hang)."
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "From"
+msgstr "Honnan"
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
 msgid "From the environment variable {variable}"
@@ -542,7 +648,8 @@ msgstr "Ellenőrzés alatt"
 msgid "Include hidden and system files and folders"
 msgstr "A rejtett fájlok és mappák, valamint a rendszerfájlok bevonása"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr "Feladat"
 
@@ -551,11 +658,17 @@ msgstr "Feladat"
 msgid "Job {batch_id}, created {created}"
 msgstr "{batch_id} feladat, létrehozva: {created}"
 
+#: src/transcribe_ui/gui/cloud/status.py
+#, python-brace-format
+msgid "Job {batch_id}: {status}"
+msgstr "{batch_id} feladat: {status}"
+
 #: src/transcribe_ui/gui/texts.py
 msgid "Jobs"
 msgstr "Feladatok"
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/selection/models.py
+#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/selection/models.py
 msgid "Kind"
 msgstr "Típus"
 
@@ -578,6 +691,15 @@ msgstr "Nyelvek"
 msgid "Languages of {name}:"
 msgstr "{name} nyelvei:"
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Last check"
+msgstr "Utolsó ellenőrzés"
+
+#: src/transcribe_ui/gui/cloud/poll.py
+#, python-brace-format
+msgid "Last updated {time}; retrying at the next check."
+msgstr "Utoljára frissítve: {time}; a következő ellenőrzés újra megpróbálja."
+
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Later"
 msgstr "Később"
@@ -586,9 +708,17 @@ msgstr "Később"
 msgid "Leave a field empty to use the bundled program."
 msgstr "A beépített program használatához hagyja üresen a mezőt."
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Left over"
+msgstr "Megmaradt"
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Links are not followed."
 msgstr "Az alkalmazás a hivatkozásokat nem követi."
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Loading"
+msgstr "Betöltés"
 
 #: src/transcribe_ui/gui/settings/preferences_view.py
 msgid "Loading the settings..."
@@ -599,10 +729,15 @@ msgstr "A beállítások betöltése..."
 msgid "Log folder: {folder}"
 msgstr "Naplómappa: {folder}"
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Machine"
+msgstr "Gép"
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Missing"
 msgstr "Hiányzik"
 
+#: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/selection/models.py
 #: src/transcribe_ui/gui/selection/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
@@ -625,6 +760,14 @@ msgstr "A médiafájl mellé"
 msgid "No audio or video files in this folder."
 msgstr "Ebben a mappában nincs hang- vagy videófájl."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "No cloud machine became free in time."
+msgstr "Nem szabadult fel időben felhőgép."
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "No cloud machine of the app is running."
+msgstr "Az alkalmazásnak nem fut felhőgépe."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "No display is available for the window. Use the transcribe-ui command "
@@ -641,9 +784,25 @@ msgstr "Ezen az útvonalon és alatta nincs médiafájl."
 msgid "No speech"
 msgstr "Nincs beszéd"
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid ""
+"No transcription has run yet. Start transcription sends every uploaded "
+"job to a cloud machine."
+msgstr ""
+"Még nem futott átírás. Az átírás indítása minden feltöltött feladatot egy"
+" felhőgépre küld."
+
 #: src/transcribe_ui/gui/shell.py
 msgid "Not available yet."
 msgstr "Még nem érhető el."
+
+#: src/transcribe_ui/gui/cloud/display.py
+msgid "Not checked yet"
+msgstr "Még nincs ellenőrizve"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Not checked yet."
+msgstr "Még nincs ellenőrizve."
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Not chosen"
@@ -661,6 +820,10 @@ msgstr "Megjegyzések"
 msgid "Nothing is selected."
 msgstr "Nincs semmi kijelölve."
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Nothing is waiting for transcription: upload a job first."
+msgstr "Semmi nem vár átírásra: előbb töltsön fel egy feladatot."
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "OK"
 msgstr "Rendben"
@@ -668,6 +831,14 @@ msgstr "Rendben"
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Object"
 msgstr "Objektum"
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"One cloud machine transcribes every job that is uploaded and waiting, "
+"then stops itself."
+msgstr ""
+"Egy felhőgép átír minden feltöltött, várakozó feladatot, majd magától "
+"leáll."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Only transcriptions that failed or found no speech can be retried."
@@ -693,6 +864,15 @@ msgstr "Naplómappa megnyitása"
 #: src/transcribe_ui/gui/texts.py
 msgid "Open the job"
 msgstr "A feladat megnyitása"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Open the worker log"
+msgstr "A felhőgép naplójának megnyitása"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Outcome"
+msgstr "Eredmény"
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
@@ -733,6 +913,10 @@ msgstr "Ha csak Entert nyom, a tárolt érték megmarad."
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Problem"
 msgstr "Probléma"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Progress"
+msgstr "Haladás"
 
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Quit now"
@@ -800,6 +984,18 @@ msgstr "Átírásra kész"
 msgid "Reason"
 msgstr "Indok"
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Recent runs"
+msgstr "Legutóbbi futások"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Refresh now"
+msgstr "Frissítés most"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Remaining"
+msgstr "Hátralévő idő"
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Repeat cleanup"
 msgstr "Takarítás megismétlése"
@@ -807,6 +1003,14 @@ msgstr "Takarítás megismétlése"
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Replace existing subtitle files"
 msgstr "A meglévő feliratfájlok felülírása"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Report unreadable"
+msgstr "A jelentés olvashatatlan"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Requesting a cloud machine"
+msgstr "Felhőgép igénylése"
 
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Restart now"
@@ -828,8 +1032,8 @@ msgstr "Folytatás"
 msgid "Resume upload"
 msgstr "Feltöltés folytatása"
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/jobs/widgets.py
-#: src/transcribe_ui/gui/pages.py
+#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/jobs/widgets.py src/transcribe_ui/gui/pages.py
 #: src/transcribe_ui/gui/settings/preferences_view.py
 #: src/transcribe_ui/gui/texts.py
 msgid "Retry"
@@ -850,6 +1054,15 @@ msgstr "Ellenőrzés és feltöltés"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Reviewed"
 msgstr "Ellenőrizve"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Role"
+msgstr "Szerep"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Run"
+msgstr "Futás"
 
 #: src/transcribe_ui/cli/parser.py
 msgid "Run Transcribe-UI requests from JSON files."
@@ -891,6 +1104,10 @@ msgid ""
 msgstr ""
 "A Runpod nem hozta létre a felhőgépet; semmi sem indult el. Ellenőrizze a"
 " Runpod-fiókot, majd próbálja újra."
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Runpod did not start the cloud machine."
+msgstr "A Runpod nem indította el a felhőgépet."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Runpod does not know this cloud machine."
@@ -1007,6 +1224,10 @@ msgstr "Beállítások"
 msgid "Show"
 msgstr "Megjelenítés"
 
+#: src/transcribe_ui/gui/cloud/view.py
+msgid "Show cloud machines"
+msgstr "Felhőgépek megjelenítése"
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Show hidden jobs"
 msgstr "Rejtett feladatok megjelenítése"
@@ -1058,6 +1279,10 @@ msgstr "Váratlan hiba történt; a részletek a naplóban olvashatók."
 msgid "Something went wrong"
 msgstr "Hiba történt"
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Start"
+msgstr "Indítás"
+
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
@@ -1077,13 +1302,43 @@ msgstr[1] ""
 msgid "Start a new job instead"
 msgstr "Inkább új feladat indítása"
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Start transcription"
+msgstr "Átírás indítása"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Start transcription..."
+msgstr "Átírás indítása..."
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Started"
+msgstr "Indítva"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Starting"
+msgstr "Indul"
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"Starting the cloud machine... You can close this window; the Cloud page "
+"shows the run."
+msgstr ""
+"A felhőgép indítása... Bezárhatja ezt az ablakot; a Felhő oldal mutatja a"
+" futást."
+
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "State"
 msgstr "Állapot"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
 msgid "Status"
 msgstr "Állapot"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Status (Runpod)"
+msgstr "Állapot (Runpod)"
 
 #: src/transcribe_ui/gui/jobs/view.py
 #, python-brace-format
@@ -1106,6 +1361,11 @@ msgstr "1. lépés (2-ből): fiókok"
 msgid "Step 2 of 2: cloud setup"
 msgstr "2. lépés (2-ből): felhőbeállítás"
 
+#: src/transcribe_ui/gui/cloud/display.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Stop"
+msgstr "Leállítás"
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Stop and close"
 msgstr "Leállítás és bezárás"
@@ -1118,9 +1378,53 @@ msgstr ""
 "Leállítja és bezárja? A munka a következő indításkor onnan folytatódik, "
 "ahol abbamaradt."
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Stop problem"
+msgstr "Leállítási probléma"
+
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Stop scan"
 msgstr "Beolvasás leállítása"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"Stop the cloud machine now? Subtitles already finished are kept; the "
+"files not done yet wait for the next start of transcription."
+msgstr ""
+"Leállítja most a felhőgépet? A már elkészült feliratok megmaradnak; a még"
+" nem kész fájlok az átírás következő indítására várnak."
+
+#: src/transcribe_ui/gui/cloud/display.py
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Stop waiting"
+msgstr "Várakozás leállítása"
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"Stop waiting for a cloud machine? Nothing has been transcribed yet; the "
+"files wait for the next start of transcription."
+msgstr ""
+"Leállítja a felhőgépre való várakozást? Még semmit sem írt át; a fájlok "
+"az átírás következő indítására várnak."
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Stop waiting for the queued cloud machine {name} ({status})? A machine it"
+" has started meanwhile is stopped too; finished results stay in the "
+"cloud."
+msgstr ""
+"Leállítja a várakozást erre a sorban álló felhőgépre: {name} ({status})? "
+"Az általa közben elindított gép is leáll; a kész eredmények a felhőben "
+"maradnak."
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Stopped"
+msgstr "Leállítva"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Stopped by the user."
+msgstr "A felhasználó leállította."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Stopped. The work done so far is saved; continue any time."
@@ -1129,6 +1433,10 @@ msgstr "Leállítva. Az eddig elvégzett munka mentve van; bármikor folytathat�
 #: src/transcribe_ui/gui/texts.py
 msgid "Stopped; continue any time."
 msgstr "Leállítva; bármikor folytatható."
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Stops at the latest"
+msgstr "Legkésőbb leáll"
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Stored in the keyring"
@@ -1155,6 +1463,10 @@ msgstr "Felirat: {languages}"
 msgid "System language"
 msgstr "A rendszer nyelve"
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Terminate"
+msgstr "Leállítás"
+
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
@@ -1167,6 +1479,14 @@ msgstr ""
 #: src/transcribe_ui/gui/settings/accounts_view.py
 msgid "Test"
 msgstr "Próba"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Test mode"
+msgstr "Tesztmód"
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Test mode: a 2-hour limit, and the machine stays on until then for SSH"
+msgstr "Tesztmód: 2 órás korlát, és a gép addig bekapcsolva marad SSH-hoz"
 
 #: src/transcribe_ui/gui/settings/accounts_view.py
 msgid "Testing the accounts..."
@@ -1209,6 +1529,10 @@ msgid ""
 "price."
 msgstr "A Runpod árlistáján nem szerepel a GPU; a becslés a szokásos árral számol."
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The app stopped the cloud machine at its time limit."
+msgstr "Az alkalmazás az időkorlátnál leállította a felhőgépet."
+
 #: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
 "The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
@@ -1231,6 +1555,29 @@ msgstr ""
 "másik számítógép feladata, vagy egy korábbi telepítésé); törölje ezt a "
 "feladatot, és hozza létre újra, így új azonosítót kap."
 
+#: src/transcribe_ui/gui/cloud/status.py
+msgid "The cloud could not be checked"
+msgstr "A felhőt nem sikerült ellenőrizni"
+
+#: src/transcribe_ui/gui/cloud/poll.py
+msgid "The cloud could not be checked; retrying at the next check."
+msgstr ""
+"A felhőt nem sikerült ellenőrizni; a következő ellenőrzés újra "
+"megpróbálja."
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid ""
+"The cloud machine could not be stopped at its time limit yet ({code}); "
+"the next check tries again."
+msgstr ""
+"A felhőgépet még nem sikerült leállítani az időkorlátnál ({code}); a "
+"következő ellenőrzés újra megpróbálja."
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The cloud machine finished its work."
+msgstr "A felhőgép befejezte a munkáját."
+
 #: src/transcribe_ui/gui/closing.py
 msgid ""
 "The cloud machine keeps working without the app: it stops itself when the"
@@ -1252,6 +1599,29 @@ msgid ""
 msgstr ""
 "Lehet, hogy a felhőgép még fut: a Runpod még nem mutatja leállítottnak. "
 "Próbálja újra."
+
+#: src/transcribe_ui/gui/cloud/start.py
+msgid ""
+"The cloud machine of your earlier Start is starting; the Cloud page shows"
+" it."
+msgstr "A korábbi indítás felhőgépe elindul; a Felhő oldal mutatja."
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The cloud machine reported an error."
+msgstr "A felhőgép hibát jelzett."
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "The cloud machine skips these objects:"
+msgstr "A felhőgép kihagyja ezeket az objektumokat:"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The cloud machine stopped without a final report."
+msgstr "A felhőgép végső jelentés nélkül állt le."
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "The cloud machine stops itself after at most {duration}."
+msgstr "A felhőgép legfeljebb {duration} után magától leáll."
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "The cloud run has ended already; there is nothing to stop."
@@ -1639,6 +2009,14 @@ msgstr ""
 msgid "The track or stream number must not be negative."
 msgstr "A sáv sorszáma nem lehet negatív."
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"The work changed since you saw it. Check the new plan, then press Start "
+"again."
+msgstr ""
+"A munka megváltozott, mióta megnézte. Ellenőrizze az új tervet, majd "
+"nyomja meg újra az Indítás gombot."
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid ""
@@ -1651,6 +2029,10 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "There is nothing to transcribe, so no cloud machine was started."
 msgstr "Nincs mit átírni, ezért nem indult felhőgép."
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "This computer"
+msgstr "Ez a számítógép"
 
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "This could not be read."
@@ -1738,12 +2120,24 @@ msgid "Transcribed into"
 msgstr "Átírás nyelve"
 
 #: src/transcribe_ui/i18n/state_texts.py
+msgid "Transcribing"
+msgstr "Átírás folyamatban"
+
+#: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcription"
 msgstr "Átírás"
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Transcription in the cloud"
+msgstr "Átírás a felhőben"
+
+#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
 msgid "Transcriptions"
 msgstr "Átírások"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Transcriptions done"
+msgstr "Kész átírások"
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Turn on at least one language."
@@ -1768,6 +2162,11 @@ msgstr "Módosítások elvetése"
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Update"
 msgstr "Frissítés"
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid "Updated {time}"
+msgstr "Frissítve: {time}"
 
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Updating the selection…"
@@ -1826,9 +2225,25 @@ msgstr "Videófájlok"
 msgid "Video only"
 msgstr "Csak videó"
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Wait for a free cloud machine at most"
+msgstr "Várakozás szabad felhőgépre legfeljebb"
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Waiting"
 msgstr "Várakozik"
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Waiting for a free cloud machine"
+msgstr "Várakozás szabad felhőgépre"
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Waiting for a machine"
+msgstr "Gépre vár"
+
+#: src/transcribe_ui/gui/cloud/poll.py
+msgid "Waiting to check the cloud..."
+msgstr "Várakozás a felhő ellenőrzésére..."
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Waiting to start"
@@ -1864,9 +2279,33 @@ msgstr ""
 msgid "Word timing"
 msgstr "Szóidőzítés"
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Worker"
+msgstr "Felhőgép állapota"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Worker error"
+msgstr "A felhőgép hibája"
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Worker log"
+msgstr "Napló"
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Worker template"
 msgstr "Feldolgozó sablon"
+
+#: src/transcribe_ui/gui/cloud/start.py
+msgid "Your earlier Start is still being sent."
+msgstr "A korábbi indítás még folyamatban van."
+
+#: src/transcribe_ui/gui/cloud/start.py
+msgid ""
+"Your earlier Start started nothing, as the work changed; check the plan "
+"here."
+msgstr ""
+"A korábbi indítás nem indított semmit, mert a munka megváltozott; nézze "
+"meg itt a tervet."
 
 #: src/transcribe_ui/cli/parser.py
 msgid ""
@@ -1879,6 +2318,10 @@ msgstr ""
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "contains"
 msgstr "tartalmazza"
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "damaged"
+msgstr "sérült"
 
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "ends with"
@@ -1924,6 +2367,10 @@ msgstr "illeszkedik a reguláris kifejezésre"
 msgid "no"
 msgstr "nem"
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "not a job description"
+msgstr "nem feladatleírás"
+
 #: src/transcribe_ui/cli/parser.py
 msgid "path of the request JSON file, or - to read the request from stdin"
 msgstr ""
@@ -1959,11 +2406,20 @@ msgstr "ismeretlen nyelv"
 msgid "unknown language ({count})"
 msgstr "ismeretlen nyelv ({count})"
 
-#: src/transcribe_ui/gui/feedback.py
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "written by another version of the app"
+msgstr "az alkalmazás másik verziója írta"
+
+#: src/transcribe_ui/gui/cloud/display.py src/transcribe_ui/gui/feedback.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/i18n/codes.py
 msgid "yes"
 msgstr "igen"
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid "{amount} USD"
+msgstr "{amount} USD"
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
@@ -1986,12 +2442,31 @@ msgid_plural "{count} files selected ({video} video, {audio} audio), {size}."
 msgstr[0] "{count} fájl kijelölve ({video} videó, {audio} hang), {size}."
 msgstr[1] "{count} fájl kijelölve ({video} videó, {audio} hang), {size}."
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{count} job"
+msgid_plural "{count} jobs"
+msgstr[0] "{count} feladat"
+msgstr[1] "{count} feladat"
+
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid "{count} selected file already has a subtitle in a target language."
 msgid_plural "{count} selected files already have a subtitle in a target language."
 msgstr[0] "{count} kijelölt fájlnak már van felirata valamelyik célnyelven."
 msgstr[1] "{count} kijelölt fájlnak már van felirata valamelyik célnyelven."
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{count} transcription"
+msgid_plural "{count} transcriptions"
+msgstr[0] "{count} átírás"
+msgstr[1] "{count} átírás"
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid "{duration} left"
+msgstr "{duration} van hátra"
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -2176,6 +2651,16 @@ msgstr "{minutes} p {seconds} mp"
 msgid "{name} ({code})"
 msgstr "{name} ({code})"
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{role}, past its time limit"
+msgstr "{role}, túllépte az időkorlátját"
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#, python-brace-format
+msgid "{run} (test mode)"
+msgstr "{run} (tesztmód)"
+
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{seconds} s"
@@ -2229,6 +2714,11 @@ msgid "{tool} was not found: set its path in the settings or put it on the PATH.
 msgstr ""
 "{tool} nem található: adja meg az útvonalát a beállításokban, vagy tegye "
 "elérhetővé a PATH-on."
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{transcriptions} in {jobs}, {audio} of audio."
+msgstr "{transcriptions} {jobs}ban, {audio} hanganyag."
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format

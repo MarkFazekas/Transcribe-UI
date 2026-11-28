@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 06:23+0100\n"
+"POT-Creation-Date: 2026-11-28 07:01+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,6 +27,16 @@ msgstr ""
 msgid ""
 "A cloud cleanup was interrupted; repeat the cleanup of these jobs before "
 "starting a cloud machine: {batch_ids}."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/view.py
+msgid ""
+"A cloud machine is left over or past its time limit and may still cost "
+"money."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/status.py
+msgid "A cloud machine needs attention"
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -63,6 +73,12 @@ msgid ""
 "{max_length} characters, and not only '*' characters."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid ""
+"A machine is left over or past its time limit: stop it, so it costs no "
+"more."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "A retried file has no audio to copy for one of its transcriptions."
 msgstr ""
@@ -77,12 +93,26 @@ msgstr ""
 msgid "A selected path is not inside the scanned folder."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"A transcription is running: Start waits until it ends or is stopped on "
+"the Cloud page."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "A transcription is running; it ends by itself, or stop it first."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "About"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Accounts"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Advanced"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -118,6 +148,10 @@ msgid ""
 "close the other one, then Retry."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Another computer"
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "Another task is working on the cloud runs; try again to continue."
 msgstr ""
@@ -126,6 +160,7 @@ msgstr ""
 msgid "Another task is working on this job; try again when it has finished."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr ""
@@ -162,13 +197,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: src/transcribe_ui/i18n/code_texts.py
-#, python-brace-format
-msgid ""
-"Cancel the queued cloud machine {name} ({status})? Its work stops at "
-"once; finished results stay in the cloud."
-msgstr ""
-
+#: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Check"
 msgstr ""
@@ -184,8 +213,20 @@ msgstr ""
 msgid "Checking files"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Checking the cloud machines..."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Checking the cloud setup..."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/poll.py
+msgid "Checking the cloud..."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Checking what is waiting for transcription..."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -262,6 +303,14 @@ msgstr ""
 msgid "Cloud cleanup interrupted; repeat it"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Cloud machine (Runpod)"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Cloud machines"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/cloud_setup.py
 #: src/transcribe_ui/gui/settings/texts.py
 msgid "Cloud setup"
@@ -272,6 +321,16 @@ msgstr ""
 msgid ""
 "Cloud setup done: {created} created, {updated} updated, {unchanged} "
 "unchanged."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/status.py
+#, python-brace-format
+msgid "Cloud: {stage}"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/status.py
+#, python-brace-format
+msgid "Cloud: {stage}, {remaining}"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/languages_view.py
@@ -291,6 +350,18 @@ msgstr ""
 msgid "Continue to review"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Cost"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Cost so far"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Could not be started"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Create job"
 msgstr ""
@@ -307,6 +378,10 @@ msgid ""
 "was created."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Current run"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete"
 msgstr ""
@@ -317,6 +392,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Delete everything from the cloud"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Delete from cloud"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -342,6 +421,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Done"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Done; the cloud machine is stopping"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/display.py src/transcribe_ui/i18n/state_texts.py
@@ -373,6 +456,11 @@ msgstr ""
 msgid "Editing the selection of job {batch_id}"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Elapsed"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Embedded subtitle"
 msgstr ""
@@ -389,6 +477,11 @@ msgstr ""
 msgid "Enter the value"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "Estimated cost: {low} to {high} ({price} per hour)."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Extensions without the dot, separated by spaces."
 msgstr ""
@@ -402,7 +495,7 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py src/transcribe_ui/gui/jobs/view.py
 msgid "File"
 msgstr ""
 
@@ -418,7 +511,8 @@ msgstr ""
 msgid "File types"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr ""
 
@@ -440,8 +534,12 @@ msgstr ""
 msgid "Finish"
 msgstr ""
 
-#: src/transcribe_ui/gui/texts.py
+#: src/transcribe_ui/gui/texts.py src/transcribe_ui/i18n/state_texts.py
 msgid "Finished"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+msgid "Finishing"
 msgstr ""
 
 #: src/transcribe_ui/gui/closing.py
@@ -472,6 +570,10 @@ msgid_plural "Found {count} media files ({video} video, {audio} audio)."
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "From"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
 msgid "From the environment variable {variable}"
@@ -498,7 +600,8 @@ msgstr ""
 msgid "Include hidden and system files and folders"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr ""
 
@@ -507,11 +610,17 @@ msgstr ""
 msgid "Job {batch_id}, created {created}"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/status.py
+#, python-brace-format
+msgid "Job {batch_id}: {status}"
+msgstr ""
+
 #: src/transcribe_ui/gui/texts.py
 msgid "Jobs"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/selection/models.py
+#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/selection/models.py
 msgid "Kind"
 msgstr ""
 
@@ -534,6 +643,15 @@ msgstr ""
 msgid "Languages of {name}:"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Last check"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/poll.py
+#, python-brace-format
+msgid "Last updated {time}; retrying at the next check."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/notice_view.py
 msgid "Later"
 msgstr ""
@@ -542,8 +660,16 @@ msgstr ""
 msgid "Leave a field empty to use the bundled program."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Left over"
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "Links are not followed."
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Loading"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/preferences_view.py
@@ -555,10 +681,15 @@ msgstr ""
 msgid "Log folder: {folder}"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Machine"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Missing"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/sections.py
 #: src/transcribe_ui/gui/selection/models.py
 #: src/transcribe_ui/gui/selection/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
@@ -581,6 +712,14 @@ msgstr ""
 msgid "No audio or video files in this folder."
 msgstr ""
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "No cloud machine became free in time."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "No cloud machine of the app is running."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid ""
 "No display is available for the window. Use the transcribe-ui command "
@@ -595,8 +734,22 @@ msgstr ""
 msgid "No speech"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid ""
+"No transcription has run yet. Start transcription sends every uploaded "
+"job to a cloud machine."
+msgstr ""
+
 #: src/transcribe_ui/gui/shell.py
 msgid "Not available yet."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+msgid "Not checked yet"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Not checked yet."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
@@ -615,12 +768,22 @@ msgstr ""
 msgid "Nothing is selected."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Nothing is waiting for transcription: upload a job first."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "OK"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Object"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"One cloud machine transcribes every job that is uploaded and waiting, "
+"then stops itself."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -646,6 +809,15 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Open the job"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Open the worker log"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Outcome"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -686,6 +858,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Problem"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Progress"
 msgstr ""
 
 #: src/transcribe_ui/gui/dialogs.py
@@ -748,12 +924,32 @@ msgstr ""
 msgid "Reason"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Recent runs"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Refresh now"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Remaining"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/display.py
 msgid "Repeat cleanup"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/form.py
 msgid "Replace existing subtitle files"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Report unreadable"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Requesting a cloud machine"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/notice_view.py
@@ -776,8 +972,8 @@ msgstr ""
 msgid "Resume upload"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/jobs/widgets.py
-#: src/transcribe_ui/gui/pages.py
+#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/jobs/widgets.py src/transcribe_ui/gui/pages.py
 #: src/transcribe_ui/gui/settings/preferences_view.py
 #: src/transcribe_ui/gui/texts.py
 msgid "Retry"
@@ -797,6 +993,15 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Reviewed"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Role"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Run"
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
@@ -834,6 +1039,10 @@ msgstr ""
 msgid ""
 "Runpod did not create the cloud machine; nothing was started. Check the "
 "Runpod account, then try again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Runpod did not start the cloud machine."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -943,6 +1152,10 @@ msgstr ""
 msgid "Show"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/view.py
+msgid "Show cloud machines"
+msgstr ""
+
 #: src/transcribe_ui/gui/jobs/view.py
 msgid "Show hidden jobs"
 msgstr ""
@@ -988,6 +1201,10 @@ msgstr ""
 msgid "Something went wrong"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Start"
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
@@ -1003,12 +1220,40 @@ msgstr[1] ""
 msgid "Start a new job instead"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Start transcription"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Start transcription..."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Started"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Starting"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"Starting the cloud machine... You can close this window; the Cloud page "
+"shows the run."
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "State"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
 msgid "Status"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Status (Runpod)"
 msgstr ""
 
 #: src/transcribe_ui/gui/jobs/view.py
@@ -1030,6 +1275,11 @@ msgstr ""
 msgid "Step 2 of 2: cloud setup"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/display.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Stop"
+msgstr ""
+
 #: src/transcribe_ui/gui/dialogs.py
 msgid "Stop and close"
 msgstr ""
@@ -1040,8 +1290,45 @@ msgid ""
 "you start it."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Stop problem"
+msgstr ""
+
 #: src/transcribe_ui/gui/selection/view.py
 msgid "Stop scan"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"Stop the cloud machine now? Subtitles already finished are kept; the "
+"files not done yet wait for the next start of transcription."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Stop waiting"
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+msgid ""
+"Stop waiting for a cloud machine? Nothing has been transcribed yet; the "
+"files wait for the next start of transcription."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"Stop waiting for the queued cloud machine {name} ({status})? A machine it"
+" has started meanwhile is stopped too; finished results stay in the "
+"cloud."
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Stopped"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Stopped by the user."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -1050,6 +1337,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Stopped; continue any time."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Stops at the latest"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -1077,6 +1368,10 @@ msgstr ""
 msgid "System language"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Terminate"
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid ""
@@ -1086,6 +1381,14 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/accounts_view.py
 msgid "Test"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Test mode"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Test mode: a 2-hour limit, and the machine stays on until then for SSH"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/accounts_view.py
@@ -1124,6 +1427,10 @@ msgid ""
 "price."
 msgstr ""
 
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The app stopped the cloud machine at its time limit."
+msgstr ""
+
 #: src/transcribe_ui/i18n/credential_texts.py
 msgid ""
 "The bucket name must be 3-63 lower-case letters, digits and hyphens, not "
@@ -1141,6 +1448,25 @@ msgid ""
 " which gives it a new ID."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/status.py
+msgid "The cloud could not be checked"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/poll.py
+msgid "The cloud could not be checked; retrying at the next check."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid ""
+"The cloud machine could not be stopped at its time limit yet ({code}); "
+"the next check tries again."
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The cloud machine finished its work."
+msgstr ""
+
 #: src/transcribe_ui/gui/closing.py
 msgid ""
 "The cloud machine keeps working without the app: it stops itself when the"
@@ -1156,6 +1482,29 @@ msgstr ""
 msgid ""
 "The cloud machine may still be running: Runpod does not show it stopped "
 "yet. Try again."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start.py
+msgid ""
+"The cloud machine of your earlier Start is starting; the Cloud page shows"
+" it."
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The cloud machine reported an error."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "The cloud machine skips these objects:"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "The cloud machine stopped without a final report."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "The cloud machine stops itself after at most {duration}."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -1494,6 +1843,12 @@ msgstr ""
 msgid "The track or stream number must not be negative."
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid ""
+"The work changed since you saw it. Check the new plan, then press Start "
+"again."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid ""
@@ -1503,6 +1858,10 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "There is nothing to transcribe, so no cloud machine was started."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "This computer"
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
@@ -1580,11 +1939,23 @@ msgid "Transcribed into"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
+msgid "Transcribing"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcription"
 msgstr ""
 
-#: src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Transcription in the cloud"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
 msgid "Transcriptions"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Transcriptions done"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/texts.py
@@ -1607,6 +1978,11 @@ msgstr ""
 
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Update"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid "Updated {time}"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/display.py
@@ -1664,8 +2040,24 @@ msgstr ""
 msgid "Video only"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/start_view.py
+msgid "Wait for a free cloud machine at most"
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Waiting"
+msgstr ""
+
+#: src/transcribe_ui/i18n/state_texts.py
+msgid "Waiting for a free cloud machine"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "Waiting for a machine"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/poll.py
+msgid "Waiting to check the cloud..."
 msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
@@ -1697,8 +2089,30 @@ msgstr ""
 msgid "Word timing"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Worker"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+msgid "Worker error"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/sections.py
+msgid "Worker log"
+msgstr ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Worker template"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start.py
+msgid "Your earlier Start is still being sent."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/start.py
+msgid ""
+"Your earlier Start started nothing, as the work changed; check the plan "
+"here."
 msgstr ""
 
 #: src/transcribe_ui/cli/parser.py
@@ -1709,6 +2123,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/selection/widgets.py
 msgid "contains"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "damaged"
 msgstr ""
 
 #: src/transcribe_ui/gui/selection/widgets.py
@@ -1753,6 +2171,10 @@ msgstr ""
 msgid "no"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "not a job description"
+msgstr ""
+
 #: src/transcribe_ui/cli/parser.py
 msgid "path of the request JSON file, or - to read the request from stdin"
 msgstr ""
@@ -1786,10 +2208,19 @@ msgstr ""
 msgid "unknown language ({count})"
 msgstr ""
 
-#: src/transcribe_ui/gui/feedback.py
+#: src/transcribe_ui/gui/cloud/plan_display.py
+msgid "written by another version of the app"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py src/transcribe_ui/gui/feedback.py
 #: src/transcribe_ui/gui/settings/languages_view.py
 #: src/transcribe_ui/i18n/codes.py
 msgid "yes"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid "{amount} USD"
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -1813,12 +2244,31 @@ msgid_plural "{count} files selected ({video} video, {audio} audio), {size}."
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{count} job"
+msgid_plural "{count} jobs"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
 msgid "{count} selected file already has a subtitle in a target language."
 msgid_plural "{count} selected files already have a subtitle in a target language."
 msgstr[0] ""
 msgstr[1] ""
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{count} transcription"
+msgid_plural "{count} transcriptions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/cloud/display.py
+#, python-brace-format
+msgid "{duration} left"
+msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py
 #, python-brace-format
@@ -1980,6 +2430,16 @@ msgstr ""
 msgid "{name} ({code})"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{role}, past its time limit"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/run_panel.py
+#, python-brace-format
+msgid "{run} (test mode)"
+msgstr ""
+
 #: src/transcribe_ui/i18n/formats.py
 #, python-brace-format
 msgid "{seconds} s"
@@ -2028,6 +2488,11 @@ msgstr ""
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
 msgid "{tool} was not found: set its path in the settings or put it on the PATH."
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/plan_display.py
+#, python-brace-format
+msgid "{transcriptions} in {jobs}, {audio} of audio."
 msgstr ""
 
 #: src/transcribe_ui/i18n/code_texts.py

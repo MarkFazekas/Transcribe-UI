@@ -22,6 +22,7 @@ from pydantic import JsonValue
 
 import transcribe_ui
 from support.golden import GOLDEN_DIR
+from support.run_codes import run_text_codes
 from transcribe_ui.api.classes import ErrorResponse
 from transcribe_ui.api.errors import DomainError
 from transcribe_ui.batches.constants import JOB_STATUSES
@@ -119,6 +120,7 @@ def _codes() -> dict[TextKind, set[str]]:
         "item_phase": _literal(ItemPhase),
         "job_status": set(JOB_STATUSES),
         "job_kind": _literal(JobKind),
+        **run_text_codes(),
     }
 
 

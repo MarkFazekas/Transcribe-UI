@@ -306,7 +306,7 @@ def test_all_done(world: RunsWorld, run_id: str, worker: Worker) -> None:
 def test_cancel_clears_the_remaining_time(world: RunsWorld, run_id: str, worker: Worker) -> None:
     """A run stopped by the user keeps its done share; its remaining time and finish are gone."""
     assert _reported(worker, STEP).remaining_estimate_s is not None
-    ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     listed = _listed(world)
     assert (listed.stage, _progress(listed)) == ("cancelled", (0, None, None))
 

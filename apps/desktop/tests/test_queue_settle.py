@@ -69,7 +69,7 @@ def waiting(world: RunsWorld) -> tuple[str, str]:
 def _cancel_at(world: RunsWorld, run_id: str, moment: datetime) -> str:
     """Send `cancel_worker` at that moment; return the run's status after it (or the error code)."""
     world.cloud.clock.moment = moment
-    response = send(world, CANCEL, run_id=run_id)
+    response = send(world, CANCEL, run_id=run_id, confirm=True)
     if response.status == "error":
         assert error_code(response) == ERROR_STOP_UNVERIFIED
         return ERROR_STOP_UNVERIFIED
@@ -218,7 +218,7 @@ def test_every_listed_pod_is_stopped(
     pod_ids = [str(world.cloud.api.pods.add(run_name)["id"]) for _ in range(2)]
     failed_id = pod_ids[failing]
     world.cloud.api.fail("DELETE", f"{POD_PATH}{failed_id}", Failure(status=BAD_REQUEST))
-    assert send(world, CANCEL, run_id=run_id).status == "error"
+    assert send(world, CANCEL, run_id=run_id, confirm=True).status == "error"
     status, payload = run_row(world, run_id)
     assert (status, payload.pod_id, [pod_id for pod_id, _status in pods_of(world)]) == (
         "running",
@@ -226,7 +226,7 @@ def test_every_listed_pod_is_stopped(
         [failed_id],
     )
     # The retry stops the failed pod; the vanished queued pod still waits for its settle time.
-    retried = send(world, CANCEL, run_id=run_id)
+    retried = send(world, CANCEL, run_id=run_id, confirm=True)
     assert (error_code(retried), pods_of(world), run_row(world, run_id)[0]) == (ERROR_STOP_UNVERIFIED, [], "running")
 
 
@@ -237,7 +237,7 @@ def test_delete_answer_is_no_sighting(world: RunsWorld) -> None:
     pod_id = str(_queued_body(world, queued_id)["podId"])
     hidden = Failure(status=NOT_FOUND)
     world.cloud.api.fail("GET", f"{POD_PATH}{pod_id}", hidden, hidden)
-    refused = send(world, CANCEL, run_id=run_id)
+    refused = send(world, CANCEL, run_id=run_id, confirm=True)
     status, payload = run_row(world, run_id)
     assert (error_code(refused), status, payload.pod_id, payload.pod_seen) == (
         ERROR_STOP_UNVERIFIED,

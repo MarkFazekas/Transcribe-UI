@@ -80,17 +80,17 @@ def test_two_failed_stops_keep_the_run_open(world: RunsWorld) -> None:
     run_id, _queued_id = queued_run(world, deploy=False)
     both = _two_pods(world, run_id)
     world.cloud.settings.terminate_effective = False
-    assert send(world, CANCEL, run_id=run_id).status == "error"
+    assert send(world, CANCEL, run_id=run_id, confirm=True).status == "error"
     world.cloud.settings.terminate_effective = True
     status, payload = run_row(world, run_id)
     followed = payload.pod_id
     assert (status, followed in both, sorted(_live(world))) == (RUNNING, True, sorted(both))
     other = next(candidate for candidate in both if candidate != followed)
     _refuse_delete(world, other)
-    assert send(world, CANCEL, run_id=run_id).status == "error"
+    assert send(world, CANCEL, run_id=run_id, confirm=True).status == "error"
     status, payload = run_row(world, run_id)
     assert (status, payload.pod_id, _live(world)) == (RUNNING, other, [other])
-    retried = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    retried = ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     assert (retried.run.status, _live(world)) == (CANCELLED, [])
 
 
@@ -101,7 +101,7 @@ def test_cancel_between_two_stops(world: RunsWorld) -> None:
     untried = _cancel_during_the_stops(world, run_id, both)
     followed = refreshed_run(world, run_id)
     assert (followed.run.status, followed.run.pod_id) == (RUNNING, untried)
-    retried = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    retried = ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     assert (retried.run.status, _live(world)) == (CANCELLED, [])
 
 
@@ -109,7 +109,7 @@ def _cancel_during_the_stops(world: RunsWorld, run_id: str, both: list[str]) -> 
     """Send `cancel_worker`, cancelled at the first pod DELETE; return the pod that was not tried."""
     cancel = CancelFlag()
     world.cloud.settings.on_request = partial(_cancel_on_pod_delete, cancel)
-    interrupted = world.leg.backend.execute_json(document(CANCEL, run_id=run_id), cancel=cancel)
+    interrupted = world.leg.backend.execute_json(document(CANCEL, run_id=run_id, confirm=True), cancel=cancel)
     world.cloud.settings.on_request = None
     api = world.cloud.api
     deletes = {pod_id: api.count("DELETE", f"{POD_PATH}{pod_id}") for pod_id in both}
@@ -151,7 +151,7 @@ def _queued_status(world: RunsWorld, queued_id: str) -> str:
 def test_cancel_also_stops_the_waiting_queue(world: RunsWorld) -> None:
     """The run follows its adopted pod while its queued pod waits: the cancel stops both before the run ends."""
     run_id, queued_id, _adopted = _adopted_with_waiting_queue(world)
-    cancelled = ok_as(send(world, CANCEL, run_id=run_id), CancelWorkerResponse)
+    cancelled = ok_as(send(world, CANCEL, run_id=run_id, confirm=True), CancelWorkerResponse)
     assert (cancelled.run.status, _live(world), _queued_status(world, queued_id)) == (CANCELLED, [], "CANCELLED")
 
 
@@ -159,7 +159,7 @@ def test_queue_still_waiting_keeps_the_run_open(world: RunsWorld, monkeypatch: p
     """The queued pod's cancel does not take: the cancel is not verified and the run stays open."""
     run_id, _queued_id, _adopted = _adopted_with_waiting_queue(world)
     monkeypatch.setattr(world.cloud.api.queued_pods, "delete", _ignored_delete)
-    refused = send(world, CANCEL, run_id=run_id)
+    refused = send(world, CANCEL, run_id=run_id, confirm=True)
     assert (error_code(refused), run_row(world, run_id)[0]) == (ERROR_STOP_UNVERIFIED, RUNNING)
 
 
@@ -227,7 +227,7 @@ def test_pod_deployed_during_the_cancel_is_followed(world: RunsWorld) -> None:
     run_id, queued_id, adopted = _adopted_with_waiting_queue(world)
     world.cloud.api.queued_pods.schedule_deploy(queued_id, world.now())
     world.cloud.settings.on_request = partial(_hide_other_pods, world.cloud.api, adopted)
-    refused = send(world, CANCEL, run_id=run_id)
+    refused = send(world, CANCEL, run_id=run_id, confirm=True)
     world.cloud.settings.on_request = None
     status, payload = run_row(world, run_id)
     deployed = _queued_body(world, queued_id)["podId"]

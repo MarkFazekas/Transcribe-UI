@@ -26,8 +26,9 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 ## In progress
 
-- M6.4 (New job: tree, filters, selection, languages, create and edit) on
-  `feat/m6.4-new-job`: built, in review.
+- M6.6 (Cloud page: start dialog, run follow with the poll, Stop/Cancel with the backend's
+  `cancel_worker` confirmation, cloud machines, run history, status bar line) on
+  `feat/m6.6-cloud`: built, in review (PR open).
 
 ## Waiting on humans
 
@@ -39,17 +40,16 @@ the status change on the current branch. On a merge conflict in this file, re-de
    `runpod-reaper` environment (deployment branch policy: `main` only); its first real run on
    `main` (run 45975242900, 2026-11-27) passed ("0 queued pods listed, 0 pods listed, pass
    ok"). `gh run list -L 3 --workflow reaper.yml` shows whether it keeps passing.
-2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Wave 1: M6.1 (backend
-   additions) and M6.2 (GUI foundation) are merged. Wave 2: M6.14 (texts in English and
-   Hungarian, Q32; #40), M6.12 (remaining-time estimate, backend; #41), M6.7 (CLI; #42) and
-   M6.5 (jobs list and job page) and M6.3 (settings; #45) are merged; M6.4 and M6.6 are in
-   work. Wave 3 M6.8, M6.9, M6.10; wave 4 M6.11. M6.13 (several installations
-   on one bucket, Q28, with its GUI) after M6.6 and M6.9;
-   the later of M6.11 and M6.13 marks M6 built. The M4 Runpod trial run is deferred until
-   everything else works (architect); nothing waits on it, and it still needs the architect
-   present and their go.
+2. M6 (desktop frontends) is planned in `docs/ai/plans/m6.md`. Merged: M6.1, M6.2, M6.14
+   (#40), M6.12 (#41), M6.7 (#42), M6.5, M6.3 (#45), M6.4 (#46). In flight: M6.6 (cloud, in
+   review). Then wave 3 M6.8, M6.9, M6.10 (M6.10 needs M6.6); wave 4 M6.11. M6.13
+   (several installations on one bucket, Q28, with its GUI) after M6.6 and M6.9; the later of
+   M6.11 and M6.13 marks M6 built. The M4 Runpod trial run is deferred until everything else
+   works (architect); nothing waits on it, and it still needs the architect present and their
+   go.
 3. From now on every database schema change, including any change of a stored payload's
    shape (an added field too), is a new Alembic revision (architecture §3.8); the initial
    revision is no longer edited.
-4. M5 follow-ups, planned in M6: `cleanup_pending` shown (M6.5, merged) and the cleanup repeated
-   (M6.10); `reconcile_cloud` at start-up and `refresh_status` while a run is active (M6.6).
+4. M5 follow-ups, planned in M6: the repeat of an interrupted cleanup (M6.10; M6.5 shows
+   `cleanup_pending`, M6.6 links its launch refusal to the job). `reconcile_cloud` at start-up
+   and `refresh_status` while a run is active are built in M6.6.

@@ -1,0 +1,21 @@
+{
+  "exit_code": 3,
+  "response": {
+    "status": "needs_confirmation",
+    "action": "cancel_worker",
+    "confirmations": [
+      {
+        "code": "cancel_worker",
+        "field": "confirm",
+        "set_to": true,
+        "message": "Stop run 01M8EE0VG08BW9FC8PBW4Q3DY4 (starting)? Subtitles already finished are kept; the files not done yet wait for the next start of transcription.",
+        "details": {
+          "run_id": "01M8EE0VG08BW9FC8PBW4Q3DY4",
+          "stage": "starting",
+          "run_status": "running"
+        }
+      }
+    ]
+  },
+  "events": []
+}

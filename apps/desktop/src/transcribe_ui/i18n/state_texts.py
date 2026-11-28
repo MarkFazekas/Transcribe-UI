@@ -1,7 +1,8 @@
 """Catalog entries of the states the jobs pages show (architecture §3.1 "Language of the texts").
 
 Batch phases, stages (the steps of the guided flow) and labels (`BatchSummary.labels`), item
-phases, job statuses and job kinds. A frontend renders them generically from these entries, so
+phases, job statuses and job kinds; and what the Cloud page shows of a run: its stage, why it
+ended, and the state its worker reports. A frontend renders them generically from these entries, so
 a new code needs only its entry. The GUI calls jobs what the backend calls batches, and
 transcriptions what it calls jobs.
 """
@@ -73,4 +74,43 @@ def job_kind_texts() -> CodeTable:
     return {
         "transcribe": tr("Transcription"),
         "extract": tr("Embedded subtitle"),
+    }
+
+
+def run_stage_texts() -> CodeTable:
+    """Return the entries of every run stage (`RunProgress.stage`)."""
+    return {
+        "launching": tr("Requesting a cloud machine"),
+        "waiting": tr("Waiting for a free cloud machine"),
+        "starting": tr("Starting"),
+        "transcribing": tr("Transcribing"),
+        "stopping": tr("Done; the cloud machine is stopping"),
+        "finished": tr("Finished"),
+        "failed": tr("Failed"),
+        "cancelled": tr("Stopped"),
+        "launch_failed": tr("Could not be started"),
+    }
+
+
+def run_end_reason_texts() -> CodeTable:
+    """Return the entries of every reason a run ended (`RunProgress.end_reason`)."""
+    return {
+        "worker_finished": tr("The cloud machine finished its work."),
+        "worker_failed": tr("The cloud machine reported an error."),
+        "pod_gone": tr("The cloud machine stopped without a final report."),
+        "deadline": tr("The app stopped the cloud machine at its time limit."),
+        "queue_ended": tr("No cloud machine became free in time."),
+        "cancelled": tr("Stopped by the user."),
+        "launch_failed": tr("Runpod did not start the cloud machine."),
+    }
+
+
+def worker_state_texts() -> CodeTable:
+    """Return the entries of every state the worker reports (`WorkerProgress.state`)."""
+    return {
+        "starting": tr("Loading"),
+        "transcribing": tr("Transcribing"),
+        "finished": tr("Finished"),
+        "failed": tr("Failed"),
+        "unreadable": tr("Report unreadable"),
     }

@@ -49,6 +49,9 @@ def untracked_window(
         lock=WriterLockGate(executor),
         log_dir=log_dir,
         quit_now=QuitNow() if quit_now is None else quit_now,
-        run_active=run_active,
     )
-    return build_shell(context)
+    window = build_shell(context)
+    # After the areas are installed: the cloud page sets its own while it installs.
+    if run_active is not _never:
+        context.run_active = run_active
+    return window
