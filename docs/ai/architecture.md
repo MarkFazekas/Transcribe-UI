@@ -29,9 +29,11 @@ so). Research behind the decisions: `docs/ai/research/`.
 pyproject.toml            workspace root: dev tools, ruff/mypy/pytest config (no runtime code)
 .flake8, whitelist.txt    flake8 + plugins config, spellcheck whitelist
 packages/contracts/       transcribe_contracts: models shared by desktop and worker
-apps/desktop/             transcribe_ui: backend + frontends, PyInstaller spec
+apps/desktop/             transcribe_ui: backend + frontends; packaging/: PyInstaller hooks,
+                          entry scripts and runner, the Linux system library list
 apps/worker/              transcribe_worker: Runpod worker, Dockerfile; also the pod reaper
-scripts/                  dev tasks (parallel local checks)
+scripts/                  dev tasks (parallel local checks, catalogs), the release builds and
+                          smoke tests (worker image, desktop executables); tests/: their tests
 docs/human/, docs/ai/     see CLAUDE.md
 ```
 
@@ -259,7 +261,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   never count. Without `QT_QPA_PLATFORM`, `DISPLAY` or `WAYLAND_DISPLAY` must be set. Qt can
   still abort on what the check cannot see (a display variable naming a server that is gone,
   missing xcb libraries such as `libxcb-cursor0`); M8 documents those for Linux users and its
-  smoke run starts the build offscreen. Without a display it logs the reason
+  smoke run starts the build offscreen (and natively on each OS). Without a display it logs the reason
   (`display_problem`: no display variable, or the forced platforms that cannot start), writes
   it as the JSON `ErrorResponse` with the code `display_unavailable` to stdout (when the
   process has one) and exits 1. Then it
@@ -274,7 +276,13 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   any more) and waits for the pool threads at most `SHUTDOWN_WAIT_MS` (15 s, one deadline for
   all pools); requests still running then end the process through "Quit now". It then deletes
   the window (`deleteLater` would never run without a loop) and closes the backend's local
-  state last (`Backend.close`). However the window is deleted, its executor closes with it
+  state last (`Backend.close`). With `TRANSCRIBE_UI_SMOKE_TEST=1` (release builds' smoke test,
+  §8) and no `on_window` of its own, `run_gui` hands `gui/smoke.py` the window: it logs every
+  answer, waits until the last start-up step proceeded and nothing is in flight, closes the
+  window through the normal close handling (the set-up wizard closes with it) and makes the
+  exit code 1 when an answer was an error, start-up did not finish within 120 s, or the
+  language is Hungarian and Qt's own translation did not load (`StartLanguages.qt_translated`);
+  else 0. Without the variable nothing changes. However the window is deleted, its executor closes with it
   (`build_shell` connects the window's `destroyed`), so an answer still on its way never
   reaches the window's deleted views. A view deleted while its window lives must call the
   function its view-model's `subscribe` returned (none is today: pages and the set-up wizard
@@ -287,7 +295,7 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   activity states); Qt modules `bridge.py` (`QtExecutor`), `signals.py` (the bus and
   the start-up hooks), `shell.py` (main window, wiring), `pages.py` (navigation, pages, lock
   notice), `closing.py` (Q30), `dialogs.py`, `activity_view.py`, `messages.py`, `context.py`,
-  `language.py`, `app.py`. A test imports the Qt-free modules in a subprocess and checks that PySide6 stays
+  `language.py`, `smoke.py` (the smoke mode), `app.py`. A test imports the Qt-free modules in a subprocess and checks that PySide6 stays
   unloaded; another parses every module outside `gui/` and refuses any import of `PySide6`,
   `shiboken6` or `transcribe_ui.gui` at any nesting level. Areas (`settings/`, `selection/`, `jobs/`, `review/`, `cloud/`, `download/`,
   `cleanup/`) each get `viewmodel.py` and `view.py` in their part, and an install function that
@@ -308,8 +316,8 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
   start, progress events and the response are emitted on a relay `QObject` living on the GUI
   thread through explicit queued connections, so every callback runs later on the GUI thread,
   in emission order, never inside the call that caused it. Requests, events and responses pass
-  unchanged; views throttle repaints (`PROGRESS_REPAINT_MS` = 100). An observer sees every
-  response first (the writer-lock notice).
+  unchanged; views throttle repaints (`PROGRESS_REPAINT_MS` = 100). Observers see every
+  response first, in the order added (the writer-lock notice; the smoke mode).
 - **Handles and cancel** (`PooledCall`, thread-safe; state `queued`, `running`, `done`). A call
   that ran stays `running` until its answer is delivered on the GUI thread (marked before the
   sender's `on_done`), so channels free a key only once its answer arrived; a call that never
@@ -799,7 +807,8 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     own (the earlier one's answer is dropped, never shown), and the callers wait for that one. Without a Runpod key the page is
     unavailable and says that another computer with the key starts the transcription.
   - About: the app and data format versions (`get_app_info`; the window title gets the app's
-    version) and the log folder with "Open log folder".
+    version; a release build's version is its stamp, `api/info.py` `app_version()`, §8) and the
+    log folder with "Open log folder".
   - Start-up steps: `get_settings` and `get_app_info` (slot settings), `credentials_status`
     (slot credentials), and with a Runpod key `cloud_setup_status` (slot reconcile, after the
     database steps). The set-up wizard (a dialog over the Accounts and Cloud setup sections:
@@ -2902,14 +2911,36 @@ Few unit tests; mostly regression and flow tests:
   and test jobs per member run only when needed (the desktop member on Ubuntu and on
   `windows-2025`); one aggregate `ci-ok` job is the single
   required status check. gitlint checks PR commits.
-- `release-desktop.yml` on push to `main` when desktop/contracts code changes: PyInstaller
-  one-file builds on Windows, macOS arm64, macOS x86_64 and Ubuntu 22.04, two per platform:
-  the GUI build (windowed, with Qt) and the CLI build (console, without Qt; it must never
-  import Qt; it is small and fast to start). Smoke-test both builds: the CLI build's
-  `--version`, and the GUI build's start-and-quit (offscreen platform, on every OS). Upload only the executables
-  (`actions/upload-artifact` with `archive: false`) and attach the eight executables (file names unique per OS and variant) to a
-  GitHub Release. Builds are unsigned for now (macOS
-  users clear the quarantine flag; Windows SmartScreen may warn).
+- `release-desktop.yml` on pull requests and pushes to `main` that touch the desktop app (not
+  its test-only changes, except the tests that run the real ffmpeg), the contracts, the lock
+  file, the root configuration or the build, smoke and release scripts; and on manual dispatch.
+  PyInstaller one-file builds, two per platform: the GUI executable (with Qt; windowed on
+  Windows; on macOS a console-mode one-file binary until A23 decides its shape) and the CLI
+  executable (console, without Qt or `transcribe_ui.gui`; it must never import Qt; small and
+  fast to start). Legs: Windows x64 (`windows-2025`), macOS arm64 (`macos-15`), macOS x86_64
+  (`macos-15-intel`) and Linux x64, built on `ubuntu-24.04` inside the
+  `quay.io/pypa/manylinux_2_34_x86_64` container (AlmaLinux 9, glibc 2.34, pinned by digest),
+  so the Linux executables run on glibc 2.34 or later. `scripts/build_desktop.py` composes the
+  PyInstaller command line (no `.spec` file is kept; the project hooks, entry scripts and the
+  runner that leaves `libstdc++` and `libgcc_s` to the host are in `apps/desktop/packaging/`)
+  and stamps the version `<base>+<YYYYMMDD>.<short sha>` (commit date in UTC) into
+  `transcribe_ui/version.txt`, which `app_version()` prefers to the metadata version (from
+  source there is none). The build runs in an environment without dev tools, with the app
+  installed non-editable. `scripts/smoke_desktop_build.py` then tests both files on their
+  own OS on fresh per-user state, with every check under a timeout that kills the process
+  tree: the CLI's `--version`, a `list_batches` on a fresh database (the bundled Alembic
+  environment), `--help` in Hungarian (Linux through `LANGUAGE`, Windows and macOS through
+  the `language` setting), each archive's required and forbidden contents (catalogs, Alembic
+  files, the stamp; no Qt in the CLI; Qt's Hungarian texts and the offscreen and native
+  platform plugins in the GUI; no host C++ runtime on Linux), the GUI's smoke mode (§3.1)
+  offscreen and on the native platform (Linux under Xvfb), and on Linux the same CLI and
+  offscreen checks in an `ubuntu:22.04` container with only the libraries of
+  `apps/desktop/packaging/linux-packages.txt`. Each leg uploads only its two executables
+  (`actions/upload-artifact` with `archive: false`, 7 days; names
+  `transcribe-ui-<os>-<arch>-<variant>[.exe]`). Pull requests build and smoke-test the eight
+  files and publish nothing; there is no release job yet (M8.5 adds it: a GitHub Release of
+  the eight files on `main`, only when every leg passed). Builds are unsigned (macOS users
+  clear the quarantine flag; Windows SmartScreen may warn).
 - `release-worker.yml` on pull requests and pushes to `main` when worker/contracts code
   changes: build the Docker image and smoke-test it (a full pod run with the fake engine, a fake
   Runpod API and moto S3; then, inside the image, the CUDA libraries load and, with no
@@ -2964,7 +2995,7 @@ next step are in `docs/ai/status.md`.
   (§3.1), and several installations on one bucket (§3.9).
 - **M7**: End-to-end run from the desktop app, with the architect present.
 - **M8** (planned in `plans/m8.md`): Desktop release: `release-desktop.yml` builds two one-file executables (GUI and CLI) for each of the four
-  platforms, eight files (§8; the workflow does not exist yet); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
+  platforms, eight files (§8; built and smoke-tested since M8.1, not yet published); both builds are smoke-tested (CLI `--version`, GUI offscreen start and quit, and on Linux
   the CLI's `--help` with `LANGUAGE=hu` showing an app help text in Hungarian) and bundle the `.mo`
   catalogs (§3.1 "Language of the texts").
 - **Later**: MCP frontend over the same requests.

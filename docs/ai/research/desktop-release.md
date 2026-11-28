@@ -19,10 +19,32 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   entry has nothing about it, so 6.10 is taken as right.
 - [I] A `.png` icon is converted to `.ico`/`.icns` when Pillow is installed in the build
   environment.
-- [I] The Qt hooks collect Qt's own translations (`PySide6/Qt/translations/qtbase_*.qm`) with
-  QtCore; M8's bundle check confirms it per build.
-- [I] `pyi-archive_viewer` (PyInstaller 6: `--list`, `--recursive`, `--brief`) and
-  `PyInstaller.archive.readers.CArchiveReader` list the contents of a one-file executable.
+- [V] The Qt hooks collect Qt's own translations (`PySide6/Qt/translations/qtbase_*.qm`) with
+  QtCore (local Linux build, 6.22.3); `gui-bundle` checks it per build.
+- [V] `pyi-archive_viewer` (`python -m PyInstaller.utils.cliutils.archive_viewer`; 6.22.3:
+  `--list`, `--recursive`, `--brief`) lists a one-file executable: data and binaries as paths,
+  then the PYZ's modules by dotted name (source of 6.22.3).
+- [V] PyInstaller 6.22.3 has no command-line option to leave out a shared library its
+  dependency analysis finds (only a `.spec` can filter `a.binaries`); its Linux exclude list
+  (`PyInstaller/depend/dylib.py`) covers glibc, the GL/EGL/libdrm stack, `libxcb` and
+  `libwayland-*`, but not `libstdc++` or `libgcc_s`, and `dylib.include_library` reads the
+  module attribute `exclude_list` on every call (source of 6.22.3).
+- [V] On Linux PyInstaller runs `ldd` (dependencies), `objdump` (ELF check) and `objcopy`
+  (appends the archive to a one-file executable) (source of 6.22.3). A library it cannot
+  resolve on the build machine is only a warning and stays out of the bundle.
+- [V] `--add-data SRC:DEST` takes `:` on every OS in PyInstaller 6 (`os.pathsep` still
+  accepted) (source of 6.22.3, `building/makespec.py`).
+- [V] `types-pyinstaller` (typeshed) types PyInstaller's public API; `PyInstaller.depend.dylib`
+  is not in it.
+- [V] platformdirs 4.14 honours `WIN_PD_OVERRIDE_<CSIDL name>` (e.g.
+  `WIN_PD_OVERRIDE_LOCAL_APPDATA`) on Windows and the XDG variables on macOS (except the log
+  folder, under `~/Library/Logs`) (source of 4.14.8).
+- [V] Measured on a local Linux build (WSL Ubuntu, PyInstaller 6.22.3, PySide6 6.12.0, no
+  ffmpeg yet): CLI 62 MB, GUI 113 MB, CLI cold start (`--version`) 1.5 s, the GUI's offscreen
+  smoke run 3 s. The PySide6 6.12 Linux hooks collect the platform plugins `qoffscreen`, `qxcb`,
+  `qwayland` (plus `eglfs`, `linuxfb`, `minimal`, `vnc`, `vkkhrdisplay`) and
+  `PySide6/Qt/translations/qtbase_hu.qm`. The Qt libraries link libglib, libfreetype,
+  libxkbcommon, libX11, the xcb utility libraries, libwayland and GL/EGL from the system.
 - [I] Modules imported dynamically (`importlib.import_module`) are invisible to the analysis and
   need `--hidden-import` or `--collect-submodules`; data read through `importlib.resources` must
   be collected as data (`.py` files included where a tool reads them as files, as Alembic does

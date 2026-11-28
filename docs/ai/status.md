@@ -29,6 +29,9 @@ the status change on the current branch. On a merge conflict in this file, re-de
 - M6.11 (GUI end-to-end flow: `tests/test_gui_end_to_end.py`, compared with the CLI flow) on
   `feat/m6.11-gui-e2e`: built, in review. No product code changed.
 - M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress.
+- M8.1 (build, stamp and smoke-test both executables on four platforms) on
+  `feat/m8.1-desktop-build`: built and smoke-tested locally on Linux; the PR's own
+  `release-desktop.yml` run proves the four legs (Windows, macOS arm64 and x86_64, Linux).
 
 ## Waiting on humans
 

@@ -51,7 +51,10 @@ uv run pytest <member tests dir>
 repo tooling and each workspace member at the same time; steps within a target run in order,
 with a separate mypy cache per target) and prints one block per target. CI runs the same script
 per changed target. No pytest-xdist: the suites are small and process start-up would eat the
-gain.
+gain. The `tooling` target (`.claude/hooks`, `scripts`) runs `scripts/tests` (the pure parts of
+the build and smoke scripts; pytest's `pythonpath` has `scripts`, so they import the scripts as
+top-level modules); a member's `packaging/` folder is type-checked with its sources (the
+desktop's PyInstaller hooks and runner, against `types-pyinstaller`).
 
 Schema snapshots of the contract (`packages/contracts/tests/snapshots/`) are regenerated with
 `UPDATE_SNAPSHOTS=1 uv run pytest packages/contracts/tests`; review the diff. The desktop's
@@ -116,6 +119,11 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 - The desktop's runtime dependencies for all of M5 (pydantic, sqlalchemy, alembic,
   platformdirs, keyring, httpx, boto3) were added at once by M5.1, so parallel parts do not
   conflict on `uv.lock`. `keyring` and `platformdirs` ship their own types.
+- The release build's tools are the desktop app's `packaging` dependency group (PyInstaller;
+  Pillow for the icon, M8.3), installed only into the build environment
+  (`uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging`), never
+  with the dev tools, so no dev tool can reach a bundle. The dev group has only
+  `types-pyinstaller` for the packaging files' types.
 - The GUI uses `pyside6-essentials` (QtCore, QtGui, QtWidgets, QtTest; LGPL modules only) as a
   runtime dependency and `pytest-qt` as a dev dependency, both added by M6.2 for all of M6.
   mypy strict uses PySide6's own stubs; no override was needed. Only `gui/` imports Qt, and the
@@ -157,11 +165,14 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
   of it, ignoring `POT-Creation-Date`; each `.mo` equals a fresh compile), when a Hungarian
   text is missing or fuzzy, or when a Hungarian text does not use exactly the `{fields}` of
   its English text, format specs included (`{cost:.2f}`, `{audio_s:duration}`).
-- PyInstaller (M8) bundles the `.mo` files in both executables (data of the `transcribe_ui`
-  package, `transcribe_ui/locale/**/*.mo`) and, in the GUI executable, Qt's `qtbase_hu.qm`
-  (Qt's translations folder; without it Qt's own buttons stay English); the release smoke test
-  on Linux runs the CLI's `--help` with `LANGUAGE=hu` and checks for a Hungarian line from the
-  app's own help texts.
+- PyInstaller bundles the `.mo` files in both executables (data of the `transcribe_ui`
+  package, `transcribe_ui/locale/**/*.mo`, through the project hook; not the `.po`/`.pot`) and,
+  in the GUI executable, Qt's `qtbase_hu.qm` (Qt's translations folder; without it Qt's own
+  buttons stay English). The release smoke test (`cli-help-hu`) runs the CLI's `--help` in
+  Hungarian on every OS (Linux with `LANGUAGE=hu`, Windows and macOS after setting the
+  `language` setting to `hu`) and looks for the Hungarian help of `--version` read from the
+  repository's `hu` catalog; the GUI checks then run in Hungarian too, and the GUI's smoke mode
+  fails when Qt's Hungarian translation did not load.
 
 ## Commits and branches
 
@@ -191,14 +202,14 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 
 ## CI/CD
 
-`ci.yml`, `release-worker.yml` and `reaper.yml` exist; `release-desktop.yml` is added with the
-desktop app.
+`ci.yml`, `release-worker.yml`, `reaper.yml` and `release-desktop.yml` exist;
+`release-desktop.yml` publishes nothing until M8.5 adds its release job.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target; a `jq` step turns the changed targets into matrix legs) → `check` matrix running `scripts/check.py <target>`, every target on `ubuntu-24.04` and the desktop target also on `windows-2025`; `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
-| `release-desktop.yml` | push to `main`, paths `apps/desktop/**`, `packages/contracts/**`, `uv.lock` | PyInstaller one-file builds, two per OS (the GUI executable `transcribe-ui-gui` with Qt and the CLI executable `transcribe-ui` without Qt), on Windows x64, macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-22.04`); smoke tests of both builds on their own OS: the CLI with `--version`, the GUI with a start-and-quit check (started with `QT_QPA_PLATFORM=offscreen`, it must start and quit by itself with exit code 0, on every platform); upload only the executables with `actions/upload-artifact@v7` `archive: false` (file names unique per OS and variant, e.g. `transcribe-ui-linux-x64-gui`, `transcribe-ui-linux-x64-cli`); then a release job (`needs:` all four build legs, `permissions: contents: write`) creates a GitHub Release tagged `desktop-<YYYYMMDD>-<short sha>` with the eight executables, only if every build and smoke test passed |
-| `release-worker.yml` | pull requests and pushes to `main` touching `apps/worker/**`, `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `.dockerignore`, `scripts/smoke_*.py` or the workflow; manual dispatch | `build`: free runner disk, `docker buildx build -f apps/worker/Dockerfile`, `scripts/smoke_worker_image.py` (moto S3 in Docker, fake Runpod API on localhost, the image run as a pod with `TRANSCRIBE_ENGINE=fake`: result, `_done.json`, finished status, pod deleted, exit 0; then, inside the image, the CUDA libraries load and, with `--network none`, the GPU stack imports, the Whisper model resolves with `local_files_only` as the engine loads it, the baked hu/en aligners load, and WhisperX's Silero VAD is built from the baked copy and run on silence). On `main` only: the image is saved (`docker save` + zstd) as a one-day artifact (the repository is public, so artifact storage is free), and a separate `push` job in `environment: dockerhub` loads it and pushes `sha-<short>`, `schema-<major>` and `latest` to `markfazekasgh/transcribe-ui-worker`. The job holding the token never runs the image. |
+| `release-desktop.yml` | pull requests and pushes to `main` touching `apps/desktop/**` (not `apps/desktop/tests/**`, except `test_media_ffmpeg.py`, `test_batches_ffprobe.py`, `support/media.py`, `conftest.py`), `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `scripts/build_desktop.py`, `scripts/build_ffmpeg.py`, `scripts/smoke_desktop_*.py`, `scripts/release_desktop.py` or the workflow; manual dispatch | `build` matrix, one leg per platform (fail-fast off, 75 minutes, `contents: read`): Windows x64 (`windows-2025`), macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-24.04`, the build inside `quay.io/pypa/manylinux_2_34_x86_64` pinned by digest, run as the runner's user with the runner's uv binary and cache). Each leg: `build_desktop.py stamp` (version and tag from the commit), the build environment (`uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging`), `build_desktop.py build` (both executables into `dist/`), on Linux the libraries of `apps/desktop/packaging/linux-packages.txt` plus Xvfb, `smoke_desktop_build.py` (the checks of architecture §8; on Linux also `linux-floor` in `ubuntu:22.04` pinned by digest; a summary with sizes and the CLI's cold start in the job summary), then the two executables with `actions/upload-artifact@v7` `archive: false` (7 days). uv's cache through `setup-uv` per OS. No release job yet (M8.5: `release-check`, then `publish` in the `desktop-release` environment); no ffmpeg job yet (M8.2) |
+| `release-worker.yml` | pull requests and pushes to `main` touching `apps/worker/**`, `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `.dockerignore`, `scripts/smoke_worker_*.py`, `scripts/smoke_fixtures.py` or the workflow; manual dispatch | `build`: free runner disk, `docker buildx build -f apps/worker/Dockerfile`, `scripts/smoke_worker_image.py` (moto S3 in Docker, fake Runpod API on localhost, the image run as a pod with `TRANSCRIBE_ENGINE=fake`: result, `_done.json`, finished status, pod deleted, exit 0; then, inside the image, the CUDA libraries load and, with `--network none`, the GPU stack imports, the Whisper model resolves with `local_files_only` as the engine loads it, the baked hu/en aligners load, and WhisperX's Silero VAD is built from the baked copy and run on silence). On `main` only: the image is saved (`docker save` + zstd) as a one-day artifact (the repository is public, so artifact storage is free), and a separate `push` job in `environment: dockerhub` loads it and pushes `sha-<short>`, `schema-<major>` and `latest` to `markfazekasgh/transcribe-ui-worker`. The job holding the token never runs the image. |
 | `reaper.yml` | schedule (`*/15 * * * *`); manual dispatch with a `dry-run` input | `reap` in `environment: runpod-reaper`: without the secret only a `::warning::` and success; otherwise uv pinned to 0.11.8, `uv sync --locked --no-dev --package transcribe-worker` (no `engine` extra, no uv cache) and `transcribe-worker-reaper [--dry-run]`; concurrency groups `reaper-live` / `reaper-dry` (never cancelled; a dry run cannot replace a pending live pass), 15-minute timeout; checkout pinned by SHA |
 
 Nothing is published from a pull request (`release-worker.yml` only builds and smoke-tests
@@ -218,8 +229,35 @@ Set them from the repo root with `gh variable set NAME --env <env> --body <value
 run it in a separate terminal: the Claude Code `!` prefix cannot answer the prompt and stores
 an empty secret).
 
-PyInstaller notes: disable UPX; for keyring add `--copy-metadata keyring` and
-`--collect-submodules keyring.backends`; exclude unused Qt modules. PyInstaller 6.9 or later:
+PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
+
+- Options for both executables: `--onefile --noupx --clean`, `--copy-metadata transcribe-ui`,
+  `--copy-metadata keyring` and `--collect-submodules keyring.backends`, the stamp as
+  `--add-data <work>/version.txt:transcribe_ui`, the project hooks with
+  `--additional-hooks-dir`. The CLI excludes `PySide6`, `shiboken6` and `transcribe_ui.gui`;
+  the GUI excludes `PySide6.QtTest` and is `--windowed` on Windows (with a generated
+  `--version-file`: product name, file description, numeric file version, the stamp as product
+  version, original file name). PyInstaller writes its spec into the work folder (`build/desktop/`).
+- `hook-transcribe_ui.py` collects every submodule of `transcribe_ui` (the GUI entry imports
+  `gui.app` through `importlib`; the Alembic environment and revisions are analysed for their
+  imports), leaving `transcribe_ui.gui` out of the CLI (`TRANSCRIBE_UI_BUNDLE_VARIANT`, set by
+  the build script), and the data: `locale/**/*.mo` and `state/migrations` with its `.py` files.
+- PyInstaller has no command-line option to leave out a shared library its analysis finds;
+  `packaging/pyinstaller_main.py` (the build runs PyInstaller through it) adds `libstdc++` and
+  `libgcc_s` to its exclude list on Linux, so the host's newer copies (which Mesa's LLVM needs)
+  are never shadowed. `cli-bundle`/`gui-bundle` fail if one is bundled.
+- Linux build tools: PyInstaller runs `ldd`, `objdump` and `objcopy` (the manylinux image has
+  them). Libraries the build container lacks (the X11/xcb, Wayland, GL and font stack) are not
+  bundled; `linux-packages.txt` lists them for the host.
+- Build locally (Linux, macOS or Windows; from the repo root):
+  `UV_PROJECT_ENVIRONMENT=<folder> uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging --reinstall-package transcribe-ui`
+  (the reinstall picks up source changes: uv rebuilds a non-editable local package only when
+  its `pyproject.toml` changes), then with the same variable
+  `uv run --no-sync python scripts/build_desktop.py build --version "$(uv run --no-project scripts/build_desktop.py stamp | sed -n 's/^version=//p')"`
+  and `uv run --no-sync python scripts/smoke_desktop_build.py dist/<cli> dist/<gui> --version <same> --skip linux-floor`
+  (`--skip gui-native` without Xvfb).
+
+PyInstaller 6.10 or later:
 the GUI's restart after a language change (architecture §3.1 "Settings") starts the one-file
 executable again with `PYINSTALLER_RESET_ENVIRONMENT=1`, which earlier versions ignore (the
 new process would reuse the unpacked files the exiting one removes). M8 manual check on each
