@@ -14,13 +14,13 @@ from PySide6.QtWidgets import QApplication
 
 from transcribe_ui.api.backend import Backend
 from transcribe_ui.api.wiring import build_backend
-from transcribe_ui.constants import DISTRIBUTION_NAME
 from transcribe_ui.gui.closing import QuitNow
-from transcribe_ui.gui.constants import SHUTDOWN_WAIT_MS
+from transcribe_ui.gui.constants import QT_APPLICATION_ARGUMENTS, SHUTDOWN_WAIT_MS
 from transcribe_ui.gui.context import build_context
 from transcribe_ui.gui.language import StartLanguages, use_language
 from transcribe_ui.gui.messages import exceptions_to_log, qt_messages_to_log
 from transcribe_ui.gui.shell import MainWindow, build_shell
+from transcribe_ui.gui.smoke import SmokeTest, smoke_test_requested
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def application() -> QApplication:
     existing = QApplication.instance()
     if isinstance(existing, QApplication):
         return existing
-    return QApplication([DISTRIBUTION_NAME])
+    return QApplication(list(QT_APPLICATION_ARGUMENTS))
 
 
 def _run_window(
@@ -89,11 +89,20 @@ def run_gui(
     start-up hooks run once the window shows. On a normal close the local state of the backend
     is closed last. When the user chose to restart (a language change, Q32), the GUI is started
     again after that, so the new process can take the writer lock (`relaunch` replaces the start
-    in tests).
+    in tests). With `TRANSCRIBE_UI_SMOKE_TEST=1` and no `on_window` of its own, the smoke mode
+    watches the start-up and closes the window (`gui/smoke.py`); its verdict is the exit code.
     """
+    smoke: SmokeTest | None = None
     with qt_messages_to_log(), exceptions_to_log(), closing(make_backend()) as backend, ExitStack() as stack:
         languages = use_language(backend.language_setting(), application(), stack, os_language)
+        if on_window is None and smoke_test_requested():
+            smoke = SmokeTest(languages)
+            # Stops watching the log however the run ends; `exit_code` does it too.
+            stack.callback(smoke.detach)
+            on_window = smoke.attach
         code, after_close = _run_window(backend, quit_now, on_window, languages)
+    if smoke is not None:
+        code = smoke.exit_code(code)
     if after_close is not None:
         logger.info("Starting the GUI again to change the language")
         (after_close if relaunch is None else relaunch)()

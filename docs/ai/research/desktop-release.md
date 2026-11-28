@@ -19,16 +19,59 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
   entry has nothing about it, so 6.10 is taken as right.
 - [I] A `.png` icon is converted to `.ico`/`.icns` when Pillow is installed in the build
   environment.
-- [I] The Qt hooks collect Qt's own translations (`PySide6/Qt/translations/qtbase_*.qm`) with
-  QtCore; M8's bundle check confirms it per build.
-- [I] `pyi-archive_viewer` (PyInstaller 6: `--list`, `--recursive`, `--brief`) and
-  `PyInstaller.archive.readers.CArchiveReader` list the contents of a one-file executable.
+- [V] The Qt hooks collect Qt's own translations (`PySide6/Qt/translations/qtbase_*.qm`) with
+  QtCore (local Linux build, 6.22.3); `gui-bundle` checks it per build.
+- [V] `pyi-archive_viewer` (`python -m PyInstaller.utils.cliutils.archive_viewer`; 6.22.3:
+  `--list`, `--recursive`, `--brief`) lists a one-file executable: data and binaries as paths,
+  then the PYZ's modules by dotted name (source of 6.22.3).
+- [V] PyInstaller 6.22.3 has no command-line option to leave out a shared library its
+  dependency analysis finds (only a `.spec` can filter `a.binaries`); its Linux exclude list
+  (`PyInstaller/depend/dylib.py`) covers glibc, the GL/EGL/libdrm stack, `libxcb` and
+  `libwayland-*`, but not `libstdc++` or `libgcc_s`, and `dylib.include_library` reads the
+  module attribute `exclude_list` on every call (source of 6.22.3).
+- [V] On Linux PyInstaller runs `ldd` (dependencies), `objdump` (ELF check) and `objcopy`
+  (appends the archive to a one-file executable) (source of 6.22.3). A library it cannot
+  resolve on the build machine is only a warning and stays out of the bundle.
+- [V] `--add-data SRC:DEST` takes `:` on every OS in PyInstaller 6 (`os.pathsep` still
+  accepted) (source of 6.22.3, `building/makespec.py`).
+- [V] `types-pyinstaller` (typeshed) types PyInstaller's public API; `PyInstaller.depend.dylib`
+  is not in it.
+- [V] platformdirs 4.14 honours `WIN_PD_OVERRIDE_<CSIDL name>` (e.g.
+  `WIN_PD_OVERRIDE_LOCAL_APPDATA`) on Windows and the XDG variables on macOS (except the log
+  folder, under `~/Library/Logs`) (source of 4.14.8).
+- [V] Measured on a local Linux build (WSL Ubuntu, uv's CPython 3.13.13, PyInstaller 6.22.3,
+  PySide6 6.12.0, no ffmpeg yet): CLI 48.6 MB, GUI 102.1 MB, CLI cold start (`--version`)
+  1.4 s, the GUI's offscreen smoke run 3.4 s. python-build-standalone's Linux CPython ships
+  `libpython3.13.so.1.0`, which PyInstaller bundles; the manylinux image's `/opt/python`
+  builds have no shared library and fail ("Python was built without a shared library"), and a
+  runner's Homebrew or tool-cache Python is found first unless uv is limited to its own
+  (`UV_PYTHON_PREFERENCE=only-managed`; first CI run of PR #53). The PySide6 6.12 Linux hooks collect the platform plugins `qoffscreen`, `qxcb`,
+  `qwayland` (plus `eglfs`, `linuxfb`, `minimal`, `vnc`, `vkkhrdisplay`) and
+  `PySide6/Qt/translations/qtbase_hu.qm`. The Qt libraries link libglib, libfreetype,
+  libxkbcommon, libX11, the xcb utility libraries, libwayland and GL/EGL from the system.
 - [I] Modules imported dynamically (`importlib.import_module`) are invisible to the analysis and
   need `--hidden-import` or `--collect-submodules`; data read through `importlib.resources` must
   be collected as data (`.py` files included where a tool reads them as files, as Alembic does
   with its revisions).
 
 ## PySide6 wheels
+
+- [V] Qt's macOS wheels carry a higher Mach-O minimum macOS than their platform tag:
+  shiboken6 6.12.0 (tag `macosx_14_0`) has `LC_BUILD_VERSION minos 26.0` (sdk 26.0) in
+  `libshiboken6.abi3.6.12.dylib` and `Shiboken.abi3.so`, libpyside6 the same; the Qt frameworks
+  and plugins of pyside6-essentials 6.12 have `minos 14.4`; shiboken6 6.11.2 (tag
+  `macosx_13_0`) has `minos 15.0`. Checked with `llvm-objdump` on the PyPI wheels and by the
+  macOS legs of PR #53's run 46150560721. So the `minos` of a wheel's own
+  dylibs is not a floor signal; the build checks wheel binaries by their tag
+  (`scripts/build_desktop_macos.py`).
+- [V] dyld loads a dylib whose `minos` is newer than the running macOS: on the `macos-15` images
+  (arm64, image `macos-15-arm64` 20261123, and x64) the executables with shiboken6 and
+  PySide6_Essentials binaries of `minos 26.0` pass `gui-offscreen` and `gui-native` (the GUI
+  executable; the CLI bundles no Qt) (PR #53, run 46153311250; every leg built with uv's
+  CPython 3.13.18). Only a
+  main executable's `minos` is enforced at start [I].
+- [I] Whether those binaries' symbols newer than macOS 14.0 resolve on macOS 14 is unproven: no
+  hosted macOS 14 runner exists; the manual acceptance (A24) on a macOS 14 machine would show it.
 
 - [V] `pyside6-essentials` 6.12.0 (2026-10-08; the version in `uv.lock`) wheels:
   `cp310-abi3-manylinux_2_34_x86_64`, `manylinux_2_39_aarch64`, `macosx_14_0_universal2`,
@@ -44,6 +87,11 @@ Facts for M8 (`plans/m8.md`) that outlive the plan. Legend: [V] verified from th
 - [V] `ubuntu-26.04` is generally available; `ubuntu-latest` moves from 24.04 to 26.04 between
   2026-10-19 and 2026-11-19; pin `ubuntu-24.04` to stay
   (https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration).
+- [V] `macos-14` (and `-large`, `-xlarge`) was retired on 2026-11-02 (brownouts in October
+  2026); the recommended labels are `macos-15`, `macos-26` and their `-xlarge` arm64 variants
+  (https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement). No
+  hosted macOS 14 runner remains, and there was never an Intel `macos-14` label for free plans
+  [I]; a macOS 14 start can only be checked on a machine of one's own.
 - [V] `macos-latest` moves from macOS 15 to macOS 26 from 2026-06-15 (30 days); pin `macos-15`
   to stay. `windows-2025` (and `windows-latest`) use Visual Studio 2026 from 2026-06-15
   (https://github.blog/changelog/2026-05-14-github-actions-upcoming-image-migrations).

@@ -13,7 +13,8 @@ on:
       - pyproject.toml
       - .python-version
       - .dockerignore
-      - scripts/smoke_*.py
+      - scripts/smoke_worker_*.py
+      - scripts/smoke_fixtures.py
       - .github/workflows/release-worker.yml
   push:
     branches: [main]

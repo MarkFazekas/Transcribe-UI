@@ -36,10 +36,15 @@ def qt_translator(language: Language) -> QTranslator | None:
 
 @dataclass(frozen=True)
 class StartLanguages:
-    """The languages resolved at start-up: the one shown, and the one `system` means (the OS's, read once)."""
+    """The languages resolved at start-up: the one shown, the one `system` means (the OS's, read once).
+
+    `qt_translated` tells whether Qt's own translation of the shown language was installed (never
+    for English, which needs none).
+    """
 
     shown: Language
     system: Language
+    qt_translated: bool
 
 
 def _found(language: str | None) -> str | None:
@@ -63,4 +68,8 @@ def use_language(
     if translator is not None:
         app.installTranslator(translator)
         stack.callback(app.removeTranslator, translator)
-    return StartLanguages(shown=language, system=resolve_language("system", os_found))
+    return StartLanguages(
+        shown=language,
+        system=resolve_language("system", os_found),
+        qt_translated=translator is not None,
+    )

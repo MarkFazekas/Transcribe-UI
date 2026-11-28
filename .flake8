@@ -44,6 +44,8 @@ per-file-ignores =
     */gui/*/*table.py: WPS110
     # The smoke test's fake Runpod API overrides http.server handler names (`N802`, as in tests).
     scripts/smoke_fixtures.py: N802
+    # PyInstaller finds project hooks by their file names, `hook-<module>.py` (`WPS102`).
+    apps/desktop/packaging/hooks/*: WPS102
 max_complexity = 8
 max_line_length = 120
 statistics = True
