@@ -177,6 +177,13 @@ msgstr ""
 msgid "An audio file is uploaded as it is; it takes no track choice."
 msgstr ""
 
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"An interrupted cleanup left data of the job {batch_id} in the cloud; the "
+"rest will be deleted."
+msgstr ""
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "An uploaded audio file could not be verified in the cloud; upload again."
 msgstr ""

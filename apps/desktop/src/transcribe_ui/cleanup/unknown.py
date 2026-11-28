@@ -4,40 +4,60 @@ The request's batch id is a `BatchId` (the R2 layout's pattern, checked when the
 Before anything is deleted, `batch_metadata/<id>.json` must read as a manifest through
 `reading.read_manifest`: the prefix is then a published batch, not, say, another computer's upload
 in progress. Only `everything` is possible (one confirmation), refused while a live run lease
-lists the batch;
-the deletes run with the manifest last (`cleanup/stages.py`), so an interrupted cleanup is
-resumed by repeating it.
+lists the batch. The deletes run with the manifest first, so no launch can take the batch
+meanwhile, and `_done.json` last (`cleanup/stages.py`): `_done.json` without a manifest is the
+proof that an interrupted cleanup left the rest (only a worker writes it, for a published
+batch), so repeating the request resumes it from the listing, after its own confirmation
+(`cleanup_unknown_leftover`). A batch that was never transcribed has no `_done.json`: an
+interruption between its manifest delete and its last audio delete leaves that audio (no worker
+can take it without a manifest).
+
+When the cloud holds another computer's batch under the id of a batch this database knows (the
+known rule, architecture §3.9 "Known batches"), the cleanup of the known batch is diverted here
+(`diverted`): the confirmation of the known batch does not cover it, so its own confirmation
+is asked on the field `confirm_unknown`.
 """
 
 from typing import TYPE_CHECKING
 
 from transcribe_contracts.classes import Manifest
+from transcribe_contracts.layout import done_key
 from transcribe_ui.api.classes import Confirmation, NeedsConfirmation
 from transcribe_ui.api.ports import RequestContext
 from transcribe_ui.cleanup.classes import CleanupCloudRequest, CleanupCloudResponse
 from transcribe_ui.cleanup.constants import (
     CONFIRM_FIELD,
+    CONFIRM_UNKNOWN_FIELD,
     CONFIRMATION_UNKNOWN_BATCH,
     CONFIRMATION_UNKNOWN_ELSEWHERE,
+    CONFIRMATION_UNKNOWN_LEFTOVER,
     UPLOADED_ELSEWHERE,
 )
-from transcribe_ui.cleanup.manifests import read_unknown_manifest
+from transcribe_ui.cleanup.manifests import find_unknown_manifest
 from transcribe_ui.cleanup.stages import Purge, delete_unknown
 from transcribe_ui.runs.cloud import open_store
 from transcribe_ui.runs.leases import refuse_if_leased
 from transcribe_ui.state.errors import BatchNotFoundError
+from transcribe_ui.storage.r2 import ObjectStore
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
 
 
-def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> CleanupCloudResponse | NeedsConfirmation:
+def cleanup_unknown(
+    request: CleanupCloudRequest,
+    context: RequestContext,
+    *,
+    diverted: bool = False,
+) -> CleanupCloudResponse | NeedsConfirmation:
     """Delete every object of a batch this database does not know, once its manifest reads.
 
-    The caller holds the runs lock and the batch id's lock.
+    The caller holds the runs lock and the batch id's lock. `diverted`: the request named a batch
+    this database knows, and the cloud holds another one under its id.
 
     Raises:
-        BatchNotFoundError: The scope is `audio`, or R2 has no manifest under the id either.
+        BatchNotFoundError: The scope is `audio`, or R2 has neither a manifest nor the
+            `_done.json` of an interrupted cleanup under the id.
         ManifestUnreadableError: The manifest cannot be read (nothing was deleted).
         RunActiveError: A live run lease lists the batch (nothing was deleted).
         DomainError: R2 failed or the request was cancelled; repeating it resumes.
@@ -46,9 +66,12 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
     if request.scope != "everything":
         raise BatchNotFoundError(batch_id)
     store = open_store(context)
-    manifest = read_unknown_manifest(store, batch_id)
-    if not request.confirm:
-        return _confirmation(request, manifest, context.ports.installation.current())
+    asked = _asked(store, batch_id, context.ports.installation.current())
+    confirmed = request.confirm_unknown if diverted else request.confirm
+    if not confirmed:
+        field = CONFIRM_UNKNOWN_FIELD if diverted else CONFIRM_FIELD
+        confirmation = asked.model_copy(update={"field": field})
+        return NeedsConfirmation(action=request.action, confirmations=(confirmation,))
     refuse_if_leased(store, batch_id, context.ports.clock.now())
     purge = Purge(store, context, request.action)
     aborted = delete_unknown(purge, batch_id)
@@ -61,19 +84,41 @@ def cleanup_unknown(request: CleanupCloudRequest, context: RequestContext) -> Cl
     )
 
 
-def _confirmation(request: CleanupCloudRequest, manifest: Manifest, installation_id: str) -> NeedsConfirmation:
-    """Ask once; the stronger form unless the manifest names this installation as its uploader (Q35)."""
+def _asked(store: ObjectStore, batch_id: str, installation_id: str) -> Confirmation:
+    """Return the confirmation the deletion needs (its field is set by the caller).
+
+    Raises:
+        BatchNotFoundError: Neither a manifest nor an interrupted cleanup's `_done.json`.
+        ManifestUnreadableError: The manifest cannot be read.
+    """
+    manifest = find_unknown_manifest(store, batch_id)
+    if manifest is not None:
+        return _confirmation(manifest, installation_id)
+    if store.head(done_key(batch_id)) is None:
+        raise BatchNotFoundError(batch_id)
+    message = "An interrupted cleanup left data of this batch in the cloud; the rest will be deleted."
+    details: dict[str, JsonValue] = {"batch_id": batch_id, "known": False}
+    return Confirmation(
+        code=CONFIRMATION_UNKNOWN_LEFTOVER,
+        field=CONFIRM_FIELD,
+        set_to=True,
+        message=message,
+        details=details,
+    )
+
+
+def _confirmation(manifest: Manifest, installation_id: str) -> Confirmation:
+    """Return the question; the stronger form unless the manifest names this installation as its uploader (Q35)."""
     message = "This batch is not known on this computer; all its data will be deleted from the cloud."
     code = CONFIRMATION_UNKNOWN_BATCH
     if manifest.uploaded_by != installation_id:
         code = CONFIRMATION_UNKNOWN_ELSEWHERE
         message = f"{message} {UPLOADED_ELSEWHERE}"
     details: dict[str, JsonValue] = {"batch_id": manifest.batch_id, "files": len(manifest.items), "known": False}
-    confirmation = Confirmation(
+    return Confirmation(
         code=code,
         field=CONFIRM_FIELD,
         set_to=True,
         message=message,
         details=details,
     )
-    return NeedsConfirmation(action=request.action, confirmations=(confirmation,))

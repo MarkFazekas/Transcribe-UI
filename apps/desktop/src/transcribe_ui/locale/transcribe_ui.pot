@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 12:30+0100\n"
+"POT-Creation-Date: 2026-11-28 13:10+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -173,6 +173,13 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "An audio file is uploaded as it is; it takes no track choice."
+msgstr ""
+
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"An interrupted cleanup left data of the job {batch_id} in the cloud; the "
+"rest will be deleted."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py

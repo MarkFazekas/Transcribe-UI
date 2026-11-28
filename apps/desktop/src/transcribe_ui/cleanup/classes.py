@@ -37,7 +37,9 @@ class CleanupCloudRequest(FrozenModel):
 
     `everything` on a batch whose results may not be downloaded yet also needs
     `confirm_not_downloaded`. A batch this database does not know (another computer's, Q28)
-    can be cleaned up with `everything` once its manifest reads.
+    can be cleaned up with `everything` once its manifest reads. When the cloud holds another
+    computer's batch under the id of one this database knows, deleting it also needs
+    `confirm_unknown`: the confirmation of the known batch does not cover it.
     """
 
     action: Literal["cleanup_cloud"]
@@ -45,6 +47,7 @@ class CleanupCloudRequest(FrozenModel):
     scope: CleanupScope
     confirm: bool = False
     confirm_not_downloaded: bool = False
+    confirm_unknown: bool = False
 
 
 # Responses

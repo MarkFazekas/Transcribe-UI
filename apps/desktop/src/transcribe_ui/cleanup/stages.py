@@ -8,11 +8,11 @@ is checked before every delete.
   (so no worker can pick the batch up again), `_done.json`, the results, and everything else
   under the batch's prefix (its audio).
 - `audio`: the open multipart uploads and the objects of the batch's audio folder.
-- `everything` of a batch this database does not know (Q28): nothing local remembers the
-  cleanup, so the manifest, the only proof that the prefix is a published batch, goes last:
-  audio and results first, then `_done.json` (a worker skips the batch while it is there), then
-  the manifest. A crash between the last two leaves a manifest whose audio is gone, which a
-  worker would fail quickly; repeating the cleanup removes it.
+- `everything` of a batch this database does not know (Q28): open multipart uploads aborted,
+  then the manifest (so no launch can take the batch meanwhile), the results and everything
+  else under the prefix, and `_done.json` last: nothing local remembers the cleanup, so
+  `_done.json` without a manifest is what lets a repeated request resume it
+  (`cleanup/unknown.py`).
 """
 
 from collections.abc import Collection
@@ -84,11 +84,15 @@ def delete_audio(purge: Purge, batch_id: str) -> int:
 
 
 def delete_unknown(purge: Purge, batch_id: str) -> int:
-    """Delete every object of a batch this database does not know, the manifest last; return the uploads aborted."""
+    """Delete every object of a batch this database does not know: the manifest first, `_done.json` last.
+
+    Return the multipart uploads aborted.
+    """
     prefix = batch_prefix(batch_id)
     done = done_key(batch_id)
     aborted = purge.store.abort_uploads(prefix)
+    purge.key(manifest_key(batch_id))
+    purge.listed(results_prefix(batch_id), keep=(done,))
     purge.listed(prefix, keep=(done,))
     purge.key(done)
-    purge.key(manifest_key(batch_id))
     return aborted

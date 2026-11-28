@@ -1366,11 +1366,18 @@ follows one job through the areas, as the GUI end-to-end flow (§7) does.
     `BatchId` (else `invalid_request`); `batch_metadata/<id>.json` must exist
     (`batch_not_found`) and read through `reading.read_manifest` (`manifest_unreadable`) before
     anything is deleted; one confirmation (details: the file count, `known: false`); refused
-    while a live lease lists it. Nothing local remembers this cleanup, so the manifest, the only
-    proof that the prefix is a published batch, goes last: everything under `<id>/` but
-    `_done.json`, then `_done.json` (a worker skips the batch while it exists), then the
-    manifest. A crash between the last two leaves a manifest whose audio is gone, which a
-    worker would fail quickly; repeating the cleanup removes it.
+    while a live lease lists it. The manifest goes first (no launch can take the batch
+    meanwhile), then everything under `<id>/` but `_done.json`, then `_done.json`. Nothing local
+    remembers this cleanup, so `_done.json` without a manifest (only a worker writes it, for a
+    published batch) is the proof that an interrupted cleanup left the rest: repeating the
+    request asks `cleanup_unknown_leftover` (details: `batch_id`, `known: false`) and deletes
+    what the listing still shows. Without either (perhaps another computer's upload in
+    progress) it is `batch_not_found`, so an untranscribed batch interrupted between its
+    manifest delete and its last audio delete leaves that audio (no worker can take it).
+  - **Another batch under a known id** (the known rule, §3.9 "Known batches"): the cleanup of
+    the known batch, after its own confirmations, is diverted to the unknown path, which asks
+    its own question on the request field `confirm_unknown` (`cleanup_unknown_batch` or its
+    stronger form); the known batch's confirmations never cover it.
   - **Response**: the batch id, the scope, the batch summary (None for an unknown batch), the
     objects deleted and the multipart uploads aborted by this request.
 

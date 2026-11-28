@@ -19,10 +19,23 @@ def read_unknown_manifest(store: ObjectStore, batch_id: str) -> Manifest:
         ManifestUnreadableError: It does not read (another schema major, invalid, another batch id).
         StorageError: R2 could not be read.
     """
+    manifest = find_unknown_manifest(store, batch_id)
+    if manifest is None:
+        raise BatchNotFoundError(batch_id)
+    return manifest
+
+
+def find_unknown_manifest(store: ObjectStore, batch_id: str) -> Manifest | None:
+    """Return the batch's manifest, read through `reading.read_manifest` (None: R2 holds none under the id).
+
+    Raises:
+        ManifestUnreadableError: It does not read (another schema major, invalid, another batch id).
+        StorageError: R2 could not be read.
+    """
     key = manifest_key(batch_id)
     body = store.read(key)
     if body is None:
-        raise BatchNotFoundError(batch_id)
+        return None
     try:
         return read_manifest(key, body)
     except ContractError:

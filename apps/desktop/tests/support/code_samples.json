@@ -232,6 +232,10 @@
       "files": 4,
       "known": false
     },
+    "cleanup_unknown_leftover": {
+      "batch_id": "batch_20261127_120000",
+      "known": false
+    },
     "cleanup_everything_uploaded_elsewhere": {
       "batch_id": "batch_20261127_120000",
       "scope": "everything",

@@ -106,5 +106,5 @@ def cleanup_cloud(request: CleanupCloudRequest, context: RequestContext) -> Clea
             if needed:
                 return NeedsConfirmation(action=request.action, confirmations=needed)
             if not known_in_cloud(state, open_store(context), request.batch_id):
-                return cleanup_unknown(request, context)
+                return cleanup_unknown(request, context, diverted=True)
             return cleanup_known(request, context, target, runs_held.close)

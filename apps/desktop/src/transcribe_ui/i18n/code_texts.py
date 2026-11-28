@@ -130,6 +130,9 @@ def confirmation_texts() -> CodeTable:
         ),
         "cleanup_unknown_batch": _unknown_batch,
         "cleanup_unknown_batch_uploaded_elsewhere": _unknown_batch_elsewhere,
+        "cleanup_unknown_leftover": tr(
+            "An interrupted cleanup left data of the job {batch_id} in the cloud; the rest will be deleted.",
+        ),
         "cleanup_everything_uploaded_elsewhere": tr(
             "All of the job's data will be deleted from the cloud: audio, subtitles and its description. "
             "Another computer uploaded this job; it may still need to download the subtitles.",

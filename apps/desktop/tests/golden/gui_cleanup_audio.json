@@ -4,13 +4,15 @@
     "batch_id": "batch_20261127_130000",
     "scope": "audio",
     "confirm": false,
-    "confirm_not_downloaded": false
+    "confirm_not_downloaded": false,
+    "confirm_unknown": false
   },
   {
     "action": "cleanup_cloud",
     "batch_id": "batch_20261127_130000",
     "scope": "audio",
     "confirm": true,
-    "confirm_not_downloaded": false
+    "confirm_not_downloaded": false,
+    "confirm_unknown": false
   }
 ]

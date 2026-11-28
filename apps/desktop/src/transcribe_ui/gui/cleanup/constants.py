@@ -12,6 +12,7 @@ from transcribe_ui.cleanup.constants import (
     CONFIRMATION_NOT_DOWNLOADED,
     CONFIRMATION_UNKNOWN_BATCH,
     CONFIRMATION_UNKNOWN_ELSEWHERE,
+    CONFIRMATION_UNKNOWN_LEFTOVER,
 )
 
 # What a cleanup deletes: a job's audio, all of a job's cloud data, or another computer's job.
@@ -37,6 +38,7 @@ CONFIRMATION_KINDS: Final[Mapping[str, CleanupKind]] = MappingProxyType(
     {
         CONFIRMATION_UNKNOWN_BATCH: UNKNOWN_KIND,
         CONFIRMATION_UNKNOWN_ELSEWHERE: UNKNOWN_KIND,
+        CONFIRMATION_UNKNOWN_LEFTOVER: UNKNOWN_KIND,
         CONFIRMATION_CLEANUP_EVERYTHING: EVERYTHING_KIND,
         CONFIRMATION_CLEANUP_ELSEWHERE: EVERYTHING_KIND,
         CONFIRMATION_CLEANUP_AUDIO: "audio",

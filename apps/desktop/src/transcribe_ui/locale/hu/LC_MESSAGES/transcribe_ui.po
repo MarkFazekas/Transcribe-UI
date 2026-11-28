@@ -212,6 +212,15 @@ msgstr ""
 "A hangfájl változatlanul töltődik fel; hangsávot nem kell hozzá "
 "választani."
 
+#: src/transcribe_ui/i18n/code_texts.py
+#, python-brace-format
+msgid ""
+"An interrupted cleanup left data of the job {batch_id} in the cloud; the "
+"rest will be deleted."
+msgstr ""
+"Egy félbeszakadt takarítás után a(z) {batch_id} feladat adatainak egy "
+"része a felhőben maradt; a maradék törlődik."
+
 #: src/transcribe_ui/i18n/error_texts.py
 msgid "An uploaded audio file could not be verified in the cloud; upload again."
 msgstr "Egy feltöltött hangfájl nem ellenőrizhető a felhőben; töltse fel újra."
