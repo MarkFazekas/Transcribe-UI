@@ -166,3 +166,16 @@ def test_closing_the_start_dialog_drops_the_question(qtbot: QtBot, world: CloudW
         not_asked_text(FOREIGN_BATCH_ID),
     )
     assert keys_under(world.store, FOREIGN_BATCH_ID)
+
+
+def test_opening_the_start_dialog_drops_the_question(qtbot: QtBot, world: CloudWorld, window: MainWindow) -> None:
+    """The start dialog opened while a job page's cleanup check is in flight: no question, a note instead."""
+    signals = window.context.signals
+    signals.open_job.emit(FIRST_BATCH_ID)
+    kept = keys_under(world.store)
+    signals.clean_up.emit(FIRST_BATCH_ID, "everything")
+    _cloud(window).open_start()
+    wait_for(qtbot, lambda: not window.busy())
+    assert isinstance(QApplication.activeModalWidget(), StartDialog)
+    assert window.statusBar().currentMessage() == not_asked_text(FIRST_BATCH_ID)
+    assert keys_under(world.store) == kept

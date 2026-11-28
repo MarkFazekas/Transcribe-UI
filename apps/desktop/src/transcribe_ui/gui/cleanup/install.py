@@ -52,7 +52,8 @@ class CleanupHub(QObject):
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         """Count the start dialog's opening as a move (it has no signal for it)."""
-        if event.type() == QEvent.Type.Show:
+        # Only the program's own showing: restoring a minimized window is no move.
+        if event.type() == QEvent.Type.Show and not event.spontaneous():
             self.navigated()
         return False
 

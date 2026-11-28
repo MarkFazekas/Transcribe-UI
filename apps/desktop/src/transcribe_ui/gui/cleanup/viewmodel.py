@@ -104,7 +104,8 @@ class CleanupModel:
             self._steps.outlet.notify(not_asked_text(sent.target.batch_id))
             return
         confirmed = partial(self._confirmed, sent, response)
-        self._steps.outlet.ask(cleanup_question(sent.target, response), confirmed)
+        question = cleanup_question(sent.target, response, sent.kind)
+        self._steps.outlet.ask(question, confirmed)
 
     def _confirmed(self, sent: _Sent, asked: NeedsConfirmation) -> None:
         try:
@@ -115,7 +116,7 @@ class CleanupModel:
             return
         if isinstance(request, CleanupCloudRequest):
             # Confirmed just now: the user is here.
-            kind = asked_kind(sent.target, asked)
+            kind = asked_kind(sent.target, asked, sent.kind)
             self._send(_Sent(sent.target, request, self._steps.generation, kind))
 
     def _not_asked(self, sent: _Sent, response: Response) -> None:
@@ -135,9 +136,9 @@ class CleanupModel:
             self._steps.outlet.notify(not_asked_text(batch_id))
 
     def _changed(self, sent: _Sent) -> None:
-        # Another computer's job as the question's codes named it (else as the signal did).
-        kind = sent.kind or target_kind(sent.target)
-        if kind == "unknown":
+        # The question's codes and the signal may disagree (a job deleted here meanwhile): tell both sides.
+        kinds = {sent.kind, target_kind(sent.target)} - {None}
+        if "unknown" in kinds:
             self._steps.outlet.emit(PLAN_INVALIDATED_SIGNAL)
-        else:
+        if kinds - {"unknown"}:
             self._steps.outlet.emit(BATCHES_CHANGED_SIGNAL, (sent.target.batch_id,))

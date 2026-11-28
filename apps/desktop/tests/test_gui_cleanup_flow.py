@@ -93,7 +93,7 @@ def test_late_answers_ask_nothing(world: CloudWorld) -> None:
 
 
 def test_the_question_is_checked_first(world: CloudWorld) -> None:
-    """The unconfirmed request is titled as a check, the confirmed one by what the backend's question deletes."""
+    """The unconfirmed request is titled as a check, the confirmed one by what the question's codes delete."""
     area, manual = _manual(world)
     area.handlers.cleanup.clean_up(FOREIGN_BATCH_ID, EVERYTHING)
     assert only(area.activity.entries).title == f"Checking the cleanup of job {FOREIGN_BATCH_ID}"
@@ -103,7 +103,9 @@ def test_the_question_is_checked_first(world: CloudWorld) -> None:
     deleting = f"Deleting another computer's job {FOREIGN_BATCH_ID} from the cloud"
     assert only(area.activity.entries).title == deleting
     manual.answer(CLEANUP)
-    assert (area.outlet.signals("plan_invalidated"), area.outlet.signals(CHANGED_SIGNAL)) == ([()], [])
+    # The codes say another computer's job, the signal a job of this computer: both sides reload.
+    changed = [((FOREIGN_BATCH_ID,),)]
+    assert (area.outlet.signals("plan_invalidated"), area.outlet.signals(CHANGED_SIGNAL)) == ([()], changed)
 
 
 def test_one_cloud_step_per_job(world: CloudWorld) -> None:

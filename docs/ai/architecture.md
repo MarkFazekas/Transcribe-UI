@@ -609,7 +609,9 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     cloud) and Cancel as the default button with the focus, so Enter never deletes. What is
     deleted (heading, button, the panel title once confirmed, and `plan_invalidated` instead of
     `batches_changed`) comes from the confirmation codes (`cleanup_unknown_batch`,
-    `cleanup_everything`, `cleanup_audio`), the signal only without one. The question opens over
+    `cleanup_everything`, `cleanup_audio`); a later round without such a code keeps the earlier
+    round's, and the signal decides only without any. When the codes and the signal disagree,
+    the deletes emit both `plan_invalidated` and `batches_changed`. The question opens over
     the modal dialog in use (the start dialog), else over the window, and is deleted once
     closed. The checking entry leaves the panel (nothing was deleted). Confirm re-sends the
     request with each `set_to`; the deletes ("Deleting …") run in the panel with progress,
@@ -623,7 +625,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   - Late answers: the handlers count the user's moves: the navigation signals
     (`NAVIGATION_SIGNALS` in `gui/signals.py`, next to `ACTION_SIGNALS`; a new one goes there),
     the navigation list's row, the Jobs page's stack ("All jobs" switches it without a signal)
-    and the start dialog opened or closed. A question or a refusal that answers after a move
+    and the start dialog opened (by the program; a restored minimized window is not a move) or
+    closed. A question or a refusal that answers after a move
     opens nothing (a note: nothing was deleted); a retry that answers after one does not open
     its job (a note says it is on the Jobs page). A re-send from the error dialog keeps the
     count of the original request.

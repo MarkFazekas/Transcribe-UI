@@ -62,13 +62,17 @@ def target_kind(target: CleanupTarget) -> CleanupKind:
     return target.scope if target.known else "unknown"
 
 
-def asked_kind(target: CleanupTarget, response: NeedsConfirmation) -> CleanupKind:
-    """Return what the backend's confirmations say is deleted (what the signal asked for, without such a code)."""
+def asked_kind(target: CleanupTarget, response: NeedsConfirmation, previous: CleanupKind | None = None) -> CleanupKind:
+    """Return what the backend's confirmations say is deleted.
+
+    Without such a code (a later round asking only what is left), what an earlier round's codes
+    said (`previous`), else what the signal asked for.
+    """
     codes = {confirmation.code for confirmation in response.confirmations}
     for code, kind in CONFIRMATION_KINDS.items():
         if code in codes:
             return kind
-    return target_kind(target)
+    return previous or target_kind(target)
 
 
 def cleanup_title(batch_id: str, kind: CleanupKind | None) -> str:
@@ -102,11 +106,15 @@ def _accept_label(kind: CleanupKind) -> str:
     return tr("Delete from the cloud")
 
 
-def cleanup_question(target: CleanupTarget, response: NeedsConfirmation) -> CleanupQuestion:
+def cleanup_question(
+    target: CleanupTarget,
+    response: NeedsConfirmation,
+    previous: CleanupKind | None = None,
+) -> CleanupQuestion:
     """Return the confirmation dialog of a cleanup: its heading, the backend's confirmations, then that it is final.
 
-    The heading and the accept button follow the backend's confirmation codes (what the signal
-    asked for only without such a code).
+    The heading and the accept button follow the backend's confirmation codes (without such a
+    code, an earlier round's `previous` kind, else what the signal asked for).
     """
     shown = confirmation_view(response).confirmations
     lines = [
@@ -114,7 +122,7 @@ def cleanup_question(target: CleanupTarget, response: NeedsConfirmation) -> Clea
         for confirmation, asked in zip(shown, response.confirmations, strict=True)
     ]
     lines.append(QuestionLine(tr("This cannot be undone."), warning=False))
-    kind = asked_kind(target, response)
+    kind = asked_kind(target, response, previous)
     return CleanupQuestion(
         title=tr("Delete from the cloud"),
         heading=_heading(target.batch_id, kind),
