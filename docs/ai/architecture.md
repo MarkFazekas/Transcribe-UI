@@ -586,6 +586,41 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
     again after more edits, then Download. A load error shows above the plan with a Retry
     that loads again; an export error shows with the custom plan, with a Retry that exports
     to the same file, and is forgotten when a new export starts or the strategy changes.
+- **Retry and cleanup** (`gui/cleanup/`; Qt-free `constants.py`, `display.py`, `panel.py`,
+  `retry.py`, `viewmodel.py`, `area.py`; Qt `view.py`, `install.py`; no page of its own): the
+  handlers of `retry_jobs`, `clean_up` and `delete_unknown_batch`. `install.py` connects them as
+  partials (PySide keeps the object of a bound method only weakly, and no page holds them).
+  - Each request runs in the activity panel under one key per job (`("cleanup", batch_id)`), so
+    a retry and a cleanup of one job never run at once; a second one is refused with a status
+    bar note.
+  - Retry: `create_retry_batch` with the ticked jobs; the panel shows the copy (`upload_item`
+    progress), Cancel and Resume (re-sending resumes the same retry job). Its answer emits
+    `batches_changed` with the source and the retry job and opens the retry job. An error stays
+    in the panel with the catalog text (`audio_deleted`: the audio was deleted since the page
+    showed Retry) and reloads every job (`batches_changed(())`).
+  - Cleanup (audio only, everything, the repeat of a `cleanup_pending` one, another computer's
+    job): `cleanup_cloud` is sent first without a confirmation; its `needs_confirmation` opens
+    the cleanup question (`CleanupDialog`): a heading naming the job and what is deleted, each
+    confirmation's catalog text (`cleanup_not_downloaded` in bold), "This cannot be undone.",
+    an accept button that names the deletion (Delete audio, Delete everything, Delete from the
+    cloud) and Cancel as the default button with the focus, so Enter never deletes. It opens
+    over the modal dialog in use (the start dialog), else over the window, and is deleted once
+    closed. The question's entry leaves the panel (nothing was deleted). Confirm re-sends the
+    request with each `set_to`; the deletes run in the panel with progress, Cancel and Resume.
+    Every answer of the confirmed request (a stopped or failed one may have deleted some, or
+    left `cleanup_pending`) emits `batches_changed` with the job, or for another computer's job
+    `plan_invalidated`, so the start dialog plans again. A refusal of the unconfirmed request
+    opens the error dialog over the dialog in use, like the question (its `app_busy` Retry
+    re-sends it); `retry_copying` gets "Open the retry job" (its `retry_batch_id`). A refusal
+    of the confirmed one stays in the panel, the same fix under Details.
+  - Late answers: the handlers count the user's moves (the navigation signals, `edit_selection`,
+    `open_review`, `open_download` and the navigation list's row). A question or a refusal that
+    answers after a move opens nothing (a note: nothing was deleted); a retry that answers after
+    one does not open its job (a note says it is on the Jobs page). A re-send from the error
+    dialog keeps the count of the original request.
+  - Decisions: the cleanup has its own question instead of the generic confirmation dialog (that
+    one makes Confirm the default button and lists the raw details); the unconfirmed request
+    runs in the panel too, so it shows (and can be cancelled) while the long pool is full.
 - **Writer lock**: the `database` start-up step sends `list_batches` (read-only) to take the
   lock. While another process holds it (`app_busy` from any response), a page that needs the
   database is replaced by a notice with Retry; Settings stays usable. A Retry that gets the

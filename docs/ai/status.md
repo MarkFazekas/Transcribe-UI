@@ -27,6 +27,9 @@ the status change on the current branch. On a merge conflict in this file, re-de
 ## In progress
 
 - M6.9 (download dialog and custom plans) on `feat/m6.9-download`: built, in review.
+- M6.10 (retry and cloud cleanup handlers in `gui/cleanup/`: Retry in the activity panel,
+  the cleanup question with both confirmations, the repeat of `cleanup_pending`, another
+  computer's job deleted from the start dialog) on `feat/m6.10-cleanup`: built, in review.
 
 ## Waiting on humans
 
