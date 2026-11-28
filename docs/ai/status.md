@@ -28,16 +28,16 @@ the status change on the current branch. On a merge conflict in this file, re-de
 
 - M6.13 (several installations on one bucket, with its GUI) on its own branch: in progress;
   M6's only open part.
-- M8.2 (bundled static LGPL ffmpeg: `scripts/build_ffmpeg*.py`, the `ffmpeg` job and its
-  cache, `cli-probe`, the media tests on the built ffmpeg) on `feat/m8.2-ffmpeg`: built; the
-  Linux and the cross-built Windows ffmpeg were built and checked locally, the PR's
-  `release-desktop.yml` run proves the four legs (the macOS builds first run there; their
-  ffmpeg and ffprobe must pass the macOS floor's `minos` rule) and a second run must hit the
-  cache.
+- M8.4 (the macOS GUI as `Transcribe-UI.app` in a `.dmg`, A23 answered "default") in PR #57
+  on `feat/m8.4-macos-app`, with `main` (M8.2, #56) merged in: the PR's `release-desktop.yml`
+  runs proved the app, its `Info.plist`, the floor check inside it, `hdiutil`, strict signing
+  and `gui-signature` on both macOS legs; with M8.2 merged, the next run also proves ffmpeg and
+  ffprobe inside the app.
 
 ## Waiting on humans
 
-- Questions: A23, A24 (architect) and Q36 (product), all for M8; none blocks M6. M5 is built
+- Questions: Q36 (product, the app icon) for M8.3; it does not block M6. The architect runs the
+  M8 manual acceptance on Windows after the first release (A24); M8 is marked built after it. M5 is built
   and M6 is planned.
 
 ## Next
@@ -54,7 +54,8 @@ the status change on the current branch. On a merge conflict in this file, re-de
    Runpod trial run is deferred until everything else works (architect); nothing waits on it,
    and it still needs the architect present and their go.
 3. M8 (desktop release) is planned in `docs/ai/plans/m8.md` (merged, #51); M8.1 is merged
-   (#53, c43bf73), M8.2 is on `feat/m8.2-ffmpeg`, and M8 does not wait for M7. M8.3 and M8.5
+   (#53, c43bf73), M8.2 is merged (#56, c63861e), M8.4 is in PR #57, and M8 does not wait
+   for M7. M8.3 and M8.5
    take the FFmpeg and zlib sources, licences and configure lines from
    `scripts/build_ffmpeg_pins.py` (`build_info`) or `ffmpeg-build.json` of the build. M8.6
    (README for users, screenshots script, `docs/cli.md`) follows M8.5 (which marks M8 built),

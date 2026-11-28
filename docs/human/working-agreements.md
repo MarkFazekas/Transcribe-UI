@@ -70,6 +70,8 @@ translated to English.
 - CI is scoped sensibly: release builds only when relevant code (UI app, deployed app) changed;
   no release on PRs. The only uploaded artifacts are the runnable single-file executables,
   two per platform (GUI and CLI; architect decision A20), with no extra zip or other files.
+  Exception: the two macOS GUI files are disk images (`.dmg`, one per architecture, each
+  holding `Transcribe-UI.app`) instead of executables (architect, A23: "default", 2026-11-28).
 - Local lint, typecheck and tests run in parallel (UI app and deployed app at the same time),
   but no parallelism without real gain (e.g. no pytest-xdist).
 - Finished fixes are not thrown away even if the experiment they belonged to is dropped.

@@ -1,6 +1,7 @@
 """The pure parts of `scripts/build_desktop.py` (docs/ai/plans/m8.md, M8.1 tests)."""
 
 from datetime import datetime, timedelta, timezone
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -58,13 +59,18 @@ def test_unknown_platform_is_refused() -> None:
 
 
 def test_asset_names() -> None:
-    """The published names, with `.exe` only on Windows."""
-    names = [asset_name(variant, tag) for tag in ("windows-x64", "linux-x64") for variant in ("cli", "gui")]
+    """The published names: `.exe` on Windows, the macOS GUI's disk image `.dmg` (A23), nothing else elsewhere."""
+    tags = ("windows-x64", "linux-x64", "macos-arm64", "macos-x64")
+    names = [asset_name(variant, tag) for tag in tags for variant in ("cli", "gui")]
     assert names == [
         "transcribe-ui-windows-x64-cli.exe",
         "transcribe-ui-windows-x64-gui.exe",
         "transcribe-ui-linux-x64-cli",
         "transcribe-ui-linux-x64-gui",
+        "transcribe-ui-macos-arm64-cli",
+        "transcribe-ui-macos-arm64-gui.dmg",
+        "transcribe-ui-macos-x64-cli",
+        "transcribe-ui-macos-x64-gui.dmg",
     ]
 
 
@@ -110,9 +116,9 @@ def test_cli_arguments_leave_qt_out() -> None:
 
 
 def test_gui_arguments_per_platform() -> None:
-    """The GUI is windowed with a version resource on Windows and a console-mode binary elsewhere."""
+    """The GUI is windowed with a version resource on Windows and a console-mode binary on Linux."""
     windows = pyinstaller_arguments("gui", "windows-x64", _paths())
-    macos = pyinstaller_arguments("gui", "macos-arm64", _paths())
+    linux = pyinstaller_arguments("gui", "linux-x64", _paths())
     assert windows[-5:] == [
         "PySide6.QtTest",
         "--windowed",
@@ -120,9 +126,47 @@ def test_gui_arguments_per_platform() -> None:
         "/out/work/cli/version-resource.txt",
         str(PACKAGING_DIR / "entry_gui.py"),
     ]
-    assert macos[-4:] == ["--exclude-module", "PySide6.QtTest", "--console", str(PACKAGING_DIR / "entry_gui.py")]
-    assert "--version-file" not in macos
+    assert linux[-4:] == ["--exclude-module", "PySide6.QtTest", "--console", str(PACKAGING_DIR / "entry_gui.py")]
+    assert "--version-file" not in linux
+    assert all("--onefile" in arguments for arguments in (windows, linux))
     assert "/out/ffmpeg/ffprobe.exe:." in windows
+
+
+def test_macos_gui_is_a_onedir_app() -> None:
+    """On macOS the GUI is a windowed onedir build named `Transcribe-UI` (the `.app`), written to the work folder.
+
+    The disk image made from it goes to `dist`; PyInstaller's default icon stays until the project has one.
+    """
+    arguments = pyinstaller_arguments("gui", "macos-arm64", _paths())
+    assert arguments[:8] == [
+        "--noconfirm",
+        "--clean",
+        "--onedir",
+        "--noupx",
+        "--name",
+        "Transcribe-UI",
+        "--distpath",
+        "/out/work/cli/app",
+    ]
+    assert arguments[-2:] == ["--windowed", str(PACKAGING_DIR / "entry_gui.py")]
+    assert not {"--icon", "--version-file"} & set(arguments)
+    # ffmpeg and ffprobe go to the bundle's root, which in the app is `Contents/Frameworks`.
+    pairs = list(pairwise(arguments))
+    assert {("--add-binary", "/out/ffmpeg/ffmpeg:."), ("--add-binary", "/out/ffmpeg/ffprobe:.")} <= set(pairs)
+
+
+def test_macos_cli_stays_one_file() -> None:
+    """The macOS CLI is still a one-file console binary in `dist`, named like the other platforms' files."""
+    arguments = pyinstaller_arguments("cli", "macos-x64", _paths())
+    assert arguments[2:8] == [
+        "--onefile",
+        "--noupx",
+        "--name",
+        "transcribe-ui-macos-x64-cli",
+        "--distpath",
+        "/out/dist",
+    ]
+    assert "--console" in arguments
 
 
 def test_numeric_version_pads_the_release_segment() -> None:
@@ -142,3 +186,17 @@ def test_windows_version_resource_describes_the_file() -> None:
     assert "StringStruct('FileDescription', 'Transcribe-UI command line')" in resource
     assert "StringStruct('ProductVersion', '0.1.0+20261128.abc1234')" in resource
     assert "StringStruct('OriginalFilename', 'transcribe-ui-windows-x64-cli.exe')" in resource
+
+
+def test_the_build_output_must_have_its_kind(tmp_path: Path) -> None:
+    """A one-file build must leave a file, the macOS app a folder; anything else fails the build."""
+    paths = BuildPaths(tmp_path / "dist", tmp_path / "work", tmp_path / "ffmpeg")
+    (tmp_path / "dist" / "transcribe-ui-linux-x64-gui").mkdir(parents=True)
+    with pytest.raises(RuntimeError, match="did not write the executable file"):
+        paths.written("transcribe-ui-linux-x64-gui", app=False)
+    (paths.app_dist).mkdir(parents=True)
+    (paths.app_dist / "Transcribe-UI.app").write_bytes(b"not a folder")
+    with pytest.raises(RuntimeError, match="did not write the app folder"):
+        paths.written("ignored", app=True)
+    (tmp_path / "dist" / "transcribe-ui-linux-x64-cli").write_bytes(b"executable")
+    assert paths.written("transcribe-ui-linux-x64-cli", app=False) == tmp_path / "dist" / "transcribe-ui-linux-x64-cli"

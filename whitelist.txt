@@ -37,6 +37,7 @@ cloudflarestorage
 codec
 codecs
 codeload
+codesign
 coeng
 copyfile
 copytree
@@ -132,12 +133,15 @@ gpl
 gpus
 groupby
 hashable
+hdiutil
 hhmmss
 hiddenimports
+hoc
 homebrew
 httpx
 hu
 i18n
+icns
 iconv
 ident
 ign
@@ -163,6 +167,7 @@ jobobject
 joinpath
 jupyter
 kernel32
+keychain
 keyring
 kibibytes
 killpg
@@ -178,6 +183,7 @@ libwayland
 libwinpthread
 libz
 lineno
+linesep
 linkname
 linuxfb
 liveness
@@ -187,10 +193,12 @@ lookups
 lpcwstr
 lseek
 lstat
+lzfse
 m2ts
 m5
 m6
 m7
+m8
 macos
 mak
 mako
@@ -232,6 +240,7 @@ nullable
 objdump
 offscreen
 ondelete
+onedir
 onnx
 openai
 ord
@@ -242,12 +251,15 @@ paginator
 param
 params
 parsedate
+parsers
 pathext
 pathsep
 pcm
 perf
 pgs
 platformdirs
+plist
+plistlib
 pofile
 popen
 popitem
@@ -282,6 +294,7 @@ randbits
 rdonly
 rdwr
 readline
+readlink
 readouterr
 recv
 removeprefix

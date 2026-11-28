@@ -1,0 +1,315 @@
+"""The macOS GUI as an `.app` in a disk image (A23, plans/m8.md M8.4): `Info.plist`, staging, `hdiutil`."""
+
+import ast
+import plistlib
+import subprocess
+from collections.abc import Mapping
+from pathlib import Path
+from xml.parsers.expat import ExpatError
+
+import pytest
+from build_desktop import PYINSTALLER_RUNNER
+from build_desktop_app import (
+    IMAGE_ATTEMPTS,
+    INFO_PLIST_VARIABLE,
+    attached_images,
+    create_image_command,
+    detach_leftovers,
+    info_plist,
+    is_macos_app,
+    leftover_devices,
+    macos_report,
+    make_disk_image,
+    plist_problems,
+    prepare_app,
+)
+from build_desktop_macos import FloorReport
+
+# The base version of the tests.
+BASE = "0.1.0"
+# A stamped version of it, committed on 5 November 2026.
+STAMPED = f"{BASE}+20261105.abc1234"
+# Where the volume of the app's image is mounted, and with a number appended.
+FIRST_VOLUME = "/Volumes/Transcribe-UI"
+# The second such volume.
+NUMBERED_VOLUME = "/Volumes/Transcribe-UI 1"
+# Key of a system entity's device in `hdiutil info -plist`.
+DEVICE_KEY = "dev-entry"
+
+
+def _app(root: Path, entries: Mapping[str, object]) -> Path:
+    """Write an app folder with the given `Info.plist` entries."""
+    app = root / "Transcribe-UI.app"
+    (app / "Contents").mkdir(parents=True)
+    with (app / "Contents" / "Info.plist").open("wb") as stream:
+        plistlib.dump(dict(entries), stream)
+    return app
+
+
+class _Recorder:
+    """Records the images it is called with (stands in for `detach_leftovers`)."""
+
+    def __init__(self) -> None:
+        self.images: list[Path] = []
+
+    def __call__(self, image: Path, before: object) -> None:
+        assert before == []
+        self.images.append(image)
+
+
+class _Hdiutil:
+    """Stands in for `subprocess.run` of `hdiutil create`: fails the first `failures` times."""
+
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: list[str], **_options: object) -> subprocess.CompletedProcess[str]:
+        self.commands.append(command)
+        failed = len(self.commands) <= self.failures
+        return subprocess.CompletedProcess(command, 1 if failed else 0, "", "hdiutil: create failed - Resource busy")
+
+
+def test_only_the_macos_gui_is_an_app() -> None:
+    """The GUI on either macOS build is the app; the CLI and the other platforms' GUI are not."""
+    assert is_macos_app("gui", "macos-arm64")
+    assert is_macos_app("gui", "macos-x64")
+    assert not is_macos_app("cli", "macos-arm64")
+    assert not is_macos_app("gui", "windows-x64")
+    assert not is_macos_app("gui", "linux-x64")
+
+
+def test_info_plist_values() -> None:
+    """The identifier, the base version, the commit date as up to three integers and high resolution.
+
+    No minimum macOS: macOS enforces the main executable's own, nothing stricter is claimed.
+    """
+    assert info_plist(BASE, STAMPED) == {
+        "CFBundleIdentifier": "io.github.markfazekas.transcribe-ui",
+        "CFBundleShortVersionString": BASE,
+        "CFBundleVersion": "2026.11.5",
+        "NSHighResolutionCapable": True,
+    }
+
+
+def test_short_version_keeps_only_numbers() -> None:
+    """A pre-release base version gives its release segment, the numbers Apple accepts."""
+    assert info_plist("2.0.0rc1", "2.0.0rc1+20261231.def5678")["CFBundleShortVersionString"] == "2.0.0"
+
+
+def test_a_version_without_stamp_is_refused(tmp_path: Path) -> None:
+    """The app's build needs the stamped version; anything else stops the build before PyInstaller runs."""
+    with pytest.raises(ValueError, match="not a stamped version"):
+        info_plist(BASE, BASE)
+    with pytest.raises(RuntimeError, match="not a stamped version"):
+        prepare_app(BASE, BASE, tmp_path / "entries.plist")
+    assert not (tmp_path / "entries.plist").exists()
+
+
+@pytest.mark.parametrize(
+    "version",
+    [
+        "0.2.0+20261105.abc1234",
+        "10.1.0+20261105.abc1234",
+        "0.1.0+20261332.abc1234",
+        "0.1.0+20261105.abc1234x",
+        "0.1.0+120261105.abc1234",
+        "0.1.0+20261105",
+    ],
+)
+def test_only_a_stamped_version_of_the_base_passes(version: str) -> None:
+    """Another base, an impossible date, or anything around the stamp is refused."""
+    with pytest.raises(ValueError, match=r"stamped version|month|day"):
+        info_plist(BASE, version)
+
+
+def test_prepare_app_writes_the_plist_file(tmp_path: Path) -> None:
+    """The entries go to a plist file that the PyInstaller runner finds through the environment."""
+    plist_file = tmp_path / "entries.plist"
+    environment = prepare_app(BASE, STAMPED, plist_file)
+    assert environment == {
+        INFO_PLIST_VARIABLE: str(plist_file),
+        "PYINSTALLER_STRICT_BUNDLE_CODESIGN_ERROR": "1",
+        "PYINSTALLER_VERIFY_BUNDLE_SIGNATURE": "1",
+    }
+    with plist_file.open("rb") as stream:
+        assert plistlib.load(stream) == info_plist(BASE, STAMPED)
+
+
+def test_plist_problems_name_each_differing_entry(tmp_path: Path) -> None:
+    """An entry PyInstaller did not write, or wrote differently, is a problem; extra entries are not."""
+    expected = info_plist(BASE, STAMPED)
+    kept = {key: wanted for key, wanted in expected.items() if key != "NSHighResolutionCapable"}
+    app = _app(tmp_path, {**kept, "CFBundleVersion": "0.0.0", "CFBundleExecutable": "Transcribe-UI"})
+    assert plist_problems(app, expected) == [
+        "Info.plist: CFBundleVersion is '0.0.0', expected '2026.11.5'",
+        "Info.plist: NSHighResolutionCapable is None, expected True",
+    ]
+    assert not plist_problems(_app(tmp_path / "good", {**expected, "CFBundleName": "Transcribe-UI"}), expected)
+
+
+def test_a_minimum_macos_in_the_plist_is_a_problem(tmp_path: Path) -> None:
+    """The app claims no minimum macOS (the architect's floor answer): an `LSMinimumSystemVersion` fails the build."""
+    expected = info_plist(BASE, STAMPED)
+    app = _app(tmp_path, {**expected, "LSMinimumSystemVersion": "14.0"})
+    assert plist_problems(app, expected) == ["Info.plist: LSMinimumSystemVersion is '14.0', expected no such entry"]
+
+
+def test_a_broken_plist_fails_the_build_cleanly(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A broken-XML `Info.plist` in the built app is a `RuntimeError` of the build (the build reports it), not a traceback."""
+    app = _app(tmp_path, {})
+    (app / "Contents" / "Info.plist").write_bytes(b"<?xml version='1.0'?><plist><dict><key>CFBundleVersion")
+    plist_file = tmp_path / "entries.plist"
+    prepare_app(BASE, STAMPED, plist_file)
+    monkeypatch.setattr("build_desktop_app.check_app", lambda _table, _app: FloorReport((), ()))
+    with pytest.raises(RuntimeError, match=r"Transcribe-UI\.app: ") as raised:
+        macos_report(app, tmp_path / "build", plist_file)
+    assert isinstance(raised.value.__cause__, ExpatError)
+
+
+def test_create_image_command() -> None:
+    """A read-only lzfse-compressed HFS+ image named after the app, replacing an older file."""
+    assert create_image_command(Path("/w/image"), Path("/d/transcribe-ui-macos-arm64-gui.dmg")) == [
+        "/usr/bin/hdiutil",
+        "create",
+        "-volname",
+        "Transcribe-UI",
+        "-srcfolder",
+        "/w/image",
+        "-fs",
+        "HFS+",
+        "-format",
+        "ULFO",
+        "-ov",
+        "/d/transcribe-ui-macos-arm64-gui.dmg",
+    ]
+
+
+def test_disk_image_holds_app_and_link(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The app is moved next to an `Applications` link, and that folder is packed; a busy `hdiutil` is tried again."""
+    hdiutil = _Hdiutil(failures=1)
+    leftovers = _Recorder()
+    monkeypatch.setattr(subprocess, "run", hdiutil)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("build_desktop_app.detach_leftovers", leftovers)
+    monkeypatch.setattr("build_desktop_app.attached_images", list)
+    app = _app(tmp_path / "app", {"CFBundleExecutable": "Transcribe-UI"})
+    staging = tmp_path / "image"
+    image = tmp_path / "dist" / "transcribe-ui-macos-arm64-gui.dmg"
+    assert make_disk_image(app, staging, image) == image
+    command = create_image_command(staging, image)
+    # Tried again after the busy failure, with the leftovers of the first try detached in between.
+    assert (hdiutil.commands, leftovers.images) == ([command, command], [image])
+    assert sorted(path.name for path in staging.iterdir()) == ["Applications", "Transcribe-UI.app"]
+    assert (staging / "Applications").readlink() == Path("/Applications")
+    # Moved, not copied: the app is where PyInstaller wrote it no more.
+    assert not app.exists()
+
+
+def test_disk_image_fails_after_its_tries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When every try fails, the build fails with each try's error."""
+    hdiutil = _Hdiutil(failures=3)
+    leftovers = _Recorder()
+    monkeypatch.setattr(subprocess, "run", hdiutil)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("build_desktop_app.detach_leftovers", leftovers)
+    monkeypatch.setattr("build_desktop_app.attached_images", list)
+    app = _app(tmp_path / "app", {})
+    with pytest.raises(RuntimeError, match=r"try 1: exit 1: hdiutil: create failed - Resource busy") as raised:
+        make_disk_image(app, tmp_path / "image", tmp_path / "dist" / "gui.dmg")
+    assert "try 3:" in str(raised.value)
+    assert len(hdiutil.commands) == IMAGE_ATTEMPTS
+    # Cleaned up between two tries, not after the last.
+    assert len(leftovers.images) == IMAGE_ATTEMPTS - 1
+
+
+def _entity(device: str, mount_point: str | None = None) -> dict[str, str]:
+    """Return one system entity of `hdiutil info -plist`."""
+    entity = {DEVICE_KEY: device}
+    if mount_point is not None:
+        entity["mount-point"] = mount_point
+    return entity
+
+
+class _Printer:
+    """Stands in for `subprocess.run`: every command succeeds and prints `output`."""
+
+    def __init__(self, output: bytes) -> None:
+        self.output = output
+
+    def __call__(self, command: list[str], **_options: object) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, self.output, b"")
+
+
+class _InfoRunner:
+    """Stands in for `subprocess.run`: `hdiutil info` lists `listing`; None makes every command fail to start."""
+
+    def __init__(self, listing: Mapping[str, object] | None) -> None:
+        self.listing = listing
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: list[str], **_options: object) -> subprocess.CompletedProcess[bytes]:
+        self.commands.append(command)
+        if self.listing is None:
+            raise FileNotFoundError(command[0])
+        return subprocess.CompletedProcess(command, 0, plistlib.dumps(dict(self.listing)), b"")
+
+
+def _attached(path: str, *entities: dict[str, str]) -> dict[str, object]:
+    """Return one attached image of `hdiutil info -plist`."""
+    return {"image-path": path, "system-entities": list(entities)}
+
+
+def test_leftover_devices_of_the_image(tmp_path: Path) -> None:
+    """Of the images new since the try started, the image itself and a volume named after the app count."""
+    image = tmp_path / "gui.dmg"
+    after = [
+        _attached(str(image), _entity("/dev/disk4s1"), _entity("/dev/disk4")),
+        _attached("/private/tmp/dmg.Ab12/temp.dmg", _entity("/dev/disk5"), _entity("/dev/disk5s1", NUMBERED_VOLUME)),
+        _attached("/other.dmg", _entity("/dev/disk6", "/Volumes/Transcribe-UI-old")),
+    ]
+    assert leftover_devices([], after, image) == ["/dev/disk4", "/dev/disk5"]
+    assert not leftover_devices([], [], image)
+
+
+def test_a_volume_attached_earlier_is_left_alone(tmp_path: Path) -> None:
+    """A release image the developer attached (the app running from it) matches by name, but is not new."""
+    own = _attached("/Users/me/Downloads/transcribe-ui-macos-arm64-gui.dmg", _entity("/dev/disk3", FIRST_VOLUME))
+    left = _attached("/private/tmp/dmg.Cd34/temp.dmg", _entity("/dev/disk7", NUMBERED_VOLUME))
+    assert leftover_devices([own], [own, left], tmp_path / "gui.dmg") == ["/dev/disk7"]
+
+
+def test_detach_leftovers_is_best_effort(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Each new leftover device is detached, forced; no listing from before, or no `hdiutil`, detaches nothing."""
+    image = tmp_path / "gui.dmg"
+    runner = _InfoRunner({"images": [_attached(str(image), _entity("/dev/disk4"))]})
+    monkeypatch.setattr(subprocess, "run", runner)
+    detach_leftovers(image, [])
+    listing = ["/usr/bin/hdiutil", "info", "-plist"]
+    assert runner.commands == [listing, ["/usr/bin/hdiutil", "detach", "-force", "/dev/disk4"]]
+    detach_leftovers(image, None)
+    assert runner.commands[2:] == [listing]
+    missing = _InfoRunner(None)
+    monkeypatch.setattr(subprocess, "run", missing)
+    detach_leftovers(image, [])
+    assert missing.commands == [listing]
+
+
+def test_a_listing_that_is_no_plist_is_no_listing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Output `plistlib` cannot read (broken XML included) gives no listing instead of an error."""
+    for output in (b"<?xml version='1.0'?><plist><dict><key>images", b"not a plist", b""):
+        monkeypatch.setattr(subprocess, "run", _Printer(output))
+        assert attached_images() is None
+
+
+def test_the_runner_reads_the_same_variable() -> None:
+    """The PyInstaller runner, which cannot import the build scripts, names the same variable."""
+    tree = ast.parse(PYINSTALLER_RUNNER.read_text(encoding="utf-8"))
+    assigned = {
+        target.id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    assert assigned["INFO_PLIST_VARIABLE"] == INFO_PLIST_VARIABLE

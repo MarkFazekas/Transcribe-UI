@@ -11,6 +11,11 @@ WINDOWS_EXECUTABLE_SUFFIX: Final = ".exe"
 # Executable extensions tried on Windows when `PATHEXT` is not set (its usual start).
 DEFAULT_PATHEXT: Final = ".COM;.EXE;.BAT;.CMD"
 
+# Longest `-version` of a bundled tool may take in the GUI's smoke mode (a first start under a
+# virus scanner can be slow; the tool itself answers at once).
+VERSION_TIMEOUT_S: Final = 30.0
+# The option that makes ffmpeg and ffprobe print their version and exit.
+VERSION_OPTION: Final = "-version"
 # Longest a probe may run before the process is killed (a hang, not a slow file: ffprobe reads headers).
 PROBE_TIMEOUT_S: Final = 120.0
 # Longest one conversion attempt may run (reads the whole file; a long film on a slow drive).
@@ -95,6 +100,8 @@ PROBE_UNREADABLE_MESSAGE: Final = "ffprobe printed output that cannot be read."
 CONVERT_FAILED_MESSAGE: Final = "ffmpeg could not convert the audio track (stream copy and FLAC both failed)."
 # Message of `media_tool_failed` from a subtitle extraction.
 EXTRACT_FAILED_MESSAGE: Final = "ffmpeg could not extract the subtitle stream as SRT."
+# Message of a tool that did not answer `-version` (the fake adapter's; the bundle check reports the exit).
+VERSION_FAILED_MESSAGE: Final = "The tool did not answer -version."
 
 # Codecs the fake adapter's "Matroska muxer" refuses, so its `convert` falls back to FLAC like the real one.
 FAKE_REFUSED_CODECS: Final = frozenset(("adpcm_ima_qt",))

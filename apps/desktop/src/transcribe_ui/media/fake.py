@@ -8,6 +8,7 @@ adapter's: a missing source gives `media_tool_failed`, a set token `cancelled`.
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import assert_never
 
 from transcribe_ui.api.errors import CancelledError, DomainError
 from transcribe_ui.api.ports import CancelToken
@@ -32,6 +33,7 @@ from transcribe_ui.media.constants import (
     FLAC_EXTENSION,
     MATROSKA_EXTENSION,
     PROBE_FAILED_MESSAGE,
+    VERSION_FAILED_MESSAGE,
 )
 from transcribe_ui.media.convert import output_path
 from transcribe_ui.media.invoke import require_index
@@ -109,11 +111,17 @@ class FakeMediaTools:
 
 
 def _failure_message(operation: Operation) -> str:
-    if operation == "probe":
-        return PROBE_FAILED_MESSAGE
-    if operation == "convert":
-        return CONVERT_FAILED_MESSAGE
-    return EXTRACT_FAILED_MESSAGE
+    match operation:
+        case "probe":
+            return PROBE_FAILED_MESSAGE
+        case "convert":
+            return CONVERT_FAILED_MESSAGE
+        case "extract":
+            return EXTRACT_FAILED_MESSAGE
+        case "version":
+            return VERSION_FAILED_MESSAGE
+        case unknown:
+            assert_never(unknown)
 
 
 def _failed(tool: Tool, operation: Operation, stderr: str = "") -> DomainError:

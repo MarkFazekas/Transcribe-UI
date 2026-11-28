@@ -13,7 +13,7 @@ type AudioExtension = Literal["mka", "flac"]
 # The external tools of the adapter.
 type Tool = Literal["ffmpeg", "ffprobe"]
 # What a tool was asked to do; part of error details.
-type Operation = Literal["probe", "convert", "extract"]
+type Operation = Literal["probe", "convert", "extract", "version"]
 
 
 class MediaModel(BaseModel):

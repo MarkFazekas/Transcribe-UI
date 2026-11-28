@@ -1,7 +1,11 @@
-"""The macOS floor of a desktop build: nothing bundled may need a newer macOS than the release supports.
+"""The macOS floor of a desktop build: nothing we build may need a newer macOS than Qt's wheels declare.
+
+The floor is a regression guard: it keeps our own binaries (bootloader, libpython, ffmpeg) from
+needing a newer macOS than Qt's wheels declare (14.0). It is not a support claim; CI starts the GUI on macOS 15 only, and older versions
+may work but are untested (the architect's answer on the floor).
 
 Used by `scripts/build_desktop.py` after a macOS build (docs/ai/plans/m8.md §1 "Platforms and
-runners": macOS 14 or later). PyInstaller's package table of contents (`PKG-00.toc` in its work
+runners"). PyInstaller's package table of contents (`PKG-00.toc` in its work
 folder) names every binary and extension it bundled, with its original source; the executable
 itself (PyInstaller's bootloader, which `EXE` adds separately) is read from `dist/`. Two rules:
 
@@ -17,6 +21,12 @@ itself (PyInstaller's bootloader, which `EXE` adds separately) is read from `dis
   `otool -arch all -l` for every architecture of a universal file (`minos` of
   `LC_BUILD_VERSION`, or `version` of the older `LC_VERSION_MIN_MACOSX`; only those, never the
   linker's `version` that `LC_BUILD_VERSION` also lists).
+
+The GUI is a onedir `.app` (`check_app`): every Mach-O file inside the bundle (found by its
+first bytes, links left out) follows the same two rules, its source looked up by its bundled
+name in the table of contents of PyInstaller's `BUNDLE` (`BUNDLE-00.toc`). A file the table
+does not name follows the minimum-macOS rule, so a lookup that misses fails the build rather
+than passing a binary; the bundle's main executable follows that rule too.
 """
 
 import ast
@@ -29,12 +39,14 @@ from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
+from build_desktop_bundle import app_executable, bundle_files, bundled_name, is_mach_o
 from build_desktop_wheels import MacosVersion, Owners, Wheel, installed_wheels, owner
 
 # Reads the minimum macOS of each architecture of a binary.
 type MinimumReader = Callable[[Path], list[MacosVersion]]
 
-# The oldest macOS the release supports (the PySide6 6.12 wheel needs 14).
+# The macOS our own binaries must not need more than: the version the PySide6 6.12 wheels declare
+# (their 14.0 platform tag). A regression guard, not a support claim (only macOS 15 is tested).
 MACOS_FLOOR: MacosVersion = (14, 0)
 # Table-of-contents types of the bundled Mach-O files.
 BINARY_TYPES = frozenset(("BINARY", "EXTENSION"))
@@ -52,6 +64,8 @@ MINIMUM_LINES: Mapping[str, re.Pattern[str]] = MappingProxyType(
 OTOOL_OPTIONS = ("-arch", "all", "-l")
 # Seconds `otool` may take for one file.
 OTOOL_TIMEOUT_S = 60
+# What reading a table of contents that is not PyInstaller's literal raises (`literal_eval`, indexing, unpacking).
+TABLE_ERRORS = (SyntaxError, ValueError, LookupError, TypeError)
 
 
 def minimum_versions(otool_output: str) -> list[MacosVersion]:
@@ -211,5 +225,56 @@ def check_bundle(table_of_contents: Path, executable: Path) -> FloorReport:
     if read is None:
         return FloorReport(("otool not found",), ())
     report = floor_report(bundled_binaries(table_of_contents), installed_wheels(), read)
+    problems = (*executable_problems(executable, read), *report.problems)
+    return FloorReport(problems, report.wheels)
+
+
+def bundle_sources(table_of_contents: Path) -> dict[str, Path]:
+    """Return the source of every file in the table of contents of PyInstaller's `BUNDLE`, by its bundled name.
+
+    Raises:
+        SyntaxError, ValueError, LookupError, TypeError: The table is not PyInstaller 6's literal
+            (`TABLE_ERRORS`: another PyInstaller, a damaged file).
+    """
+    # The table is a Python literal: ([(name, source, type), ...],).
+    entries = ast.literal_eval(table_of_contents.read_text(encoding="utf-8"))[0]
+    return {name: Path(source) for name, source, _kind in entries}
+
+
+def app_binaries(app: Path, sources: Mapping[str, Path], executable: Path) -> list[Bundled]:
+    """Return every Mach-O file of the app but its main executable, with its source (else the file itself)."""
+    contents_dir = app / "Contents"
+    found = []
+    for relative in bundle_files(app):
+        path = contents_dir / relative
+        if path == executable or not is_mach_o(path):
+            continue
+        name = bundled_name(relative)
+        source = None if name is None else sources.get(name)
+        found.append(Bundled(relative.as_posix(), source or path))
+    return found
+
+
+def check_app(table_of_contents: Path, app: Path) -> FloorReport:
+    """Check the app's main executable and every other Mach-O file in it against the floor.
+
+    Raises:
+        OtoolError: A binary could not be read.
+        subprocess.SubprocessError: Reading a binary did not finish in time.
+        OSError: The app's `Info.plist` cannot be read.
+        ValueError: The app's `Info.plist` is no plist or names no executable.
+        xml.parsers.expat.ExpatError: The app's `Info.plist` is broken XML.
+    """
+    read = otool_reader()
+    if read is None:
+        return FloorReport(("otool not found",), ())
+    try:
+        sources = bundle_sources(table_of_contents)
+    except TABLE_ERRORS as error:
+        problem = f"{table_of_contents}: not a table of contents this check can read ({error!r})"
+        return FloorReport((problem,), ())
+    executable = app_executable(app)
+    binaries = app_binaries(app, sources, executable)
+    report = floor_report(binaries, installed_wheels(), read)
     problems = (*executable_problems(executable, read), *report.problems)
     return FloorReport(problems, report.wheels)

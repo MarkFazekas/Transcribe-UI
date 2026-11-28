@@ -212,7 +212,7 @@ lengths (`WPS226`, `WPS432`) instead of app constants.
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | every pull request and push to `main` (no workflow-level path filter) | `changes` (dorny/paths-filter; a shared-config change selects every target; a `jq` step turns the changed targets into matrix legs) → `check` matrix running `scripts/check.py <target>`, every target on `ubuntu-24.04` and the desktop target also on `windows-2025`; `gitlint` on PR commits; aggregate `ci-ok` (fails unless every needed job succeeded or was skipped) = the only required check (it covers `gitlint`) |
-| `release-desktop.yml` | pull requests and pushes to `main` touching `apps/desktop/**` (not `apps/desktop/tests/**`, except `test_media_ffmpeg.py`, `test_batches_ffprobe.py`, `support/media.py`, `conftest.py`, `fixtures/zlib_subtitles.mkv`), `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `scripts/build_desktop*.py`, `scripts/build_platform.py`, `scripts/build_ffmpeg*.py`, `scripts/smoke_desktop_*.py`, `scripts/release_desktop.py` or the workflow; manual dispatch | `ffmpeg` matrix, one leg per platform (fail-fast off, 60 minutes, checkout without persisted credentials; Windows cross-built on `ubuntu-24.04` with Ubuntu's `gcc-mingw-w64-x86-64-win32` and `nasm`, macOS on `macos-15`/`macos-15-intel` with Homebrew's `nasm` on Intel, Linux in the manylinux container as root with `nasm` from CRB and `pkgconf-pkg-config`, run by the image's CPython 3.13 without writing bytecode, the files handed back to the runner's user): `build_ffmpeg.py pins` (the cache key, the build image and the packages to install, all pinned in `build_ffmpeg_pins.py`), `actions/cache/restore@v6` with `lookup-only` (`enableCrossOsArchive` for Windows), and only on a miss `build_ffmpeg.py build` (into `build/ffmpeg/dist`) and `actions/cache/save@v6`. Then the `build` matrix (`needs: ffmpeg`: a failed ffmpeg build of one platform skips all four build legs, accepted as a release gate, since a release needs all eight files anyway), one leg per platform (fail-fast off, 75 minutes, `contents: read`): Windows x64 (`windows-2025`), macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-24.04`, the build inside `quay.io/pypa/manylinux_2_34_x86_64` pinned by digest in `build_ffmpeg_pins.py` and read through `build_ffmpeg.py pins`, run as the runner's user with the runner's uv binary and cache). `UV_PYTHON_PREFERENCE=only-managed` for every leg and the container, so only uv's own CPython builds (a Homebrew Python built for a newer macOS, or the manylinux image's static ones, would be found otherwise); checkout without persisted credentials, actions pinned by SHA. Each leg: the ffmpeg entry restored (`fail-on-cache-miss`), `build_ffmpeg.py verify --first-on-path` (`-buildconf`, `-L`, the built programs first on `PATH`), `test_media_ffmpeg.py` and `test_batches_ffprobe.py` with the built programs first on `PATH` in a second environment with the dev group (`UV_PROJECT_ENVIRONMENT` in the runner's temp folder, `-p no:pytest-qt`), `build_desktop.py stamp` (version and tag from the commit), the build environment (`uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging`), `build_desktop.py build --ffmpeg-dir build/ffmpeg/dist` (both executables into `dist/`, each bundling ffmpeg and ffprobe; it prints the build interpreter, and on macOS checks the floor of 14: a wheel's binaries by the wheel's `macosx` tag (from its `WHEEL` file, the binary found through the wheels' `RECORD` files), every other binary (the bundled ffmpeg and ffprobe among them) and the built executable itself (the bootloader) by its `minos` from `otool -arch all -l`; one line per wheel shows its tags and highest `minos`), on Linux the libraries of `apps/desktop/packaging/linux-packages.txt` plus Xvfb, `smoke_desktop_build.py` (the checks of architecture §8; on Linux also `linux-floor` in `ubuntu:22.04` pinned by digest; a summary with sizes and the CLI's cold start in the job summary), then the two executables with `actions/upload-artifact@v7` `archive: false` (7 days). uv's cache through `setup-uv` per OS. No release job yet (M8.5: `release-check`, then `publish` in the `desktop-release` environment) |
+| `release-desktop.yml` | pull requests and pushes to `main` touching `apps/desktop/**` (not `apps/desktop/tests/**`, except `test_media_ffmpeg.py`, `test_batches_ffprobe.py`, `support/media.py`, `conftest.py`, `fixtures/zlib_subtitles.mkv`), `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `scripts/build_desktop*.py`, `scripts/build_platform.py`, `scripts/build_ffmpeg*.py`, `scripts/smoke_desktop_*.py`, `scripts/release_desktop.py` or the workflow; manual dispatch | `ffmpeg` matrix, one leg per platform (fail-fast off, 60 minutes, checkout without persisted credentials; Windows cross-built on `ubuntu-24.04` with Ubuntu's `gcc-mingw-w64-x86-64-win32` and `nasm`, macOS on `macos-15`/`macos-15-intel` with Homebrew's `nasm` on Intel, Linux in the manylinux container as root with `nasm` from CRB and `pkgconf-pkg-config`, run by the image's CPython 3.13 without writing bytecode, the files handed back to the runner's user): `build_ffmpeg.py pins` (the cache key, the build image and the packages to install, all pinned in `build_ffmpeg_pins.py`), `actions/cache/restore@v6` with `lookup-only` (`enableCrossOsArchive` for Windows), and only on a miss `build_ffmpeg.py build` (into `build/ffmpeg/dist`) and `actions/cache/save@v6`. Then the `build` matrix (`needs: ffmpeg`: a failed ffmpeg build of one platform skips all four build legs, accepted as a release gate, since a release needs all eight files anyway), one leg per platform (fail-fast off, 75 minutes, `contents: read`): Windows x64 (`windows-2025`), macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x64 (`ubuntu-24.04`, the build inside `quay.io/pypa/manylinux_2_34_x86_64` pinned by digest in `build_ffmpeg_pins.py` and read through `build_ffmpeg.py pins`, run as the runner's user with the runner's uv binary and cache). `UV_PYTHON_PREFERENCE=only-managed` for every leg and the container, so only uv's own CPython builds (a Homebrew Python built for a newer macOS, or the manylinux image's static ones, would be found otherwise); checkout without persisted credentials, actions pinned by SHA. Each leg: the ffmpeg entry restored (`fail-on-cache-miss`), `build_ffmpeg.py verify --first-on-path` (`-buildconf`, `-L`, the built programs first on `PATH`), `test_media_ffmpeg.py` and `test_batches_ffprobe.py` with the built programs first on `PATH` in a second environment with the dev group (`UV_PROJECT_ENVIRONMENT` in the runner's temp folder, `-p no:pytest-qt`), `build_desktop.py stamp` (version and tag from the commit), the build environment (`uv sync --locked --no-dev --no-editable --package transcribe-ui --group packaging`), `build_desktop.py build --ffmpeg-dir build/ffmpeg/dist` (both files into `dist/`, each bundling ffmpeg and ffprobe, the macOS GUI as `Transcribe-UI.app` packed into `transcribe-ui-macos-<arch>-gui.dmg` with `hdiutil`; it prints the build interpreter, and on macOS checks the floor of 14, a regression guard rather than a support claim (for the app every Mach-O file inside it, and its written `Info.plist`): a wheel's binaries by the wheel's `macosx` tag (from its `WHEEL` file, the binary found through the wheels' `RECORD` files), every other binary (the bundled ffmpeg and ffprobe among them) and the built executable itself (the bootloader) by its `minos` from `otool -arch all -l`; one line per wheel shows its tags and highest `minos`), on Linux the libraries of `apps/desktop/packaging/linux-packages.txt` plus Xvfb, `smoke_desktop_build.py` (the checks of architecture §8; on Linux also `linux-floor` in `ubuntu:22.04` pinned by digest, on macOS also `gui-signature`; a summary with sizes and the CLI's cold start in the job summary), then the two files with `actions/upload-artifact@v7` `archive: false` (7 days; the macOS legs' GUI file is the `.dmg`, matrix key `gui-suffix`; on macOS the smoke test attaches it read-only and runs the app inside it). uv's cache through `setup-uv` per OS. No release job yet (M8.5: `release-check`, then `publish` in the `desktop-release` environment) |
 | `release-worker.yml` | pull requests and pushes to `main` touching `apps/worker/**`, `packages/contracts/**`, `uv.lock`, `pyproject.toml`, `.python-version`, `.dockerignore`, `scripts/smoke_worker_*.py`, `scripts/smoke_fixtures.py` or the workflow; manual dispatch | `build`: free runner disk, `docker buildx build -f apps/worker/Dockerfile`, `scripts/smoke_worker_image.py` (moto S3 in Docker, fake Runpod API on localhost, the image run as a pod with `TRANSCRIBE_ENGINE=fake`: result, `_done.json`, finished status, pod deleted, exit 0; then, inside the image, the CUDA libraries load and, with `--network none`, the GPU stack imports, the Whisper model resolves with `local_files_only` as the engine loads it, the baked hu/en aligners load, and WhisperX's Silero VAD is built from the baked copy and run on silence). On `main` only: the image is saved (`docker save` + zstd) as a one-day artifact (the repository is public, so artifact storage is free), and a separate `push` job in `environment: dockerhub` loads it and pushes `sha-<short>`, `schema-<major>` and `latest` to `markfazekasgh/transcribe-ui-worker`. The job holding the token never runs the image. |
 | `reaper.yml` | schedule (`*/15 * * * *`); manual dispatch with a `dry-run` input | `reap` in `environment: runpod-reaper`: without the secret only a `::warning::` and success; otherwise uv pinned to 0.11.8, `uv sync --locked --no-dev --package transcribe-worker` (no `engine` extra, no uv cache) and `transcribe-worker-reaper [--dry-run]`; concurrency groups `reaper-live` / `reaper-dry` (never cancelled; a dry run cannot replace a pending live pass), 15-minute timeout; checkout pinned by SHA |
 
@@ -243,6 +243,22 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   the GUI excludes `PySide6.QtTest` and is `--windowed` on Windows (with a generated
   `--version-file`: product name, file description, numeric file version, the stamp as product
   version, original file name). PyInstaller writes its spec into the work folder (`build/desktop/`).
+- The macOS GUI (A23) is the exception to `--onefile`: `--onedir --windowed --name
+  Transcribe-UI` into `<work>/gui/app/`, giving `Transcribe-UI.app` (ad hoc signed by
+  PyInstaller, which only warns when the deep signature fails unless
+  `PYINSTALLER_STRICT_BUNDLE_CODESIGN_ERROR=1`; the build sets it and
+  `PYINSTALLER_VERIFY_BUNDLE_SIGNATURE=1`; `--icon` once M8.3 sets `APP_ICON` in
+  `scripts/build_desktop_app.py`). The
+  `Info.plist` entries PyInstaller's command line cannot set go through a plist file named by
+  `TRANSCRIBE_UI_INFO_PLIST`: `packaging/pyinstaller_main.py` passes them to the spec's
+  `BUNDLE` as `info_plist`, and the build compares the written `Info.plist` with them. The
+  build then moves the app into `<work>/gui/image/` next to an `Applications` link and packs
+  that folder (`hdiutil create -fs HFS+ -format ULFO`, 600 s per try, three tries; between
+  tries `hdiutil info -plist`, compared with its listing from before the try, finds a device
+  the failed try attached, the image itself or a volume named `Transcribe-UI`, and `hdiutil
+  detach -force` detaches it, best effort; an image attached before the try is never touched;
+  the build log gives each try's duration) into `dist/`.
+  The floor check of the app reads `BUNDLE-00.toc`, the one-file builds' `PKG-00.toc`.
 - `hook-transcribe_ui.py` collects every submodule of `transcribe_ui` (the GUI entry imports
   `gui.app` through `importlib`; the Alembic environment and revisions are analysed for their
   imports), leaving `transcribe_ui.gui` out of the CLI (`TRANSCRIBE_UI_BUNDLE_VARIANT`, set by
@@ -256,7 +272,11 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   it to the GUI log when the app's logging can still be imported, and exits 1: the windowed Windows bootloader would
   otherwise show a modal traceback dialog, and a smoke run would wait for its timeout.
 - The smoke mode of the GUI (architecture §3.1) also fails on any record at ERROR or above in
-  the app's loggers while it watches (an exception escaping a Qt slot, a critical message of Qt).
+  the app's loggers while it watches (an exception escaping a Qt slot, a critical message of Qt),
+  and in a frozen build when the bundled ffmpeg or ffprobe does not answer `-version` from the
+  bundle (`bundled_tool_problems`; no `PATH` fallback). So `gui-offscreen` and `gui-native`
+  also prove that the GUI finds and runs its bundled tools (in the macOS `.app` from
+  `Contents/Frameworks`), which `cli-probe` proves only for the one-file CLI.
 - Linux build tools: PyInstaller runs `ldd`, `objdump` and `objcopy` (the manylinux image has
   them). Libraries the build container lacks (the X11/xcb, Wayland, GL and font stack) are not
   bundled; `linux-packages.txt` lists them for the host.
@@ -272,7 +292,9 @@ PyInstaller notes (`scripts/build_desktop.py`, `apps/desktop/packaging/`):
   its `pyproject.toml` changes), then with the same variable
   `uv run --no-sync python scripts/build_desktop.py build --version "$(uv run --no-project scripts/build_desktop.py stamp | sed -n 's/^version=//p')"`
   and `uv run --no-sync python scripts/smoke_desktop_build.py dist/<cli> dist/<gui> --version <same> --skip linux-floor`
-  (`--skip gui-native` without Xvfb).
+  (`--skip gui-native` without Xvfb; on macOS `<gui>` is the `.dmg`, which the smoke test
+  attaches and detaches itself). The build needs the stamped version: the macOS app's
+  `CFBundleVersion` is its date.
 
 ffmpeg build notes (`scripts/build_ffmpeg.py`, `build_ffmpeg_pins.py`, `build_ffmpeg_fetch.py`,
 `build_ffmpeg_steps.py`, `build_ffmpeg_checks.py`, and `build_platform.py`, which
@@ -316,7 +338,21 @@ manylinux image's bare CPython):
 PyInstaller 6.10 or later:
 the GUI's restart after a language change (architecture §3.1 "Settings") starts the one-file
 executable again with `PYINSTALLER_RESET_ENVIRONMENT=1`, which earlier versions ignore (the
-new process would reuse the unpacked files the exiting one removes). M8 manual check on each
-OS, Windows first: change the language in Settings, choose Restart now, and the new window
-opens in the new language and comes to the foreground (Windows may only flash it in the task
-bar, since the starting process has exited).
+new process would reuse the unpacked files the exiting one removes). The macOS app runs the
+main executable inside the bundle again (`sys.executable`), with the same variable, which
+changes nothing for a onedir build; it does not go through `open`, so the new process keeps
+the environment (credentials from environment variables, a test's state folders).
+
+M8 manual acceptance (A24, architect): the architect runs the checklist of `plans/m8.md` §1
+"Manual acceptance" on Windows only, and M8 is marked built after it. Part of it: change the
+language in Settings, choose Restart now, and the new window opens in the new language and
+comes to the foreground (Windows may only flash it in the task bar, since the starting process
+has exited). Linux is not tested by hand (no VM installed), and macOS is not tested by hand; the
+release notes' known limits say so. What CI cannot click there and stays untested:
+
+- Linux: the double-click start, the desktop keyring, the language restart in front;
+- macOS: the language restart from `/Applications` and from a translocated copy (the app
+  opened from the quarantined download or image without moving it, so macOS runs it from a
+  random read-only path), the new window coming to the front, "Open Anyway" in System Settings
+  for the quarantined download, and keychain prompts after an update (an ad hoc signed build
+  has a new code hash, so the keychain may ask again for access to the stored credentials).

@@ -297,6 +297,17 @@ def test_relaunch_of_a_build_runs_itself(monkeypatch: pytest.MonkeyPatch) -> Non
     assert started.environments[0][PYINSTALLER_RESET_VARIABLE] == "1"
 
 
+def test_relaunch_of_the_macos_app_runs_its_executable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The macOS app (onedir, A23) starts the main executable inside its bundle again, which `sys.executable` names."""
+    started = _Started()
+    executable = "/Applications/Transcribe-UI.app/Contents/MacOS/Transcribe-UI"
+    monkeypatch.setattr(subprocess, "Popen", started)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", executable)
+    relaunch_gui()
+    assert started.commands == [[executable]]
+
+
 def _cannot_start(*_arguments: object, **_options: object) -> None:
     raise FileNotFoundError(sys.executable)
 

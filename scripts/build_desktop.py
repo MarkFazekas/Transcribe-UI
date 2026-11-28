@@ -15,12 +15,14 @@ publishes. Both bundle ffmpeg and ffprobe from `--ffmpeg-dir` (default `build/ff
 where `scripts/build_ffmpeg.py build` writes them) at the archive's root, where the app looks for
 them (`media/tools.py` `bundle_dir`). The stamped version is bundled as
 `transcribe_ui/version.txt`; on Windows a generated version resource describes the file. No
-`.spec` file is kept: PyInstaller's is written to the work folder.
+`.spec` file is kept: PyInstaller's is written to the work folder. The macOS GUI is the
+exception (A23): a onedir `Transcribe-UI.app` (ffmpeg and ffprobe in its `Contents/Frameworks`,
+`sys._MEIPASS` of an app), published as the compressed disk image
+`transcribe-ui-macos-<arch>-gui.dmg` (`scripts/build_desktop_app.py`).
 """
 
 import argparse
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -32,7 +34,16 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
-from build_desktop_macos import check_bundle
+from build_desktop_app import (
+    APP_BUNDLE,
+    APP_ICON,
+    MACOS_APP_NAME,
+    is_macos_app,
+    macos_report,
+    make_disk_image,
+    prepare_app,
+    release_segment,
+)
 from build_platform import host_tag
 
 # Root of the repository.
@@ -70,8 +81,6 @@ VARIANT_VARIABLE = "TRANSCRIBE_UI_BUNDLE_VARIANT"
 SHORT_SHA_LENGTH = 7
 # Components of a numeric Windows file version.
 WINDOWS_VERSION_PARTS = 4
-# Leading release segment of a PEP 440 version (`0.1.0` of a release candidate of it).
-RELEASE_SEGMENT = re.compile(r"\d+(?:\.\d+)*")
 # Product name in the Windows version resource.
 PRODUCT_NAME = "Transcribe-UI"
 # File description of each variant in the Windows version resource.
@@ -124,6 +133,38 @@ class BuildPaths:
         return self.work / VERSION_STAMP_FILE
 
     @property
+    def app_dist(self) -> Path:
+        """Return where PyInstaller writes the macOS app (its disk image goes to `dist`)."""
+        return self.work / "app"
+
+    @property
+    def info_plist(self) -> Path:
+        """Return the generated plist file of the macOS app's `Info.plist` entries."""
+        return self.work / "info-plist.plist"
+
+    def written(self, name: str, *, app: bool) -> Path:
+        """Return what PyInstaller wrote: the one-file executable `name` in `dist` (a file), or the macOS app (a folder).
+
+        Raises:
+            RuntimeError: It is missing, or not a folder (the app) or a file (an executable).
+        """
+        if app:
+            built = self.app_dist / APP_BUNDLE
+            written, kind = built.is_dir(), "app folder"
+        else:
+            built = self.dist / name
+            written, kind = built.is_file(), "executable file"
+        if not written:
+            msg = f"PyInstaller did not write the {kind} {built}"
+            raise RuntimeError(msg)
+        return built
+
+    @property
+    def image_staging(self) -> Path:
+        """Return the folder packed into the macOS disk image (the app and the `Applications` link)."""
+        return self.work / "image"
+
+    @property
     def version_resource(self) -> Path:
         """Return the generated Windows version resource."""
         return self.work / "version-resource.txt"
@@ -157,13 +198,15 @@ def is_windows(tag: str) -> bool:
 
 
 def asset_stem(variant: Variant, tag: str) -> str:
-    """Return the executable's name without the Windows suffix (PyInstaller's `--name`)."""
+    """Return the published file's name without its suffix (PyInstaller's `--name` of a one-file build)."""
     return f"{APP_NAME}-{tag}-{variant}"
 
 
 def asset_name(variant: Variant, tag: str) -> str:
-    """Return the file name of the executable, as published: `transcribe-ui-<os>-<arch>-<variant>[.exe]`."""
+    """Return the published file's name: `transcribe-ui-<os>-<arch>-<variant>[.exe]`, the macOS GUI's `.dmg`."""
     suffix = ".exe" if is_windows(tag) else ""
+    if is_macos_app(variant, tag):
+        suffix = ".dmg"
     return f"{asset_stem(variant, tag)}{suffix}"
 
 
@@ -173,11 +216,7 @@ def numeric_version(base: str) -> tuple[int, ...]:
     Raises:
         ValueError: The version does not start with a release segment.
     """
-    match = RELEASE_SEGMENT.match(base)
-    if match is None:
-        msg = f"{base!r} has no release segment"
-        raise ValueError(msg)
-    parts = [int(part) for part in match.group().split(".")]
+    parts = [int(part) for part in release_segment(base).split(".")]
     padded = (*parts, 0, 0, 0, 0)
     return padded[:WINDOWS_VERSION_PARTS]
 
@@ -228,15 +267,16 @@ def windows_version_resource(variant: Variant, base: str, version: str, tag: str
 
 def pyinstaller_arguments(variant: Variant, tag: str, paths: BuildPaths) -> list[str]:
     """Return PyInstaller's command line for one variant on the platform `tag`."""
+    app = is_macos_app(variant, tag)
     arguments = [
         "--noconfirm",
         "--clean",
-        "--onefile",
+        "--onedir" if app else "--onefile",
         "--noupx",
         "--name",
-        asset_stem(variant, tag),
+        MACOS_APP_NAME if app else asset_stem(variant, tag),
         "--distpath",
-        str(paths.dist),
+        str(paths.app_dist if app else paths.dist),
         "--workpath",
         str(paths.work / "build"),
         "--specpath",
@@ -257,12 +297,13 @@ def pyinstaller_arguments(variant: Variant, tag: str, paths: BuildPaths) -> list
     excluded = CLI_EXCLUDED_MODULES if variant == "cli" else GUI_EXCLUDED_MODULES
     for module in excluded:
         arguments.extend(("--exclude-module", module))
-    # Windowed only on Windows; the macOS GUI stays a console-mode one-file binary until its shape
-    # is decided (an open architect question).
-    windowed = variant == "gui" and is_windows(tag)
+    # Windowed on Windows (the GUI subsystem) and on macOS (the `.app`); the Linux GUI is a plain binary.
+    windowed = variant == "gui" and (is_windows(tag) or app)
     arguments.append("--windowed" if windowed else "--console")
     if is_windows(tag):
         arguments.extend(("--version-file", str(paths.version_resource)))
+    if app and APP_ICON is not None:
+        arguments.extend(("--icon", str(APP_ICON)))
     arguments.append(str(PACKAGING_DIR / f"entry_{variant}.py"))
     return arguments
 
@@ -296,10 +337,11 @@ def head_commit() -> Commit:
 
 
 def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
-    """Build one variant into `paths.dist`; return the executable.
+    """Build one variant; return the one-file executable (in `paths.dist`) or the macOS app.
 
     Raises:
-        RuntimeError: PyInstaller failed or did not write the executable.
+        RuntimeError: PyInstaller failed or did not write the executable, or the macOS app's
+            version is not a stamped one.
     """
     tag = host_tag()
     present = [paths.media_tool(tool, tag).is_file() for tool in MEDIA_TOOLS]
@@ -315,6 +357,8 @@ def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
     arguments = pyinstaller_arguments(variant, tag, paths)
     command = [sys.executable, str(PYINSTALLER_RUNNER), *arguments]
     environment = {**os.environ, VARIANT_VARIABLE: variant}
+    if is_macos_app(variant, tag):
+        environment.update(prepare_app(base_version(), version, paths.info_plist))
     name = asset_name(variant, tag)
     sys.stdout.write(f"Building the {variant} executable {name} ({version})\n")
     sys.stdout.flush()
@@ -322,11 +366,7 @@ def build_variant(variant: Variant, version: str, paths: BuildPaths) -> Path:
     if completed.returncode:
         msg = f"PyInstaller failed for the {variant} executable (exit {completed.returncode})"
         raise RuntimeError(msg)
-    executable = paths.dist / asset_name(variant, tag)
-    if not executable.is_file():
-        msg = f"PyInstaller did not write {executable}"
-        raise RuntimeError(msg)
-    return executable
+    return paths.written(name, app=is_macos_app(variant, tag))
 
 
 def _stamp() -> int:
@@ -339,13 +379,33 @@ def _stamp() -> int:
     return 0
 
 
-def _macos_floor_problems(variant: Variant, paths: BuildPaths, executable: Path) -> list[str]:
-    """Return what in the executable needs a newer macOS than the release supports; print each wheel's line."""
-    stem = asset_stem(variant, host_tag())
-    report = check_bundle(paths.work / "build" / stem / "PKG-00.toc", executable)
+def _published(variant: Variant, version: str, paths: BuildPaths) -> tuple[Path, list[str]]:
+    """Build one variant and check it; return the published file and what is wrong with it.
+
+    On macOS the build is checked against the floor (and the app's `Info.plist`; each wheel's
+    line is printed); the app is then packed into its disk image.
+
+    Raises:
+        RuntimeError: The build, its check or the disk image failed.
+        OSError: A file could not be read or written.
+        subprocess.SubprocessError: A tool did not finish in time.
+    """
+    built = build_variant(variant, version, paths)
+    if sys.platform != "darwin":
+        return built, []
+    tag = host_tag()
+    app = is_macos_app(variant, tag)
+    name = MACOS_APP_NAME if app else asset_stem(variant, tag)
+    tables = paths.work / "build" / name
+    report = macos_report(built, tables, paths.info_plist if app else None)
     for line in report.wheels:
         sys.stdout.write(f"{line}\n")
-    return list(report.problems)
+    # Flushed before the disk image, so the job log's time stamps tell the floor check and `hdiutil` apart.
+    sys.stdout.flush()
+    if report.problems or not app:
+        return built, list(report.problems)
+    image = paths.dist / asset_name(variant, tag)
+    return make_disk_image(built, paths.image_staging, image), []
 
 
 def _build(variants: Sequence[Variant], version: str, folders: BuildPaths) -> int:
@@ -354,8 +414,7 @@ def _build(variants: Sequence[Variant], version: str, folders: BuildPaths) -> in
     for variant in variants:
         paths = replace(folders, work=folders.work / variant)
         try:
-            executable = build_variant(variant, version, paths)
-            problems = _macos_floor_problems(variant, paths, executable) if sys.platform == "darwin" else []
+            published, problems = _published(variant, version, paths)
         except (RuntimeError, OSError, subprocess.SubprocessError) as error:
             sys.stderr.write(f"{error}\n")
             return 1
@@ -363,8 +422,8 @@ def _build(variants: Sequence[Variant], version: str, folders: BuildPaths) -> in
             report = "\n".join(problems)
             sys.stderr.write(f"{report}\n")
             return 1
-        size_mb = executable.stat().st_size / MEGABYTE
-        sys.stdout.write(f"Built {executable} ({size_mb:.1f} MB)\n")
+        size_mb = published.stat().st_size / MEGABYTE
+        sys.stdout.write(f"Built {published} ({size_mb:.1f} MB)\n")
     return 0
 
 

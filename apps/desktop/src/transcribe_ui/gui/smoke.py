@@ -6,8 +6,10 @@ then closes the window through its normal close handling (the set-up wizard, ope
 without R2 credentials, closes with it). The exit code is 0 only when every answer was `ok`,
 start-up finished in time, nothing was logged at ERROR or above while the window was watched
 (an exception escaping a Qt slot, which `gui/messages.py` logs; a critical or fatal message of
-Qt, whose logger is a child of the app's) and, for Hungarian, Qt's own translation was
-installed. Without the variable nothing changes.
+Qt, whose logger is a child of the app's), for Hungarian, Qt's own translation was
+installed, and, in a release build (frozen; `bundle_dir` is set), the bundled ffmpeg and
+ffprobe answer `-version` from the bundle the app itself looks in (`bundled_tool_problems`: the
+app's own tool lookup, no `PATH` fallback). Without the variable nothing changes.
 """
 
 import logging
@@ -30,6 +32,8 @@ from transcribe_ui.gui.language import StartLanguages
 from transcribe_ui.gui.shell import MainWindow
 from transcribe_ui.gui.signals import StartupSlot
 from transcribe_ui.i18n.constants import DEFAULT_LANGUAGE
+from transcribe_ui.media.invoke import bundled_tool_problems
+from transcribe_ui.media.tools import bundle_dir
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,18 @@ logger = logging.getLogger(__name__)
 def smoke_test_requested(environ: Mapping[str, str] = os.environ) -> bool:
     """Return whether the environment asks for the smoke mode."""
     return environ.get(SMOKE_TEST_VARIABLE) == SMOKE_TEST_ON
+
+
+def bundled_tools_failures() -> list[str]:
+    """Return why the bundled ffmpeg and ffprobe of a release build cannot be used (empty from source)."""
+    folder = bundle_dir()
+    if folder is None:
+        logger.info("Smoke test: not a release build, the bundled tools are not checked")
+        return []
+    problems = bundled_tool_problems(folder)
+    if not problems:
+        logger.info("Smoke test: the bundled ffmpeg and ffprobe answer -version from %s", folder)
+    return [f"bundled {problem}" for problem in problems]
 
 
 class _ErrorRecords(logging.Handler):
@@ -69,6 +85,8 @@ class SmokeTest:
         )
         if languages.shown != DEFAULT_LANGUAGE and not languages.qt_translated:
             self._fail(f"Qt's own {languages.shown} translation did not load")
+        for reason in bundled_tools_failures():
+            self._fail(reason)
 
     def attach(self, window: MainWindow) -> None:
         """Watch `window` (the `on_window` hook of `run_gui`, called before the event loop starts)."""

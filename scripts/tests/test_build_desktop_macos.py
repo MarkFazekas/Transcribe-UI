@@ -1,14 +1,17 @@
 """The macOS floor of a desktop build: wheel tags, Mach-O minimum versions, the bundle's sources."""
 
+import plistlib
 from collections.abc import Callable, Mapping
 from importlib.metadata import PathDistribution
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 
 import pytest
+from build_desktop_bundle import bundled_name, is_mach_o
 from build_desktop_macos import (
     Bundled,
     bundled_binaries,
+    check_app,
     check_bundle,
     executable_problems,
     floor_report,
@@ -176,3 +179,113 @@ def test_check_bundle_checks_the_executable_too(monkeypatch: pytest.MonkeyPatch,
 
 def _reader(minimums: Mapping[Path, list[MacosVersion]]) -> Callable[[Path], list[MacosVersion]]:
     return lambda binary: minimums[binary.resolve()]
+
+
+# The first bytes of a thin 64-bit Mach-O file in the byte order of Apple's processors.
+THIN_MACH_O = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"
+
+
+def test_mach_o_files_by_their_first_bytes(tmp_path: Path) -> None:
+    """Thin and universal Mach-O files are binaries; a Java class file, text and a short file are not."""
+    samples = {
+        "thin": THIN_MACH_O,
+        "thin-reversed": b"\xfe\xed\xfa\xcf\x01\x00\x00\x07",
+        "universal": b"\xca\xfe\xba\xbe\x00\x00\x00\x02",
+        "java-class": b"\xca\xfe\xba\xbe\x00\x00\x00\x41",
+        "text": b"# a data file\n",
+        "short": b"\xcf\xfa",
+    }
+    for sample, header in samples.items():
+        (tmp_path / sample).write_bytes(header)
+    binaries = sorted(name for name in samples if is_mach_o(tmp_path / name))
+    assert binaries == ["thin", "thin-reversed", "universal"]
+
+
+def test_bundled_names_inside_the_app() -> None:
+    """A file under `Frameworks` or `Resources` has its bundled name back, dots restored in its folders only."""
+    assert bundled_name(PurePosixPath("Frameworks/PySide6/Qt/lib/QtCore.framework/Versions/A/QtCore")) == (
+        "PySide6/Qt/lib/QtCore.framework/Versions/A/QtCore"
+    )
+    assert bundled_name(PurePosixPath("Frameworks/numpy__dot__libs/libgfortran.5.dylib")) == (
+        "numpy.libs/libgfortran.5.dylib"
+    )
+    assert bundled_name(PurePosixPath("Resources/transcribe_ui/version.txt")) == "transcribe_ui/version.txt"
+    assert bundled_name(PurePosixPath("MacOS/Transcribe-UI")) is None
+    assert bundled_name(PurePosixPath("Info.plist")) is None
+
+
+def _write(path: Path, body: bytes = THIN_MACH_O) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    return path
+
+
+def _app_with_binaries(root: Path) -> Path:
+    """Write an app: its executable, a wheel's binary, one in a dotted folder, a stray one, data and a link."""
+    contents_dir = root / "Transcribe-UI.app" / "Contents"
+    _write(contents_dir / "Info.plist", plistlib.dumps({"CFBundleExecutable": "Transcribe-UI"}))
+    binaries = (
+        "MacOS/Transcribe-UI",
+        "Frameworks/binding/libbinding.dylib",
+        "Frameworks/pkg__dot__libs/libz.dylib",
+        "Frameworks/stray.dylib",
+        "Frameworks/ffmpeg",
+    )
+    for binary in binaries:
+        _write(contents_dir / binary)
+    _write(contents_dir / "Resources" / "transcribe_ui" / "version.txt", b"0.1.0\n")
+    (contents_dir / "Resources" / "binding").symlink_to("../Frameworks/binding")
+    return contents_dir.parent
+
+
+def _bundle_table(root: Path, sources: Path) -> Path:
+    """Write the table of contents of `BUNDLE`: bundled name, source and type of each entry."""
+    table = root / "BUNDLE-00.toc"
+    entries = [
+        ("Transcribe-UI", str(root / "work" / "Transcribe-UI"), "EXECUTABLE"),
+        ("binding/libbinding.dylib", str(sources / "binding" / "libbinding.dylib"), "EXTENSION"),
+        ("pkg.libs/libz.dylib", str(sources / "pkg.libs" / "libz.dylib"), "EXTENSION"),
+        ("ffmpeg", str(sources / "ffmpeg-dist" / "ffmpeg"), "BINARY"),
+        ("transcribe_ui/version.txt", str(root / "work" / "version.txt"), "DATA"),
+    ]
+    table.write_bytes(repr((entries,)).encode())
+    return table
+
+
+def test_check_app_checks_every_mach_o_inside_the_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Every Mach-O file in the app follows its wheel's tag or its own minimum; the main executable its own.
+
+    A binary the table names by its bundled name (dots restored) is checked through its source;
+    one the table does not name is read in the app itself. Links and data files are not binaries.
+    """
+    app = _app_with_binaries(tmp_path)
+    sources = tmp_path / "site"
+    wheel_binary = _write(sources / "binding" / "libbinding.dylib").resolve()
+    minimums: dict[Path, list[MacosVersion]] = {
+        (app / "Contents" / "MacOS" / "Transcribe-UI").resolve(): [(15, 0)],
+        wheel_binary: [(26, 0)],
+        _write(sources / "pkg.libs" / "libz.dylib").resolve(): [(14, 0)],
+        (app / "Contents" / "Frameworks" / "stray.dylib").resolve(): [(14, 4)],
+        # The bundled ffmpeg: no wheel owns it, so its source's own minimum counts.
+        _write(sources / "ffmpeg-dist" / "ffmpeg").resolve(): [(15, 0)],
+    }
+    monkeypatch.setattr("build_desktop_macos.otool_reader", lambda: _reader(minimums))
+    monkeypatch.setattr("build_desktop_macos.installed_wheels", lambda: {str(wheel_binary): BINDING})
+    report = check_app(_bundle_table(tmp_path, sources), app)
+    assert report.problems == (
+        "Transcribe-UI needs macOS 15.0 (the floor is 14.0)",
+        "Frameworks/ffmpeg needs macOS 15.0 (the floor is 14.0)",
+        "Frameworks/stray.dylib needs macOS 14.4 (the floor is 14.0)",
+    )
+    assert report.wheels == ("wheel shiboken6 6.12.0: tags cp310-abi3-macosx_14_0_universal2; highest minos 26.0",)
+
+
+def test_check_app_reports_a_table_it_cannot_read(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A table of contents that is not PyInstaller's literal is a problem of the build, not a traceback."""
+    app = _app_with_binaries(tmp_path)
+    monkeypatch.setattr("build_desktop_macos.otool_reader", lambda: _reader({}))
+    for text in ("([('a', 'b', 'BINARY')", "[]", "([('only-a-name',)],)"):
+        table = _write(tmp_path / "BUNDLE-00.toc", text.encode())
+        report = check_app(table, app)
+        assert len(report.problems) == 1
+        assert report.problems[0].startswith(f"{table}: not a table of contents this check can read")
