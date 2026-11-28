@@ -11,12 +11,14 @@ type FolderMode = Literal["count", "levels"]
 
 # The strategy that places each subtitle next to its media file (needs no output folder).
 NEXT_TO_MEDIA: Final[StrategyChoice] = "next_to_media"
+# The strategy that keeps the original folders below the output folder (the default for another computer's job).
+MIRROR: Final[StrategyChoice] = "mirror"
 # The strategy that joins folder names into the names (folder count or levels).
 FLAT_WITH_FOLDERS: Final[StrategyChoice] = "flat_with_folders"
 # The choice of an exported, edited and imported custom plan.
 CUSTOM: Final[StrategyChoice] = "custom"
 # The strategy chooser's entries, in order.
-STRATEGY_CHOICES: Final[tuple[StrategyChoice, ...]] = (NEXT_TO_MEDIA, "mirror", "flat", FLAT_WITH_FOLDERS, CUSTOM)
+STRATEGY_CHOICES: Final[tuple[StrategyChoice, ...]] = (NEXT_TO_MEDIA, MIRROR, "flat", FLAT_WITH_FOLDERS, CUSTOM)
 # Folder mode of the closest folders (`folder_count`).
 FOLDER_COUNT_MODE: Final[FolderMode] = "count"
 # Folder mode of explicitly chosen levels (`folder_levels`).
@@ -36,6 +38,8 @@ DIALOG_MARGINS: Final = (11, 11, 11, 11)
 SETTINGS_KEY: Final = "settings"
 # Channel key of the batch load (the step header's stage).
 BATCH_KEY: Final = "batch"
+# Channel key of the first opening's batch load, whose labels the first choices follow (another computer's job).
+FIRST_BATCH_KEY: Final = "first_batch"
 # Channel key of the plan load: `plan_download`, or the `check_only` import of a custom plan.
 PLAN_KEY: Final = "plan"
 # Channel key of the custom plan export.
@@ -44,6 +48,8 @@ EXPORT_KEY: Final = "export"
 ACTIVITY_KEY: Final = "download"
 # Action signal the download dialog handles (`batch_id`).
 OPEN_DOWNLOAD_SIGNAL: Final = "open_download"
+# Channel key of the list of the cloud's jobs (other computers' jobs).
+CLOUD_JOBS_KEY: Final = "cloud_jobs"
 # File name suggested for an exported custom plan (`{batch_id}`: the job's id).
 PLAN_FILE_NAME: Final = "subtitle-plan-{batch_id}.json"
 # Separator of the reasons in one cell.

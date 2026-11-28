@@ -1,8 +1,11 @@
 """The download dialog's view-model (architecture §3.1 "GUI" "Download").
 
 Qt-free. One per batch, kept while the window lives, so the dialog reopens with the user's
-choices. The first opening pre-fills the choices from the settings' placement defaults
-(`get_settings`); every opening loads the batch (`get_batch`, for the step header) and the plan.
+choices. The first opening loads the settings (`get_settings`) and the batch (`get_batch`) side
+by side and, once both answered, pre-fills the choices from the settings' placement defaults
+(`mirror` for a job uploaded from another computer, labelled `adopted`); only then does it plan,
+so no plan of choices about to change is sent. Every later opening loads the batch (for the
+step header) and the plan.
 Each change of a choice asks for the plan again (`plan_download`, or for a custom plan the
 `check_only` import of its file), latest wins, so the table always shows what the download would
 do with the current choices; the folder count and level ticks wait `PLAN_DELAY_MS` for the next
@@ -15,7 +18,7 @@ from functools import partial
 from pathlib import Path
 from typing import Unpack
 
-from transcribe_ui.api.classes import GetSettingsRequest, GetSettingsResponse, Response
+from transcribe_ui.api.classes import GetSettingsRequest, Response
 from transcribe_ui.batches.classes import GetBatchRequest
 from transcribe_ui.gui.activity import Activity
 from transcribe_ui.gui.constants import BATCHES_CHANGED_SIGNAL
@@ -25,7 +28,7 @@ from transcribe_ui.gui.download.form import (
     DownloadForm,
     FormChanges,
     download_request,
-    form_from_settings,
+    first_choices,
     form_hint,
     plan_request,
 )
@@ -61,13 +64,18 @@ class DownloadModel(ViewModel):
         self._state = _ModelState()
 
     def on_open(self) -> None:
-        """Pre-fill the choices from the settings (the first time only), then load the batch and the plan."""
-        if self._state.settings_asked:
-            self.reload()
+        """Pre-fill the choices (the first time only: from the settings and the batch), then load the batch and the plan."""
+        state = self._state
+        if state.settings_asked:
+            if state.filled:
+                # Else the pending pre-fill loads the plan.
+                self.reload()
             return
-        self._state.settings_asked = True
+        state.settings_asked = True
         settings = GetSettingsRequest(action="get_settings")
-        self._loads.send(constants.SETTINGS_KEY, settings, self._settings_loaded)
+        self._loads.send(constants.SETTINGS_KEY, settings, self._first_answer)
+        batch = GetBatchRequest(action="get_batch", batch_id=self.batch_id)
+        self._loads.send(constants.FIRST_BATCH_KEY, batch, self._first_answer)
 
     def reload(self, *, batch: bool = True, soon: bool = False) -> None:
         """Load the batch (unless `batch` is false) and the plan of the current choices (`soon`: after the delay).
@@ -119,17 +127,33 @@ class DownloadModel(ViewModel):
 
     def on_batches_changed(self, batch_ids: object) -> None:
         """Load again when the batch changed elsewhere (an empty tuple: any batch)."""
-        if not isinstance(batch_ids, tuple) or self._state.emitting:
+        state = self._state
+        # Before the pre-fill its own loads are on their way, and it plans once they answered.
+        ignored = state.emitting or not state.filled
+        if not isinstance(batch_ids, tuple) or ignored:
             return
         if not batch_ids or self.batch_id in batch_ids:
             self.reload()
 
-    def _settings_loaded(self, response: Response) -> None:
-        # Without settings (unreadable file) the dialog starts from the request's defaults; a late
-        # answer never replaces choices the user has made meanwhile.
-        if isinstance(response, GetSettingsResponse) and not self._state.edited:
-            self.form = form_from_settings(response.settings.placement)
-        self.reload()
+    def _first_answer(self, response: Response) -> None:
+        """Take an answer the first choices wait for; once both are in, pre-fill the choices and plan.
+
+        Without settings (unreadable file) the dialog starts from the request's defaults; late
+        answers never replace choices the user has made meanwhile.
+        """
+        state = self._state
+        if response.action == "get_settings":
+            state.settings = response
+        else:
+            state.first_batch = response
+            # Shows the step header (or the load error, with Retry).
+            self._loaded(None, response)
+        if state.settings is None or state.first_batch is None or state.filled:
+            return
+        state.filled = True
+        if not state.edited:
+            self.form = first_choices(state.settings, state.first_batch)
+        self.reload(batch=False)
 
     def _loaded(self, generation: int | None, response: Response) -> None:
         # A plan (`generation` set) of choices changed since is ignored; batch loads always count.
@@ -156,6 +180,10 @@ class _ModelState:
 
     # `get_settings` was sent (the pre-fill happens once).
     settings_asked: bool = False
+    # The answers the first choices wait for (None until each arrived), and whether they were made.
+    settings: Response | None = None
+    first_batch: Response | None = None
+    filled: bool = False
     # The user changed a choice (a late settings answer then pre-fills nothing).
     edited: bool = False
     # Number of the latest plan load; an answer of an older one is ignored.

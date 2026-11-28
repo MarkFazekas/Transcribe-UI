@@ -1,13 +1,22 @@
-"""Puts the download dialog into the window: the handler of `open_download` and the reload on `batches_changed`."""
+"""Puts the download dialog into the window: the handler of `open_download` and the reload on `batches_changed`.
+
+It also adds the section of other computers' jobs (`others_view.py`) to the Cloud page, below
+the current run: those jobs are in the cloud, and the page is where an installation without a
+Runpod key follows the cloud too. An adopted job's check of the cloud is the page's Refresh now.
+"""
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Qt, QTimer
 
+from transcribe_ui.gui.cloud.view import CloudPage
+from transcribe_ui.gui.constants import PAGE_CLOUD
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.download.chooser import FileChooser, QtFileChooser
 from transcribe_ui.gui.download.constants import OPEN_DOWNLOAD_SIGNAL, PLAN_DELAY_MS
+from transcribe_ui.gui.download.others import OtherJobsModel
+from transcribe_ui.gui.download.others_view import OtherJobsSection, OthersWindowOutlet
 from transcribe_ui.gui.download.view import DownloadDialog
 from transcribe_ui.gui.download.viewmodel import DownloadModel
 from transcribe_ui.gui.feedback import ConfirmationView, ErrorView
@@ -131,9 +140,19 @@ class DownloadArea(QObject):
         return dialog
 
 
+def _add_other_jobs(window: "MainWindow") -> None:
+    """Add the section of other computers' jobs to the Cloud page."""
+    cloud = window.pages.page(PAGE_CLOUD)
+    if not isinstance(cloud, CloudPage):
+        return
+    model = OtherJobsModel(window.context.executor, OthersWindowOutlet(window), cloud.check_now)
+    cloud.add_section(OtherJobsSection(model))
+
+
 def install_download(window: "MainWindow", chooser: FileChooser | None = None) -> DownloadArea:
-    """Handle `open_download` with the download dialog and reload open dialogs on `batches_changed`."""
+    """Handle `open_download` with the download dialog, reload open dialogs on `batches_changed`, list other computers' jobs."""
     area = DownloadArea(window, QtFileChooser() if chooser is None else chooser)
     window.connect_handler(OPEN_DOWNLOAD_SIGNAL, area.open_download)
     window.context.signals.batches_changed.connect(area.on_batches_changed)
+    _add_other_jobs(window)
     return area

@@ -256,6 +256,7 @@ msgstr ""
 "módosításait."
 
 #: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_view.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr "Hang"
@@ -692,6 +693,10 @@ msgstr "Feladat letöltése: {batch_id}"
 msgid "Download subtitles of job {batch_id}"
 msgstr "Feladat feliratainak letöltése: {batch_id}"
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Download..."
+msgstr "Letöltés..."
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Downloaded"
 msgstr "Letöltve"
@@ -794,8 +799,9 @@ msgstr "Fájl állapota"
 msgid "File types"
 msgstr "Fájltípusok"
 
-#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr "Fájlok"
 
@@ -935,7 +941,9 @@ msgid "JSON files (*.json)"
 msgstr "JSON-fájlok (*.json)"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr "Feladat"
 
@@ -959,6 +967,19 @@ msgstr "{batch_id} feladat: {status}"
 #: src/transcribe_ui/gui/texts.py
 msgid "Jobs"
 msgstr "Feladatok"
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Jobs of other computers"
+msgstr "Más számítógépek feladatai"
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid ""
+"Jobs uploaded to the same cloud storage from another computer. Download "
+"adds one to this computer's jobs and downloads its subtitles here."
+msgstr ""
+"Ugyanabba a felhőtárhelybe egy másik számítógépről feltöltött feladatok. "
+"A Letöltés hozzáadja a feladatot ennek a számítógépnek a feladataihoz, és"
+" ide tölti le a feliratait."
 
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
 #: src/transcribe_ui/gui/selection/models.py
@@ -1042,6 +1063,14 @@ msgstr "A beállítások betöltése..."
 msgid "Log folder: {folder}"
 msgstr "Naplómappa: {folder}"
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Look in the cloud"
+msgstr "Keresés a felhőben"
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Looking in the cloud..."
+msgstr "Keresés a felhőben..."
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Machine"
 msgstr "Gép"
@@ -1056,6 +1085,10 @@ msgstr "Hiányzik"
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Name"
 msgstr "Név"
+
+#: src/transcribe_ui/gui/cloud/key.py
+msgid "Needs a Runpod API key on this computer."
+msgstr "Ehhez Runpod API-kulcs kell ezen a számítógépen."
 
 #: src/transcribe_ui/gui/review/display.py
 #, python-brace-format
@@ -1138,6 +1171,10 @@ msgstr "Nincs kiválasztva"
 #: src/transcribe_ui/gui/download/display.py
 msgid "Not finished yet"
 msgstr "Még nincs kész"
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Not looked yet."
+msgstr "Még nem történt keresés."
 
 #: src/transcribe_ui/gui/settings/account_texts.py
 msgid "Not set"
@@ -1755,8 +1792,9 @@ msgid "State"
 msgstr "Állapot"
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/table.py
+#: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr "Állapot"
 
@@ -2000,6 +2038,10 @@ msgid "The cloud could not be checked; retrying at the next check."
 msgstr ""
 "A felhőt nem sikerült ellenőrizni; a következő ellenőrzés újra "
 "megpróbálja."
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "The cloud holds no job of another computer."
+msgstr "A felhőben nincs másik számítógép által feltöltött feladat."
 
 #: src/transcribe_ui/i18n/error_texts.py
 #, python-brace-format
@@ -2556,6 +2598,19 @@ msgstr "Ez nem vonható vissza."
 msgid "This computer"
 msgstr "Ez a számítógép"
 
+#: src/transcribe_ui/gui/cloud/key.py
+msgid ""
+"This computer has no Runpod API key, so it cannot start or stop "
+"transcription or list the cloud machines. Another computer with a Runpod "
+"key starts the transcription of every uploaded job; this computer still "
+"uploads, checks for results and downloads the subtitles."
+msgstr ""
+"Ezen a számítógépen nincs Runpod API-kulcs, ezért innen nem lehet átírást"
+" indítani vagy leállítani, és a felhőgépek sem listázhatók. Minden "
+"feltöltött feladat átírását egy másik, Runpod-kulccsal rendelkező "
+"számítógép indítja el; ez a számítógép továbbra is feltölt, figyeli az "
+"eredményeket, és letölti a feliratokat."
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "This could not be read."
 msgstr "Ez nem olvasható."
@@ -2654,6 +2709,7 @@ msgstr ""
 msgid "Transcribe-UI is busy in another window"
 msgstr "A Transcribe-UI egy másik ablakban dolgozik"
 
+#: src/transcribe_ui/gui/download/others_display.py
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribed"
 msgstr "Átírva"
@@ -2665,6 +2721,11 @@ msgstr "Átírás nyelve"
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribing"
 msgstr "Átírás folyamatban"
+
+#: src/transcribe_ui/gui/download/others_display.py
+#, python-brace-format
+msgid "Transcribing: {done} of {total} done"
+msgstr "Átírás folyamatban: {done}/{total} kész"
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcription"
@@ -2809,6 +2870,10 @@ msgstr "Várakozás szabad felhőgépre"
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Waiting for a machine"
 msgstr "Gépre vár"
+
+#: src/transcribe_ui/gui/download/others_display.py
+msgid "Waiting for transcription"
+msgstr "Átírásra vár"
 
 #: src/transcribe_ui/gui/cloud/poll.py
 msgid "Waiting to check the cloud..."

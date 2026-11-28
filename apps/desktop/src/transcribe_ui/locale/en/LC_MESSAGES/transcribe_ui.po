@@ -213,6 +213,7 @@ msgid "Apply or discard your changes before changing the filters or uploading."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_view.py
 #: src/transcribe_ui/gui/selection/display.py
 msgid "Audio"
 msgstr ""
@@ -635,6 +636,10 @@ msgstr ""
 msgid "Download subtitles of job {batch_id}"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Download..."
+msgstr ""
+
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Downloaded"
 msgstr ""
@@ -735,8 +740,9 @@ msgstr ""
 msgid "File types"
 msgstr ""
 
-#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/i18n/state_texts.py
+#: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/i18n/state_texts.py
 msgid "Files"
 msgstr ""
 
@@ -872,7 +878,9 @@ msgid "JSON files (*.json)"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/cloud/start_view.py src/transcribe_ui/gui/jobs/view.py
+#: src/transcribe_ui/gui/cloud/start_view.py
+#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/jobs/view.py
 msgid "Job"
 msgstr ""
 
@@ -895,6 +903,16 @@ msgstr ""
 
 #: src/transcribe_ui/gui/texts.py
 msgid "Jobs"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Jobs of other computers"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid ""
+"Jobs uploaded to the same cloud storage from another computer. Download "
+"adds one to this computer's jobs and downloads its subtitles here."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
@@ -979,6 +997,14 @@ msgstr ""
 msgid "Log folder: {folder}"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Look in the cloud"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Looking in the cloud..."
+msgstr ""
+
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Machine"
 msgstr ""
@@ -992,6 +1018,10 @@ msgstr ""
 #: src/transcribe_ui/gui/selection/widgets.py
 #: src/transcribe_ui/gui/settings/cloud_view.py
 msgid "Name"
+msgstr ""
+
+#: src/transcribe_ui/gui/cloud/key.py
+msgid "Needs a Runpod API key on this computer."
 msgstr ""
 
 #: src/transcribe_ui/gui/review/display.py
@@ -1070,6 +1100,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/download/display.py
 msgid "Not finished yet"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "Not looked yet."
 msgstr ""
 
 #: src/transcribe_ui/gui/settings/account_texts.py
@@ -1652,8 +1686,9 @@ msgid "State"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/run_panel.py
-#: src/transcribe_ui/gui/cloud/sections.py src/transcribe_ui/gui/jobs/view.py
-#: src/transcribe_ui/gui/review/table.py
+#: src/transcribe_ui/gui/cloud/sections.py
+#: src/transcribe_ui/gui/download/others_view.py
+#: src/transcribe_ui/gui/jobs/view.py src/transcribe_ui/gui/review/table.py
 msgid "Status"
 msgstr ""
 
@@ -1871,6 +1906,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/poll.py
 msgid "The cloud could not be checked; retrying at the next check."
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_view.py
+msgid "The cloud holds no job of another computer."
 msgstr ""
 
 #: src/transcribe_ui/i18n/error_texts.py
@@ -2348,6 +2387,14 @@ msgstr ""
 msgid "This computer"
 msgstr ""
 
+#: src/transcribe_ui/gui/cloud/key.py
+msgid ""
+"This computer has no Runpod API key, so it cannot start or stop "
+"transcription or list the cloud machines. Another computer with a Runpod "
+"key starts the transcription of every uploaded job; this computer still "
+"uploads, checks for results and downloads the subtitles."
+msgstr ""
+
 #: src/transcribe_ui/i18n/code_texts.py
 msgid "This could not be read."
 msgstr ""
@@ -2435,6 +2482,7 @@ msgstr ""
 msgid "Transcribe-UI is busy in another window"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/others_display.py
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribed"
 msgstr ""
@@ -2445,6 +2493,11 @@ msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
 msgid "Transcribing"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_display.py
+#, python-brace-format
+msgid "Transcribing: {done} of {total} done"
 msgstr ""
 
 #: src/transcribe_ui/i18n/state_texts.py
@@ -2585,6 +2638,10 @@ msgstr ""
 
 #: src/transcribe_ui/gui/cloud/plan_display.py
 msgid "Waiting for a machine"
+msgstr ""
+
+#: src/transcribe_ui/gui/download/others_display.py
+msgid "Waiting for transcription"
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/poll.py
