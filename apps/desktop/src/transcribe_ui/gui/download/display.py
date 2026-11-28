@@ -114,6 +114,11 @@ def _with_count(text: str, count: int) -> str:
     return text.format(count=format_number(count))
 
 
+def _nonzero(counted: Sequence[tuple[str, int]]) -> list[str]:
+    """Return each text with its count, leaving out the ones whose count is 0."""
+    return [_with_count(text, count) for text, count in counted if count]
+
+
 def _other_parts(counts: Counter[PlacementOutcome]) -> list[str]:
     """Return the summary's parts after the placed count, each only when there are some."""
     replaced = counts["overwrite"]
@@ -124,7 +129,7 @@ def _other_parts(counts: Counter[PlacementOutcome]) -> list[str]:
         (ntr("{count} skipped", "{count} skipped", skipped), skipped),
         (ntr("{count} not finished yet", "{count} not finished yet", unfinished), unfinished),
     )
-    return [_with_count(text, count) for text, count in counted if count]
+    return _nonzero(counted)
 
 
 def plan_summary(entries: Sequence[PlannedPlacement]) -> str:
@@ -151,19 +156,19 @@ def plan_view(plan: PlacementPlan) -> PlanView:
 
 
 def outcome_summary(outcome: DownloadOutcome) -> str:
-    """Return the summary line of a download: files written, skipped, not finished yet, and failures."""
-    text = tr(
-        "Last download: {written} written, {skipped} skipped, {not_finished} not finished yet, "
-        "{failed} could not be placed.",
+    """Return the summary line of a download: files written, and skipped, not finished yet and failed when some are."""
+    written = outcome.written
+    skipped = outcome.skipped
+    unfinished = outcome.not_finished
+    failed = len(outcome.failures)
+    counted = (
+        (ntr("{count} skipped", "{count} skipped", skipped), skipped),
+        (ntr("{count} not finished yet", "{count} not finished yet", unfinished), unfinished),
+        (ntr("{count} could not be placed", "{count} could not be placed", failed), failed),
     )
-    counts = {
-        "written": outcome.written,
-        "skipped": outcome.skipped,
-        "not_finished": outcome.not_finished,
-        "failed": len(outcome.failures),
-    }
-    shown = {key: format_number(count) for key, count in counts.items()}
-    return text.format_map(shown)
+    first = _with_count(ntr("{count} written", "{count} written", written), written)
+    parts = [first, *_nonzero(counted)]
+    return tr("Last download: {parts}.").format(parts=LIST_SEPARATOR.join(parts))
 
 
 def _failure_row(failure: DownloadFailure) -> FailureRow:

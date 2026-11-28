@@ -302,7 +302,8 @@ Built part by part in M6 (`plans/m6.md`); this subsection holds what is built.
   `long` (3 threads: `review_batch`, `run_upload`, `run_download`, `import_custom_plan`,
   `create_retry_batch`, `cleanup_cloud`, `setup_cloud`), `poll` (1 reserved thread:
   `refresh_status`, `reconcile_cloud`) and `short` (3 threads: everything else, so Stop and
-  lists never wait behind an upload). The runnable calls `execute` with the call's `CancelFlag` and a sink;
+  lists never wait behind an upload). `pool_for` picks the pool by request: an
+  `import_custom_plan` with `check_only` writes nothing and goes to `short`. The runnable calls `execute` with the call's `CancelFlag` and a sink;
   start, progress events and the response are emitted on a relay `QObject` living on the GUI
   thread through explicit queued connections, so every callback runs later on the GUI thread,
   in emission order, never inside the call that caused it. Requests, events and responses pass

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Transcribe-UI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-28 07:23+0100\n"
+"POT-Creation-Date: 2026-11-28 07:24+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -738,9 +738,7 @@ msgstr ""
 
 #: src/transcribe_ui/gui/download/display.py
 #, python-brace-format
-msgid ""
-"Last download: {written} written, {skipped} skipped, {not_finished} not "
-"finished yet, {failed} could not be placed."
+msgid "Last download: {parts}."
 msgstr ""
 
 #: src/transcribe_ui/gui/cloud/poll.py
@@ -2410,6 +2408,13 @@ msgstr ""
 msgid "{amount} USD"
 msgstr ""
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} could not be placed"
+msgid_plural "{count} could not be placed"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
 msgid "{count} duplicate removed."
@@ -2477,6 +2482,13 @@ msgstr[1] ""
 #, python-brace-format
 msgid "{count} transcription"
 msgid_plural "{count} transcriptions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} written"
+msgid_plural "{count} written"
 msgstr[0] ""
 msgstr[1] ""
 

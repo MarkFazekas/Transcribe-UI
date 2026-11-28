@@ -272,6 +272,7 @@ setnchannels
 setsampwidth
 sha
 shiboken6
+showwithoutactivating
 side6
 sig
 sighup

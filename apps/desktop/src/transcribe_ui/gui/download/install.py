@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, Qt, QTimer
 
 from transcribe_ui.gui.dialogs import ConfirmationDialog
 from transcribe_ui.gui.download.chooser import FileChooser, QtFileChooser
@@ -35,7 +35,7 @@ class DialogOutlet:
 
     def confirm(self, view: ConfirmationView, on_confirm: Callable[[], None]) -> None:
         """Ask over the download dialog (shown again if it was closed); Confirm calls `on_confirm`."""
-        self.show_dialog()
+        self.show_dialog(activate=True)
         dialog = ConfirmationDialog(view, self.parent or self._window)
         # Deleted once answered (one per question).
         dialog.finished.connect(dialog.deleteLater)
@@ -47,11 +47,15 @@ class DialogOutlet:
         """Open the window's error dialog over the download dialog (its fix buttons open pages, Retry calls `retry`)."""
         self._window.show_error(view, retry, self.parent)
 
-    def show_dialog(self) -> None:
-        """Show the download dialog again if it was closed, on top, without taking the focus."""
-        if self.parent is not None:
-            self.parent.show()
-            self.parent.raise_()
+    def show_dialog(self, *, activate: bool = False) -> None:
+        """Show the download dialog again if it was closed, on top; it takes the focus only with `activate`."""
+        parent = self.parent
+        if parent is None:
+            return
+        parent.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, not activate)
+        parent.show()
+        parent.raise_()
+        parent.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, on=False)
 
 
 class QtDeferral:

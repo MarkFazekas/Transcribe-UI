@@ -788,12 +788,8 @@ msgstr "Utolsó ellenőrzés"
 
 #: src/transcribe_ui/gui/download/display.py
 #, python-brace-format
-msgid ""
-"Last download: {written} written, {skipped} skipped, {not_finished} not "
-"finished yet, {failed} could not be placed."
-msgstr ""
-"Legutóbbi letöltés: {written} kiírva, {skipped} kihagyva, {not_finished} "
-"még nincs kész, {failed} nem sikerült elhelyezni."
+msgid "Last download: {parts}."
+msgstr "Legutóbbi letöltés: {parts}."
 
 #: src/transcribe_ui/gui/cloud/poll.py
 #, python-brace-format
@@ -2614,6 +2610,13 @@ msgstr "igen"
 msgid "{amount} USD"
 msgstr "{amount} USD"
 
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} could not be placed"
+msgid_plural "{count} could not be placed"
+msgstr[0] "{count} nem helyezhető el"
+msgstr[1] "{count} nem helyezhető el"
+
 #: src/transcribe_ui/gui/settings/account_texts.py
 #, python-brace-format
 msgid "{count} duplicate removed."
@@ -2683,6 +2686,13 @@ msgid "{count} transcription"
 msgid_plural "{count} transcriptions"
 msgstr[0] "{count} átírás"
 msgstr[1] "{count} átírás"
+
+#: src/transcribe_ui/gui/download/display.py
+#, python-brace-format
+msgid "{count} written"
+msgid_plural "{count} written"
+msgstr[0] "{count} kiírva"
+msgstr[1] "{count} kiírva"
 
 #: src/transcribe_ui/gui/cloud/display.py
 #, python-brace-format

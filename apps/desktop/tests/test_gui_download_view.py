@@ -18,6 +18,7 @@ from pytestqt.qtbot import QtBot
 
 from support.batches import FIRST_BATCH_ID, media_dir
 from support.download import FILM_ID, seed_download_batch, write_subtitles
+from support.download_gui import Recording
 from support.gated import wait_for
 from support.gui import window_over
 from support.monitor import SUBTITLE
@@ -28,6 +29,7 @@ from transcribe_ui.gui.download.constants import STRATEGY_CHOICES
 from transcribe_ui.gui.download.install import DownloadArea
 from transcribe_ui.gui.download.view import DownloadDialog
 from transcribe_ui.gui.shell import MainWindow
+from transcribe_ui.placement.classes import PlanDownloadRequest
 
 # Jobs of the seeded batch (one row each in the plan table).
 JOBS = 4
@@ -90,11 +92,15 @@ def chooser(window: MainWindow) -> FakeChooser:
     return fake
 
 
-def _open(qtbot: QtBot, window: MainWindow) -> DownloadDialog:
-    window.context.signals.open_download.emit(FIRST_BATCH_ID)
+def _dialog(window: MainWindow) -> DownloadDialog:
     area = window.findChild(DownloadArea)
     assert isinstance(area, DownloadArea)
-    dialog = area.dialogs[FIRST_BATCH_ID]
+    return area.dialogs[FIRST_BATCH_ID]
+
+
+def _open(qtbot: QtBot, window: MainWindow) -> DownloadDialog:
+    window.context.signals.open_download.emit(FIRST_BATCH_ID)
+    dialog = _dialog(window)
     wait_for(qtbot, lambda: dialog.plan_panel.table.rowCount() == JOBS and dialog.download_button.isEnabled())
     return dialog
 
@@ -242,3 +248,21 @@ def test_failures_show_the_closed_dialog_again(
     dialog.reject()
     wait_for(qtbot, lambda: dialog.isVisible() and dialog.run_panel.failures.rowCount() == 1)
     _settle(qtbot, window)
+
+
+def test_count_steps_plan_once_after_the_delay(qtbot: QtBot, world: RunsWorld, tmp_path: Path) -> None:
+    """Two quick steps of the folder count send one `plan_download`, for the last count, once the delay ends."""
+    runner = Recording(world.leg.backend)
+    window = window_over(qtbot, runner, tmp_path)
+    window.context.signals.open_download.emit(FIRST_BATCH_ID)
+    dialog = _dialog(window)
+    dialog.model.edit(strategy="flat_with_folders", output_folder=str(world.leg.root / "out"))
+    wait_for(qtbot, lambda: dialog.model.loaded.view is not None and not dialog.model.loaded.loading)
+    sent = len(runner.requests)
+    dialog.options.folder_names.count.stepUp()
+    dialog.options.folder_names.count.stepUp()
+    wait_for(qtbot, lambda: not dialog.model.loaded.loading)
+    _settle(qtbot, window)
+    plans = [request for request in runner.requests[sent:] if isinstance(request, PlanDownloadRequest)]
+    assert [plan.placement.folder_count for plan in plans] == [3]
+    window.context.executor.close()

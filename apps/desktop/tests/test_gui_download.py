@@ -234,7 +234,7 @@ def test_resume_after_cancel(world: RunsWorld) -> None:
     area.model.run.resume()
     finished = area.shown().run
     assert (finished.status, finished.can_resume, finished.failures) == (activity_state_text("finished"), False, ())
-    expected = "Last download: 2 written, 2 skipped, 0 not finished yet, 0 could not be placed."
+    expected = "Last download: 2 written, 2 skipped."
     assert (finished.outcome, _phase(area)) == (expected, DOWNLOADED)
     downloads = [request for request in area.runner.requests if request.action == "run_download"]
     assert downloads[0] == downloads[1], "Resume sends the same request"
@@ -250,6 +250,7 @@ def test_a_failed_job_is_listed(world: RunsWorld) -> None:
     shown = area.shown().run
     assert [row.problem for row in shown.failures] == ["Film.mkv (en): the subtitle is not in the cloud any more."]
     assert shown.failures[0].target.endswith("Film.en.srt")
+    assert shown.outcome == "Last download: 1 written, 2 skipped, 1 could not be placed."
 
 
 def _export(area: DownloadArea) -> Path:

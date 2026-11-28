@@ -23,7 +23,7 @@ from transcribe_ui.gui.bridge import pool_for
 from transcribe_ui.gui.constants import LONG_POOL, SHORT_POOL
 from transcribe_ui.gui.download.constants import MAX_FOLDER_COUNT
 from transcribe_ui.gui.download.form import form_from_settings
-from transcribe_ui.placement.classes import ImportCustomPlanRequest, PlanDownloadRequest
+from transcribe_ui.placement.classes import ExportCustomPlanRequest, ImportCustomPlanRequest, PlanDownloadRequest
 
 # Output folder of the strategies that need one, below the leg's root.
 OUT = "out"
@@ -139,6 +139,20 @@ def test_an_export_error_has_its_own_retry(area: DownloadArea) -> None:
     area.model.export.export(str(area.leg.root / "missing" / "plan.json"))
     area.model.edit(strategy="mirror")
     assert area.shown().export_error is None, "another strategy forgets the export's error"
+
+
+def test_a_refused_export_keeps_the_retry(world: RunsWorld) -> None:
+    """An export while one is on its way is refused: Retry still exports to the first file."""
+    model, executor = held_model(world.leg)
+    first = str(world.leg.root / "first.json")
+    model.export.export(first)
+    model.export.export(str(world.leg.root / "second.json"))
+    assert [request.action for request in executor.sent] == ["export_custom_plan"]
+    executor.release()
+    model.export.retry()
+    retried = executor.sent[-1]
+    assert isinstance(retried, ExportCustomPlanRequest)
+    assert retried.path == first
 
 
 def test_a_plan_stops_when_cancelled(world: RunsWorld, tmp_path: Path) -> None:

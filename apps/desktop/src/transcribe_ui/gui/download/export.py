@@ -35,7 +35,12 @@ class PlanExport:
         return ExportCustomPlanRequest(action="export_custom_plan", batch_id=self._batch_id, path=target)
 
     def export(self, path: str) -> None:
-        """Write the custom plan to `path`, pre-filled with the mirror folders and the default names."""
+        """Write the custom plan to `path`, pre-filled with the mirror folders and the default names.
+
+        Refused while an export is on its way: Retry's file and the error shown stay as they are.
+        """
+        if self._channel.busy(constants.EXPORT_KEY):
+            return
         self._target = path
         self.clear()
         self._channel.send(constants.EXPORT_KEY, self.build_request(path), self._exported)
